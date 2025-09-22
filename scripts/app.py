@@ -2,6 +2,7 @@ import sys
 
 sys.path.insert(0, f'../')
 import plotly.io as pio
+import plotly.graph_objects as go
 
 import logging
 import os.path
@@ -9,6 +10,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import configparser
+from plotly.subplots import make_subplots
+
 import datetime
 from utils import Constants
 from utils import miscutils
@@ -71,22 +74,15 @@ def load_support_resistance_map_from_file():
 
 
 def draw_w_plotly_w_subplot(df, chart_title='title'):
-    from plotly.subplots import make_subplots
 
-    # df = change_to_uppercase(df)
     logger.info(f"in draw_w_plotly_w_subplot:\n {df[-20:].to_markdown()}")
-    # df = miscutils.convert_column_timezone(df,'date', 'date', from_zone='UTC', to_zone='America/New_York')
 
     df['date'] = pd.to_datetime(df['date'])
+    end_time = df['date'].max()
+    start_time = df['date'].min()
 
     # Set 'date' as the index
     df.set_index('date', inplace=True)
-
-    # logger.info(f"after index:\n{df[-4:].to_markdown()}")
-    pio.renderers.default = 'notebook'  # or try 'notebook_connected'
-    pio.renderers.default = 'notebook_connected'
-
-    import plotly.graph_objects as go
 
     # Create a subplot: (2 rows, shared x-axis)
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
@@ -104,10 +100,7 @@ def draw_w_plotly_w_subplot(df, chart_title='title'):
         name='Candles'
     ), row=1, col=1)
 
-    fig.update_xaxes(showticklabels=True, row=1, col=1)
-
-
-
+    # add volume ...
     fig.add_trace(go.Scatter(
         x=df.index,
         y=df['volume'],
@@ -116,36 +109,40 @@ def draw_w_plotly_w_subplot(df, chart_title='title'):
     ), row=2, col=1)
 
 
-
-
+    #
     fig.update_layout(
         title=f'{chart_title}',
         width=1700,
         height=1200)
 
+    # sometimes slidebar overlaps ... this is the fix.
     fig.update_layout(
         xaxis=dict(rangeslider=dict(visible=True)),
         xaxis2=dict(rangeslider=dict(visible=False)),  # Prevent overlapping in ATR subplot
     )
 
+    # fix for slide bar range ..
     fig.update_layout(
         xaxis=dict(
             rangeslider=dict(
                 visible=True,
+                range=[start_time, end_time],  # limit slider to last 4 hours
                 thickness=0.05  # Smaller value = thinner slider (default is ~0.1)
             )
         )
     )
+    # chart is based on UTC, so we cut the chart ...
+    fig.update_xaxes(range=[start_time, end_time], row=1, col=1)
+    fig.update_xaxes(range=[start_time, end_time], row=2, col=1)
 
-    #fig.show()
     return fig
 
 
 def add_support_resistance(fig, symbol, support_resistance_map):
     support = support_resistance_map.get(f'{symbol}-1min-previous_day-RTH-high', -1)
     resistance = support_resistance_map.get(f'{symbol}-1min-previous_day-RTH-low',-1)
-    fig.add_hline(y=support, line_color="green", line_dash = "dash" , annotation_text = f"Line @ {support}")
-    fig.add_hline(y=resistance, line_color="blue", line_dash = "dash", annotation_text = f"Line @ {resistance}")
+    fig.add_hline(y=support, line_color="green", line_dash = "dash" , annotation_text = f"PDH @ {support}")
+    fig.add_hline(y=resistance, line_color="blue", line_dash = "dash", annotation_text = f"PDL @ {resistance}")
 
     return fig
 
@@ -190,7 +187,6 @@ def chart_orch(df, portfolio_id='p700', symbol='TSLA', time_frame='1min'):
     last_order_date = df.iloc[-1]['date']
     logger.info(f"first_order_date: {first_order_date}, last_order_date: {last_order_date} , len(df): {len(df)} chart_1m_candles: {app_config['chart_1m_candles']}")
 
-
     # draw plots
     fig = draw_w_plotly_w_subplot(df, chart_title=f'{symbol}-{time_frame}')
     logger.info(f"\n{df[-10:].to_markdown()}")
@@ -199,9 +195,9 @@ def chart_orch(df, portfolio_id='p700', symbol='TSLA', time_frame='1min'):
 
 @app.route('/')
 def index():
+
     portfolio_id = 'p250'
     app_config = load_app_config(portfolio_id)
-    #
     support_resistance_map = load_support_resistance_map_from_file()
 
     plots = []

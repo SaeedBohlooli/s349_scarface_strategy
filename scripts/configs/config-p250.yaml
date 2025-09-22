@@ -1,6 +1,9 @@
 
-symbols: ['TSLA', 'AAPL']
+symbols: ['QQQ', 'TSLA', 'AAPL']
 historical_days: 8 D
 # 60min  * 12hrs
-chart_1m_candles: 720
+chart_1m_candles: 360
+
+
+run_should_take_seconds: 60
 

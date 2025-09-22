@@ -111,7 +111,7 @@ def get_market_data_befre_market_start(time_frame = '1 day'):
         logger.info(f"symbol: {symbol}, time_frame: {time_frame} ")
         contract = create_contract(symbol)
 
-        df = get_historical_data(contract,app_config['historical_days'], time_frame)
+        df = get_historical_data(contract, app_config['historical_days'], time_frame)
         time_frame_x = time_frame.replace(' ', '')
         df.to_csv(f"{portfolio_dir}/{symbol}-{time_frame_x}.csv")
         symbols_time_frame_df_map[f'{symbol}-{time_frame_x}'] = df
@@ -171,6 +171,16 @@ def calculate_support_resitance_for_t_min_1():
         support_resistance_map[f'{symbol}-{time_frame}-previous_day-RTH-low'] = day_low
     return
 
+
+def is_between(now=None, start_str="9:25", end_str="10:00"):
+    if now is None:
+        now = datetime.datetime.now().time()
+
+    # parse strings into time objects
+    start = datetime.datetime.strptime(start_str, "%H:%M").time()
+    end = datetime.datetime.strptime(end_str, "%H:%M").time()
+
+    return start <= now <= end
 def generate_support_resitance_for_t_min_1_report():
     file_path = os.path.join(charts_dir, 'support_resistance_1min_previous_day.json')
 
@@ -180,6 +190,19 @@ def generate_support_resitance_for_t_min_1_report():
         logger.info(f"saving at file_path: {file_path}")
         json.dump(support_resistance_map, f, indent=4)
         logger.info(f"saving done. ")
+
+def sleep_enough():
+    run_spend_time = round(end_time - start_time, 2)
+    if is_between():
+        logger.warning(f'{j}) run_spend_time: {run_spend_time} seconds')
+    else:
+        run_should_take = app_config['run_should_take_seconds']
+        need_sleep_seconds = 0
+        if run_spend_time < run_should_take:
+            need_sleep_seconds = run_should_take - run_spend_time
+        logger.warning(f'{j}) run_spend_time: {run_spend_time} seconds, run_should_take: {run_should_take}')
+        time.sleep(need_sleep_seconds)
+    return
 
 if __name__ == "__main__":
     app_config = load_app_config(portfolio_id)
@@ -192,8 +215,19 @@ if __name__ == "__main__":
     get_market_data_befre_market_start('1 min')
     calculate_support_resitance_for_t_min_1()
     generate_support_resitance_for_t_min_1_report()
+    j = 0
     while True:
+        start_time = time.time()
+        j += 1
+        now = datetime.datetime.now()
+        run_date_time = now.strftime("%Y-%m-%d__%H-%M")
+        logger.info(f"==================== j: {j}  run_date_time: {run_date_time}")
+
         get_market_data_befre_market_start('1 min')
         generate_for_chart()
-        pass
-        break
+
+        end_time = time.time()
+
+        sleep_enough()
+        # pass
+        # break
