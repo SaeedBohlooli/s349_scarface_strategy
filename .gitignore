@@ -15,7 +15,7 @@
 #**/*.html
 **/*.log
 **/*.pkl
-**/*.txt
+#**/*.txt
 **/*.bak
 **/*.jpg
 **/local-config.cnf
