@@ -1,0 +1,35 @@
+<!--<!DOCTYPE html>-->
+<!--<html>-->
+<!--<head>-->
+<!--    <title>Plotly Charts</title>-->
+<!--</head>-->
+<!--<body>-->
+<!--    <h1>Plot 1</h1>-->
+<!--    {{ plot1|safe }}-->
+
+<!--&lt;!&ndash;    <h1>Plot 2</h1>&ndash;&gt;-->
+<!--&lt;!&ndash;    {{ plot2|safe }}&ndash;&gt;-->
+
+
+<!--&lt;!&ndash;    <h1>Plot 3</h1>&ndash;&gt;-->
+<!--&lt;!&ndash;    {{ plot3|safe }}&ndash;&gt;-->
+
+<!--&lt;!&ndash;    <h1>Plot 4</h1>&ndash;&gt;-->
+<!--&lt;!&ndash;    {{ plot4|safe }}&ndash;&gt;-->
+<!--</body>-->
+<!--</html>-->
+
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dynamic Plots</title>
+</head>
+<body>
+    {% for plot in plots %}
+        <div class="plot-container">
+            {{ plot|safe }}
+        </div>
+    {% endfor %}
+</body>
+</html>

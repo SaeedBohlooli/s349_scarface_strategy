@@ -1,0 +1,6 @@
+
+symbols: ['TSLA', 'AAPL']
+historical_days: 8 D
+# 60min  * 12hrs
+chart_1m_candles: 720
+
