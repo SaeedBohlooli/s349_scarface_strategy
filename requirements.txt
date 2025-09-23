@@ -30,3 +30,4 @@ ib_insync
 ruamel.yaml
 flask
 plotly
+tabulate
