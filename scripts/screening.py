@@ -1,3 +1,4 @@
+from tabulate import tabulate
 from ib_insync import *
 import pprint
 import logging
@@ -107,16 +108,15 @@ def get_historical_data(contract, historical_days, time_frame):
 # ###
 def get_market_data_befre_market_start(time_frame = '1 day'):
     global symbols_time_frame_df_map
-    for symbol in app_config['symbols']:
-        logger.info(f"symbol: {symbol}, time_frame: {time_frame} ")
-        contract = create_contract(symbol)
+    logger.info(f"symbol: {symbol}, time_frame: {time_frame} ")
+    contract = create_contract(symbol)
 
-        df = get_historical_data(contract, app_config['historical_days'], time_frame)
-        time_frame_x = time_frame.replace(' ', '')
-        df.to_csv(f"{portfolio_dir}/{symbol}-{time_frame_x}.csv")
-        symbols_time_frame_df_map[f'{symbol}-{time_frame_x}'] = df
-        logger.info(f"in get_market_data_befre_market_start: \n{df[-5:].to_markdown()}")
-    return
+    df = get_historical_data(contract, app_config['historical_days'], time_frame)
+    time_frame_x = time_frame.replace(' ', '')
+    df.to_csv(f"{portfolio_dir}/{symbol}-{time_frame_x}.csv")
+    symbols_time_frame_df_map[f'{symbol}-{time_frame_x}'] = df
+    logger.info(f"in get_market_data_befre_market_start: \n{df[-5:].to_markdown()}")
+    return df
 
 def create_contract(symbol):
     if symbol == 'MNQ':
@@ -132,15 +132,11 @@ def create_contract(symbol):
         contract = Stock(symbol, 'SMART', 'USD')
     return contract
 
-def generate_for_chart():
-    for x, df in symbols_time_frame_df_map.items():
-        logger.info(f"x: {x}, len(df): {len(df)}")
-        parts = x.split("-")
-        symbol = parts[0]
-        time_frame = parts[1]
-        df = df[['date','open','close', 'high', 'low', 'volume']]
-        file = f"{charts_dir}/{symbol}-{time_frame}.csv"
-        df.to_csv(file, index=False, mode='w')
+def create_ohlc_for_chart(df):
+    logger.info(f"in generate_for_chart, symbol: {symbol}, len(df): {len(df)}")
+    df = df[['date','open','close', 'high', 'low', 'volume']]
+    file = f"{charts_dir}/{symbol}-{time_frame.replace(' ', '')}.csv"
+    df.to_csv(file, index=False, mode='w')
 
 def calculate_support_resitance_for_t_min_1():
     global support_resistance_map
@@ -167,9 +163,27 @@ def calculate_support_resitance_for_t_min_1():
         logger.info(f"Previous weekday RTH High: {day_high}")
         logger.info(f"Previous weekday RTH Low: {day_low}" )
 
-        support_resistance_map[f'{symbol}-{time_frame}-previous_day-RTH-high'] = day_high
-        support_resistance_map[f'{symbol}-{time_frame}-previous_day-RTH-low'] = day_low
+        add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame,  object='dash', color='Blue', price_1=day_high, memo=f'PDH {day_high}', unique_id=f'{symbol}-{time_frame}-PDH' )
+        add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame,  object='dash', color='Blue', price_1=day_low, memo=f'PDL {day_low}' , unique_id=f'{symbol}-{time_frame}-LDH' )
     return
+
+
+def add_to_drawing_objects_df(symbol='TSLA', time_frame='1m', object='dash', color='', date_1='', price_1=0, date_2='', price_2=0, memo = '', unique_id = 1 ):
+    global drawing_objects_df
+    data = {
+        'symbol':  symbol,
+        'time_frame': time_frame.replace(' ', ''),
+        'object': object,  #  ['solid', 'dot', 'dash', 'longdash', 'dashdot', 'longdashdot']
+        'color': color,
+        'date_1': date_1,
+        'price_1': price_1,
+        'date_2': date_2,
+        'price_2': price_2,
+        'memo': memo,
+        'unique_id': unique_id
+
+    }
+    drawing_objects_df = pd.concat([drawing_objects_df, pd.DataFrame([data])], ignore_index=True)
 
 
 def is_between(now=None, start_str="9:25", end_str="10:00"):
@@ -181,15 +195,15 @@ def is_between(now=None, start_str="9:25", end_str="10:00"):
     end = datetime.datetime.strptime(end_str, "%H:%M").time()
 
     return start <= now <= end
-def generate_support_resitance_for_t_min_1_report():
-    file_path = os.path.join(charts_dir, 'support_resistance_1min_previous_day.json')
-
-    logger.warning(f"support_resistance_map:\n{pprint.pformat(support_resistance_map)}")
-
-    with open(file_path, 'w') as f:
-        logger.info(f"saving at file_path: {file_path}")
-        json.dump(support_resistance_map, f, indent=4)
-        logger.info(f"saving done. ")
+# def write_support_resitance_for_t_min_1_report():
+#     file_path = os.path.join(charts_dir, 'support_resistance_1min_previous_day.json')
+#
+#     logger.warning(f"support_resistance_map:\n{pprint.pformat(support_resistance_map)}")
+#
+#     with open(file_path, 'w') as f:
+#         logger.info(f"saving at file_path: {file_path}")
+#         json.dump(support_resistance_map, f, indent=4)
+#         logger.info(f"saving done. ")
 
 def sleep_enough():
     run_spend_time = round(end_time - start_time, 2)
@@ -204,17 +218,87 @@ def sleep_enough():
         time.sleep(need_sleep_seconds)
     return
 
+
+def find_session_high_and_low(df, start="09:30", end="09:35"):
+    """
+    Return the high between start and end time for the current day.
+    Only calculates if the latest candle is past end time.
+    """
+    # ensure datetime
+    df['date'] = pd.to_datetime(df['date'])
+
+    # get current day from latest row
+    current_day = df['date'].dt.date.max()
+
+    # check if we passed the end time
+    latest_time = df['date'].max().time()
+    end_time = pd.to_datetime(end).time()
+    start_time = pd.to_datetime(start).time()
+#  (df['date'].dt.date == current_day) &
+    if latest_time >= end_time:
+        mask = (
+                (df['date'].dt.date == current_day) &
+                (df['date'].dt.time >= start_time) &
+                (df['date'].dt.time <= end_time)
+        )
+        return df.loc[mask, 'low'].min(), df.loc[mask, 'high'].max()
+        #return df.loc[mask, 'high'][-1], df.loc[mask, 'low'][-1]
+    else:
+        return None  # not yet past end time
+
+def add_5_mins_low_high_to_drawing_objects_df(low_for_5_min, high_for_5_min):
+
+    add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dash', color='Red', price_1=low_for_5_min, memo=f'low for 5 mins {low_for_5_min}', unique_id=f'{symbol}-{time_frame}-LOW_5_MIN')
+    add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dash', color ='Red', price_1=high_for_5_min, memo=f'high for 5 mins {high_for_5_min}', unique_id=f'{symbol}-{time_frame}-HIGH_5_MIN')
+
+    return
+
+
+def drop_dupplicates(file_path, unique_column=None, keep='last'):
+    # Drop dupplicaes
+    if os.path.exists(file_path):
+        df = pd.read_csv(file_path)
+        if unique_column is None:
+            df = df.drop_duplicates(keep=f'{keep}')
+        else: # has fields ...
+            df = df.drop_duplicates(subset=[f'{unique_column}'], keep=f'{keep}')
+        df.to_csv(file_path, index=False, mode='w')
+    return
+def save_df_to_csv_a_tabular(df=None, file_name='', mode='w', dir=''):
+    if len(df) > 0:
+        file = f'{dir}/{file_name}'
+        df.to_csv(file, mode=mode, index=False)  # , header=not os.path.exists(file),index=False
+        drop_dupplicates(file, unique_column='unique_id')  # 'event'
+        write_file_in_tabulate(src_file_path=file)
+    return
+
+def write_file_in_tabulate(src_file_path, dest_file_path= None):
+
+    df = pd.read_csv(src_file_path)
+    if len(df) > 0:
+        if dest_file_path is None:
+            dest_file_path = f"{src_file_path}-txt.csv"
+        # Convert only object and bool columns to string (vectorized)
+        # FIXME not happy to do that as may affect performance ...
+        # for col in df.select_dtypes(include=['object', 'bool']):
+        #     df[col] = df[col].astype(str)
+        with open(dest_file_path, 'w') as f:
+            f.write(tabulate(df.astype(str), headers='keys', tablefmt='psql'))
+    return
+
 if __name__ == "__main__":
     app_config = load_app_config(portfolio_id)
     ib_config = load_ib_config()
     ib = create_ib_connection()
     symbols_time_frame_df_map = {}
-    support_resistance_map = {}
+    # support_resistance_map = {}
+    drawing_objects_df = pd.DataFrame()
 
-    get_market_data_befre_market_start('1 day')
-    get_market_data_befre_market_start('1 min')
-    calculate_support_resitance_for_t_min_1()
-    generate_support_resitance_for_t_min_1_report()
+    for symbol in app_config['symbols']:
+        get_market_data_befre_market_start('1 day')
+        get_market_data_befre_market_start('1 min')
+        calculate_support_resitance_for_t_min_1()
+        # write_support_resitance_for_t_min_1_report()
     j = 0
     while True:
         start_time = time.time()
@@ -222,11 +306,16 @@ if __name__ == "__main__":
         now = datetime.datetime.now()
         run_date_time = now.strftime("%Y-%m-%d__%H-%M")
         logger.info(f"==================== j: {j}  run_date_time: {run_date_time}")
+        for symbol in app_config['symbols']:
+            time_frame = '1 min'
+            df = get_market_data_befre_market_start('1 min')
+            create_ohlc_for_chart(df)
+            low_for_5_min, high_for_5_min  = find_session_high_and_low(df, start="09:30", end="09:35")
+            add_5_mins_low_high_to_drawing_objects_df(low_for_5_min, high_for_5_min)
 
-        get_market_data_befre_market_start('1 min')
-        generate_for_chart()
+            save_df_to_csv_a_tabular(drawing_objects_df, '10-drawing_objects_df.csv', mode='w', dir=charts_dir)
 
-        end_time = time.time()
+            end_time = time.time()
 
         sleep_enough()
         # pass
