@@ -244,7 +244,7 @@ def find_session_high_and_low(df, start="09:30", end="09:35"):
         return df.loc[mask, 'low'].min(), df.loc[mask, 'high'].max()
         #return df.loc[mask, 'high'][-1], df.loc[mask, 'low'][-1]
     else:
-        return None  # not yet past end time
+        return -1, -1  # not yet past end time
 
 def add_5_mins_low_high_to_drawing_objects_df(low_for_5_min, high_for_5_min):
 
@@ -287,6 +287,8 @@ def write_file_in_tabulate(src_file_path, dest_file_path= None):
     return
 
 if __name__ == "__main__":
+
+
     app_config = load_app_config(portfolio_id)
     ib_config = load_ib_config()
     ib = create_ib_connection()
@@ -310,8 +312,9 @@ if __name__ == "__main__":
             time_frame = '1 min'
             df = get_market_data_befre_market_start('1 min')
             create_ohlc_for_chart(df)
-            low_for_5_min, high_for_5_min  = find_session_high_and_low(df, start="09:30", end="09:35")
-            add_5_mins_low_high_to_drawing_objects_df(low_for_5_min, high_for_5_min)
+            low_for_5_min, high_for_5_min = find_session_high_and_low(df, start="09:30", end="09:35")
+            if low_for_5_min != -1:
+                add_5_mins_low_high_to_drawing_objects_df(low_for_5_min, high_for_5_min)
 
             save_df_to_csv_a_tabular(drawing_objects_df, '10-drawing_objects_df.csv', mode='w', dir=charts_dir)
 
