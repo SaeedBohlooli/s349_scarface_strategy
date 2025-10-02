@@ -48,6 +48,8 @@ const TradingChart: React.FC<TradingChartProps> = ({
       },
       timeScale: {
         borderColor: "#485c7b",
+        timeVisible: true,
+        secondsVisible: false,
       },
       rightPriceScale: {
         borderColor: "#485c7b",
@@ -135,6 +137,94 @@ const TradingChart: React.FC<TradingChartProps> = ({
     };
 
     window.addEventListener("resize", handleResize);
+
+    // Create tooltip element
+    const tooltip = document.createElement("div");
+    tooltip.style.width = "220px";
+    tooltip.style.height = "auto";
+    tooltip.style.position = "absolute";
+    tooltip.style.display = "none";
+    tooltip.style.padding = "8px";
+    tooltip.style.boxSizing = "border-box";
+    tooltip.style.fontSize = "12px";
+    tooltip.style.color = "#d1d4dc";
+    tooltip.style.backgroundColor = "#2d3748";
+    tooltip.style.border = "1px solid #4a5568";
+    tooltip.style.borderRadius = "4px";
+    tooltip.style.pointerEvents = "none";
+    tooltip.style.zIndex = "1000";
+    tooltip.style.fontFamily = "monospace";
+    chartContainerRef.current.appendChild(tooltip);
+
+    // Add crosshair move handler for tooltip
+    chart.subscribeCrosshairMove((param) => {
+      if (
+        param.point === undefined ||
+        !param.time ||
+        param.point.x < 0 ||
+        param.point.x > chartWidth ||
+        param.point.y < 0 ||
+        param.point.y > height
+      ) {
+        tooltip.style.display = "none";
+      } else {
+        const data = param.seriesData.get(series);
+        if (data) {
+          const timeNumber =
+            typeof param.time === "number" ? param.time : Number(param.time);
+          const date = new Date(timeNumber * 1000);
+          const dateStr = date.toLocaleDateString();
+          const timeStr = date.toLocaleTimeString();
+          const ohlcData = data as {
+            open?: number;
+            high?: number;
+            low?: number;
+            close?: number;
+          };
+
+          tooltip.style.display = "block";
+          tooltip.innerHTML = `
+            <div style="font-weight: bold; margin-bottom: 4px;">${symbol}</div>
+            <div style="margin-bottom: 2px;">📅 ${dateStr}</div>
+            <div style="margin-bottom: 2px;">🕒 ${timeStr}</div>
+            <div style="margin-bottom: 2px;">🔴 Open: ${
+              ohlcData.open?.toFixed(4) || "N/A"
+            }</div>
+            <div style="margin-bottom: 2px;">🟢 High: ${
+              ohlcData.high?.toFixed(4) || "N/A"
+            }</div>
+            <div style="margin-bottom: 2px;">🔴 Low: ${
+              ohlcData.low?.toFixed(4) || "N/A"
+            }</div>
+            <div>⚪ Close: ${ohlcData.close?.toFixed(4) || "N/A"}</div>
+          `;
+
+          const tooltipWidth = 220;
+          const tooltipHeight = 140;
+          const x = param.point.x;
+          const y = param.point.y;
+
+          // Position tooltip to avoid going off-screen
+          let left = x + 15;
+          let top = y - 10;
+
+          if (left + tooltipWidth > chartWidth) {
+            left = x - tooltipWidth - 15;
+          }
+
+          if (top + tooltipHeight > height) {
+            top = y - tooltipHeight - 10;
+          }
+
+          if (top < 0) {
+            top = 10;
+          }
+
+          tooltip.style.left = left + "px";
+          tooltip.style.top = top + "px";
+        }
+      }
+    });
 
     return () => {
       window.removeEventListener("resize", handleResize);
