@@ -1,9 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import {
-  createChart,
-  CandlestickSeries,
-  LineSeries,
-} from "lightweight-charts";
+import { createChart, CandlestickSeries, LineSeries } from "lightweight-charts";
 import type { UTCTimestamp } from "lightweight-charts";
 import type { OHLCData, SymbolLevels } from "../types/api";
 
@@ -47,9 +43,9 @@ const TradingChart: React.FC<TradingChartProps> = ({
       setIsFullscreen(!!document.fullscreenElement);
     };
 
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
     return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
     };
   }, []);
 
@@ -244,9 +240,9 @@ const TradingChart: React.FC<TradingChartProps> = ({
       if (chartContainerRef.current) {
         const newWidth = chartContainerRef.current.offsetWidth;
         const newHeight = isFullscreen ? window.innerHeight : height;
-        chart.applyOptions({ 
+        chart.applyOptions({
           width: newWidth,
-          height: newHeight 
+          height: newHeight,
         });
       }
     };
@@ -255,7 +251,7 @@ const TradingChart: React.FC<TradingChartProps> = ({
     if (isFullscreen && chartContainerRef.current) {
       chart.applyOptions({
         width: chartContainerRef.current.offsetWidth,
-        height: window.innerHeight
+        height: window.innerHeight,
       });
     }
 
@@ -325,7 +321,7 @@ const TradingChart: React.FC<TradingChartProps> = ({
             borderRadius: "4px",
           }}
         />
-        
+
         {/* Fullscreen Button */}
         <button
           onClick={toggleFullscreen}
