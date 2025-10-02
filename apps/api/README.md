@@ -37,22 +37,24 @@ npm run watch
 ## API Endpoints
 
 ### Base URL
+
 `http://localhost:3000`
 
 ### Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/health` | Health check |
-| GET | `/api/v1/files` | List available files, symbols, and timeframes |
-| GET | `/api/v1/data/:symbol/:timeframe` | Get OHLC data for a symbol |
-| POST | `/api/v1/data/multiple` | Get data for multiple symbols |
-| GET | `/api/v1/drawing-objects` | Get drawing objects data |
-| GET | `/api/v1/stats/:symbol/:timeframe` | Get basic statistics |
+| Method | Endpoint                           | Description                                   |
+| ------ | ---------------------------------- | --------------------------------------------- |
+| GET    | `/health`                          | Health check                                  |
+| GET    | `/api/v1/files`                    | List available files, symbols, and timeframes |
+| GET    | `/api/v1/data/:symbol/:timeframe`  | Get OHLC data for a symbol                    |
+| POST   | `/api/v1/data/multiple`            | Get data for multiple symbols                 |
+| GET    | `/api/v1/drawing-objects`          | Get drawing objects data                      |
+| GET    | `/api/v1/stats/:symbol/:timeframe` | Get basic statistics                          |
 
 ### Query Parameters
 
 #### `/api/v1/data/:symbol/:timeframe`
+
 - `page` - Page number for pagination
 - `limit` - Number of records per page
 - `startDate` - Filter by start date (YYYY-MM-DD format)
@@ -88,6 +90,7 @@ curl http://localhost:3000/api/v1/drawing-objects
 ## Data Format
 
 ### OHLC Data Response
+
 ```json
 {
   "success": true,
@@ -115,6 +118,7 @@ curl http://localhost:3000/api/v1/drawing-objects
 ```
 
 ### File List Response
+
 ```json
 {
   "success": true,
@@ -144,6 +148,7 @@ src/
 ## Configuration
 
 The API reads data from the portfolios directory structure:
+
 ```
 portfolios/
 └── charts/
@@ -157,6 +162,8 @@ portfolios/
 ## Testing
 
 Run the test formatter:
-```bash
+
+````bash
 npm run dev src/examples/testFormatter.ts
-```" 
+```"
+````
