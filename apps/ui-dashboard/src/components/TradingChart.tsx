@@ -21,7 +21,10 @@ const TradingChart: React.FC<TradingChartProps> = ({
   timeframe,
 }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const chartRef = useRef<any>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [selectedTimeRange, setSelectedTimeRange] = useState<string>("All");
 
   // Auto-detect timeframe from data if not provided
   const detectTimeframe = (): string => {
@@ -46,6 +49,43 @@ const TradingChart: React.FC<TradingChartProps> = ({
   };
 
   const detectedTimeframe = detectTimeframe();
+
+  // Time range selector configuration - common trading timeframes
+  const timeRanges = [
+    { label: "1H", hours: 1 },
+    { label: "4H", hours: 4 },
+    { label: "1D", hours: 24 },
+    { label: "3D", hours: 72 },
+    { label: "1W", hours: 168 },
+    { label: "1M", hours: 720 },
+    { label: "All", hours: -1 }, // Show all data
+  ];
+
+  // Function to set visible time range on the chart
+  const setTimeRange = (range: string, hours: number) => {
+    if (!chartRef.current) return;
+
+    setSelectedTimeRange(range);
+
+    if (hours === -1) {
+      // Show all data
+      chartRef.current.timeScale().fitContent();
+    } else {
+      // Calculate time range based on hours from the data
+      if (data.length === 0) return;
+
+      // Get the latest timestamp from our data
+      const latestTimestamp = Math.floor(
+        new Date(data[data.length - 1].date).getTime() / 1000
+      ) as UTCTimestamp;
+      const fromTimestamp = (latestTimestamp - hours * 60 * 60) as UTCTimestamp;
+
+      chartRef.current.timeScale().setVisibleRange({
+        from: fromTimestamp,
+        to: latestTimestamp,
+      });
+    }
+  };
 
   const toggleFullscreen = () => {
     if (!chartContainerRef.current) return;
@@ -145,6 +185,9 @@ const TradingChart: React.FC<TradingChartProps> = ({
         },
       },
     });
+
+    // Store chart reference for time range operations
+    chartRef.current = chart;
 
     // Add candlestick series with blue/yellow colors
     const series = chart.addSeries(CandlestickSeries, {
@@ -337,6 +380,62 @@ const TradingChart: React.FC<TradingChartProps> = ({
           )}
         </p>
       </div>
+
+      {/* Time Range Selector */}
+      <div
+        style={{
+          marginBottom: "10px",
+          padding: "8px",
+          backgroundColor: "#1a202c",
+          borderRadius: "5px",
+          border: "1px solid #4a5568",
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          flexWrap: "wrap",
+        }}
+      >
+        <span
+          style={{ color: "#a0aec0", fontSize: "0.9rem", fontWeight: "500" }}
+        >
+          Time Range:
+        </span>
+        {timeRanges.map((range) => (
+          <button
+            key={range.label}
+            onClick={() => setTimeRange(range.label, range.hours)}
+            style={{
+              padding: "4px 12px",
+              fontSize: "0.85rem",
+              fontWeight: "500",
+              border: "1px solid",
+              borderRadius: "4px",
+              cursor: "pointer",
+              transition: "all 0.2s",
+              backgroundColor:
+                selectedTimeRange === range.label ? "#3182ce" : "transparent",
+              borderColor:
+                selectedTimeRange === range.label ? "#3182ce" : "#4a5568",
+              color: selectedTimeRange === range.label ? "#ffffff" : "#a0aec0",
+            }}
+            onMouseOver={(e) => {
+              if (selectedTimeRange !== range.label) {
+                e.currentTarget.style.backgroundColor = "#2d3748";
+                e.currentTarget.style.borderColor = "#718096";
+              }
+            }}
+            onMouseOut={(e) => {
+              if (selectedTimeRange !== range.label) {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.borderColor = "#4a5568";
+              }
+            }}
+          >
+            {range.label}
+          </button>
+        ))}
+      </div>
+
       <div style={{ position: "relative" }}>
         <div
           ref={chartContainerRef}
@@ -346,30 +445,32 @@ const TradingChart: React.FC<TradingChartProps> = ({
             border: "1px solid #4a5568",
             margin: "0",
             borderRadius: "4px",
-          }}
-        />
-        {/* Ticker Symbol & Timeframe Watermark - TradingView Style */}
-        <div
-          style={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            color: "rgba(255, 255, 255, 0.03)",
-            fontSize: isFullscreen ? "110px" : "80px",
-            fontWeight: "900",
-            fontFamily:
-              "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-            pointerEvents: "none",
-            zIndex: 50,
-            userSelect: "none",
-            letterSpacing: "8px",
-            textAlign: "center",
-            lineHeight: "1",
+            position: "relative", // Ensure this is the positioning context
           }}
         >
-          {symbol}/{detectedTimeframe.toUpperCase()}
-        </div>{" "}
+          {/* Ticker Symbol & Timeframe Watermark - TradingView Style */}
+          <div
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              color: "rgba(255, 255, 255, 0.03)",
+              fontSize: isFullscreen ? "110px" : "80px",
+              fontWeight: "900",
+              fontFamily:
+                "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+              pointerEvents: "none",
+              zIndex: 1000,
+              userSelect: "none",
+              letterSpacing: "8px",
+              textAlign: "center",
+              lineHeight: "1",
+            }}
+          >
+            {symbol}/{detectedTimeframe.toUpperCase()}
+          </div>
+        </div>
         {/* Fullscreen Button */}
         <button
           onClick={toggleFullscreen}
