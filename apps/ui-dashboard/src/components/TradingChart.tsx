@@ -34,7 +34,7 @@ const TradingChart: React.FC<TradingChartProps> = ({
     const containerWidth = chartContainerRef.current.offsetWidth;
     const chartWidth = width || containerWidth || 800;
 
-    // Create chart with dark theme
+    // Create chart with dark theme and timezone configuration
     const chart = createChart(chartContainerRef.current, {
       width: chartWidth,
       height,
@@ -46,10 +46,35 @@ const TradingChart: React.FC<TradingChartProps> = ({
         vertLines: { color: "#2a2a2a" },
         horzLines: { color: "#2a2a2a" },
       },
+      localization: {
+        timeFormatter: (time: UTCTimestamp) => {
+          // Convert UTC timestamp to EST for tooltip display
+          const date = new Date(time * 1000);
+          return date.toLocaleString("en-US", {
+            timeZone: "America/New_York",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+          });
+        },
+        dateFormat: "dd MMM yyyy",
+      },
       timeScale: {
         borderColor: "#485c7b",
         timeVisible: true,
         secondsVisible: false,
+        tickMarkFormatter: (time: UTCTimestamp) => {
+          // Convert UTC timestamp to EST for display on time axis
+          const date = new Date(time * 1000);
+          return date.toLocaleString("en-US", {
+            timeZone: "America/New_York",
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          });
+        },
       },
       rightPriceScale: {
         borderColor: "#485c7b",
@@ -67,18 +92,36 @@ const TradingChart: React.FC<TradingChartProps> = ({
 
     // Convert our API data to the format expected by lightweight-charts
     // Use Unix timestamps to handle intraday data properly
-    const chartData = data.map((item) => ({
-      time: Math.floor(new Date(item.date).getTime() / 1000) as UTCTimestamp,
-      open: item.open,
-      high: item.high,
-      low: item.low,
-      close: item.close,
-    }));
+    const chartData = data.map((item) => {
+      const jsDate = new Date(item.date);
+      const timestamp = Math.floor(jsDate.getTime() / 1000) as UTCTimestamp;
 
-    console.log("Converted chart data:", chartData.slice(0, 3));
+      return {
+        time: timestamp,
+        open: item.open,
+        high: item.high,
+        low: item.low,
+        close: item.close,
+      };
+    });
+
+    // Sort by time and remove any potential duplicates
+    chartData.sort((a, b) => a.time - b.time);
+
+    // Remove duplicates while keeping the latest data for each timestamp
+    const deduplicatedData = chartData.filter(
+      (item, index) => index === 0 || item.time !== chartData[index - 1].time
+    );
+
+    console.log("Chart data summary:", {
+      original: data.length,
+      processed: deduplicatedData.length,
+      first: deduplicatedData[0],
+      last: deduplicatedData[deduplicatedData.length - 1],
+    });
 
     // Set the data
-    series.setData(chartData);
+    series.setData(deduplicatedData);
 
     // Add support/resistance levels if available
     if (levels) {
@@ -114,10 +157,14 @@ const TradingChart: React.FC<TradingChartProps> = ({
             });
 
             // Create horizontal line data points
-            const levelData = [
-              { time: firstTime, value: price },
-              { time: lastTime, value: price },
-            ];
+            // Ensure we have at least 2 different timestamps for the line
+            const levelData =
+              firstTime === lastTime
+                ? [{ time: firstTime, value: price }] // Single point if same time
+                : [
+                    { time: firstTime, value: price },
+                    { time: lastTime, value: price },
+                  ];
 
             levelSeries.setData(levelData);
           }
@@ -137,94 +184,6 @@ const TradingChart: React.FC<TradingChartProps> = ({
     };
 
     window.addEventListener("resize", handleResize);
-
-    // Create tooltip element
-    const tooltip = document.createElement("div");
-    tooltip.style.width = "220px";
-    tooltip.style.height = "auto";
-    tooltip.style.position = "absolute";
-    tooltip.style.display = "none";
-    tooltip.style.padding = "8px";
-    tooltip.style.boxSizing = "border-box";
-    tooltip.style.fontSize = "12px";
-    tooltip.style.color = "#d1d4dc";
-    tooltip.style.backgroundColor = "#2d3748";
-    tooltip.style.border = "1px solid #4a5568";
-    tooltip.style.borderRadius = "4px";
-    tooltip.style.pointerEvents = "none";
-    tooltip.style.zIndex = "1000";
-    tooltip.style.fontFamily = "monospace";
-    chartContainerRef.current.appendChild(tooltip);
-
-    // Add crosshair move handler for tooltip
-    chart.subscribeCrosshairMove((param) => {
-      if (
-        param.point === undefined ||
-        !param.time ||
-        param.point.x < 0 ||
-        param.point.x > chartWidth ||
-        param.point.y < 0 ||
-        param.point.y > height
-      ) {
-        tooltip.style.display = "none";
-      } else {
-        const data = param.seriesData.get(series);
-        if (data) {
-          const timeNumber =
-            typeof param.time === "number" ? param.time : Number(param.time);
-          const date = new Date(timeNumber * 1000);
-          const dateStr = date.toLocaleDateString();
-          const timeStr = date.toLocaleTimeString();
-          const ohlcData = data as {
-            open?: number;
-            high?: number;
-            low?: number;
-            close?: number;
-          };
-
-          tooltip.style.display = "block";
-          tooltip.innerHTML = `
-            <div style="font-weight: bold; margin-bottom: 4px;">${symbol}</div>
-            <div style="margin-bottom: 2px;">📅 ${dateStr}</div>
-            <div style="margin-bottom: 2px;">🕒 ${timeStr}</div>
-            <div style="margin-bottom: 2px;">🔴 Open: ${
-              ohlcData.open?.toFixed(4) || "N/A"
-            }</div>
-            <div style="margin-bottom: 2px;">🟢 High: ${
-              ohlcData.high?.toFixed(4) || "N/A"
-            }</div>
-            <div style="margin-bottom: 2px;">🔴 Low: ${
-              ohlcData.low?.toFixed(4) || "N/A"
-            }</div>
-            <div>⚪ Close: ${ohlcData.close?.toFixed(4) || "N/A"}</div>
-          `;
-
-          const tooltipWidth = 220;
-          const tooltipHeight = 140;
-          const x = param.point.x;
-          const y = param.point.y;
-
-          // Position tooltip to avoid going off-screen
-          let left = x + 15;
-          let top = y - 10;
-
-          if (left + tooltipWidth > chartWidth) {
-            left = x - tooltipWidth - 15;
-          }
-
-          if (top + tooltipHeight > height) {
-            top = y - tooltipHeight - 10;
-          }
-
-          if (top < 0) {
-            top = 10;
-          }
-
-          tooltip.style.left = left + "px";
-          tooltip.style.top = top + "px";
-        }
-      }
-    });
 
     return () => {
       window.removeEventListener("resize", handleResize);
