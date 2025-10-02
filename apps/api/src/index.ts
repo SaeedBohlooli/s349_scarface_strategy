@@ -48,6 +48,9 @@ app.get("/", (req, res) => {
       multipleData: "/api/v1/data/multiple",
       drawingObjects: "/api/v1/drawing-objects",
       stats: "/api/v1/stats/:symbol/:timeframe",
+      levels: "/api/v1/levels",
+      symbolLevels: "/api/v1/levels/:symbol",
+      specificLevel: "/api/v1/levels/:symbol/:levelType",
     },
   });
 });

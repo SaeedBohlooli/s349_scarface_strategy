@@ -6,6 +6,9 @@ import {
   DataResponse,
   FileListResponse,
   DrawingObject,
+  MappedLevelsResponse,
+  SymbolLevels,
+  LevelData,
 } from "../types";
 
 export class DataFormatter {
@@ -199,6 +202,67 @@ export class DataFormatter {
         dateRange: { startDate, endDate },
       } as any,
     };
+  }
+
+  /**
+   * Map drawing objects to organized levels by symbol
+   */
+  async getMappedLevels(): Promise<MappedLevelsResponse> {
+    const drawingObjects = await this.readDrawingObjects();
+    const mappedLevels: MappedLevelsResponse = {};
+
+    drawingObjects.forEach((obj) => {
+      const { symbol, unique_id } = obj;
+
+      // Initialize symbol if not exists
+      if (!mappedLevels[symbol]) {
+        mappedLevels[symbol] = {};
+      }
+
+      // Extract level type from unique_id
+      const levelType = this.extractLevelType(unique_id);
+
+      if (levelType) {
+        // Remove unique_id from the object and create LevelData
+        const { unique_id: _, ...levelData } = obj;
+        mappedLevels[symbol][levelType] = levelData as LevelData;
+      }
+    });
+
+    return mappedLevels;
+  }
+
+  /**
+   * Get levels for a specific symbol
+   */
+  async getSymbolLevels(symbol: string): Promise<SymbolLevels> {
+    const mappedLevels = await this.getMappedLevels();
+    return mappedLevels[symbol.toUpperCase()] || {};
+  }
+
+  /**
+   * Get a specific level for a symbol
+   */
+  async getSpecificLevel(
+    symbol: string,
+    levelType: string
+  ): Promise<LevelData | null> {
+    const symbolLevels = await this.getSymbolLevels(symbol);
+    return symbolLevels[levelType as keyof SymbolLevels] || null;
+  }
+
+  /**
+   * Extract level type from unique_id
+   */
+  private extractLevelType(uniqueId: string): keyof SymbolLevels | null {
+    // Handle different patterns in unique_id
+    if (uniqueId.includes("-PDH")) return "PDH";
+    if (uniqueId.includes("-PDL")) return "PDL";
+    if (uniqueId.includes("-LDH")) return "LDH";
+    if (uniqueId.includes("HIGH_5_MIN")) return "5MH";
+    if (uniqueId.includes("LOW_5_MIN")) return "5ML";
+
+    return null;
   }
 
   /**

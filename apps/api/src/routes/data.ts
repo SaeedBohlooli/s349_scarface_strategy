@@ -154,4 +154,68 @@ router.get("/stats/:symbol/:timeframe", async (req: Request, res: Response) => {
   }
 });
 
+// Get mapped levels for all symbols
+router.get("/levels", async (req: Request, res: Response) => {
+  try {
+    const data = await dataFormatter.getMappedLevels();
+    res.json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+});
+
+// Get levels for a specific symbol
+router.get("/levels/:symbol", async (req: Request, res: Response) => {
+  try {
+    const { symbol } = req.params;
+    const data = await dataFormatter.getSymbolLevels(symbol.toUpperCase());
+    res.json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+});
+
+// Get a specific level for a symbol
+router.get(
+  "/levels/:symbol/:levelType",
+  async (req: Request, res: Response) => {
+    try {
+      const { symbol, levelType } = req.params;
+      const data = await dataFormatter.getSpecificLevel(
+        symbol.toUpperCase(),
+        levelType
+      );
+
+      if (!data) {
+        return res.status(404).json({
+          success: false,
+          error: `Level ${levelType} not found for symbol ${symbol.toUpperCase()}`,
+        });
+      }
+
+      res.json({
+        success: true,
+        data,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+);
+
 export default router;
