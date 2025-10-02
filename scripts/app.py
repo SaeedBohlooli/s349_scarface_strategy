@@ -31,11 +31,11 @@ app = Flask(__name__)
 portfolio_id = 'p250'
 configs_folder = f'../scripts/configs'
 config_file = f'{configs_folder}/app-config.yaml'
-portfolio_dir = f'../../portfolios/results/{portfolio_id}'
-reports_dir = f'../../portfolios/reports/{portfolio_id}'
-log_dir = f'../../portfolios/logs/{portfolio_id}'
-detailed_log_dir = f'../../portfolios/detailed-logs/{portfolio_id}'
-charts_dir = f'../../portfolios/charts/{portfolio_id}'
+portfolio_dir = f'../portfolios/results/{portfolio_id}'
+reports_dir = f'../portfolios/reports/{portfolio_id}'
+log_dir = f'../portfolios/logs/{portfolio_id}'
+detailed_log_dir = f'../portfolios/detailed-logs/{portfolio_id}'
+charts_dir = f'../portfolios/charts/{portfolio_id}'
 
 def load_app_config(portfolio_id):
     global app_config
@@ -50,7 +50,7 @@ def get_portfoilo_dir(portfolio_id):
     return portfolio_dir
 
 def get_charts_dir(portfolio_id):
-    base_dir = f'../../portfolios'
+    base_dir = f'../portfolios'
     portfolio_dir = os.path.join(base_dir, 'charts', portfolio_id)
     return portfolio_dir
 
