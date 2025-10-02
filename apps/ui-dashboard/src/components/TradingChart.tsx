@@ -3,14 +3,14 @@ import { createChart, CandlestickSeries } from "lightweight-charts";
 import type { UTCTimestamp } from "lightweight-charts";
 import type { OHLCData } from "../types/api";
 
-interface SimpleChartProps {
+interface TradingChartProps {
   data: OHLCData[];
   symbol: string;
   width?: number;
   height?: number;
 }
 
-const SimpleChart: React.FC<SimpleChartProps> = ({
+const TradingChart: React.FC<TradingChartProps> = ({
   data,
   symbol,
   width,
@@ -32,27 +32,33 @@ const SimpleChart: React.FC<SimpleChartProps> = ({
     const containerWidth = chartContainerRef.current.offsetWidth;
     const chartWidth = width || containerWidth || 800;
 
-    // Create chart
+    // Create chart with dark theme
     const chart = createChart(chartContainerRef.current, {
       width: chartWidth,
       height,
       layout: {
-        textColor: "black",
-        background: { color: "white" },
+        textColor: "#d1d4dc",
+        background: { color: "#1a1a1a" },
       },
       grid: {
-        vertLines: { color: "#f0f0f0" },
-        horzLines: { color: "#f0f0f0" },
+        vertLines: { color: "#2a2a2a" },
+        horzLines: { color: "#2a2a2a" },
+      },
+      timeScale: {
+        borderColor: "#485c7b",
+      },
+      rightPriceScale: {
+        borderColor: "#485c7b",
       },
     });
 
-    // Add candlestick series using the correct v5 API
+    // Add candlestick series with blue/yellow colors
     const series = chart.addSeries(CandlestickSeries, {
-      upColor: "#26a69a",
-      downColor: "#ef5350",
+      upColor: "#2196f3", // Blue for up candles
+      downColor: "#ffeb3b", // Yellow for down candles
       borderVisible: false,
-      wickUpColor: "#26a69a",
-      wickDownColor: "#ef5350",
+      wickUpColor: "#2196f3", // Blue wicks for up candles
+      wickDownColor: "#ffeb3b", // Yellow wicks for down candles
     });
 
     // Convert our API data to the format expected by lightweight-charts
@@ -98,9 +104,10 @@ const SimpleChart: React.FC<SimpleChartProps> = ({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          border: "1px solid #ccc",
-          backgroundColor: "#f9f9f9",
-          color: "#666",
+          border: "1px solid #444",
+          backgroundColor: "#1a1a1a",
+          color: "#d1d4dc",
+          borderRadius: "4px",
         }}
       >
         <div>
@@ -117,12 +124,15 @@ const SimpleChart: React.FC<SimpleChartProps> = ({
         style={{
           marginBottom: "10px",
           padding: "10px",
-          backgroundColor: "#f8f9fa",
+          backgroundColor: "#2d3748",
           borderRadius: "5px",
+          border: "1px solid #4a5568",
         }}
       >
-        <h3 style={{ margin: 0 }}>📈 {symbol} Chart</h3>
-        <p style={{ margin: "5px 0 0 0", fontSize: "0.9rem", color: "#666" }}>
+        <h3 style={{ margin: 0, color: "#e2e8f0" }}>📈 {symbol} Chart</h3>
+        <p
+          style={{ margin: "5px 0 0 0", fontSize: "0.9rem", color: "#a0aec0" }}
+        >
           {data.length} data points • From {data[0]?.date} to{" "}
           {data[data.length - 1]?.date}
         </p>
@@ -132,12 +142,13 @@ const SimpleChart: React.FC<SimpleChartProps> = ({
         style={{
           width: "100%",
           height: height + "px",
-          border: "1px solid #ccc",
+          border: "1px solid #4a5568",
           margin: "0",
+          borderRadius: "4px",
         }}
       />
     </div>
   );
 };
 
-export default SimpleChart;
+export default TradingChart;
