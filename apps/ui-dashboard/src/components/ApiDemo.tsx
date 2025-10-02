@@ -207,26 +207,31 @@ const ApiDemo: React.FC = () => {
                         <tr style={{ backgroundColor: "#f8f9fa" }}>
                           <th
                             style={{ border: "1px solid #ddd", padding: "8px" }}
+                            className="text-black"
                           >
                             Date
                           </th>
                           <th
                             style={{ border: "1px solid #ddd", padding: "8px" }}
+                            className="text-black"
                           >
                             Open
                           </th>
                           <th
                             style={{ border: "1px solid #ddd", padding: "8px" }}
+                            className="text-black"
                           >
                             High
                           </th>
                           <th
                             style={{ border: "1px solid #ddd", padding: "8px" }}
+                            className="text-black"
                           >
                             Low
                           </th>
                           <th
                             style={{ border: "1px solid #ddd", padding: "8px" }}
+                            className="text-black"
                           >
                             Close
                           </th>
@@ -400,6 +405,7 @@ const ApiDemo: React.FC = () => {
                         backgroundColor: "#f8f9fa",
                         borderRadius: "3px",
                       }}
+                      className="text-black"
                     >
                       <strong>{levelType}:</strong> ${levelData.price_1}
                       <br />
@@ -449,12 +455,12 @@ const ApiDemo: React.FC = () => {
                       borderRadius: "5px",
                     }}
                   >
-                    <h4>{stat.symbol}</h4>
-                    <p>
+                    <h4 className="text-black">{stat.symbol}</h4>
+                    <p className="text-black">
                       <strong>Latest:</strong> $
                       {stat.priceStats.latest.toFixed(2)}
                     </p>
-                    <p>
+                    <p className="text-black">
                       <strong>Range:</strong> ${stat.priceStats.min.toFixed(2)}{" "}
                       - ${stat.priceStats.max.toFixed(2)}
                     </p>
