@@ -15,11 +15,11 @@ const Charts: React.FC = () => {
   const { fileList } = useFileList();
 
   // Fetch OHLC data for selected symbol
-  const { ohlcData } = useOHLCData(
-    selectedSymbol,
-    selectedTimeframe,
-    queryParams
-  );
+  const {
+    ohlcData,
+    fetchData,
+    loading: ohlcLoading,
+  } = useOHLCData(selectedSymbol, selectedTimeframe, queryParams);
 
   // Fetch all levels
   const { allLevels } = useLevels();
@@ -171,6 +171,11 @@ const Charts: React.FC = () => {
             symbol={selectedSymbol}
             levels={allLevels?.[selectedSymbol]}
             height={500}
+            timeframe={selectedTimeframe}
+            onRefresh={() =>
+              fetchData(selectedSymbol, selectedTimeframe, queryParams)
+            }
+            isRefreshing={ohlcLoading}
           />
         ) : (
           <div

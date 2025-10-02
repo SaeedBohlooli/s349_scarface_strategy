@@ -1,7 +1,19 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { createChart, CandlestickSeries, LineSeries } from "lightweight-charts";
 import type { UTCTimestamp } from "lightweight-charts";
 import type { OHLCData, SymbolLevels } from "../types/api";
+import { createRoot, type Root } from "react-dom/client";
+import {
+  Fullscreen,
+  FullscreenExit,
+  Refresh,
+  HourglassEmpty,
+} from "@mui/icons-material";
+
+// Extend HTMLElement to include our React root
+interface HTMLElementWithRoot extends HTMLElement {
+  _reactRoot?: Root;
+}
 
 interface TradingChartProps {
   data: OHLCData[];
@@ -10,6 +22,8 @@ interface TradingChartProps {
   width?: number;
   height?: number;
   timeframe?: string; // e.g., "5m", "1h", "1D", etc.
+  onRefresh?: () => void; // Callback to refresh data
+  isRefreshing?: boolean; // Loading state for refresh button
 }
 
 const TradingChart: React.FC<TradingChartProps> = ({
@@ -19,6 +33,8 @@ const TradingChart: React.FC<TradingChartProps> = ({
   width,
   height = 400,
   timeframe,
+  onRefresh,
+  isRefreshing = false,
 }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -87,7 +103,7 @@ const TradingChart: React.FC<TradingChartProps> = ({
     }
   };
 
-  const toggleFullscreen = () => {
+  const toggleFullscreen = useCallback(() => {
     if (!chartContainerRef.current) return;
 
     if (!isFullscreen) {
@@ -101,7 +117,7 @@ const TradingChart: React.FC<TradingChartProps> = ({
         document.exitFullscreen();
       }
     }
-  };
+  }, [isFullscreen]);
 
   // Listen for fullscreen changes
   useEffect(() => {
@@ -343,6 +359,148 @@ const TradingChart: React.FC<TradingChartProps> = ({
     };
   }, [data, symbol, levels, width, height, isFullscreen]);
 
+  // Inject control buttons into the lightweight-charts container
+  useEffect(() => {
+    if (!chartRef.current) return;
+
+    const chartContainer = chartContainerRef.current; // Capture ref for cleanup
+
+    const injectControlButtons = () => {
+      const chartsContainer = chartContainer?.querySelector(
+        ".tv-lightweight-charts"
+      ) as HTMLElement;
+      if (
+        chartsContainer &&
+        !chartsContainer.querySelector(".chart-controls")
+      ) {
+        const buttonContainer = document.createElement("div");
+        buttonContainer.className = "chart-controls";
+        buttonContainer.style.cssText = `
+          position: absolute;
+          top: 10px;
+          left: 10px;
+          display: flex;
+          gap: 8px;
+          z-index: 1000;
+          pointer-events: auto;
+        `;
+        chartsContainer.appendChild(buttonContainer);
+
+        // Create React component for buttons
+        const ButtonControls = () => (
+          <>
+            {/* Refresh Button */}
+            {onRefresh && (
+              <button
+                onClick={onRefresh}
+                disabled={isRefreshing}
+                style={{
+                  background: isRefreshing
+                    ? "rgba(74, 85, 104, 0.9)"
+                    : "rgba(45, 55, 72, 0.9)",
+                  border: "1px solid #4a5568",
+                  borderRadius: "4px",
+                  color: isRefreshing ? "#a0aec0" : "#e2e8f0",
+                  padding: "6px",
+                  cursor: isRefreshing ? "not-allowed" : "pointer",
+                  fontSize: "20px",
+                  fontWeight: "bold",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "background-color 0.2s",
+                  width: "36px",
+                  height: "36px",
+                  opacity: isRefreshing ? 0.7 : 1,
+                  boxShadow: isFullscreen
+                    ? "0 4px 12px rgba(0,0,0,0.5)"
+                    : "0 2px 4px rgba(0,0,0,0.2)",
+                }}
+                onMouseOver={(e) => {
+                  if (!isRefreshing) {
+                    e.currentTarget.style.background = "rgba(45, 55, 72, 1)";
+                    e.currentTarget.style.color = "#81c784";
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (!isRefreshing) {
+                    e.currentTarget.style.background = "rgba(45, 55, 72, 0.9)";
+                    e.currentTarget.style.color = "#e2e8f0";
+                  }
+                }}
+                title={isRefreshing ? "Refreshing..." : "Refresh Chart Data"}
+              >
+                {isRefreshing ? <HourglassEmpty /> : <Refresh />}
+              </button>
+            )}
+
+            {/* Fullscreen Button */}
+            <button
+              onClick={toggleFullscreen}
+              style={{
+                background: "rgba(45, 55, 72, 0.9)",
+                border: "1px solid #4a5568",
+                borderRadius: "4px",
+                color: "#e2e8f0",
+                padding: "6px",
+                cursor: "pointer",
+                fontSize: "20px",
+                fontWeight: "bold",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "background-color 0.2s",
+                width: "36px",
+                height: "36px",
+                boxShadow: isFullscreen
+                  ? "0 4px 12px rgba(0,0,0,0.5)"
+                  : "0 2px 4px rgba(0,0,0,0.2)",
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.background = "rgba(45, 55, 72, 1)";
+                e.currentTarget.style.color = "#63b3ed";
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.background = "rgba(45, 55, 72, 0.9)";
+                e.currentTarget.style.color = "#e2e8f0";
+              }}
+              title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+            >
+              {isFullscreen ? <FullscreenExit /> : <Fullscreen />}
+            </button>
+          </>
+        );
+
+        // Use React to render the component
+        const root = createRoot(buttonContainer);
+        root.render(<ButtonControls />);
+
+        // Store root for cleanup
+        (buttonContainer as HTMLElementWithRoot)._reactRoot = root;
+      }
+    };
+
+    // Inject buttons after chart is ready
+    const timeoutId = setTimeout(injectControlButtons, 100);
+
+    return () => {
+      clearTimeout(timeoutId);
+      // Clean up injected buttons
+      const chartsContainer = chartContainer?.querySelector(
+        ".tv-lightweight-charts"
+      );
+      const buttonContainer = chartsContainer?.querySelector(".chart-controls");
+      if (buttonContainer) {
+        // Unmount React component
+        const root = (buttonContainer as HTMLElementWithRoot)._reactRoot;
+        if (root) {
+          root.unmount();
+        }
+        buttonContainer.remove();
+      }
+    };
+  }, [isFullscreen, isRefreshing, onRefresh, toggleFullscreen]);
+
   if (!data || data.length === 0) {
     return (
       <div
@@ -452,10 +610,13 @@ const TradingChart: React.FC<TradingChartProps> = ({
           style={{
             width: "100%",
             height: isFullscreen ? "100vh" : height + "px",
-            border: "1px solid #4a5568",
+            border: isFullscreen ? "none" : "1px solid #4a5568",
             margin: "0",
-            borderRadius: "4px",
+            borderRadius: isFullscreen ? "0" : "4px",
             position: "relative", // Ensure this is the positioning context
+            backgroundColor: isFullscreen ? "#1a1a1a" : "transparent",
+            overflow: "hidden", // Prevent content overflow
+            isolation: isFullscreen ? "isolate" : "auto", // Create new stacking context in fullscreen
           }}
         >
           {/* Ticker Symbol & Timeframe Watermark - TradingView Style */}
@@ -481,37 +642,6 @@ const TradingChart: React.FC<TradingChartProps> = ({
             {symbol}/{detectedTimeframe.toUpperCase()}
           </div>
         </div>
-        {/* Fullscreen Button */}
-        <button
-          onClick={toggleFullscreen}
-          style={{
-            position: "absolute",
-            top: "10px",
-            right: "10px",
-            background: "rgba(45, 55, 72, 0.9)",
-            border: "1px solid #4a5568",
-            borderRadius: "4px",
-            color: "#e2e8f0",
-            padding: "8px 12px",
-            cursor: "pointer",
-            fontSize: "14px",
-            fontWeight: "bold",
-            zIndex: 1000,
-            display: "flex",
-            alignItems: "center",
-            gap: "4px",
-            transition: "background-color 0.2s",
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.background = "rgba(45, 55, 72, 1)";
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.background = "rgba(45, 55, 72, 0.9)";
-          }}
-          title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
-        >
-          {isFullscreen ? "⊟" : "⊠"} {isFullscreen ? "Exit" : "Fullscreen"}
-        </button>
       </div>
     </div>
   );
