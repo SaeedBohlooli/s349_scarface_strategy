@@ -11,7 +11,6 @@
 **/*.pyc
 **/*.xlsx
 **/*.ok
-**/*.json
 #**/*.html
 **/*.log
 **/*.pkl
@@ -26,3 +25,5 @@
 /results/*.csv
 **/session_name.session
 /bin/*.lock
+/.venv
+/portfolios/

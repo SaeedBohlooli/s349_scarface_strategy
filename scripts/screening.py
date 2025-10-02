@@ -30,11 +30,11 @@ portfolio_id = 'p250'
 configs_folder = f'../scripts/configs'
 config_file = f'{configs_folder}/app-config.yaml'
 
-portfolio_dir = f'../../portfolios/results/{portfolio_id}'
-reports_dir = f'../../portfolios/reports/{portfolio_id}'
-log_dir = f'../../portfolios/logs/{portfolio_id}'
-detailed_log_dir = f'../../portfolios/detailed-logs/{portfolio_id}'
-charts_dir = f'../../portfolios/charts/{portfolio_id}'
+portfolio_dir = f'../portfolios/results/{portfolio_id}'
+reports_dir = f'../portfolios/reports/{portfolio_id}'
+log_dir = f'../portfolios/logs/{portfolio_id}'
+detailed_log_dir = f'../portfolios/detailed-logs/{portfolio_id}'
+charts_dir = f'../portfolios/charts/{portfolio_id}'
 
 os.makedirs(portfolio_dir, exist_ok=True)
 os.makedirs(reports_dir, exist_ok=True)
@@ -253,6 +253,13 @@ def add_5_mins_low_high_to_drawing_objects_df(low_for_5_min, high_for_5_min):
 
     return
 
+def add_pre_market_mins_low_high_to_drawing_objects_df(low_pre_market, high_pre_market):
+
+    add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dash', color='Red', price_1=low_pre_market, memo=f'low for pre-market {low_pre_market}', unique_id=f'{symbol}-{time_frame}-PML')
+    add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dash', color ='Red', price_1=high_pre_market, memo=f'high for pre-market {high_pre_market}', unique_id=f'{symbol}-{time_frame}-PMH')
+
+    return
+
 
 def drop_dupplicates(file_path, unique_column=None, keep='last'):
     # Drop dupplicaes
@@ -313,9 +320,11 @@ if __name__ == "__main__":
             df = get_market_data_befre_market_start('1 min')
             create_ohlc_for_chart(df)
             low_for_5_min, high_for_5_min = find_session_high_and_low(df, start="09:30", end="09:35")
+            low_for_pre_market, high_for_pre_market = find_session_high_and_low(df, start="04:00", end="09:30")
             if low_for_5_min != -1:
                 add_5_mins_low_high_to_drawing_objects_df(low_for_5_min, high_for_5_min)
-
+            if low_for_pre_market != -1:
+               add_pre_market_mins_low_high_to_drawing_objects_df(low_for_pre_market, high_for_pre_market)
             save_df_to_csv_a_tabular(drawing_objects_df, '10-drawing_objects_df.csv', mode='w', dir=charts_dir)
 
             end_time = time.time()
