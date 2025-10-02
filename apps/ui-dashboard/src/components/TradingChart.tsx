@@ -63,6 +63,10 @@ const TradingChart: React.FC<TradingChartProps> = ({
         borderColor: "#485c7b",
         timeVisible: true,
         secondsVisible: false,
+        fixLeftEdge: false,
+        fixRightEdge: false,
+        lockVisibleTimeRangeOnResize: true,
+        rightBarStaysOnScroll: true,
         tickMarkFormatter: (time: UTCTimestamp) => {
           // Convert UTC timestamp to EST for display on time axis
           const date = new Date(time * 1000);
@@ -78,6 +82,11 @@ const TradingChart: React.FC<TradingChartProps> = ({
       },
       rightPriceScale: {
         borderColor: "#485c7b",
+        autoScale: true,
+        scaleMargins: {
+          top: 0.1,
+          bottom: 0.1,
+        },
       },
     });
 
@@ -172,8 +181,30 @@ const TradingChart: React.FC<TradingChartProps> = ({
       });
     }
 
-    // Fit content to show all data
-    chart.timeScale().fitContent();
+    // Initial zoom to show only recent data with big bars
+    // Show last 50-100 candles initially for better visibility
+    const totalCandles = deduplicatedData.length;
+    const initialCandlesToShow = Math.min(35, Math.max(50, totalCandles)); // Show 20-50 candles
+
+    if (totalCandles > initialCandlesToShow) {
+      const startIndex = totalCandles - initialCandlesToShow;
+      const startTime = deduplicatedData[startIndex].time;
+      const endTime = deduplicatedData[totalCandles - 1].time;
+
+      // Set visible range to show only recent candles
+      chart.timeScale().setVisibleRange({
+        from: startTime,
+        to: endTime,
+      });
+    } else {
+      // If we have fewer candles, fit all content
+      chart.timeScale().fitContent();
+    }
+
+    // Auto-scale the price axis to fit visible data
+    chart.priceScale("right").applyOptions({
+      autoScale: true,
+    });
 
     // Add resize handler for responsive design
     const handleResize = () => {
