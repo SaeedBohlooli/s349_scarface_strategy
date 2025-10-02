@@ -9,6 +9,7 @@ interface TradingChartProps {
   levels?: SymbolLevels;
   width?: number;
   height?: number;
+  timeframe?: string; // e.g., "5m", "1h", "1D", etc.
 }
 
 const TradingChart: React.FC<TradingChartProps> = ({
@@ -17,9 +18,34 @@ const TradingChart: React.FC<TradingChartProps> = ({
   levels,
   width,
   height = 400,
+  timeframe,
 }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Auto-detect timeframe from data if not provided
+  const detectTimeframe = (): string => {
+    if (timeframe) return timeframe;
+
+    if (data.length < 2) return "Unknown";
+
+    // Calculate time difference between first two data points
+    const date1 = new Date(data[0].date);
+    const date2 = new Date(data[1].date);
+    const diffMinutes =
+      Math.abs(date2.getTime() - date1.getTime()) / (1000 * 60);
+
+    if (diffMinutes <= 1) return "1m";
+    else if (diffMinutes <= 5) return "5m";
+    else if (diffMinutes <= 15) return "15m";
+    else if (diffMinutes <= 30) return "30m";
+    else if (diffMinutes <= 60) return "1h";
+    else if (diffMinutes <= 240) return "4h";
+    else if (diffMinutes <= 1440) return "1D";
+    else return "1W";
+  };
+
+  const detectedTimeframe = detectTimeframe();
 
   const toggleFullscreen = () => {
     if (!chartContainerRef.current) return;
@@ -75,6 +101,7 @@ const TradingChart: React.FC<TradingChartProps> = ({
         vertLines: { color: "#2a2a2a" },
         horzLines: { color: "#2a2a2a" },
       },
+      // Remove watermark attempt - not available in current version
       localization: {
         timeFormatter: (time: UTCTimestamp) => {
           // Convert UTC timestamp to EST for tooltip display
@@ -321,7 +348,28 @@ const TradingChart: React.FC<TradingChartProps> = ({
             borderRadius: "4px",
           }}
         />
-
+        {/* Ticker Symbol & Timeframe Watermark - TradingView Style */}
+        <div
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            color: "rgba(255, 255, 255, 0.03)",
+            fontSize: isFullscreen ? "110px" : "80px",
+            fontWeight: "900",
+            fontFamily:
+              "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+            pointerEvents: "none",
+            zIndex: 50,
+            userSelect: "none",
+            letterSpacing: "8px",
+            textAlign: "center",
+            lineHeight: "1",
+          }}
+        >
+          {symbol}/{detectedTimeframe.toUpperCase()}
+        </div>{" "}
         {/* Fullscreen Button */}
         <button
           onClick={toggleFullscreen}
