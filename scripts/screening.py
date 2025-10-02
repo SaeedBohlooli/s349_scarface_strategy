@@ -30,11 +30,11 @@ portfolio_id = 'p250'
 configs_folder = f'../scripts/configs'
 config_file = f'{configs_folder}/app-config.yaml'
 
-portfolio_dir = f'../../portfolios/results/{portfolio_id}'
-reports_dir = f'../../portfolios/reports/{portfolio_id}'
-log_dir = f'../../portfolios/logs/{portfolio_id}'
-detailed_log_dir = f'../../portfolios/detailed-logs/{portfolio_id}'
-charts_dir = f'../../portfolios/charts/{portfolio_id}'
+portfolio_dir = f'../portfolios/results/{portfolio_id}'
+reports_dir = f'../portfolios/reports/{portfolio_id}'
+log_dir = f'../portfolios/logs/{portfolio_id}'
+detailed_log_dir = f'../portfolios/detailed-logs/{portfolio_id}'
+charts_dir = f'../portfolios/charts/{portfolio_id}'
 
 os.makedirs(portfolio_dir, exist_ok=True)
 os.makedirs(reports_dir, exist_ok=True)

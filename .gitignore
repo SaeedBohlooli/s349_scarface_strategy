@@ -26,3 +26,5 @@
 /results/*.csv
 **/session_name.session
 /bin/*.lock
+/.venv
+/portfolios/
