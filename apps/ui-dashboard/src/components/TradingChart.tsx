@@ -1,5 +1,9 @@
-import React, { useEffect, useRef } from "react";
-import { createChart, CandlestickSeries, LineSeries } from "lightweight-charts";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  createChart,
+  CandlestickSeries,
+  LineSeries,
+} from "lightweight-charts";
 import type { UTCTimestamp } from "lightweight-charts";
 import type { OHLCData, SymbolLevels } from "../types/api";
 
@@ -19,6 +23,35 @@ const TradingChart: React.FC<TradingChartProps> = ({
   height = 400,
 }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const toggleFullscreen = () => {
+    if (!chartContainerRef.current) return;
+
+    if (!isFullscreen) {
+      // Enter fullscreen
+      if (chartContainerRef.current.requestFullscreen) {
+        chartContainerRef.current.requestFullscreen();
+      }
+    } else {
+      // Exit fullscreen
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+    }
+  };
+
+  // Listen for fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -206,13 +239,25 @@ const TradingChart: React.FC<TradingChartProps> = ({
       autoScale: true,
     });
 
-    // Add resize handler for responsive design
+    // Add resize handler for responsive design and fullscreen
     const handleResize = () => {
       if (chartContainerRef.current) {
         const newWidth = chartContainerRef.current.offsetWidth;
-        chart.applyOptions({ width: newWidth });
+        const newHeight = isFullscreen ? window.innerHeight : height;
+        chart.applyOptions({ 
+          width: newWidth,
+          height: newHeight 
+        });
       }
     };
+
+    // Handle initial sizing for fullscreen
+    if (isFullscreen && chartContainerRef.current) {
+      chart.applyOptions({
+        width: chartContainerRef.current.offsetWidth,
+        height: window.innerHeight
+      });
+    }
 
     window.addEventListener("resize", handleResize);
 
@@ -220,7 +265,7 @@ const TradingChart: React.FC<TradingChartProps> = ({
       window.removeEventListener("resize", handleResize);
       chart.remove();
     };
-  }, [data, symbol, levels, width, height]);
+  }, [data, symbol, levels, width, height, isFullscreen]);
 
   if (!data || data.length === 0) {
     return (
@@ -269,16 +314,50 @@ const TradingChart: React.FC<TradingChartProps> = ({
           )}
         </p>
       </div>
-      <div
-        ref={chartContainerRef}
-        style={{
-          width: "100%",
-          height: height + "px",
-          border: "1px solid #4a5568",
-          margin: "0",
-          borderRadius: "4px",
-        }}
-      />
+      <div style={{ position: "relative" }}>
+        <div
+          ref={chartContainerRef}
+          style={{
+            width: "100%",
+            height: isFullscreen ? "100vh" : height + "px",
+            border: "1px solid #4a5568",
+            margin: "0",
+            borderRadius: "4px",
+          }}
+        />
+        
+        {/* Fullscreen Button */}
+        <button
+          onClick={toggleFullscreen}
+          style={{
+            position: "absolute",
+            top: "10px",
+            right: "10px",
+            background: "rgba(45, 55, 72, 0.9)",
+            border: "1px solid #4a5568",
+            borderRadius: "4px",
+            color: "#e2e8f0",
+            padding: "8px 12px",
+            cursor: "pointer",
+            fontSize: "14px",
+            fontWeight: "bold",
+            zIndex: 1000,
+            display: "flex",
+            alignItems: "center",
+            gap: "4px",
+            transition: "background-color 0.2s",
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = "rgba(45, 55, 72, 1)";
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = "rgba(45, 55, 72, 0.9)";
+          }}
+          title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+        >
+          {isFullscreen ? "⊟" : "⊠"} {isFullscreen ? "Exit" : "Fullscreen"}
+        </button>
+      </div>
     </div>
   );
 };
