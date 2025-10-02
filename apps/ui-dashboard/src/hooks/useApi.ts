@@ -162,7 +162,7 @@ export function useLevels() {
   useEffect(() => {
     fetchAllLevels();
   }, [fetchAllLevels]);
-
+  console.log("useLevels Levels Data from hook:", data);
   return {
     allLevels: data,
     loading,
@@ -193,7 +193,6 @@ export function useSymbolLevels(symbol?: string) {
       fetchSymbolLevels();
     }
   }, [symbol, fetchSymbolLevels]);
-
   return {
     symbolLevels: data,
     loading,

@@ -67,6 +67,8 @@ export interface SymbolLevels {
   LDH?: LevelData;
   "5MH"?: LevelData;
   "5ML"?: LevelData;
+  PML?: LevelData;
+  PMH?: LevelData;
 }
 
 export interface MappedLevelsResponse {

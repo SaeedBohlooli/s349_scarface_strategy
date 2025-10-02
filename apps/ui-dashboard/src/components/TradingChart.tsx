@@ -242,6 +242,16 @@ const TradingChart: React.FC<TradingChartProps> = ({
         LDH: { color: "#ffa726", lineStyle: 1, title: "Last Day High" },
         "5MH": { color: "#42a5f5", lineStyle: 1, title: "5M High" },
         "5ML": { color: "#ab47bc", lineStyle: 1, title: "5M Low" },
+        PML: {
+          color: "#7e57c2",
+          lineStyle: 3,
+          title: "Pre-Market Low",
+        },
+        PMH: {
+          color: "#26a69a",
+          lineStyle: 3,
+          title: "Pre-Market High",
+        },
       };
 
       // Get the time range from chart data for levels

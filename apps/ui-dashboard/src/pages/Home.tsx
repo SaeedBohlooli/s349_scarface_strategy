@@ -210,7 +210,7 @@ const Home: React.FC = () => {
                 )}
               </div>
               <div style={{ fontSize: "0.9rem" }}>
-                <strong>Level Types:</strong> PDH, PDL, LDH, 5MH, 5ML
+                <strong>Level Types:</strong> PDH, PDL, LDH, 5MH, 5ML, PML, PMH
               </div>
             </div>
           ) : (

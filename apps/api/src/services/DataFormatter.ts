@@ -210,7 +210,6 @@ export class DataFormatter {
   async getMappedLevels(): Promise<MappedLevelsResponse> {
     const drawingObjects = await this.readDrawingObjects();
     const mappedLevels: MappedLevelsResponse = {};
-
     drawingObjects.forEach((obj) => {
       const { symbol, unique_id } = obj;
 
@@ -228,7 +227,6 @@ export class DataFormatter {
         mappedLevels[symbol][levelType] = levelData as LevelData;
       }
     });
-
     return mappedLevels;
   }
 
@@ -261,6 +259,8 @@ export class DataFormatter {
     if (uniqueId.includes("-LDH")) return "LDH";
     if (uniqueId.includes("HIGH_5_MIN")) return "5MH";
     if (uniqueId.includes("LOW_5_MIN")) return "5ML";
+    if (uniqueId.includes("-PML")) return "PML";
+    if (uniqueId.includes("-PMH")) return "PMH";
 
     return null;
   }
