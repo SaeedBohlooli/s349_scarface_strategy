@@ -1,11 +1,12 @@
 import React, { useEffect, useRef } from "react";
-import { createChart, CandlestickSeries } from "lightweight-charts";
+import { createChart, CandlestickSeries, LineSeries } from "lightweight-charts";
 import type { UTCTimestamp } from "lightweight-charts";
-import type { OHLCData } from "../types/api";
+import type { OHLCData, SymbolLevels } from "../types/api";
 
 interface TradingChartProps {
   data: OHLCData[];
   symbol: string;
+  levels?: SymbolLevels;
   width?: number;
   height?: number;
 }
@@ -13,6 +14,7 @@ interface TradingChartProps {
 const TradingChart: React.FC<TradingChartProps> = ({
   data,
   symbol,
+  levels,
   width,
   height = 400,
 }) => {
@@ -76,6 +78,51 @@ const TradingChart: React.FC<TradingChartProps> = ({
     // Set the data
     series.setData(chartData);
 
+    // Add support/resistance levels if available
+    if (levels) {
+      console.log("Drawing levels for", symbol, levels);
+
+      // Define level colors and styles
+      const levelStyles = {
+        PDH: { color: "#ff6b6b", lineStyle: 2, title: "Previous Day High" },
+        PDL: { color: "#51cf66", lineStyle: 2, title: "Previous Day Low" },
+        LDH: { color: "#ffa726", lineStyle: 1, title: "Last Day High" },
+        "5MH": { color: "#42a5f5", lineStyle: 1, title: "5M High" },
+        "5ML": { color: "#ab47bc", lineStyle: 1, title: "5M Low" },
+      };
+
+      // Get the time range from chart data for levels
+      const firstTime = chartData[0]?.time;
+      const lastTime = chartData[chartData.length - 1]?.time;
+
+      // Draw each level
+      Object.entries(levels).forEach(([levelType, levelData]) => {
+        if (levelData && levelData.price_1) {
+          const price = parseFloat(levelData.price_1);
+          const style = levelStyles[levelType as keyof typeof levelStyles];
+
+          if (style && !isNaN(price) && firstTime && lastTime) {
+            // Create a line series for this level
+            const levelSeries = chart.addSeries(LineSeries, {
+              color: style.color,
+              lineStyle: style.lineStyle,
+              priceLineVisible: true,
+              lastValueVisible: true,
+              title: `${style.title}: ${price.toFixed(2)}`,
+            });
+
+            // Create horizontal line data points
+            const levelData = [
+              { time: firstTime, value: price },
+              { time: lastTime, value: price },
+            ];
+
+            levelSeries.setData(levelData);
+          }
+        }
+      });
+    }
+
     // Fit content to show all data
     chart.timeScale().fitContent();
 
@@ -93,7 +140,7 @@ const TradingChart: React.FC<TradingChartProps> = ({
       window.removeEventListener("resize", handleResize);
       chart.remove();
     };
-  }, [data, symbol, width, height]);
+  }, [data, symbol, levels, width, height]);
 
   if (!data || data.length === 0) {
     return (
@@ -135,6 +182,11 @@ const TradingChart: React.FC<TradingChartProps> = ({
         >
           {data.length} data points • From {data[0]?.date} to{" "}
           {data[data.length - 1]?.date}
+          {levels && Object.keys(levels).length > 0 && (
+            <span style={{ marginLeft: "10px", color: "#81c784" }}>
+              • {Object.keys(levels).length} levels displayed
+            </span>
+          )}
         </p>
       </div>
       <div

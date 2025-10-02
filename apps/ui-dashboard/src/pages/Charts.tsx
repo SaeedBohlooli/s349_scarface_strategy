@@ -169,6 +169,7 @@ const Charts: React.FC = () => {
           <SimpleChart
             data={ohlcData.data}
             symbol={selectedSymbol}
+            levels={allLevels?.[selectedSymbol]}
             height={500}
           />
         ) : (
