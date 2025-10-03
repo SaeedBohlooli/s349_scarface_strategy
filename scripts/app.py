@@ -158,9 +158,9 @@ def draw_w_plotly_w_subplot(df, chart_title='title'):
     logger.info(f"in draw_w_plotly_w_subplot:\n {df[-20:].to_markdown()}")
 
     df['date'] = pd.to_datetime(df['date'])
-    end_time = df['date'].max() + pd.Timedelta(minutes=10)
-
-    start_time = end_time - pd.Timedelta(hours=8)
+    end_time = df['date'].max() + pd.Timedelta(minutes=20)  # leave some space in the right ....
+    hours_in_focus = int(app_config['chart']['hours_in_focus'])
+    start_time = end_time - pd.Timedelta(hours=hours_in_focus)
 
     # Set 'date' as the index
     df.set_index('date', inplace=True)
@@ -283,6 +283,9 @@ def draw_objects(fig, df, symbol, time_frame):
             price = df['price_1'].iloc[i]
             object = df['object'].iloc[i]
             memo = df['memo'].iloc[i]
+
+             # style: "solid", "dot", "dash", "longdash", "dashdot", "longdashdot"
+
             fig.add_hline(y=price, line_color=color, line_dash = object , annotation_text = memo)
 
     return fig
@@ -320,13 +323,13 @@ def load_ohlc_file_to_df(portfolio_id='p700', symbol='TSLA', time_frame='1min'):
     df = pd.read_csv(file)
     df['date'] = pd.to_datetime(df['date'])
 
-    if app_config['chart']['cutoff_in_hours'] !=0 :  # cut off hours ...
-        # find the cutoff timestamp
-        cut_off_hours = app_config['chart']['cutoff_in_hours']
-        cutoff = df['date'].max() - pd.Timedelta(hours=cut_off_hours)
-        logger.info(f"cutoff: {cutoff}")
-        # keep only rows older than cutoff
-        df = df[df['date'] < cutoff]
+    # if app_config['chart']['cutoff_in_hours'] !=0 :  # cut off hours ...
+    #     # find the cutoff timestamp
+    #     cut_off_hours = app_config['chart']['cutoff_in_hours']
+    #     cutoff = df['date'].max() - pd.Timedelta(hours=cut_off_hours)
+    #     logger.info(f"cutoff: {cutoff}")
+    #     # keep only rows older than cutoff
+    #     df = df[df['date'] < cutoff]
 
     df = df[-app_config['chart']['1m_candles']:]
 
@@ -339,6 +342,18 @@ def load_file_to_drawing_objects_df():
     df = pd.read_csv(file)
     logger.info(f"drawing_objects_df:\n{df[1:].to_markdown()}")
     return df
+
+def load_file_to_hover_df():
+    file = f'{get_charts_dir(portfolio_id)}/12-hover_df.csv'
+    if os.path.exists(file):
+        logger.info(f"reading file: {file}")
+        df = pd.read_csv(file)
+        logger.info(f"load_file_to_hover_df:\n{df[1:].to_markdown()}")
+        return df
+    else:
+        return pd.DataFrame()
+
+
 def chart_orch(df1, portfolio_id='p700', symbol='TSLA', time_frame='1min'):
     df = df1.copy()
     logger.info(df[-12:].to_markdown())
@@ -390,23 +405,102 @@ def mark_before_after_hours(fig, df):  # IS VERY SLOOW ... so we marke only last
 
     return fig
 
+def add_hover_to_chart(fig1, hover_df):
+    if len(hover_df) > 0:
+        signal_x = hover_df['date'].tolist()
+        signal_y = hover_df['price'].tolist()
+        signals = hover_df['signals'].tolist()
+        colors = hover_df['color'].tolist()
+        hovertexts = hover_df['text'].tolist()
+        fig1.add_trace(go.Scatter(
+            x=signal_x,
+            y=signal_y,
+            mode='text',
+            text=signals,
+            hovertext=hovertexts,
+            hoverinfo='text',
+            textposition='top center',
+            textfont=dict(size=20, color=colors),
+            showlegend=False
+        ))
+
+    return fig1
+
+
+def create_chart_hovered_df(hover_df, symbol):
+    if len(hover_df) == 0:
+        return pd.DataFrame()
+    df = hover_df.copy()
+
+    df = df[df['symbol'] == symbol]
+    df['date'] = df['date_1']
+    df['price'] = df['price_1']
+    df['text'] = df['memo']
+#  ⇗ ↛ ⇧
+    # http://xahlee.info/comp/unicode_geometric_shapes.html
+# ◒
+    mapping = {
+        # Up / Positive
+        'FLASH_UP': '▲',
+        'UP': '▲',
+        'STRONG_UP': '⏫',
+        'BREAKOUT_UP': '🔥',
+
+        # Down / Negative
+        'FLASH_DOWN': '▼',
+        'DOWN': '▼',
+        'STRONG_DOWN': '⏬',
+        'BREAKOUT_DOWN': '💥',
+
+        # Neutral / Flat
+        'NEUTRAL': '●',
+        'FLAT': '▬',
+        'SIDEWAYS': '○',
+
+        # Hold / Pause
+        'HOLD': '■',
+        'WAIT': '⏸',
+
+        # Exit / Stop
+        'EXIT': '✖',
+        'STOP': '⛔',
+        'CANCEL': '❌',
+
+        # Highlight / Special
+        'ALERT': '★',
+        'NEWS': '⚡',
+        'VOLUME_SPIKE': '◆'
+    }
+
+    # Apply mapping to a new column
+    df['signals'] = df['object'].map(mapping).fillna('●')  # default to circle if unknown
+
+    df = df[['date', 'price', 'signals', 'color', 'text']]
+
+    return df
+
+app_config = load_app_config(portfolio_id)  # to be accisible form every where ...
+
 @app.route('/')
 def index():
 
     portfolio_id = 'p250'
     app_config = load_app_config(portfolio_id)
-    #support_resistance_map = load_support_resistance_map_from_file()
+
     drawing_objects_df = load_file_to_drawing_objects_df()
+    hover_df = load_file_to_hover_df()
     plots = []
     for symbol in app_config['symbols']:
         logger.info(f"================== {symbol}")
         time_frame = '1min'
         df = load_ohlc_file_to_df(portfolio_id='p250', time_frame=time_frame, symbol=symbol)
+
         fig1 = chart_orch(df, portfolio_id='p250', time_frame=time_frame, symbol=symbol)
         fig1 = draw_objects(fig1,drawing_objects_df, symbol=symbol, time_frame=time_frame )
         fig1 = add_start_finish_day(fig1, df)
-        # fig1 = mark_before_after_hours(fig1, df)   WAS VERY SLOW
         fig1 = mark_market_time_only_last_one(fig1, df)
+        chart_hovered_df = create_chart_hovered_df(hover_df, symbol)
+        fig1 = add_hover_to_chart(fig1, chart_hovered_df)
         plot_html = pio.to_html(fig1, full_html=False)
 
         plots.append(plot_html)

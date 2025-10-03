@@ -134,12 +134,13 @@ def create_contract(symbol):
 
 def create_ohlc_for_chart(df):
     logger.info(f"in generate_for_chart, symbol: {symbol}, len(df): {len(df)}")
-    df = df[['date','open','close', 'high', 'low', 'volume']]
+    df = df[['date','open', 'high', 'low', 'close', 'volume']]
     file = f"{charts_dir}/{symbol}-{time_frame.replace(' ', '')}.csv"
     df.to_csv(file, index=False, mode='w')
 
 def calculate_support_resitance_for_t_min_1():
     global support_resistance_map
+    global key_levels_df
     for x, df in symbols_time_frame_df_map.items():
         logger.info(f"x: {x}, len(df): {len(df)}")
         parts = x.split("-")
@@ -165,8 +166,18 @@ def calculate_support_resitance_for_t_min_1():
 
         add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame,  object='dash', color='Blue', price_1=day_high, memo=f'PDH {day_high}', unique_id=f'{symbol}-{time_frame}-PDH' )
         add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame,  object='dash', color='Blue', price_1=day_low, memo=f'PDL {day_low}' , unique_id=f'{symbol}-{time_frame}-LDH' )
+        add_to_key_levels_df(symbol=symbol, time_frame=time_frame, key_level='PDH', price=day_high, memo=f'PDH {day_high}')
+        add_to_key_levels_df(symbol=symbol, time_frame=time_frame, key_level='PDL', price=day_low, memo=f'PDH {day_high}')
     return
 
+
+def  add_to_key_levels_df(symbol, time_frame, key_level, price, memo=''):
+    global key_levels_df
+    if price> 0:
+        data = {'symbol': symbol , 'time_frame': time_frame, 'key_level': key_level, 'price': price, 'memo' : memo    }
+        key_levels_df = pd.concat([key_levels_df, pd.DataFrame([data])])
+        key_levels_df = key_levels_df.drop_duplicates(subset=['symbol', 'time_frame', 'key_level'], keep='last')
+    return key_levels_df
 
 def add_to_drawing_objects_df(symbol='TSLA', time_frame='1m', object='dash', color='', date_1='', price_1=0, date_2='', price_2=0, memo = '', unique_id = 1 ):
     global drawing_objects_df
@@ -186,7 +197,7 @@ def add_to_drawing_objects_df(symbol='TSLA', time_frame='1m', object='dash', col
     drawing_objects_df = pd.concat([drawing_objects_df, pd.DataFrame([data])], ignore_index=True)
 
 
-def is_between(now=None, start_str="9:25", end_str="10:00"):
+def is_between(now=None, start_str="9:25", end_str="10:30"):
     if now is None:
         now = datetime.datetime.now().time()
 
@@ -219,7 +230,7 @@ def sleep_enough():
     return
 
 
-def find_session_high_and_low(df, start="09:30", end="09:35"):
+def find_session_high_and_low(df, start="09:30", end="09:35", wait_until_end_of_period=True):
     """
     Return the high between start and end time for the current day.
     Only calculates if the latest candle is past end time.
@@ -235,7 +246,7 @@ def find_session_high_and_low(df, start="09:30", end="09:35"):
     end_time = pd.to_datetime(end).time()
     start_time = pd.to_datetime(start).time()
 #  (df['date'].dt.date == current_day) &
-    if latest_time >= end_time:
+    if latest_time >= end_time or not wait_until_end_of_period:
         mask = (
                 (df['date'].dt.date == current_day) &
                 (df['date'].dt.time >= start_time) &
@@ -247,16 +258,18 @@ def find_session_high_and_low(df, start="09:30", end="09:35"):
         return -1, -1  # not yet past end time
 
 def add_5_mins_low_high_to_drawing_objects_df(low_for_5_min, high_for_5_min):
-
-    add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dash', color='Red', price_1=low_for_5_min, memo=f'low for 5 mins {low_for_5_min}', unique_id=f'{symbol}-{time_frame}-LOW_5_MIN')
-    add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dash', color ='Red', price_1=high_for_5_min, memo=f'high for 5 mins {high_for_5_min}', unique_id=f'{symbol}-{time_frame}-HIGH_5_MIN')
+    if low_for_5_min != -1:
+        add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dash', color='Red', price_1=low_for_5_min, memo=f'low for 5 mins {low_for_5_min}', unique_id=f'{symbol}-{time_frame}-LOW_5_MIN')
+    if high_for_5_min != -1:
+        add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dash', color ='Red', price_1=high_for_5_min, memo=f'high for 5 mins {high_for_5_min}', unique_id=f'{symbol}-{time_frame}-HIGH_5_MIN')
 
     return
 
 def add_pre_market_mins_low_high_to_drawing_objects_df(low_pre_market, high_pre_market):
-
-    add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dash', color='Red', price_1=low_pre_market, memo=f'low for pre-market {low_pre_market}', unique_id=f'{symbol}-{time_frame}-PML')
-    add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dash', color ='Red', price_1=high_pre_market, memo=f'high for pre-market {high_pre_market}', unique_id=f'{symbol}-{time_frame}-PMH')
+    if low_pre_market != -1:
+        add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dash', color='Red', price_1=low_pre_market, memo=f'low for pre-market {low_pre_market}', unique_id=f'{symbol}-{time_frame}-PML')
+    if high_pre_market != -1:
+        add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dash', color ='Red', price_1=high_pre_market, memo=f'high for pre-market {high_pre_market}', unique_id=f'{symbol}-{time_frame}-PMH')
 
     return
 
@@ -274,7 +287,14 @@ def drop_dupplicates(file_path, unique_column=None, keep='last'):
 def save_df_to_csv_a_tabular(df=None, file_name='', mode='w', dir=''):
     if len(df) > 0:
         file = f'{dir}/{file_name}'
-        df.to_csv(file, mode=mode, index=False)  # , header=not os.path.exists(file),index=False
+        if mode == 'w':
+            header = True
+        else:
+            if os.path.exists(file):
+                header = False
+            else:
+                header = True
+        df.to_csv(file, mode=mode, index=False, header=header)
         drop_dupplicates(file, unique_column='unique_id')  # 'event'
         write_file_in_tabulate(src_file_path=file)
     return
@@ -293,6 +313,115 @@ def write_file_in_tabulate(src_file_path, dest_file_path= None):
             f.write(tabulate(df.astype(str), headers='keys', tablefmt='psql'))
     return
 
+# 0.001
+def detect_breakout_retest_ver1(df, key_levels, tolerance=0):
+    """
+    Detect breakout or retest on the latest candle only.
+
+    df: DataFrame with at least ['open','high','low','close']
+    key_levels: list of floats (support/resistance levels)
+    tolerance: allowable distance to treat as "touch" (default 0.1%)
+
+    Returns: list of signals for the latest candle
+             Each signal is a tuple: (event_type, level, candle_index)
+             event_type ∈ {"breakout_up", "breakout_down", "retest_up", "retest_down"}
+    """
+    global signals
+    if len(df) < 2:
+        return signals  # need at least 2 candles to compare breakout
+
+    latest = df.iloc[-1]
+    prev = df.iloc[-2]
+    idx =  df.iloc[-1]['date']
+
+    for level in key_levels:
+        # --- Breakout detection ---
+        if prev["close"] < level and latest["close"] > level:
+            signals.append(("breakout_up", level, idx))
+        elif prev["close"] > level and latest["close"] < level:
+            signals.append(("breakout_down", level, idx))
+
+        # --- Retest detection ---
+        if abs(latest["low"] - level) <= level * tolerance and latest["close"] > level:
+            signals.append(("retest_up", level, idx))
+        elif abs(latest["high"] - level) <= level * tolerance and latest["close"] < level:
+            signals.append(("retest_down", level, idx))
+
+    return signals
+
+def add_to_key_levels_dic(level, memo):
+    global key_levels_dic
+    if level != -1:
+        key_levels_dic[level] = (memo)
+    return
+
+
+def get_key_levels_list():
+    df = key_levels_df.copy()
+    if len(df)> 0:
+        df = df[df['symbol'] == symbol]
+        x = df['price'].tolist()
+        return x
+    else:
+        return []
+
+
+def create_hover_df(signals):
+    global hover_df
+
+    hovers_list = []
+    for s in signals:
+        logger.info(f"create_hover_df, s:{s}")
+        event = s[0]
+        price_1 = s[1]
+        date_1 = s[2]
+        clr = 'Green' if 'up' in event else 'Red'
+        if 'breakout_up' in event:
+            obj = 'FLASH_UP'
+        elif 'breakout_down' in event:
+            obj = 'FLASH_DOWN'
+        elif 'retest_up' in event:
+            obj = 'STRONG_UP'
+        elif 'retest_down' in event:
+            obj = 'STRONG_DOWN'
+        else:
+            obj = 'NA'
+        data = {
+            'symbol': symbol,
+            'time_frame': time_frame,
+            'object': obj,
+            'color': clr,
+            'price_1': price_1,
+            'date_1': date_1,
+            'memo': f'{event} {price_1} {date_1}',
+            'unique_id': f'{symbol}--{date_1}--{price_1}'
+        }
+        hovers_list.append(data)
+    if len(hovers_list) > 0:
+        hover_df = pd.concat([hover_df, pd.DataFrame(hovers_list)], ignore_index=True)
+        hover_df = hover_df.drop_duplicates()
+    return hover_df
+
+def add_test_key_levels():
+    section = app_config.get('test', {})  # or loop through multiple sections later
+    levels = section.get('levels', {})
+
+    if levels:  # only run if levels exist
+        for key_level, level_data in levels.items():
+            symbol = level_data['symbol']
+            price = level_data['price']
+            memo = level_data.get('memo', '')
+
+            add_to_key_levels_df(
+                symbol=symbol,
+                time_frame='1 min',
+                key_level=key_level,
+                price=price,
+                memo=memo
+            )
+            add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dot', color='Black',
+                                      price_1=price, memo=f'{memo}',
+                                      unique_id=f'{symbol}-{time_frame}-{key_level}')
 if __name__ == "__main__":
 
 
@@ -302,6 +431,8 @@ if __name__ == "__main__":
     symbols_time_frame_df_map = {}
     # support_resistance_map = {}
     drawing_objects_df = pd.DataFrame()
+    hover_df = pd.DataFrame( columns=['symbol', 'time_frame', 'object', 'color', 'date_1', 'price_1', 'date_2', 'price_2', 'memo','unique_id'])
+    key_levels_df = pd.DataFrame( columns=['symbol', 'time_frame', 'key_level', 'price', 'memo','unique_id'])
 
     for symbol in app_config['symbols']:
         get_market_data_befre_market_start('1 day')
@@ -317,17 +448,36 @@ if __name__ == "__main__":
         logger.info(f"==================== j: {j}  run_date_time: {run_date_time}")
         for symbol in app_config['symbols']:
             time_frame = '1 min'
+            signals = []
+
             df = get_market_data_befre_market_start('1 min')
             create_ohlc_for_chart(df)
-            low_for_5_min, high_for_5_min = find_session_high_and_low(df, start="09:30", end="09:35")
-            low_for_pre_market, high_for_pre_market = find_session_high_and_low(df, start="04:00", end="09:30")
-            if low_for_5_min != -1:
-                add_5_mins_low_high_to_drawing_objects_df(low_for_5_min, high_for_5_min)
-            if low_for_pre_market != -1:
-               add_pre_market_mins_low_high_to_drawing_objects_df(low_for_pre_market, high_for_pre_market)
-            save_df_to_csv_a_tabular(drawing_objects_df, '10-drawing_objects_df.csv', mode='w', dir=charts_dir)
 
-            end_time = time.time()
+            low_for_5_min, high_for_5_min = find_session_high_and_low(df, start="09:30", end="09:35")
+            add_5_mins_low_high_to_drawing_objects_df(low_for_5_min, high_for_5_min)
+            add_to_key_levels_df(symbol, time_frame,'low_for_5_min', low_for_5_min, 'low_for_5_min' )
+            add_to_key_levels_df(symbol, time_frame,'high_for_5_min', high_for_5_min, 'high_for_5_min' )
+
+            low_for_pre_market, high_for_pre_market = find_session_high_and_low(df, start="04:00", end="09:30", wait_until_end_of_period=False)
+            add_pre_market_mins_low_high_to_drawing_objects_df(low_for_pre_market, high_for_pre_market)
+            add_to_key_levels_df(symbol, time_frame,'low_for_pre_market', low_for_pre_market, 'low_for_pre_market' )
+            add_to_key_levels_df(symbol, time_frame,'high_for_pre_market', high_for_pre_market, 'high_for_pre_market' )
+            add_test_key_levels()
+
+            key_levels_list = get_key_levels_list()
+            signals = detect_breakout_retest_ver1(df, key_levels_list)
+            logger.info(f"key_levels_df:\n {key_levels_df.to_markdown()}")
+            logger.info(f"key_levels_list: {key_levels_list}")
+            logger.info(f"signals: {signals}")
+            hover_df = create_hover_df(signals)
+
+            save_df_to_csv_a_tabular(drawing_objects_df, '10-drawing_objects_df.csv', mode='w', dir=charts_dir)
+            save_df_to_csv_a_tabular(hover_df, dir=charts_dir, file_name='12-hover_df.csv', mode='a')
+
+            if j % 4 == 0:
+                app_config = load_app_config(portfolio_id)
+
+        end_time = time.time()
 
         sleep_enough()
         # pass

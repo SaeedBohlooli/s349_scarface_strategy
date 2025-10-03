@@ -34,6 +34,6 @@ def convert_column_timezone(df, from_column='date', to_column='date_est', from_z
 
     # Convert from UTC to Eastern Time
     df[to_column] = df[from_column_tmp].dt.tz_convert(to_zone)
-    logger.warning(f"df[-10:].to_markdown():\n {df[-10:].to_markdown()}")
+    logger.debug(f"df[-3:].to_markdown():\n {df[-10:].to_markdown()}")
     df = df.drop(columns=[from_column_tmp])
     return df

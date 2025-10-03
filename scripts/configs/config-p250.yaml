@@ -1,12 +1,22 @@
 
-symbols: ['QQQ', 'TSLA', 'AAPL']
-historical_days: 8 D
+symbols: ['QQQ', 'TSLA', 'AAPL', 'NVDA']
+historical_days: 4 D
 # 60min  * 24 hrs = 1540
 chart:
-  1m_candles: 3000
+  1m_candles: 2000
   cutoff_in_hours: 0
+  hours_in_focus: 1
 
 
+run_should_take_seconds: 15
 
-run_should_take_seconds: 60
-
+test:
+  levels:
+    level_1:
+      symbol: 'AAPL'
+      price: 257.5
+      memo: 'test on 257.5'
+    level_2:
+      symbol: 'AAPL'
+      price: 259
+      memo: 'test on 259'
