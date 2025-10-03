@@ -469,7 +469,12 @@ def create_chart_hovered_df(hover_df, symbol):
         # Highlight / Special
         'ALERT': '★',
         'NEWS': '⚡',
-        'VOLUME_SPIKE': '◆'
+        'VOLUME_SPIKE': '◆',
+
+        # Highlight / Special
+        'RETEST_UP': '★',
+        'RETEST_DOWN': '⚡',
+
     }
 
     # Apply mapping to a new column

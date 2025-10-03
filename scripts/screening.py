@@ -171,12 +171,14 @@ def calculate_support_resitance_for_t_min_1():
     return
 
 
-def  add_to_key_levels_df(symbol, time_frame, key_level, price, memo=''):
+def  add_to_key_levels_df(symbol, time_frame, key_level, price, memo='', unique_id=''):
     global key_levels_df
     if price> 0:
-        data = {'symbol': symbol , 'time_frame': time_frame, 'key_level': key_level, 'price': price, 'memo' : memo    }
+        if unique_id == '':
+            unique_id = f'{symbol}--{time_frame}--{key_level}'
+        data = {'symbol': symbol , 'time_frame': time_frame, 'key_level': key_level, 'price': price, 'memo' : memo, 'unique_id': unique_id}
         key_levels_df = pd.concat([key_levels_df, pd.DataFrame([data])])
-        key_levels_df = key_levels_df.drop_duplicates(subset=['symbol', 'time_frame', 'key_level'], keep='last')
+        key_levels_df = key_levels_df.drop_duplicates(subset=['unique_id'], keep='last') # TODO chage to unique_id later ...
     return key_levels_df
 
 def add_to_drawing_objects_df(symbol='TSLA', time_frame='1m', object='dash', color='', date_1='', price_1=0, date_2='', price_2=0, memo = '', unique_id = 1 ):
@@ -314,7 +316,7 @@ def write_file_in_tabulate(src_file_path, dest_file_path= None):
     return
 
 # 0.001
-def detect_breakout_retest_ver1(df, key_levels, tolerance=0):
+def detect_breakout_retest_ver1(df, key_levels, tolerance=0.0005):
     """
     Detect breakout or retest on the latest candle only.
 
@@ -332,7 +334,7 @@ def detect_breakout_retest_ver1(df, key_levels, tolerance=0):
 
     latest = df.iloc[-1]
     prev = df.iloc[-2]
-    idx =  df.iloc[-1]['date']
+    idx = df.iloc[-1]['date']
 
     for level in key_levels:
         # --- Breakout detection ---
@@ -381,9 +383,9 @@ def create_hover_df(signals):
         elif 'breakout_down' in event:
             obj = 'FLASH_DOWN'
         elif 'retest_up' in event:
-            obj = 'STRONG_UP'
+            obj = 'RETEST_UP'
         elif 'retest_down' in event:
-            obj = 'STRONG_DOWN'
+            obj = 'RETEST_DOWN'
         else:
             obj = 'NA'
         data = {
@@ -393,7 +395,7 @@ def create_hover_df(signals):
             'color': clr,
             'price_1': price_1,
             'date_1': date_1,
-            'memo': f'{event} {price_1} {date_1}',
+            'memo': f'{event} {price_1}',
             'unique_id': f'{symbol}--{date_1}--{price_1}'
         }
         hovers_list.append(data)

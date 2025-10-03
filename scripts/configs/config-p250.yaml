@@ -18,5 +18,13 @@ test:
       memo: 'test on 257.5'
     level_2:
       symbol: 'AAPL'
-      price: 259
-      memo: 'test on 259'
+      price: 258.30
+      memo: 'test on 258.30'
+    level_3:
+      symbol: 'QQQ'
+      price: 604
+      memo: 'test on 604'
+#    level_4:
+#      symbol: 'QQQ'
+#      price: 258.30
+#      memo: 'test on 258.30'
