@@ -1,27 +1,55 @@
 
-symbols: ['QQQ', 'TSLA', 'AAPL', 'NVDA']
+symbols: ['QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR']
 historical_days: 4 D
 # 60min  * 24 hrs = 1540
+symbols_meta:
+  TSLA:
+    zone_buffer: 0.3%
+  AAPL:
+    zone_buffer: 0.3%
+  NVDA:
+    zone_buffer: 0.3%
+  AMD:
+    zone_buffer: 0.3%
+  PLTR:
+    zone_buffer: 0.3%
+long:
+  condition_1: abs(PDH - PMH) < 0.003 * price and abs(High5m - PDH) < 0.003 * price
+  condition_2: price_retests()
+  condition_3:
+  condition_4:
+  master_condition: condition_1 and condition_2 and condition_3 and condition_4
+
 chart:
   1m_candles: 2000
   cutoff_in_hours: 0
-  hours_in_focus: 1
+  hours_in_focus: 2
+  source: live
+  # back_test
+  # live
 
 
 run_should_take_seconds: 15
 
+back_test:
+  get_data_from_ib: False
+  historical_days: 10 D
+  cutoff_days: 1
+  cutoff_date: 2025-09-30
+
+
 test:
   levels:
     level_1:
-      symbol: 'AAPL'
+      symbol: 'x'
       price: 257.5
       memo: 'test on 257.5'
     level_2:
-      symbol: 'AAPL'
+      symbol: 'x'
       price: 258.30
       memo: 'test on 258.30'
     level_3:
-      symbol: 'QQQ'
+      symbol: 'x'
       price: 604
       memo: 'test on 604'
 #    level_4:

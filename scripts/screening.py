@@ -132,13 +132,13 @@ def create_contract(symbol):
         contract = Stock(symbol, 'SMART', 'USD')
     return contract
 
-def create_ohlc_for_chart(df):
+def save_ohlc_for_chart(df):
     logger.info(f"in generate_for_chart, symbol: {symbol}, len(df): {len(df)}")
     df = df[['date','open', 'high', 'low', 'close', 'volume']]
     file = f"{charts_dir}/{symbol}-{time_frame.replace(' ', '')}.csv"
     df.to_csv(file, index=False, mode='w')
 
-def calculate_support_resitance_for_t_min_1():
+def calcualte_PDL_PDH():
     global support_resistance_map
     global key_levels_df
     for x, df in symbols_time_frame_df_map.items():
@@ -237,6 +237,7 @@ def find_session_high_and_low(df, start="09:30", end="09:35", wait_until_end_of_
     Return the high between start and end time for the current day.
     Only calculates if the latest candle is past end time.
     """
+    df = df.copy()
     # ensure datetime
     df['date'] = pd.to_datetime(df['date'])
 
@@ -370,14 +371,15 @@ def get_key_levels_list():
 
 def create_hover_df(signals):
     global hover_df
-
+    if len(signals) == 0:
+        return  hover_df
     hovers_list = []
     for s in signals:
         logger.info(f"create_hover_df, s:{s}")
         event = s[0]
         price_1 = s[1]
         date_1 = s[2]
-        clr = 'Green' if 'up' in event else 'Red'
+        clr = 'Green' if ('up' in event.lower() or 'bull' in event.lower())  else 'Red'
         if 'breakout_up' in event:
             obj = 'FLASH_UP'
         elif 'breakout_down' in event:
@@ -387,7 +389,8 @@ def create_hover_df(signals):
         elif 'retest_down' in event:
             obj = 'RETEST_DOWN'
         else:
-            obj = 'NA'
+            obj = event
+
         data = {
             'symbol': symbol,
             'time_frame': time_frame,
@@ -396,7 +399,7 @@ def create_hover_df(signals):
             'price_1': price_1,
             'date_1': date_1,
             'memo': f'{event} {price_1}',
-            'unique_id': f'{symbol}--{date_1}--{price_1}'
+            'unique_id': f'{symbol}--{date_1}'
         }
         hovers_list.append(data)
     if len(hovers_list) > 0:
@@ -424,6 +427,60 @@ def add_test_key_levels():
             add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dot', color='Black',
                                       price_1=price, memo=f'{memo}',
                                       unique_id=f'{symbol}-{time_frame}-{key_level}')
+
+def detect_candle_patterns(df):
+    global signals
+    """
+    Detects key candlestick patterns on the last candle of df and appends to `signals`.
+    Format: ("C. Type: pattern_name", price, date)
+    """
+
+    if len(df) < 2:
+        return
+
+    c = df.iloc[-1]
+    date = c["date"]
+    o, h, l, close = c["open"], c["high"], c["low"], c["close"]
+
+    body = abs(close - o)
+    upper_wick = h - max(o, close)
+    lower_wick = min(o, close) - l
+    full_range = h - l
+    if full_range == 0:
+        return
+
+    upper_ratio = upper_wick / full_range
+    lower_ratio = lower_wick / full_range
+    body_ratio = body / full_range
+
+    # 📍 Place marker above high for visibility
+    mark_price = h + 1
+
+    # --- Doji ---
+    if body_ratio < 0.1:
+        signals.append(("C. Type: Doji", mark_price, date))
+
+    # --- Hammer ---
+    elif lower_ratio > 0.6 and upper_ratio < 0.2 and close > o:
+        signals.append(("C. Type: Hammer", mark_price, date))
+
+    # --- Inverted Hammer ---
+    elif upper_ratio > 0.6 and lower_ratio < 0.2 and close > o:
+        signals.append(("C. Type: Inverted Hammer", mark_price, date))
+
+    # --- Shooting Star ---
+    elif upper_ratio > 0.6 and lower_ratio < 0.2 and close < o:
+        signals.append(("C. Type: Shooting Star", mark_price, date))
+
+    # --- Engulfing Patterns ---
+    prev = df.iloc[-2]
+    if (prev["close"] < prev["open"]) and (close > o) and (close > prev["open"]) and (o < prev["close"]):
+        signals.append(("C. Type: Bullish Engulfing", mark_price, date))
+    elif (prev["close"] > prev["open"]) and (close < o) and (close < prev["open"]) and (o > prev["close"]):
+        signals.append(("C. Type: Bearish Engulfing", mark_price, date))
+
+    return signals
+
 if __name__ == "__main__":
 
 
@@ -439,7 +496,7 @@ if __name__ == "__main__":
     for symbol in app_config['symbols']:
         get_market_data_befre_market_start('1 day')
         get_market_data_befre_market_start('1 min')
-        calculate_support_resitance_for_t_min_1()
+        calcualte_PDL_PDH()
         # write_support_resitance_for_t_min_1_report()
     j = 0
     while True:
@@ -453,7 +510,7 @@ if __name__ == "__main__":
             signals = []
 
             df = get_market_data_befre_market_start('1 min')
-            create_ohlc_for_chart(df)
+            save_ohlc_for_chart(df)
 
             low_for_5_min, high_for_5_min = find_session_high_and_low(df, start="09:30", end="09:35")
             add_5_mins_low_high_to_drawing_objects_df(low_for_5_min, high_for_5_min)
@@ -467,9 +524,12 @@ if __name__ == "__main__":
             add_test_key_levels()
 
             key_levels_list = get_key_levels_list()
+
             signals = detect_breakout_retest_ver1(df, key_levels_list)
-            logger.info(f"key_levels_df:\n {key_levels_df.to_markdown()}")
             logger.info(f"key_levels_list: {key_levels_list}")
+            detect_candle_patterns(df)
+
+            #logger.info(f"key_levels_df:\n {key_levels_df.to_markdown()}")
             logger.info(f"signals: {signals}")
             hover_df = create_hover_df(signals)
 

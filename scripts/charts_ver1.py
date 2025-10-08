@@ -35,7 +35,8 @@ portfolio_dir = f'../portfolios/results/{portfolio_id}'
 reports_dir = f'../portfolios/reports/{portfolio_id}'
 log_dir = f'../portfolios/logs/{portfolio_id}'
 detailed_log_dir = f'../portfolios/detailed-logs/{portfolio_id}'
-charts_dir = f'../portfolios/charts/{portfolio_id}'
+run_counter = 0
+
 
 def load_app_config(portfolio_id):
     global app_config
@@ -50,10 +51,10 @@ def get_portfoilo_dir(portfolio_id):
     return portfolio_dir
 
 def get_charts_dir(portfolio_id):
-    base_dir = f'../portfolios'
-    portfolio_dir = os.path.join(base_dir, 'charts', portfolio_id)
-    return portfolio_dir
-
+    # base_dir = f'../portfolios'
+    # portfolio_dir = os.path.join(base_dir, 'charts', portfolio_id)
+    # return portfolio_dir
+    return charts_dir
 def convert_time_zone(df, from_tz, to_tz):
     df['date'] = pd.to_datetime(df['date'], errors='coerce')
     df['date'] = df['date'].dt.tz_localize(from_tz)
@@ -316,7 +317,7 @@ def add_start_finish_day(fig, df):
 
     return fig
 
-def load_ohlc_file_to_df(portfolio_id='p700', symbol='TSLA', time_frame='1min'):
+def load_df_from_ohlc_file(portfolio_id='p700', symbol='TSLA', time_frame='1min'):
     file = f'{get_charts_dir(portfolio_id)}/{symbol}-{time_frame}.csv'
     logger.info(f"load_ohlc_file_to_df, reading file: {file}")
 
@@ -473,7 +474,12 @@ def create_chart_hovered_df(hover_df, symbol):
 
         # Highlight / Special
         'RETEST_UP': '★',
-        'RETEST_DOWN': '⚡',
+        'RETEST_DOWN': '★',
+
+        'bullish_reversal' : '◆',
+        'bearish_reversal' : '◆',
+
+        'Candle Type': '○'
 
     }
 
@@ -485,20 +491,26 @@ def create_chart_hovered_df(hover_df, symbol):
     return df
 
 app_config = load_app_config(portfolio_id)  # to be accisible form every where ...
+charts_dir = ''
+if app_config['chart']['source'] == 'live':
+    charts_dir = f'../portfolios/charts/{portfolio_id}'
+else:
+    charts_dir = f'../portfolios/backtest-charts/{portfolio_id}'
+
 
 @app.route('/')
 def index():
-
     portfolio_id = 'p250'
     app_config = load_app_config(portfolio_id)
 
     drawing_objects_df = load_file_to_drawing_objects_df()
     hover_df = load_file_to_hover_df()
     plots = []
+    logger.info(f"================== call from client run_counter: {run_counter}")
     for symbol in app_config['symbols']:
         logger.info(f"================== {symbol}")
         time_frame = '1min'
-        df = load_ohlc_file_to_df(portfolio_id='p250', time_frame=time_frame, symbol=symbol)
+        df = load_df_from_ohlc_file(portfolio_id='p250', time_frame=time_frame, symbol=symbol)
 
         fig1 = chart_orch(df, portfolio_id='p250', time_frame=time_frame, symbol=symbol)
         fig1 = draw_objects(fig1,drawing_objects_df, symbol=symbol, time_frame=time_frame )
@@ -510,7 +522,7 @@ def index():
 
         plots.append(plot_html)
 
-    logger.info(f"Done!")
+    logger.info(f"Done! {run_counter}")
     return render_template("index.html", plots=plots)
 
 
