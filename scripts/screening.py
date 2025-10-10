@@ -355,6 +355,7 @@ def detect_breakout_retest_ver1(df, key_levels, tolerance=0.0005, check_breakout
 
     return signals
 
+
 def add_to_key_levels_dic(level, memo):
     global key_levels_dic
     if level != -1:
@@ -523,6 +524,7 @@ def check_buy_sell_conditon():
 
         # zone_buffer_percentage = app_config['symbols_meta'][symbol]['zone_buffer_percentage'] # used in config
         levels = get_levels_dic()  # used in config
+        condition_2_gap = app_config['symbols_meta'][symbol]['condition_2_gap']  # used in config
         logger.info(f"in check_buy_sell_conditon, levels: {levels}")
         price = df['close'].iloc[-1]  # used in config
 
@@ -585,15 +587,16 @@ def price_retest(side='up', idx_list=[-2], level=0):
     telorance_amount = app_config['symbols_meta'][symbol]['zone_buffer_amount']
 
     for idx in idx_list:
-        latest = df.iloc[idx]
-        prev = df.iloc[idx - 1]
+        row = df.iloc[idx]
+
 
         # --- Retest detection ---
         if side == 'up':
-            if level > prev["low"] and level - prev["low"] <= telorance_amount and latest["close"] > level:
+            if level > row["low"] and level - row["low"] <= telorance_amount and row["close"] > level:
+                logger.info(f"symbol: {symbol}, level: {level}, date:{df.iloc[idx]['date']} , row: {row} ")
                 return True
         else:
-            if prev["high"] > level and prev["high"] - level <= telorance_amount and latest["close"] < level:
+            if row["high"] > level and row["high"] - level <= telorance_amount and row["close"] < level:
                 return True
 
     return False
@@ -621,6 +624,7 @@ def cross_in_last_x_candles(side='up', idx_list=[-2], level=0):
 
 
 def get_levels_dic():
+    global key_levels_df
     df = key_levels_df
     df['price'] = pd.to_numeric(df['price'], errors='coerce')
     levels = dict(zip(

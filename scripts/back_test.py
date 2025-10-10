@@ -124,7 +124,7 @@ def get_market_data(symbol, time_frame ='1 day'):
 
 def create_contract(symbol):
     if symbol == 'MNQ':
-        contract = Future('MNQ', '202509', 'CME')
+        contract = Future('MNQ', app_config['symbols_meta']['MNQ']['contract_month'], 'CME')
     elif symbol == 'BTC':
         contract_btc = Contract()
         contract_btc.symbol = "BTC"
@@ -271,45 +271,6 @@ def find_session_high_and_low(df, start="09:30", end="09:35", wait_until_end_of_
         return -1, -1  # not yet past end time
 
 
-def find_index(df, start="09:30" ):
-    """
-    Return the high between start and end time for the current day.
-    Only calculates if the latest candle is past end time.
-    """
-    # ensure datetime
-    df['date'] = pd.to_datetime(df['date'])
-
-    # get current day from latest row
-    current_day = df['date'].dt.date.max()
-
-    # check if we passed the end time
-    start_time = pd.to_datetime(start).time()
-    mask = (
-            (df['date'].dt.date == current_day) &
-            (df['date'].dt.time >= start_time)
-    )
-    if mask.any():
-        return df.loc[mask].index[0]
-    else:
-        return -1
-
-
-def add_5_mins_low_high_to_drawing_objects_df(low_for_5_min, high_for_5_min):
-    if low_for_5_min != -1:
-        add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dash', color='Red', price_1=low_for_5_min, memo=f'low for 5 mins {low_for_5_min}', unique_id=f'{symbol}-{time_frame}-LOW_5_MIN')
-    if high_for_5_min != -1:
-        add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dash', color ='Red', price_1=high_for_5_min, memo=f'high for 5 mins {high_for_5_min}', unique_id=f'{symbol}-{time_frame}-HIGH_5_MIN')
-
-    return
-
-def add_pre_market_mins_low_high_to_drawing_objects_df(low_pre_market, high_pre_market):
-    if low_pre_market != -1:
-        add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dash', color='Red', price_1=low_pre_market, memo=f'low for pre-market {low_pre_market}', unique_id=f'{symbol}-{time_frame}-PML')
-    if high_pre_market != -1:
-        add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dash', color ='Red', price_1=high_pre_market, memo=f'high for pre-market {high_pre_market}', unique_id=f'{symbol}-{time_frame}-PMH')
-
-    return
-
 
 def drop_dupplicates(file_path, unique_column=None, keep='last'):
     # Drop dupplicaes
@@ -395,49 +356,6 @@ def detect_breakout_retest_ver1(df, key_levels, tolerance=0.0005, check_breakout
     return signals
 
 
-def detect_breakout_retest_ver_2(df, key_levels, tolerance=0.0005, check_breakout=True):
-    """
-    Detect breakout or retest on the latest candle only.
-
-    df: DataFrame with at least ['open','high','low','close']
-    key_levels: list of floats (support/resistance levels)
-    tolerance: allowable distance to treat as "touch" (default 0.1%)
-
-    Returns: list of signals for the latest candle
-             Each signal is a tuple: (event_type, level, candle_index)
-             event_type ∈ {"breakout_up", "breakout_down", "retest_up", "retest_down"}
-    """
-    global signals
-
-    tolerance_percentage = app_config['symbols_meta'][symbol]['zone_buffer_percentage'] # used in config
-    telorance_amount = app_config['symbols_meta'][symbol]['zone_buffer_amount'] # used in config
-
-    if len(df) < 2:
-        return signals  # need at least 2 candles to compare breakout
-
-    latest = df.iloc[-1]
-    prev = df.iloc[-2]
-    idx = df.iloc[-1]['date']
-
-    for level in key_levels:
-        if check_breakout:
-            # --- Breakout detection ---
-            if prev["close"] < level and latest["close"] > level:
-                signals.append(("breakout_up", level, idx))
-            elif prev["close"] > level and latest["close"] < level:
-                signals.append(("breakout_down", level, idx))
-
-        if telorance_amount == -1:
-            telorance_amount = level * tolerance_percentage
-
-        # --- Retest detection ---
-        if level > prev["low"] and level - prev["low"] <= telorance_amount and latest["close"] > level:
-            signals.append(("retest_up", level, idx))
-        elif prev["high"] > level and prev["high"] - level <= telorance_amount and latest["close"] < level:
-            signals.append(("retest_down", level, idx))
-
-    return signals
-
 def add_to_key_levels_dic(level, memo):
     global key_levels_dic
     if level != -1:
@@ -455,7 +373,7 @@ def get_key_levels_list():
         return []
 
 
-def create_hover_df_from_signlas(signals):
+def convert_signals_to_hover_df(signals):
     global hover_df
     if len(signals) == 0:
         return  hover_df
@@ -684,6 +602,8 @@ def price_retest(side='up', idx_list=[-2], level=0):
 
 
 def cross_in_last_x_candles(side='up', idx_list=[-2], level=0):
+    logger.info(f"in cross_in_last_x_candles, symbol: {symbol}, idx_list: {idx_list}, level:{level}")
+
     if level == 0:
         return False
 
@@ -692,11 +612,11 @@ def cross_in_last_x_candles(side='up', idx_list=[-2], level=0):
         # --- Breakout detection ---
         if side == 'up':
             if row["open"] < level and row["close"] > level:
-                logger.info(f"in cross_in_last_x_candles, retest happened!! row: {row}")
+                logger.info(f"in cross_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! row: {row}")
                 return True
         else:
             if row["close"] > level and row["close"] < level:
-                logger.info(f"in cross_in_last_x_candles, retest happened!! row: {row}")
+                logger.info(f"in cross_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! row: {row}")
                 return True
     return False
 
@@ -864,6 +784,74 @@ def detect_reversal_near_keylevel_ver2(df, key_levels, tolerance=0.003, wick_rat
 # START OFR BACK TEST
 # ############
 
+
+def find_index(df, start="09:30" ):
+    """
+    Return the high between start and end time for the current day.
+    Only calculates if the latest candle is past end time.
+    """
+    # ensure datetime
+    df['date'] = pd.to_datetime(df['date'])
+
+    # get current day from latest row
+    current_day = df['date'].dt.date.max()
+
+    # check if we passed the end time
+    start_time = pd.to_datetime(start).time()
+    mask = (
+            (df['date'].dt.date == current_day) &
+            (df['date'].dt.time >= start_time)
+    )
+    if mask.any():
+        return df.loc[mask].index[0]
+    else:
+        return -1
+
+
+
+def detect_breakout_retest_ver_2(df, key_levels, tolerance=0.0005, check_breakout=True):
+    """
+    Detect breakout or retest on the latest candle only.
+
+    df: DataFrame with at least ['open','high','low','close']
+    key_levels: list of floats (support/resistance levels)
+    tolerance: allowable distance to treat as "touch" (default 0.1%)
+
+    Returns: list of signals for the latest candle
+             Each signal is a tuple: (event_type, level, candle_index)
+             event_type ∈ {"breakout_up", "breakout_down", "retest_up", "retest_down"}
+    """
+    global signals
+
+    tolerance_percentage = app_config['symbols_meta'][symbol]['zone_buffer_percentage'] # used in config
+    telorance_amount = app_config['symbols_meta'][symbol]['zone_buffer_amount'] # used in config
+
+    if len(df) < 2:
+        return signals  # need at least 2 candles to compare breakout
+
+    latest = df.iloc[-1]
+    prev = df.iloc[-2]
+    idx = df.iloc[-1]['date']
+
+    for level in key_levels:
+        if check_breakout:
+            # --- Breakout detection ---
+            if prev["close"] < level and latest["close"] > level:
+                signals.append(("breakout_up", level, idx))
+            elif prev["close"] > level and latest["close"] < level:
+                signals.append(("breakout_down", level, idx))
+
+        if telorance_amount == -1:
+            telorance_amount = level * tolerance_percentage
+
+        # --- Retest detection ---
+        if level > prev["low"] and level - prev["low"] <= telorance_amount and latest["close"] > level:
+            signals.append(("retest_up", level, idx))
+        elif prev["high"] > level and prev["high"] - level <= telorance_amount and latest["close"] < level:
+            signals.append(("retest_down", level, idx))
+
+    return signals
+
 def cut_df_days_ago(df, days_ago=0):
     """
     Cut DataFrame up to a certain number of days ago based on df['date'].
@@ -950,7 +938,7 @@ def cut_df_until_hour_x_on_last_day(df, cutoff_time="13:00"):
     return cut_df
 
 def get_back_test_data():
-    if app_config['back_test']['get_data_from_ib']:
+    if app_config['back_test']['get_data_from_ib']: # if we need to go ti IB
         for symbol in app_config['symbols']:
             df = get_market_data(symbol, '1 min')
             df.to_csv(f'{backtest_ohlc_dir}\{symbol}-1min.csv', index=False)
