@@ -1,30 +1,69 @@
 
-symbols: ['QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR']
+symbols: ['QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR', 'MNQ' ]
 historical_days: 4 D
 # 60min  * 24 hrs = 1540
 symbols_meta:
+  QQQ:
+    zone_buffer_percentage: 0.0001
+    zone_buffer_amount: 0.5
+    condition_2_gap: 0.5
+    # 606  0.06 as retest
   TSLA:
-    zone_buffer: 0.3%
+    zone_buffer_percentage: 0.003
+    zone_buffer_amount: 0.5
+    condition_2_gap: 0.5
   AAPL:
-    zone_buffer: 0.3%
+    zone_buffer_percentage: 0.003
+    zone_buffer_amount: 0.5
+    condition_2_gap: 0.5
   NVDA:
-    zone_buffer: 0.3%
+    zone_buffer_percentage: 0.003
+    zone_buffer_amount: 0.5
+    condition_2_gap: 0.5
   AMD:
-    zone_buffer: 0.3%
+    zone_buffer_percentage: 0.003
+    zone_buffer_amount: 0.5
+    condition_2_gap: 0.5
   PLTR:
-    zone_buffer: 0.3%
+    zone_buffer_percentage: 0.003
+    zone_buffer_amount: 0.5
+    condition_2_gap: 0.5
+  MNQ:
+    zone_buffer_percentage: 0.003
+    zone_buffer_amount: 5
+    contract_month: 202512
+    condition_2_gap: 2
 long:
-  condition_1: abs(PDH - PMH) < 0.003 * price and abs(High5m - PDH) < 0.003 * price
-  condition_2: price_retests()
-  condition_3:
-  condition_4:
-  master_condition: condition_1 and condition_2 and condition_3 and condition_4
+  #  These three lines need to be close to each other.
+  condition_01: abs(levels['PDH'] - levels['PMH']) < 2 and abs(levels['5MH'] - levels['PDH']) < 2
+  # price shold be close the max of three PMH/PML/5MH
+  condition_02: price + condition_2_gap > max (levels['PDH'] , levels['PMH'], levels['5MH'] )
+  # retest should happen in the previous candle
+  #TODO while reviwing we relaized we may relax the deep of the candle once the retest happens. see the Tesla for Oct 30 in onenote
+
+  condition_03: price_retest(side='up', idx_list=[-2,-3,-4], level=max (levels['PDH'] , levels['PMH'], levels['5MH'] ) )
+  # the break should happened max 5 candles before
+  condition_04: cross_in_last_x_candles(side='up', idx_list=[-5], level=max (levels['PDH'] , levels['PMH'], levels['5MH'] ) )
+  # Add a conditon the -2 should be gree
+  condition_05: 1 == 1
+  condition_06:  is_the_market_still_moving()
+
+  master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05
+
+short:
+  condition_01: 1 == 2
+  condition_02: 1 == 1
+  condition_03: 1==1
+  condition_04: 1==1
+  condition_05: 1==1
+
+  master_condition: 1 == 2
 
 chart:
   1m_candles: 2000
   cutoff_in_hours: 0
   hours_in_focus: 2
-  source: live
+  source: live  # use live ot back_test
   # back_test
   # live
 
@@ -32,9 +71,9 @@ chart:
 run_should_take_seconds: 15
 
 back_test:
-  get_data_from_ib: False
+  get_data_from_ib: False  # put this True only for first run
   historical_days: 10 D
-  cutoff_days: 1
+  cutoff_days: -1         # if you using cutoff_days date, put this one -1
   cutoff_date: 2025-09-30
 
 

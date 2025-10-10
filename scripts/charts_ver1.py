@@ -318,7 +318,7 @@ def add_start_finish_day(fig, df):
     return fig
 
 def load_df_from_ohlc_file(portfolio_id='p700', symbol='TSLA', time_frame='1min'):
-    file = f'{get_charts_dir(portfolio_id)}/{symbol}-{time_frame}.csv'
+    file = f'{charts_dir}/{symbol}-{time_frame}.csv'
     logger.info(f"load_ohlc_file_to_df, reading file: {file}")
 
     df = pd.read_csv(file)
@@ -479,7 +479,13 @@ def create_chart_hovered_df(hover_df, symbol):
         'bullish_reversal' : '◆',
         'bearish_reversal' : '◆',
 
-        'Candle Type': '○'
+        'Candle Type': '○',
+
+        # BUY and sell Entry
+        'BUY_ENTRY': '■',
+        'SELL_ENTRY': '■',
+
+        'Screening': '○',
 
     }
 
