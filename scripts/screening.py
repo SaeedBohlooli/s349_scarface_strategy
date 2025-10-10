@@ -679,8 +679,9 @@ if __name__ == "__main__":
 
             key_levels_list = get_key_levels_list()
             logger.info(f"key_levels_list: {key_levels_list}")
+            if False:
+                signals = detect_breakout_retest_ver1(df, key_levels_list)
 
-            signals = detect_breakout_retest_ver1(df, key_levels_list)
             detect_candle_patterns(df)
             can_buy, can_sell, res_str = check_buy_sell_conditon()
             mark_buy_and_sell(can_buy, can_sell, res_str)
