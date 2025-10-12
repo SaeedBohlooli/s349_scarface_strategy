@@ -482,10 +482,15 @@ def create_chart_hovered_df(hover_df, symbol):
         'Candle Type': '○',
 
         # BUY and sell Entry
-        'BUY_ENTRY': '■',
-        'SELL_ENTRY': '■',
+        'BUY_ENTRY-case_1': '■',
+        'SELL_ENTRY-case_1': '■',
+        # BUY and sell Entry
+        'BUY_ENTRY-case_2': '■',
+        'SELL_ENTRY-case_2': '■',
 
-        'Screening': '○',
+        'Screening_case_1': '○',
+        'Screening_case_2': '○',
+        'Screening_case_3': '○',
 
     }
 

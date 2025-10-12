@@ -107,6 +107,62 @@ def get_historical_data(contract, historical_days, time_frame):
 
     return df
 
+def get_historical_data_from_start_date(contract, historical_days, time_frame, start_date):
+    # calculate end date (20 days ago)
+    # end_date = datetime.datetime.now() - datetime.timedelta(days=10)
+    # end_date_str = end_date.strftime('%Y%m%d %H:%M:%S')
+
+    bars = ib.reqHistoricalData(
+        contract,
+        endDateTime=start_date,
+        durationStr=historical_days,
+        barSizeSetting=time_frame,
+        whatToShow='TRADES',  # for BTC  'AGGTRADES',
+        useRTH=False,
+        formatDate=1)
+
+    # Create a Pandas dataframe from the historical data
+    df = util.df(bars)
+    logger.info(f"get_historical_data, len(df): {len(df)}")
+
+    if time_frame != '1 day':
+         # df["date"]=df["date"].dt.tz_convert(None)
+        if df["date"].dt.tz is not None:
+            df["date"] = df["date"].dt.tz_convert(None)
+            df = miscutils.convert_column_timezone(df, 'date', 'date', from_zone='UTC', to_zone='America/New_York')
+
+    logger.info(f"get_historical_data_from_start_date, {contract.symbol} ,df['date'].min(): {df['date'].min()}, df['date'].max(): {df['date'].max()}")
+    return df
+
+
+def get_historical_data_back_test(contract, start_date='2025-09-01', historical_days='', time_frame='1 min'):
+    """
+    Fetch historical data in chunks (e.g. 10-day periods) until today.
+    """
+
+    start = datetime.datetime.strptime(str(start_date), "%Y-%m-%d")
+
+
+    today = datetime.datetime.now()
+    df = pd.DataFrame()
+    while start < today:
+        end = start + datetime.timedelta(days=10)
+        if end > today:
+            end = today
+
+        # Call your inner function
+        tmp_df = get_historical_data_from_start_date(
+            contract=contract,
+            historical_days=historical_days,
+            time_frame=time_frame,
+            start_date=start.strftime("%Y%m%d %H:%M:%S")
+        )
+        if len(tmp_df)> 0:
+            df = pd.concat([df,tmp_df])
+        # Move start pointer forward
+        start = end
+    return df
+
 # ####
 # for apps
 # ###
@@ -324,7 +380,7 @@ def detect_breakout_retest_ver1(df, key_levels, tolerance=0.0005, check_breakout
              Each signal is a tuple: (event_type, level, candle_index)
              event_type ∈ {"breakout_up", "breakout_down", "retest_up", "retest_down"}
     """
-    global signals
+
 
     tolerance_percentage = app_config['symbols_meta'][symbol]['zone_buffer_percentage'] # used in config
     telorance_amount = app_config['symbols_meta'][symbol]['zone_buffer_amount'] # used in config
@@ -340,18 +396,18 @@ def detect_breakout_retest_ver1(df, key_levels, tolerance=0.0005, check_breakout
         if check_breakout:
             # --- Breakout detection ---
             if prev["close"] < level and latest["close"] > level:
-                signals.append(("breakout_up", level, idx))
+                add_to_signlas("breakout_up", level, idx)
             elif prev["close"] > level and latest["close"] < level:
-                signals.append(("breakout_down", level, idx))
+                add_to_signlas("breakout_down", level, idx)
 
         if telorance_amount == -1:
             telorance_amount = level * tolerance_percentage
 
         # --- Retest detection ---
         if abs(latest["low"] - level) <= telorance_amount and latest["close"] > level:
-            signals.append(("retest_up", level, idx))
+            add_to_signlas("retest_up", level, idx)
         elif abs(latest["high"] - level) <= telorance_amount and latest["close"] < level:
-            signals.append(("retest_down", level, idx))
+            add_to_signlas("retest_down", level, idx)
 
     return signals
 
@@ -376,7 +432,7 @@ def get_key_levels_list():
 def convert_signals_to_hover_df(signals):
     global hover_df
     if len(signals) == 0:
-        return  hover_df
+        return hover_df
 
     hovers_list = []
     for s in signals:
@@ -384,21 +440,43 @@ def convert_signals_to_hover_df(signals):
         event = s[0]
         price_1 = s[1]
         date_1 = s[2]
-        clr = 'Green' if ('up' in event.lower() or 'bull' in event.lower() or 'buy' in event.lower())  else 'Red'
+        memo = s[3]
+        if memo == '':
+            memo = event
+        if 'case' in event:
+            logger.info('here is debug')
         if 'breakout_up' in event:
             obj = 'FLASH_UP'
+            clr = 'Green'
         elif 'breakout_down' in event:
             obj = 'FLASH_DOWN'
+            clr = 'Red'
         elif 'retest_up' in event:
             obj = 'RETEST_UP'
+            clr = 'Green'
         elif 'retest_down' in event:
             obj = 'RETEST_DOWN'
         elif 'C. Type:' in event:
             obj = 'Candle Type'
-        elif 'res:' in event:
-            obj = 'Screening'
+            clr = 'Green'
+        elif 'res_case_1' in event :  # this is for buy sell entry
+            obj = 'Screening_case_1'
+            clr = 'Green'
+        elif 'res_case_2' in event:  # this is for buy sell entry
+            obj = 'Screening_case_2'
+            clr = 'Blue'
+        elif 'case_3' in event:  # this is for buy sell entry
+            obj = 'Screening_case_3'
+            clr = 'Orange'
+        elif 'ENTRY-case_1' in event:  # this is for buy sell entry
+            obj = event
+            clr = 'Green'
+        elif 'ENTRY-case_2' in event:  # this is for buy sell entry
+            obj = event
+            clr = 'Blue'
         else:
             obj = event
+            clr = 'Orange'
 
         data = {
             'symbol': symbol,
@@ -407,13 +485,13 @@ def convert_signals_to_hover_df(signals):
             'color': clr,
             'price_1': price_1,
             'date_1': date_1,
-            'memo': f'{event}',
+            'memo': f'{memo}',
             'unique_id': f'{symbol}--{obj}--{date_1}'
         }
         hovers_list.append(data)
     if len(hovers_list) > 0:
         hover_df = pd.concat([hover_df, pd.DataFrame(hovers_list)], ignore_index=True)
-        hover_df = hover_df.drop_duplicates()
+        hover_df = hover_df.drop_duplicates(keep='first')
     return hover_df
 
 def add_test_key_levels():
@@ -438,7 +516,6 @@ def add_test_key_levels():
                                       unique_id=f'{symbol}-{time_frame}-{key_level}')
 
 def detect_candle_patterns(df):
-    global signals
     """
     Detects key candlestick patterns on the last candle of df and appends to `signals`.
     Format: ("C. Type: pattern_name", price, date)
@@ -463,30 +540,30 @@ def detect_candle_patterns(df):
     body_ratio = body / full_range
 
     # 📍 Place marker above high for visibility
-    mark_price = h + 1
+    mark_price = h + app_config['symbols_meta'][symbol]['chart_entry_offset']
 
     # --- Doji ---
     if body_ratio < 0.1:
-        signals.append(("C. Type: Doji", mark_price, date))
+        add_to_signlas("C. Type: Doji", mark_price, date)
 
     # --- Hammer ---
     elif lower_ratio > 0.6 and upper_ratio < 0.2 and close > o:
-        signals.append(("C. Type: Hammer", mark_price, date))
+        add_to_signlas("C. Type: Hammer", mark_price, date)
 
     # --- Inverted Hammer ---
     elif upper_ratio > 0.6 and lower_ratio < 0.2 and close > o:
-        signals.append(("C. Type: Inverted Hammer", mark_price, date))
+        add_to_signlas("C. Type: Inverted Hammer", mark_price, date)
 
     # --- Shooting Star ---
     elif upper_ratio > 0.6 and lower_ratio < 0.2 and close < o:
-        signals.append(("C. Type: Shooting Star", mark_price, date))
+        add_to_signlas("C. Type: Shooting Star", mark_price, date)
 
     # --- Engulfing Patterns ---
     prev = df.iloc[-2]
     if (prev["close"] < prev["open"]) and (close > o) and (close > prev["open"]) and (o < prev["close"]):
-        signals.append(("C. Type: Bullish Engulfing", mark_price, date))
+        add_to_signlas("C. Type: Bullish Engulfing", mark_price, date)
     elif (prev["close"] > prev["open"]) and (close < o) and (close < prev["open"]) and (o > prev["close"]):
-        signals.append(("C. Type: Bearish Engulfing", mark_price, date))
+        add_to_signlas("C. Type: Bearish Engulfing", mark_price, date)
 
     return signals
 
@@ -505,25 +582,48 @@ def find_add_key_levels_to_key_levels_df():
     add_to_key_levels_df(symbol, time_frame, 'PML', low_for_pre_market, f'PML {low_for_pre_market}')
     add_to_key_levels_df(symbol, time_frame, 'PMH', high_for_pre_market, f'PMH {high_for_pre_market}')
 
-def mark_buy_and_sell(can_buy, can_sell, res_str):
-    global signals
-    if can_buy:
-        signals.append(("BUY_ENTRY", df['close'].iloc[-1], df['date'].iloc[-1]))
+def add_mark_buy_a_sell_entry_to_signals(buy_sell_case_results_list):
+    for buy_sell_case_result in buy_sell_case_results_list:
 
-    if can_sell:
-        signals.append(("SELL_ENTRY", df['close'].iloc[-1], df['date'].iloc[-1]))
+        logger.info(f"buy_sell_case_result: {buy_sell_case_result} , type(buy_sell_case_result): {type(buy_sell_case_result)}")
+        case = buy_sell_case_result[0]
+        can_buy = buy_sell_case_result[1]
+        can_sell = buy_sell_case_result[2]
+        res_str = f"{buy_sell_case_result[3]}"
+        offset_symbol = app_config['symbols_meta'][symbol]['chart_entry_offset']
 
-    signals.append(( f"res:{res_str}", df['close'].iloc[-1] - 1 , df['date'].iloc[-1]))
+        if "1" in case:  # for case_1 goes -1
+            offset = -1 * offset_symbol
+        elif "2" in case: # for case_2 goes -2
+            offset = -2 * offset_symbol
+        else:
+            offset = -3 * offset_symbol
+
+        if can_buy:
+            add_to_signlas(f"BUY_ENTRY-{case}", df['close'].iloc[-1], df['date'].iloc[-1], '')
+
+        if can_sell:
+            add_to_signlas(f"SELL_ENTRY-{case}", df['close'].iloc[-1], df['date'].iloc[-1], '')
+
+        add_to_signlas( f"{res_str}", df['close'].iloc[-1] + offset , df['date'].iloc[-1], '')  #
 
     return
 
-
-def check_buy_sell_conditon():
+def check_buy_and_sell_cases():
+    buy_sell_case_results = []
+    
+    for case in app_config['cases']:
+        res = check_buy_sell_conditon(case)
+        buy_sell_case_results.append(res)
+        
+    return buy_sell_case_results
+def check_buy_sell_conditon(case):
     res_str = ""
     try:
 
         # zone_buffer_percentage = app_config['symbols_meta'][symbol]['zone_buffer_percentage'] # used in config
         levels = get_levels_dic()  # used in config
+        condition_1_gap = app_config['symbols_meta'][symbol]['condition_1_gap']  # used in config
         condition_2_gap = app_config['symbols_meta'][symbol]['condition_2_gap']  # used in config
         logger.info(f"in check_buy_sell_conditon, levels: {levels}")
         price = df['close'].iloc[-1]  # used in config
@@ -531,16 +631,16 @@ def check_buy_sell_conditon():
         can_buy = False
         can_sell = False
 
-        buy_condition_01 = app_config['long']['condition_01']
-        sell_condition_01 = app_config['short']['condition_01']
-        buy_condition_02 = app_config['long']['condition_02']
-        sell_condition_02 = app_config['short']['condition_02']
-        buy_condition_03 = app_config['long']['condition_03']
-        sell_condition_03 = app_config['short']['condition_03']
-        buy_condition_04 = app_config['long']['condition_04']
-        sell_condition_04 = app_config['short']['condition_04']
-        buy_condition_05 = app_config['long']['condition_05']
-        sell_condition_05 = app_config['short']['condition_05']
+        buy_condition_01 = app_config['cases'][case]['long']['condition_01']
+        sell_condition_01 = app_config['cases'][case]['short']['condition_01']
+        buy_condition_02 = app_config['cases'][case]['long']['condition_02']
+        sell_condition_02 = app_config['cases'][case]['short']['condition_02']
+        buy_condition_03 = app_config['cases'][case]['long']['condition_03']
+        sell_condition_03 = app_config['cases'][case]['short']['condition_03']
+        buy_condition_04 = app_config['cases'][case]['long']['condition_04']
+        sell_condition_04 = app_config['cases'][case]['short']['condition_04']
+        buy_condition_05 = app_config['cases'][case]['long']['condition_05']
+        sell_condition_05 = app_config['cases'][case]['short']['condition_05']
 
         eval_buy_condition_01 = eval(buy_condition_01)
         eval_buy_condition_02 = eval(buy_condition_02)
@@ -564,20 +664,20 @@ def check_buy_sell_conditon():
         logger.info(
             f"sell_condition_01: {eval_sell_condition_01}, sell_condition_02: {eval_sell_condition_02}, sell_condition_03: {eval_sell_condition_03}, sell_condition_04: {eval_sell_condition_04}")
 
-        if eval(app_config['long']['master_condition']):
+        if eval(app_config['cases'][case]['long']['master_condition']):
             can_buy = True
-        if eval(app_config['short']['master_condition']):
+        if eval(app_config['cases'][case]['short']['master_condition']):
             can_sell = True
 
         logger.info(f"check_buy_sell_condition(), can_buy: {can_buy}, can_sell: {can_sell}")
-        res_str = (f"{eval_buy_condition_01}.{eval_buy_condition_02}.{eval_buy_condition_03}.{eval_buy_condition_04}.{eval_buy_condition_05}.."
+        res_str = (f"res_{case}:{eval_buy_condition_01}.{eval_buy_condition_02}.{eval_buy_condition_03}.{eval_buy_condition_04}.{eval_buy_condition_05} ... "
                  f"{eval_sell_condition_01}.{eval_sell_condition_02}.{eval_sell_condition_03}.{eval_sell_condition_04}.{eval_sell_condition_05}")
-        return can_buy, can_sell, res_str
+
     except Exception as e:
         print(traceback.format_exc())
         logger.error(f"error {e}")
 
-    return False, False, res_str
+    return case, can_buy, can_sell, res_str
 
 
 def price_retest(side='up', idx_list=[-2], level=0):
@@ -611,7 +711,7 @@ def cross_in_last_x_candles(side='up', idx_list=[-2], level=0):
         row = df.iloc[idx]
         # --- Breakout detection ---
         if side == 'up':
-            if row["open"] < level and row["close"] > level:
+            if row["open"] < level and row["close"] > level:  # FIXME gap. bring it from config.
                 logger.info(f"in cross_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! row: {row}")
                 return True
         else:
@@ -698,7 +798,7 @@ def detect_reversal_near_keylevel(df, key_levels, tolerance=0.001, wick_ratio=2.
             and c["close"] > c["open"]  # green candle
             and lower_wick >= wick_ratio * body
         ):
-            signals.append(("bullish_reversal", level, idx))
+            add_to_signlas("bullish_reversal", level, idx)
 
         # --- Bearish reversal near resistance ---
         elif (
@@ -706,7 +806,7 @@ def detect_reversal_near_keylevel(df, key_levels, tolerance=0.001, wick_ratio=2.
             and c["close"] < c["open"]  # red candle
             and upper_wick >= wick_ratio * body
         ):
-            signals.append(("bearish_reversal", level, idx))
+            add_to_signlas("bearish_reversal", level, idx)
 
     return signals
 
@@ -759,7 +859,7 @@ def detect_reversal_near_keylevel_ver2(df, key_levels, tolerance=0.003, wick_rat
             and c["close"] >= c["open"]
             and lower_wick >= wick_ratio * body
         ):
-            signals.append({
+            add_to_signlas({
                 "type": "bullish_reversal",
                 "level": level,
                 "time": candle_time
@@ -771,7 +871,7 @@ def detect_reversal_near_keylevel_ver2(df, key_levels, tolerance=0.003, wick_rat
             and c["close"] <= c["open"]
             and upper_wick >= wick_ratio * body
         ):
-            signals.append({
+            add_to_signlas({
                 "type": "bearish_reversal",
                 "level": level,
                 "time": candle_time
@@ -779,6 +879,12 @@ def detect_reversal_near_keylevel_ver2(df, key_levels, tolerance=0.003, wick_rat
 
     return signals
 
+def add_to_signlas(event, price, date, memo=''):
+
+    global signals
+    signals.append((event, price, date, memo))
+
+    return
 
 # ###########
 # START OFR BACK TEST
@@ -837,18 +943,18 @@ def detect_breakout_retest_ver_2(df, key_levels, tolerance=0.0005, check_breakou
         if check_breakout:
             # --- Breakout detection ---
             if prev["close"] < level and latest["close"] > level:
-                signals.append(("breakout_up", level, idx))
+                add_to_signlas("breakout_up", level, idx)
             elif prev["close"] > level and latest["close"] < level:
-                signals.append(("breakout_down", level, idx))
+                add_to_signlas("breakout_down", level, idx)
 
         if telorance_amount == -1:
             telorance_amount = level * tolerance_percentage
 
         # --- Retest detection ---
         if level > prev["low"] and level - prev["low"] <= telorance_amount and latest["close"] > level:
-            signals.append(("retest_up", level, idx))
+            add_to_signlas("retest_up", level, idx)
         elif prev["high"] > level and prev["high"] - level <= telorance_amount and latest["close"] < level:
-            signals.append(("retest_down", level, idx))
+            add_to_signlas("retest_down", level, idx)
 
     return signals
 
@@ -939,8 +1045,17 @@ def cut_df_until_hour_x_on_last_day(df, cutoff_time="13:00"):
 
 def get_back_test_data():
     if app_config['back_test']['get_data_from_ib']: # if we need to go ti IB
+        historical_days = app_config['back_test']['historical_days']
+        start_date = app_config['back_test']['start_date']
+
         for symbol in app_config['symbols']:
-            df = get_market_data(symbol, '1 min')
+            contract = create_contract(symbol)
+
+            df = get_historical_data_back_test(contract, start_date=start_date, historical_days=historical_days, time_frame='1 min')
+            df = df.drop_duplicates()
+            df = df.sort_values(by='date')
+            logger.info(f"{symbol}, get_back_test_data, df['date'].min(): {df['date'].min()}, df['date'].max(): {df['date'].max()}")
+
             df.to_csv(f'{backtest_ohlc_dir}\{symbol}-1min.csv', index=False)
 
     return
@@ -992,11 +1107,11 @@ if __name__ == "__main__":
 
         my_index = starting_index
         run_id = 0
+        signals = []
 
         while my_index < last_index:
             df = orig_df.iloc[:my_index]
 
-            logger.info(f"{symbol}, last row:\n{df[-1:].to_markdown()}")
 
             run_id += 1
             my_index += 1
@@ -1005,12 +1120,12 @@ if __name__ == "__main__":
             run_date_time = now.strftime("%Y-%m-%d__%H-%M")
             unique_run_id = f"{now.strftime('%Y%m%d-%H%M%S')}-{run_id}"
             logger.info(f"==================== run_date_time: {run_date_time}  unique_run_id: {unique_run_id}")
+            logger.info(f"{symbol}, last row:\n{df[-1:].to_markdown()}")
 
             find_add_key_levels_to_key_levels_df()
 
             key_levels_list = get_key_levels_list()
 
-            signals = []
             if False:
                 signals = detect_breakout_retest_ver1(df, key_levels_list, check_breakout=False)
 
@@ -1018,23 +1133,22 @@ if __name__ == "__main__":
                 signals = detect_breakout_retest_ver_2(df, key_levels_list, check_breakout=False)
 
             if False:
-
                 res = detect_reversal_candle(df)
                 if res is not None:
                     price = df['high'].iloc[-1] + 1 if 'bull' in res else df['low'].iloc[-1] - 1
-                    signals.append((res, price, df['date'].iloc[-1]))
-            if False:
+                    add_to_signlas(res, price, df['date'].iloc[-1])
 
+            if False:
                 signals = detect_reversal_near_keylevel(df, key_levels_list)
 
             if True: # adding candle patterns
                 signals = detect_candle_patterns(df)
+
             logger.info(f"signals: {signals}")
 
-            can_buy, can_sell, res_str = check_buy_sell_conditon()
-            mark_buy_and_sell(can_buy, can_sell, res_str)
+            buy_sell_case_results_list = check_buy_and_sell_cases()
 
-            hover_df = create_hover_df_from_signlas(signals)
+            add_mark_buy_a_sell_entry_to_signals(buy_sell_case_results_list)
 
 
             end_time = time.time()
@@ -1042,6 +1156,8 @@ if __name__ == "__main__":
             # sleep_enough()
             # pass
             # break
+        hover_df = convert_signals_to_hover_df(signals)  # for whole symbol ...
+
     save_df_to_csv_a_tabular(drawing_objects_df, '10-drawing_objects_df.csv', mode='w', dir=charts_dir)
     save_df_to_csv_a_tabular(key_levels_df, dir=portfolio_dir, file_name='11-key_levels_df.csv', mode='w')
     save_df_to_csv_a_tabular(hover_df, dir=charts_dir, file_name='12-hover_df.csv', mode='w')
