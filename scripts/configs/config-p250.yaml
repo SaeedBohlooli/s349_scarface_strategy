@@ -1,5 +1,6 @@
-symbols: ['QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR', 'MNQ']
-#symbols: ['QQQ']# 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR' ]  #, 'MNQ'
+symbols: ['QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR'] #, 'MNQ'
+# 6 * 2 * 60
+#symbols: ['QQQ']
 historical_days: 4 D
 # 60min  * 24 hrs = 1540
 symbols_meta:
@@ -9,37 +10,43 @@ symbols_meta:
     condition_1_gap: 2
     condition_2_gap: 0.5
     chart_entry_offset: 1
-    # 606  0.06 as retest
+    gap_required_for_break_out: 0.15
+# 606  0.06 as retest
   TSLA:
     zone_buffer_percentage: 0.003
     zone_buffer_amount: 0.5
     condition_1_gap: 2
     condition_2_gap: 0.5
     chart_entry_offset: 1
+    gap_required_for_break_out: 0.15
   AAPL:
     zone_buffer_percentage: 0.003
     zone_buffer_amount: 0.5
     condition_1_gap: 2
     condition_2_gap: 0.5
     chart_entry_offset: 1
+    gap_required_for_break_out: 0.15
   NVDA:
     zone_buffer_percentage: 0.003
     zone_buffer_amount: 0.5
     condition_1_gap: 2
     condition_2_gap: 0.5
     chart_entry_offset: 1
+    gap_required_for_break_out: 0.15
   AMD:
     zone_buffer_percentage: 0.003
     zone_buffer_amount: 0.5
     condition_1_gap: 2
     condition_2_gap: 0.5
     chart_entry_offset: 1
+    gap_required_for_break_out: 0.15
   PLTR:
     zone_buffer_percentage: 0.003
     zone_buffer_amount: 0.5
     condition_1_gap: 2
     condition_2_gap: 0.5
     chart_entry_offset: 1
+    gap_required_for_break_out: 0.15
   MNQ:
     zone_buffer_percentage: 0.003
     zone_buffer_amount: 5
@@ -47,6 +54,7 @@ symbols_meta:
     condition_1_gap: 10
     condition_2_gap: 10
     chart_entry_offset: 20
+    gap_required_for_break_out: 2
 
 cases:
   case_1:
@@ -64,6 +72,7 @@ cases:
       # FIXME the close should be at least 40 cents above level - see note "bug in breakout"
       condition_04: cross_in_last_x_candles(side='up', idx_list=[-5], level=max (levels['PDH'] , levels['PMH'], levels['5MH'] ) )
       # Add a conditon the -2 should be gree
+      # The entry shuld be greater or equal than close or high of retest candle. as intermediate result. i need to keep index of retest candle.
       condition_05: 1 == 1
       condition_06:  is_the_market_still_moving()
 
@@ -71,9 +80,9 @@ cases:
 
     short:
       condition_01: abs(levels['PDL'] - levels['PML']) < condition_1_gap and abs(levels['5ML'] - levels['PDL']) < condition_1_gap
-      condition_02: price - condition_2_gap < max (levels['PDL'] , levels['PML'], levels['5ML'] )
+      condition_02: price  < max (levels['PDL'] , levels['PML'], levels['5ML'] ) - condition_2_gap
       condition_03: price_retest(side='down', idx_list=[-2,-3,-4], level=min (levels['PDL'] , levels['PML'], levels['5ML'] ) )
-      condition_04: cross_in_last_x_candles(side='downn', idx_list=[-5], level=min (levels['PDL'] , levels['PML'], levels['5ML'] ) )
+      condition_04: cross_in_last_x_candles(side='down', idx_list=[-5], level=min (levels['PDL'] , levels['PML'], levels['5ML'] ) )
       condition_05: 1==1
 
       master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05
@@ -82,17 +91,17 @@ cases:
     long:
       condition_01: 1 == 1
       condition_02: price + condition_2_gap >  levels['5MH']
-      condition_03: price_retest(side='up', idx_list=[-2,-3,-4], level=levels['5MH'] )
-      condition_04: cross_in_last_x_candles(side='up', idx_list=[-5], level=levels['5MH'])
+      condition_03: price_retest(side='up', idx_list=[-2,-3,-4], level=levels['5MH'], both_sides=True )
+      condition_04: cross_in_last_x_candles(side='up', idx_list=[-5,-6,-7,-8,-9,-10,-11], level=levels['5MH'])
       condition_05: 1 == 1
 
       master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05
 
     short:
       condition_01: 1 == 1
-      condition_02: price - condition_2_gap <  levels['5MH']
-      condition_03: price_retest(side='down', idx_list=[-2,-3,-4], level=levels['5ML'] )
-      condition_04: cross_in_last_x_candles(side='down', idx_list=[-5], level=levels['5ML'])
+      condition_02: price  <  levels['5ML'] - condition_2_gap
+      condition_03: price_retest(side='down', idx_list=[-2,-3,-4], level=levels['5ML'],both_sides=True )
+      condition_04: cross_in_last_x_candles(side='down', idx_list=[-5,-6,-7,-8,-9,-10,-11], level=levels['5ML'])
       condition_05: 1==1
 
       master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05
@@ -113,7 +122,7 @@ back_test:
   historical_days: 10 D
   start_date: 2025-09-01
   cutoff_days: -1        # 2 means tWO dasy ago. if you using cutoff_days date, put this one -1
-  cutoff_date: 2025-09-19
+  cutoff_date: 2025-10-02
 
 
 test:

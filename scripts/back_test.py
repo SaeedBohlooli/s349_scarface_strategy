@@ -443,8 +443,6 @@ def convert_signals_to_hover_df(signals):
         memo = s[3]
         if memo == '':
             memo = event
-        if 'case' in event:
-            logger.info('here is debug')
         if 'breakout_up' in event:
             obj = 'FLASH_UP'
             clr = 'Green'
@@ -680,9 +678,10 @@ def check_buy_sell_conditon(case):
     return case, can_buy, can_sell, res_str
 
 
-def price_retest(side='up', idx_list=[-2], level=0):
+def price_retest(side='up', idx_list=[-2], level=0, both_sides=False):
     if level == 0:
         return False
+
     telorance_amount = app_config['symbols_meta'][symbol]['zone_buffer_amount']
 
     for idx in idx_list:
@@ -694,8 +693,12 @@ def price_retest(side='up', idx_list=[-2], level=0):
             if level > row["low"] and level - row["low"] <= telorance_amount and row["close"] > level:
                 logger.info(f"symbol: {symbol}, level: {level}, date:{df.iloc[idx]['date']} , row: {row} ")
                 return True
+            if both_sides and abs(level - row["low"]) <= telorance_amount and row["close"] > level:   # close > level.  low is close to the level in both sides.
+                return True
         else:
             if row["high"] > level and row["high"] - level <= telorance_amount and row["close"] < level:
+                return True
+            if both_sides and abs(level - row["high"]) <= telorance_amount and row["close"] < level:   # close < level.  high is close to the level in both sides.
                 return True
 
     return False
@@ -706,16 +709,16 @@ def cross_in_last_x_candles(side='up', idx_list=[-2], level=0):
 
     if level == 0:
         return False
-
+    gap = app_config['symbols_meta'][symbol]['gap_required_for_break_out']
     for idx in idx_list:
         row = df.iloc[idx]
         # --- Breakout detection ---
         if side == 'up':
-            if row["open"] < level and row["close"] > level:  # FIXME gap. bring it from config.
+            if row["low"] < level and row["close"] > level + gap:
                 logger.info(f"in cross_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! row: {row}")
                 return True
         else:
-            if row["close"] > level and row["close"] < level:
+            if row["high"] > level and row["close"] < level - gap:
                 logger.info(f"in cross_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! row: {row}")
                 return True
     return False
