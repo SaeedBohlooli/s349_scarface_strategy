@@ -1,4 +1,5 @@
 import sys
+import time
 
 sys.path.insert(0, f'../')
 import plotly.io as pio
@@ -20,7 +21,7 @@ from utils import miscutils
 logger = miscutils.setup_logger(__name__, logging.INFO)
 logger.info('g')
 
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 import plotly.graph_objs as go
 import plotly
 import json
@@ -492,6 +493,8 @@ def create_chart_hovered_df(hover_df, symbol):
         'Screening_case_2': '○',
         'Screening_case_3': '○',
 
+        'CANDLE_INFO': '○',
+
     }
 
     # Apply mapping to a new column
@@ -502,17 +505,31 @@ def create_chart_hovered_df(hover_df, symbol):
     return df
 
 app_config = load_app_config(portfolio_id)  # to be accisible form every where ...
+backtest_date = '20250810'
 charts_dir = ''
-if app_config['chart']['source'] == 'live':
-    charts_dir = f'../portfolios/charts/{portfolio_id}'
-else:
-    charts_dir = f'../portfolios/backtest-charts/{portfolio_id}'
 
 
 @app.route('/')
 def index():
+    global charts_dir
     portfolio_id = 'p250'
     app_config = load_app_config(portfolio_id)
+    backtest_date = ''
+    if app_config['chart']['source'] == 'live':
+        charts_dir = f'../portfolios/charts/{portfolio_id}'
+    else:
+        backtest_base_dir = '../portfolios/backtest-charts'
+        available_dates = sorted([
+            d for d in os.listdir(backtest_base_dir)
+            if os.path.isdir(os.path.join(backtest_base_dir, d))
+        ], reverse=True)  # sort newest first
+        backtest_date = request.args.get('backtest_date')
+        logger.info(f"available_dates {available_dates}")
+        if backtest_date is None:
+            backtest_date = available_dates[0]
+        logger.info(f"backtest_date: {backtest_date}")
+        charts_dir = f'../portfolios/backtest-charts/{backtest_date}/{portfolio_id}'
+        time.sleep(5)
 
     drawing_objects_df = load_file_to_drawing_objects_df()
     hover_df = load_file_to_hover_df()
@@ -534,7 +551,19 @@ def index():
         plots.append(plot_html)
 
     logger.info(f"Done! {run_counter}")
-    return render_template("index.html", plots=plots)
+    if backtest_date != '':
+        return render_template(
+            "index.html",
+            plots=plots,
+            backtest_date=backtest_date,
+            available_dates=available_dates  # ✅ must pass this
+        )
+    else:
+        return render_template(
+            "index.html",
+            plots=plots,
+            backtest_date='',
+            available_dates=[])  # ✅ must pass this
 
 
 if __name__ == '__main__':
