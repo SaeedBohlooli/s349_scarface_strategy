@@ -732,11 +732,11 @@ def cross_in_last_x_candles(side='up', idx_list=[-2], level=0):
         # --- Breakout detection ---
         if side == 'up':
             if row["low"] < level and row["close"] > level + gap:
-                logger.info(f"in cross_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! row: {row}")
+                logger.info(f"in cross_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
                 cross_happend = True
         else:
             if row["high"] > level and row["close"] < level - gap:
-                logger.info(f"in cross_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! row: {row}")
+                logger.info(f"in cross_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
                 cross_happend = True
         if cross_happend:
             cross_idx = idx
@@ -1180,7 +1180,7 @@ if __name__ == "__main__":
             df['date'] = pd.to_datetime(df['date'])
 
             df_filtered = df[df['date'].dt.strftime("%Y-%m-%d") == back_test_date]
-            if len(df) ==0:
+            if len(df_filtered) ==0:
                 break
             os.makedirs(charts_dir, exist_ok=True)
 
