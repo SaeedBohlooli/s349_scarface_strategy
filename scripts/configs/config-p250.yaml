@@ -73,7 +73,8 @@ cases:
       condition_04: cross_in_last_x_candles(side='up', idx_list=[-5], level=max (levels['PDH'] , levels['PMH'], levels['5MH'] ) )
       # Add a conditon the -2 should be gree
       # The entry should be greater or equal than close or high of retest candle. as intermediate result. i need to keep index of retest candle.
-      condition_05: check_entry_and_retest(side='up', level=max (levels['PDH'] , levels['PMH'], levels['5MH'] ))
+      # condition_05: check_entry_and_retest(side='up', level=max (levels['PDH'] , levels['PMH'], levels['5MH'] ))
+      condition_05: 1 == 1
       condition_06:  is_the_market_still_moving()
 
       master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05
@@ -83,7 +84,8 @@ cases:
       condition_02: price  < max (levels['PDL'] , levels['PML'], levels['5ML'] ) - condition_2_gap
       condition_03: price_retest(side='down', idx_list=[-2,-3,-4], level=min (levels['PDL'] , levels['PML'], levels['5ML'] ) )
       condition_04: cross_in_last_x_candles(side='down', idx_list=[-5], level=min (levels['PDL'] , levels['PML'], levels['5ML'] ) )
-      condition_05: check_entry_and_retest(side='down', level=max (levels['PDH'] , levels['PMH'], levels['5MH'] ))
+      condition_05: 1 == 1
+      # condition_05: check_entry_and_retest(side='down', level=max (levels['PDH'] , levels['PMH'], levels['5MH'] ))
 
       master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05
 
@@ -112,7 +114,7 @@ chart:
   1m_candles: 2000
   cutoff_in_hours: 0
   hours_in_focus: 2
-  source: live  # use live ot back_test
+  source: back_test  # use live ot back_test
   # back_test
   # live
 
@@ -125,7 +127,7 @@ back_test:
   start_date: 2025-09-01
 #  cutoff_days: -1        # 2 means tWO dasy ago. if you using cutoff_days date, put this one -1
 #  cutoff_date: 2025-10-02
-  back_test_date_start: 2025-09-15
+  back_test_date_start: 2025-08-20
   back_test_date_end: 2025-10-10
 
 test:
