@@ -597,11 +597,21 @@ def add_mark_buy_a_sell_entry_to_signals(buy_sell_case_results_list):
         else:
             offset = -3 * offset_symbol
 
+        # This way we don't overlap entries in the chart ...
+
+        if case == 'case_1':
+            price = df['low'].iloc[-1]
+        elif case == 'case_2':
+            price = df['high'].iloc[-1]
+        else:
+            price = df['close'].iloc[-1]
+
+
         if can_buy:
-            add_to_signlas(f"BUY_ENTRY-{case}", df['close'].iloc[-1], df['date'].iloc[-1], '')
+            add_to_signlas(f"BUY_ENTRY-{case}", price, df['date'].iloc[-1], '')
 
         if can_sell:
-            add_to_signlas(f"SELL_ENTRY-{case}", df['close'].iloc[-1], df['date'].iloc[-1], '')
+            add_to_signlas(f"SELL_ENTRY-{case}", price, df['date'].iloc[-1], '')
 
         add_to_signlas( f"{res_str}", df['close'].iloc[-1] + offset , df['date'].iloc[-1], '')  #
 
