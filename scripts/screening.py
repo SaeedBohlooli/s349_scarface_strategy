@@ -326,8 +326,8 @@ def detect_breakout_retest_ver1(df, key_levels, tolerance=0.0005, check_breakout
     """
 
 
-    tolerance_percentage = app_config['symbols_meta'][symbol]['zone_buffer_percentage'] # used in config
-    telorance_amount = app_config['symbols_meta'][symbol]['zone_buffer_amount'] # used in config
+    tolerance_percentage = app_config['symbols_meta'][symbol]['retest_tolerance_percentage'] # used in config
+    telorance_amount = app_config['symbols_meta'][symbol]['retest_tolerance_amount'] # used in config
 
     if len(df) < 2:
         return signals  # need at least 2 candles to compare breakout
@@ -578,10 +578,10 @@ def check_buy_sell_condition(case):
     res_str = ""
     try:
 
-        # zone_buffer_percentage = app_config['symbols_meta'][symbol]['zone_buffer_percentage'] # used in config
+        # retest_tolerance_percentage = app_config['symbols_meta'][symbol]['retest_tolerance_percentage'] # used in config
         levels = get_levels_dic()  # used in config
-        condition_1_gap = app_config['symbols_meta'][symbol]['condition_1_gap']  # used in config
-        condition_2_gap = app_config['symbols_meta'][symbol]['condition_2_gap']  # used in config
+        levels_closeness_limit = app_config['symbols_meta'][symbol]['levels_closeness_limit']  # used in config
+        min_required_move_from_level = app_config['symbols_meta'][symbol]['min_required_move_from_level']  # used in config
         price = df['close'].iloc[-1]  # used in config
 
         logger.info(f"in check_buy_sell_condition, levels: {levels}")
@@ -649,7 +649,7 @@ def price_retest(side='up', idx_list=[-2], level=0, both_sides=False):
     if level == 0:
         return False
 
-    telorance_amount = app_config['symbols_meta'][symbol]['zone_buffer_amount']
+    telorance_amount = app_config['symbols_meta'][symbol]['retest_tolerance_amount']
 
     retest = False
     retest_idx = 0
@@ -682,12 +682,12 @@ def price_retest(side='up', idx_list=[-2], level=0, both_sides=False):
     return retest
 
 
-def cross_in_last_x_candles(side='up', idx_list=[-2], level=0):
-    logger.info(f"in cross_in_last_x_candles, symbol: {symbol}, idx_list: {idx_list}, level:{level}")
+def breakout_in_last_x_candles(side='up', idx_list=[-2], level=0):
+    logger.info(f"in breakout_in_last_x_candles, symbol: {symbol}, idx_list: {idx_list}, level:{level}")
 
     if level == 0:
         return False
-    gap = app_config['symbols_meta'][symbol]['gap_required_for_break_out']
+    gap = app_config['symbols_meta'][symbol]['breakout_confirmation_distance']
     cross_happend = False
     cross_idx = 0
     for idx in idx_list:
@@ -695,11 +695,11 @@ def cross_in_last_x_candles(side='up', idx_list=[-2], level=0):
         # --- Breakout detection ---
         if side == 'up':
             if row["low"] < level and row["close"] > level + gap:
-                logger.info(f"in cross_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
+                logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
                 cross_happend = True
         else:
             if row["high"] > level and row["close"] < level - gap:
-                logger.info(f"in cross_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
+                logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
                 cross_happend = True
         if cross_happend:
             cross_idx = idx

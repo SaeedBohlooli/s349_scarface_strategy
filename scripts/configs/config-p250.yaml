@@ -5,12 +5,12 @@ historical_days: 4 D
 # 60min  * 24 hrs = 1540
 symbols_meta:
   QQQ:
-    zone_buffer_percentage: 0.0001
-    zone_buffer_amount: 0.5
-    condition_1_gap: 2
-    condition_2_gap: 0.5
+    retest_tolerance_percentage: 0.0001
+    retest_tolerance_amount: 0.5
+    levels_closeness_limit: 2
+    min_required_move_from_level: 0.5
+    breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
-    gap_required_for_break_out: 0.15
     trade:
       open_trade:
         contracts: 4
@@ -18,64 +18,64 @@ symbols_meta:
         stop_loss:
 # 606  0.06 as retest
   TSLA:
-    zone_buffer_percentage: 0.003
-    zone_buffer_amount: 0.5
-    condition_1_gap: 2
-    condition_2_gap: 0.5
+    retest_tolerance_percentage: 0.003
+    retest_tolerance_amount: 0.5
+    levels_closeness_limit: 2
+    min_required_move_from_level: 0.5
+    breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
-    gap_required_for_break_out: 0.15
   AAPL:
-    zone_buffer_percentage: 0.003
-    zone_buffer_amount: 0.5
-    condition_1_gap: 2
-    condition_2_gap: 0.5
+    retest_tolerance_percentage: 0.003
+    retest_tolerance_amount: 0.5
+    levels_closeness_limit: 2
+    min_required_move_from_level: 0.5
+    breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
-    gap_required_for_break_out: 0.15
   NVDA:
-    zone_buffer_percentage: 0.003
-    zone_buffer_amount: 0.5
-    condition_1_gap: 2
-    condition_2_gap: 0.5
+    retest_tolerance_percentage: 0.003
+    retest_tolerance_amount: 0.5
+    levels_closeness_limit: 2
+    min_required_move_from_level: 0.5
+    breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
-    gap_required_for_break_out: 0.15
   AMD:
-    zone_buffer_percentage: 0.003
-    zone_buffer_amount: 0.5
-    condition_1_gap: 2
-    condition_2_gap: 0.5
+    retest_tolerance_percentage: 0.003
+    retest_tolerance_amount: 0.5
+    levels_closeness_limit: 2
+    min_required_move_from_level: 0.5
+    breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
-    gap_required_for_break_out: 0.15
   PLTR:
-    zone_buffer_percentage: 0.003
-    zone_buffer_amount: 0.5
-    condition_1_gap: 2
-    condition_2_gap: 0.5
+    retest_tolerance_percentage: 0.003
+    retest_tolerance_amount: 0.5
+    levels_closeness_limit: 2
+    min_required_move_from_level: 0.5
+    breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
-    gap_required_for_break_out: 0.15
   MNQ:
-    zone_buffer_percentage: 0.003
-    zone_buffer_amount: 5
+    retest_tolerance_percentage: 0.003
+    retest_tolerance_amount: 5
     contract_month: 202512
-    condition_1_gap: 10
-    condition_2_gap: 10
+    levels_closeness_limit: 10
+    min_required_move_from_level: 10
+    breakout_confirmation_distance: 2
     chart_entry_offset: 20
-    gap_required_for_break_out: 2
 
 cases:
   case_1:
+    # These conditons filtering choppy days
     long:
       #  These three lines need to be close to each other.
-      # These conditons filtering choppy days
-      condition_01: abs(levels['PDH'] - levels['PMH']) < condition_1_gap and abs(levels['5MH'] - levels['PDH']) < condition_1_gap
-      # price shold be close the max of three PMH/PML/5MH
-      condition_02: price + condition_2_gap > max (levels['PDH'] , levels['PMH'], levels['5MH'] )
+      condition_01: abs(levels['PDH'] - levels['PMH']) < levels_closeness_limit and abs(levels['5MH'] - levels['PDH']) < levels_closeness_limit
+      # price should be above levels ...
+      condition_02: price + min_required_move_from_level > max (levels['PDH'] , levels['PMH'], levels['5MH'] )
       # retest should happen in the previous candle
       #TODO while reviwing we relaized we may relax the deep of the candle once the retest happens. see the Tesla for Oct 30 in onenote
       # the deep is telorance_amount
       condition_03: price_retest(side='up', idx_list=[-2,-3,-4], level=max (levels['PDH'] , levels['PMH'], levels['5MH'] ) )
       # the break should happened max 5 candles before
       # FIXME the close should be at least 40 cents above level - see note "bug in breakout"
-      condition_04: cross_in_last_x_candles(side='up', idx_list=[-5], level=max (levels['PDH'] , levels['PMH'], levels['5MH'] ) )
+      condition_04: breakout_in_last_x_candles(side='up', idx_list=[-5], level=max (levels['PDH'] , levels['PMH'], levels['5MH'] ) )
       # Add a conditon the -2 should be gree
       # The entry should be greater or equal than close or high of retest candle. as intermediate result. i need to keep index of retest candle.
       # condition_05: check_entry_and_retest(side='up', level=max (levels['PDH'] , levels['PMH'], levels['5MH'] ))
@@ -85,10 +85,10 @@ cases:
       master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05
 
     short:
-      condition_01: abs(levels['PDL'] - levels['PML']) < condition_1_gap and abs(levels['5ML'] - levels['PDL']) < condition_1_gap
-      condition_02: price  < min (levels['PDL'] , levels['PML'], levels['5ML'] ) - condition_2_gap
+      condition_01: abs(levels['PDL'] - levels['PML']) < levels_closeness_limit and abs(levels['5ML'] - levels['PDL']) < levels_closeness_limit
+      condition_02: price  < min (levels['PDL'] , levels['PML'], levels['5ML'] ) - min_required_move_from_level
       condition_03: price_retest(side='down', idx_list=[-2,-3,-4], level=min (levels['PDL'] , levels['PML'], levels['5ML'] ) )
-      condition_04: cross_in_last_x_candles(side='down', idx_list=[-5], level=min (levels['PDL'] , levels['PML'], levels['5ML'] ) )
+      condition_04: breakout_in_last_x_candles(side='down', idx_list=[-5], level=min (levels['PDL'] , levels['PML'], levels['5ML'] ) )
       condition_05: 1 == 1
       # condition_05: check_entry_and_retest(side='down', level=max (levels['PDH'] , levels['PMH'], levels['5MH'] ))
 
@@ -97,9 +97,9 @@ cases:
   case_2:
     long:
       condition_01: 1 == 1
-      condition_02: price + condition_2_gap >  levels['5MH']
+      condition_02: price + min_required_move_from_level >  levels['5MH']
       condition_03: price_retest(side='up', idx_list=[-2,-3,-4], level=levels['5MH'], both_sides=True )
-      condition_04: cross_in_last_x_candles(side='up', idx_list=[-5,-6,-7,-8,-9,-10,-11], level=levels['5MH'])
+      condition_04: breakout_in_last_x_candles(side='up', idx_list=[-5,-6,-7,-8,-9,-10,-11], level=levels['5MH'])
 #      condition_05: 1 == 1
       condition_05: check_entry_and_retest(side='up', level=levels['5MH'] )
 
@@ -107,9 +107,9 @@ cases:
 
     short:
       condition_01: 1 == 1
-      condition_02: price  <  levels['5ML'] - condition_2_gap
+      condition_02: price  <  levels['5ML'] - min_required_move_from_level
       condition_03: price_retest(side='down', idx_list=[-2,-3,-4], level=levels['5ML'],both_sides=True )
-      condition_04: cross_in_last_x_candles(side='down', idx_list=[-5,-6,-7,-8,-9,-10,-11], level=levels['5ML'])
+      condition_04: breakout_in_last_x_candles(side='down', idx_list=[-5,-6,-7,-8,-9,-10,-11], level=levels['5ML'])
 #      condition_05: 1 == 1
       condition_05: check_entry_and_retest(side='down', level=levels['5ML'] )
 
@@ -128,12 +128,14 @@ run_should_take_seconds: 15
 
 back_test:
   get_data_from_ib: False  # put this True only for first run
-  historical_days: 10 D
-  start_date: 2025-09-01
+  historical_days: 5 D
+  start_date: 2025-10-05
 #  cutoff_days: -1        # 2 means tWO dasy ago. if you using cutoff_days date, put this one -1
 #  cutoff_date: 2025-10-02
-  back_test_date_start: 2025-08-20
-  back_test_date_end: 2025-10-10
+  back_test_date_start: 2025-10-14
+
+  #back_test_date_start: 2025-08-20
+  back_test_date_end: 2025-10-16
 
 test:
   levels:

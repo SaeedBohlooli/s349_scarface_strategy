@@ -326,8 +326,8 @@ def detect_breakout_retest_ver1(df, key_levels, tolerance=0.0005, check_breakout
     """
 
 
-    tolerance_percentage = app_config['symbols_meta'][symbol]['zone_buffer_percentage'] # used in config
-    telorance_amount = app_config['symbols_meta'][symbol]['zone_buffer_amount'] # used in config
+    retest_tolerance_percentage = app_config['symbols_meta'][symbol]['retest_tolerance_percentage'] # used in config
+    retest_tolerance_amount = app_config['symbols_meta'][symbol]['retest_tolerance_amount'] # used in config
 
     if len(df) < 2:
         return signals  # need at least 2 candles to compare breakout
@@ -344,13 +344,13 @@ def detect_breakout_retest_ver1(df, key_levels, tolerance=0.0005, check_breakout
             elif prev["close"] > level and latest["close"] < level:
                 add_to_signlas("breakout_down", level, idx)
 
-        if telorance_amount == -1:
-            telorance_amount = level * tolerance_percentage
+        if retest_tolerance_amount == -1:
+            retest_tolerance_amount = level * retest_tolerance_percentage
 
         # --- Retest detection ---
-        if abs(latest["low"] - level) <= telorance_amount and latest["close"] > level:
+        if abs(latest["low"] - level) <= retest_tolerance_amount and latest["close"] > level:
             add_to_signlas("retest_up", level, idx)
-        elif abs(latest["high"] - level) <= telorance_amount and latest["close"] < level:
+        elif abs(latest["high"] - level) <= retest_tolerance_amount and latest["close"] < level:
             add_to_signlas("retest_down", level, idx)
 
     return signals
@@ -578,10 +578,10 @@ def check_buy_sell_condition(case):
     res_str = ""
     try:
 
-        # zone_buffer_percentage = app_config['symbols_meta'][symbol]['zone_buffer_percentage'] # used in config
+        # retest_tolerance_percentage = app_config['symbols_meta'][symbol]['retest_tolerance_percentage'] # used in config
         levels = get_levels_dic()  # used in config
-        condition_1_gap = app_config['symbols_meta'][symbol]['condition_1_gap']  # used in config
-        condition_2_gap = app_config['symbols_meta'][symbol]['condition_2_gap']  # used in config
+        levels_closeness_limit = app_config['symbols_meta'][symbol]['levels_closeness_limit']  # used in config
+        min_required_move_from_level = app_config['symbols_meta'][symbol]['min_required_move_from_level']  # used in config
         price = df['close'].iloc[-1]  # used in config
 
         logger.info(f"in check_buy_sell_condition, levels: {levels}")
@@ -649,7 +649,7 @@ def price_retest(side='up', idx_list=[-2], level=0, both_sides=False):
     if level == 0:
         return False
 
-    telorance_amount = app_config['symbols_meta'][symbol]['zone_buffer_amount']
+    telorance_amount = app_config['symbols_meta'][symbol]['retest_tolerance_amount']
 
     retest = False
     retest_idx = 0
@@ -682,12 +682,12 @@ def price_retest(side='up', idx_list=[-2], level=0, both_sides=False):
     return retest
 
 
-def cross_in_last_x_candles(side='up', idx_list=[-2], level=0):
-    logger.info(f"in cross_in_last_x_candles, symbol: {symbol}, idx_list: {idx_list}, level:{level}")
+def breakout_in_last_x_candles(side='up', idx_list=[-2], level=0):
+    logger.info(f"in breakout_in_last_x_candles, symbol: {symbol}, idx_list: {idx_list}, level:{level}")
 
     if level == 0:
         return False
-    gap = app_config['symbols_meta'][symbol]['gap_required_for_break_out']
+    gap = app_config['symbols_meta'][symbol]['breakout_confirmation_distance']
     cross_happend = False
     cross_idx = 0
     for idx in idx_list:
@@ -695,11 +695,11 @@ def cross_in_last_x_candles(side='up', idx_list=[-2], level=0):
         # --- Breakout detection ---
         if side == 'up':
             if row["low"] < level and row["close"] > level + gap:
-                logger.info(f"in cross_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
+                logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
                 cross_happend = True
         else:
             if row["high"] > level and row["close"] < level - gap:
-                logger.info(f"in cross_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
+                logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
                 cross_happend = True
         if cross_happend:
             cross_idx = idx
@@ -940,8 +940,8 @@ def detect_breakout_retest_ver_2(df, key_levels, tolerance=0.0005, check_breakou
     """
     global signals
 
-    tolerance_percentage = app_config['symbols_meta'][symbol]['zone_buffer_percentage'] # used in config
-    telorance_amount = app_config['symbols_meta'][symbol]['zone_buffer_amount'] # used in config
+    tolerance_percentage = app_config['symbols_meta'][symbol]['retest_tolerance_percentage'] # used in config
+    telorance_amount = app_config['symbols_meta'][symbol]['retest_tolerance_amount'] # used in config
 
     if len(df) < 2:
         return signals  # need at least 2 candles to compare breakout
@@ -984,16 +984,20 @@ def get_historical_data_back_test(contract, start_date='2025-09-01', historical_
     today = datetime.datetime.now()
     df = pd.DataFrame()
     while start < today:
-        end = start + datetime.timedelta(days=10)
+        end = start + datetime.timedelta(days=5)
         if end > today:
             end = today
+            start_date_time = '' # leave it to empty as we want to get latest ...
+        else:
+            start_date_time = start.strftime("%Y%m%d %H:%M:%S")
 
+        logger.info(f"start: {start}, end: {end} , historical_days:{historical_days}")
         # Call your inner function
         tmp_df = get_historical_data_from_start_date(
             contract=contract,
             historical_days=historical_days,
             time_frame=time_frame,
-            start_date=start.strftime("%Y%m%d %H:%M:%S")
+            start_date=start_date_time
         )
         if len(tmp_df)> 0:
             df = pd.concat([df,tmp_df])
@@ -1129,6 +1133,7 @@ def get_back_test_data():   # get data from IB.... use
                 logger.info(f"File {file} exists... loading it ...")
                 existing_df = pd.read_csv(file)
                 if len(existing_df) > 0:
+                    existing_df['date'] = pd.to_datetime(existing_df['date'])
                     df = pd.concat([df, existing_df])
                     df = df.sort_values(by='date')
                     df = df.drop_duplicates()
@@ -1166,6 +1171,10 @@ if __name__ == "__main__":
 
     back_test_dates = pd.date_range(start=back_test_date_start, end=back_test_date_end)
 
+    now = datetime.datetime.now()
+    run_date_time = now.strftime("%Y-%m-%d__%H-%M")
+    unique_run_id = f"{now.strftime('%Y%m%d-%H%M%S')}"
+
     # Print each date in YYYY-MM-DD format
     for d in back_test_dates:
 
@@ -1175,7 +1184,7 @@ if __name__ == "__main__":
 
         back_test_date = d.strftime('%Y-%m-%d')
         logger.info(f"back_test_date: {back_test_date}")
-        charts_dir = f'../portfolios/backtest-charts/{back_test_date}/{portfolio_id}'
+        charts_dir = f'../portfolios/backtest-charts/{unique_run_id}--{back_test_date}/{portfolio_id}'
         for symbol in app_config['symbols']:
             time_frame = '1min'
 
@@ -1220,8 +1229,6 @@ if __name__ == "__main__":
                 my_index += 1
                 start_time = time.time()
                 now = datetime.datetime.now()
-                run_date_time = now.strftime("%Y-%m-%d__%H-%M")
-                unique_run_id = f"{now.strftime('%Y%m%d-%H%M%S')}-{run_id}"
                 logger.info(f"==================== run_date_time: {run_date_time}  unique_run_id: {unique_run_id}")
                 logger.info(f"{symbol}, last row:\n{df[-1:].to_markdown()}")
 
