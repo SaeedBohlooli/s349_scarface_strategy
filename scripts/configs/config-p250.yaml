@@ -11,6 +11,11 @@ symbols_meta:
     condition_2_gap: 0.5
     chart_entry_offset: 1
     gap_required_for_break_out: 0.15
+    trade:
+      open_trade:
+        contracts: 4
+        take_profit: 1
+        stop_loss:
 # 606  0.06 as retest
   TSLA:
     zone_buffer_percentage: 0.003
@@ -81,7 +86,7 @@ cases:
 
     short:
       condition_01: abs(levels['PDL'] - levels['PML']) < condition_1_gap and abs(levels['5ML'] - levels['PDL']) < condition_1_gap
-      condition_02: price  < max (levels['PDL'] , levels['PML'], levels['5ML'] ) - condition_2_gap
+      condition_02: price  < min (levels['PDL'] , levels['PML'], levels['5ML'] ) - condition_2_gap
       condition_03: price_retest(side='down', idx_list=[-2,-3,-4], level=min (levels['PDL'] , levels['PML'], levels['5ML'] ) )
       condition_04: cross_in_last_x_candles(side='down', idx_list=[-5], level=min (levels['PDL'] , levels['PML'], levels['5ML'] ) )
       condition_05: 1 == 1

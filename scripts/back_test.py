@@ -37,12 +37,14 @@ reports_dir = f'../portfolios/reports/{portfolio_id}'
 log_dir = f'../portfolios/logs/{portfolio_id}'
 detailed_log_dir = f'../portfolios/detailed-logs/{portfolio_id}'
 backtest_ohlc_dir = f'../portfolios/backtest-ohlc/{portfolio_id}'
+ohlc_dir = f'../portfolios/backtest-ohlc/{portfolio_id}'
 
 os.makedirs(portfolio_dir, exist_ok=True)
 os.makedirs(reports_dir, exist_ok=True)
 os.makedirs(log_dir, exist_ok=True)
 os.makedirs(detailed_log_dir, exist_ok=True)
 os.makedirs(backtest_ohlc_dir, exist_ok=True)
+os.makedirs(ohlc_dir, exist_ok=True)
 # ####
 # common ...
 # ####
@@ -105,61 +107,6 @@ def get_historical_data(contract, historical_days, time_frame):
 
     return df
 
-def get_historical_data_from_start_date(contract, historical_days, time_frame, start_date):
-    # calculate end date (20 days ago)
-    # end_date = datetime.datetime.now() - datetime.timedelta(days=10)
-    # end_date_str = end_date.strftime('%Y%m%d %H:%M:%S')
-
-    bars = ib.reqHistoricalData(
-        contract,
-        endDateTime=start_date,
-        durationStr=historical_days,
-        barSizeSetting=time_frame,
-        whatToShow='TRADES',  # for BTC  'AGGTRADES',
-        useRTH=False,
-        formatDate=1)
-
-    # Create a Pandas dataframe from the historical data
-    df = util.df(bars)
-    logger.info(f"get_historical_data, len(df): {len(df)}")
-
-    if time_frame != '1 day':
-         # df["date"]=df["date"].dt.tz_convert(None)
-        if df["date"].dt.tz is not None:
-            df["date"] = df["date"].dt.tz_convert(None)
-            df = miscutils.convert_column_timezone(df, 'date', 'date', from_zone='UTC', to_zone='America/New_York')
-
-    logger.info(f"get_historical_data_from_start_date, {contract.symbol} ,df['date'].min(): {df['date'].min()}, df['date'].max(): {df['date'].max()}")
-    return df
-
-
-def get_historical_data_back_test(contract, start_date='2025-09-01', historical_days='', time_frame='1 min'):
-    """
-    Fetch historical data in chunks (e.g. 10-day periods) until today.
-    """
-
-    start = datetime.datetime.strptime(str(start_date), "%Y-%m-%d")
-
-
-    today = datetime.datetime.now()
-    df = pd.DataFrame()
-    while start < today:
-        end = start + datetime.timedelta(days=10)
-        if end > today:
-            end = today
-
-        # Call your inner function
-        tmp_df = get_historical_data_from_start_date(
-            contract=contract,
-            historical_days=historical_days,
-            time_frame=time_frame,
-            start_date=start.strftime("%Y%m%d %H:%M:%S")
-        )
-        if len(tmp_df)> 0:
-            df = pd.concat([df,tmp_df])
-        # Move start pointer forward
-        start = end
-    return df
 
 # ####
 # for apps
@@ -171,7 +118,7 @@ def get_market_data(symbol, time_frame ='1 day'):
 
     df = get_historical_data(contract, historical_days, time_frame)
     time_frame_x = time_frame.replace(' ', '')
-    df.to_csv(f"{portfolio_dir}/{symbol}-{time_frame_x}.csv")
+    df.to_csv(f"{ohlc_dir}/{symbol}-{time_frame_x}.csv", index= False)
     logger.info(f"in get_market_data: \n{df[-5:].to_markdown()}")
     return df
 
@@ -580,7 +527,7 @@ def find_add_key_levels_to_key_levels_df():
     add_to_key_levels_df(symbol, time_frame, 'PML', low_for_pre_market, f'PML {low_for_pre_market}')
     add_to_key_levels_df(symbol, time_frame, 'PMH', high_for_pre_market, f'PMH {high_for_pre_market}')
 
-def add_mark_buy_a_sell_entry_to_signals(buy_sell_case_results_list):
+def add_buy_a_sell_entries_to_signals(buy_sell_case_results_list):
     for buy_sell_case_result in buy_sell_case_results_list:
 
         logger.info(f"buy_sell_case_result: {buy_sell_case_result} , type(buy_sell_case_result): {type(buy_sell_case_result)}")
@@ -625,6 +572,8 @@ def check_buy_and_sell_cases():
         buy_sell_case_results.append(res)
         
     return buy_sell_case_results
+
+
 def check_buy_sell_condition(case):
     res_str = ""
     try:
@@ -664,14 +613,18 @@ def check_buy_sell_condition(case):
         eval_sell_condition_05 = eval(sell_condition_05)
 
         logger.info(
-            f"buy_condition_01: {buy_condition_01}, buy_condition_02: {buy_condition_02}, buy_condition_03: {buy_condition_03}, buy_condition_04: {buy_condition_04}")
-        logger.info(
-            f"buy_condition_01: {eval_buy_condition_01}, buy_condition_02: {eval_buy_condition_02}, buy_condition_03: {eval_buy_condition_03}, buy_condition_04: {eval_buy_condition_04}")
+            f"\nbuy_condition_01: {buy_condition_01}, "
+            f"\nbuy_condition_02: {buy_condition_02}, "
+            f"\nbuy_condition_03: {buy_condition_03}, "
+            f"\nbuy_condition_04: {buy_condition_04}")
+        logger.info(f"{eval_buy_condition_01}. {eval_buy_condition_02}. {eval_buy_condition_03}.{eval_buy_condition_04}")
 
         logger.info(
-            f"sell_condition_01: {sell_condition_01}, sell_condition_02: {sell_condition_02}, sell_condition_03: {sell_condition_03}, sell_condition_04: {sell_condition_04}")
-        logger.info(
-            f"sell_condition_01: {eval_sell_condition_01}, sell_condition_02: {eval_sell_condition_02}, sell_condition_03: {eval_sell_condition_03}, sell_condition_04: {eval_sell_condition_04}")
+            f"\nsell_condition_01: {sell_condition_01}, "
+            f"\nsell_condition_02: {sell_condition_02}, "
+            f"\nsell_condition_03: {sell_condition_03}, "
+            f"\nsell_condition_04: {sell_condition_04}")
+        logger.info(f"{eval_sell_condition_01}. {eval_sell_condition_02}. {eval_sell_condition_03}. {eval_sell_condition_04}")
 
         if eval(app_config['cases'][case]['long']['master_condition']):
             can_buy = True
@@ -772,36 +725,63 @@ def get_levels_dic():
 
 
 
-def detect_reversal_candle(df, wick_ratio=2.0):
-    """
-    Detect bullish or bearish reversal on the latest candle only.
+def add_to_signlas(event, price, date, memo=''):
 
-    df: DataFrame with ['open', 'high', 'low', 'close']
-    wick_ratio: how much longer the wick must be compared to the body
+    global signals
+    signals.append((event, price, date, memo))
 
-    Returns:
-        "bullish_reversal", "bearish_reversal", or None
-    """
-    if len(df) == 0:
-        return None
+    return
 
-    c = df.iloc[-1]  # latest candle
-    body = abs(c["close"] - c["open"])
-    upper_wick = c["high"] - max(c["close"], c["open"])
-    lower_wick = min(c["close"], c["open"]) - c["low"]
 
-    if body == 0:  # avoid division by zero
-        return None
+def check_entry_and_retest(side='up', level=1):
+    if retest_idx_for_level_called_from_config.get(level, -1) == -1:
+        return False
+    i = retest_idx_for_level_called_from_config.get(level, -1) # This is index for retest...
+    if side == 'up':
+        if df['close'].iloc[-1] > df['close'].iloc[i]:  # clode > retest close
+            return True
+        else:
+            return False
+    else:
+        if df['close'].iloc[-1] < df['close'].iloc[i]:
+            return True
+        else:
+            return False
 
-    # Bullish reversal: long lower wick and close > open
-    if (c["close"] > c["open"]) and (lower_wick >= wick_ratio * body):
-        return "bullish_reversal"
+def add_candle_info_df_to_signals():
 
-    # Bearish reversal: long upper wick and close < open
-    if (c["close"] < c["open"]) and (upper_wick >= wick_ratio * body):
-        return "bearish_reversal"
+    df = candle_info_df
+    df = df.drop_duplicates() # for examomple multiple retest on one candle
+    df_grouped = (
+        df.groupby(['date', 'price'], as_index=False)
+        .agg({'memo': lambda x: ' | '.join(x)})
+    )
 
-    return None
+    offset_symbol = app_config['symbols_meta'][symbol]['chart_entry_offset']
+    offset = offset_symbol + 1.5
+    for index, row in df_grouped.iterrows():
+        date = row['date']
+        price = row['price']
+        memo = f"{row['memo']} - {date}"  # adding date to the memo ...
+
+        add_to_signlas("CANDLE_INFO", price + offset, date, memo)  #
+
+    return
+
+def add_to_candle_info_df(date, price, memo):
+    global candle_info_df
+
+    data = {
+        'date': date,
+        'price': price,
+        'memo': memo
+    }
+    candle_info_df = pd.concat([candle_info_df, pd.DataFrame([data])])
+
+
+# ###########
+# START OFR BACK TEST
+# ############
 
 def detect_reversal_near_keylevel(df, key_levels, tolerance=0.001, wick_ratio=2.0):
     """
@@ -917,88 +897,34 @@ def detect_reversal_near_keylevel_ver2(df, key_levels, tolerance=0.003, wick_rat
 
     return signals
 
-def add_to_signlas(event, price, date, memo=''):
-
-    global signals
-    signals.append((event, price, date, memo))
-
-    return
 
 
-def check_entry_and_retest(side='up', level=1):
-    if retest_idx_for_level_called_from_config.get(level, -1) == -1:
-        return False
-    i = retest_idx_for_level_called_from_config.get(level, -1) # This is index for retest...
-    if side == 'up':
-        if df['close'].iloc[-1] > df['close'].iloc[i]:  # clode > retest close
-            return True
-        else:
-            return False
-    else:
-        if df['close'].iloc[-1] < df['close'].iloc[i]:
-            return True
-        else:
-            return False
+def get_historical_data_from_start_date(contract, historical_days, time_frame, start_date):
+    # calculate end date (20 days ago)
+    # end_date = datetime.datetime.now() - datetime.timedelta(days=10)
+    # end_date_str = end_date.strftime('%Y%m%d %H:%M:%S')
 
-def add_candle_info_df_to_signals():
+    bars = ib.reqHistoricalData(
+        contract,
+        endDateTime=start_date,
+        durationStr=historical_days,
+        barSizeSetting=time_frame,
+        whatToShow='TRADES',  # for BTC  'AGGTRADES',
+        useRTH=False,
+        formatDate=1)
 
-    df = candle_info_df
-    df = df.drop_duplicates() # for examomple multiple retest on one candle
-    df_grouped = (
-        df.groupby(['date', 'price'], as_index=False)
-        .agg({'memo': lambda x: ' | '.join(x)})
-    )
+    # Create a Pandas dataframe from the historical data
+    df = util.df(bars)
+    logger.info(f"get_historical_data, len(df): {len(df)}")
 
-    offset_symbol = app_config['symbols_meta'][symbol]['chart_entry_offset']
-    offset = offset_symbol + 1.5
-    for index, row in df_grouped.iterrows():
-        date = row['date']
-        price = row['price']
-        memo = f"{row['memo']} - {date}"  # adding date to the memo ...
+    if time_frame != '1 day':
+         # df["date"]=df["date"].dt.tz_convert(None)
+        if df["date"].dt.tz is not None:
+            df["date"] = df["date"].dt.tz_convert(None)
+            df = miscutils.convert_column_timezone(df, 'date', 'date', from_zone='UTC', to_zone='America/New_York')
 
-        add_to_signlas("CANDLE_INFO", price + offset, date, memo)  #
-
-    return
-
-def add_to_candle_info_df(date, price, memo):
-    global candle_info_df
-
-    data = {
-        'date': date,
-        'price': price,
-        'memo': memo
-    }
-    candle_info_df = pd.concat([candle_info_df, pd.DataFrame([data])])
-
-
-# ###########
-# START OFR BACK TEST
-# ############
-
-
-def find_index(df, start="09:30" ):
-    """
-    Return the high between start and end time for the current day.
-    Only calculates if the latest candle is past end time.
-    """
-    # ensure datetime
-    df['date'] = pd.to_datetime(df['date'])
-
-    # get current day from latest row
-    current_day = df['date'].dt.date.max()
-
-    # check if we passed the end time
-    start_time = pd.to_datetime(start).time()
-    mask = (
-            (df['date'].dt.date == current_day) &
-            (df['date'].dt.time >= start_time)
-    )
-    if mask.any():
-        return df.loc[mask].index[0]
-    else:
-        return -1
-
-
+    logger.info(f"get_historical_data_from_start_date, {contract.symbol} ,df['date'].min(): {df['date'].min()}, df['date'].max(): {df['date'].max()}")
+    return df
 
 def detect_breakout_retest_ver_2(df, key_levels, tolerance=0.0005, check_breakout=True):
     """
@@ -1042,6 +968,64 @@ def detect_breakout_retest_ver_2(df, key_levels, tolerance=0.0005, check_breakou
             add_to_signlas("retest_down", level, idx)
 
     return signals
+
+# #####
+# Starting the always needed ....
+# ###########
+
+def get_historical_data_back_test(contract, start_date='2025-09-01', historical_days='', time_frame='1 min'):
+    """
+    Fetch historical data in chunks (e.g. 10-day periods) until today.
+    """
+
+    start = datetime.datetime.strptime(str(start_date), "%Y-%m-%d")
+
+
+    today = datetime.datetime.now()
+    df = pd.DataFrame()
+    while start < today:
+        end = start + datetime.timedelta(days=10)
+        if end > today:
+            end = today
+
+        # Call your inner function
+        tmp_df = get_historical_data_from_start_date(
+            contract=contract,
+            historical_days=historical_days,
+            time_frame=time_frame,
+            start_date=start.strftime("%Y%m%d %H:%M:%S")
+        )
+        if len(tmp_df)> 0:
+            df = pd.concat([df,tmp_df])
+        # Move start pointer forward
+        start = end
+    return df
+
+
+def find_index(df, start="09:30" ):
+    """
+    Return the high between start and end time for the current day.
+    Only calculates if the latest candle is past end time.
+    """
+    # ensure datetime
+    df['date'] = pd.to_datetime(df['date'])
+
+    # get current day from latest row
+    current_day = df['date'].dt.date.max()
+
+    # check if we passed the end time
+    start_time = pd.to_datetime(start).time()
+    mask = (
+            (df['date'].dt.date == current_day) &
+            (df['date'].dt.time >= start_time)
+    )
+    if mask.any():
+        return df.loc[mask].index[0]
+    else:
+        return -1
+
+
+
 
 def cut_df_until_x_days_ago(df, days_ago=0):
     """
@@ -1128,7 +1112,7 @@ def cut_df_until_hour_x_on_last_day(df, cutoff_time="13:00"):
     cut_df = df[(df['date'].dt.normalize() < last_day) | (mask_day & mask_time)]
     return cut_df
 
-def get_back_test_data():
+def get_back_test_data():   # get data from IB.... use
     if app_config['back_test']['get_data_from_ib']: # if we need to go ti IB
         historical_days = app_config['back_test']['historical_days']
         start_date = app_config['back_test']['start_date']
@@ -1140,8 +1124,17 @@ def get_back_test_data():
             df = df.drop_duplicates()
             df = df.sort_values(by='date')
             logger.info(f"{symbol}, get_back_test_data, df['date'].min(): {df['date'].min()}, df['date'].max(): {df['date'].max()}")
-
-            df.to_csv(f'{backtest_ohlc_dir}\{symbol}-1min.csv', index=False)
+            file = f'{backtest_ohlc_dir}\{symbol}-1min.csv'
+            if os.path.exists(file):  # load file and merge with new one ...
+                logger.info(f"File {file} exists... loading it ...")
+                existing_df = pd.read_csv(file)
+                if len(existing_df) > 0:
+                    df = pd.concat([df, existing_df])
+                    df = df.sort_values(by='date')
+                    df = df.drop_duplicates()
+            logger.info(f"saving df ....")
+            df.to_csv(file, index=False)
+            logger.info(f"saving done ....")
 
     return
 
@@ -1190,7 +1183,7 @@ if __name__ == "__main__":
             df['date'] = pd.to_datetime(df['date'])
 
             df_filtered = df[df['date'].dt.strftime("%Y-%m-%d") == back_test_date]
-            if len(df_filtered) ==0:
+            if len(df_filtered) ==0: # no data so go for next one ....
                 break
             os.makedirs(charts_dir, exist_ok=True)
 
@@ -1237,10 +1230,9 @@ if __name__ == "__main__":
                 retest_idx_for_level_called_from_config = {}
 
                 find_add_key_levels_to_key_levels_df()
+                # add_test_key_levels()
 
                 key_levels_list = get_key_levels_list()
-
-
 
                 if False:
                     signals = detect_breakout_retest_ver1(df, key_levels_list, check_breakout=False)
@@ -1248,11 +1240,6 @@ if __name__ == "__main__":
                 if False:
                     signals = detect_breakout_retest_ver_2(df, key_levels_list, check_breakout=False)
 
-                if False:
-                    res = detect_reversal_candle(df)
-                    if res is not None:
-                        price = df['high'].iloc[-1] + 1 if 'bull' in res else df['low'].iloc[-1] - 1
-                        add_to_signlas(res, price, df['date'].iloc[-1])
 
                 if False:
                     signals = detect_reversal_near_keylevel(df, key_levels_list)
@@ -1263,7 +1250,7 @@ if __name__ == "__main__":
 
                 buy_sell_case_results_list = check_buy_and_sell_cases()
 
-                add_mark_buy_a_sell_entry_to_signals(buy_sell_case_results_list)
+                add_buy_a_sell_entries_to_signals(buy_sell_case_results_list)
 
 
                 end_time = time.time()
