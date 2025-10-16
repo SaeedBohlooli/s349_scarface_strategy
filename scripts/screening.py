@@ -733,7 +733,7 @@ def add_to_signlas(event, price, date, memo=''):
     return
 
 
-def check_entry_and_retest(side='up', level=1):
+def check_entry_vs_retest(side='up', level=1):
     if retest_idx_for_level_called_from_config.get(level, -1) == -1:
         return False
     i = retest_idx_for_level_called_from_config.get(level, -1) # This is index for retest...

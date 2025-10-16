@@ -560,7 +560,7 @@ def add_buy_a_sell_entries_to_signals(buy_sell_case_results_list):
         if can_sell:
             add_to_signlas(f"SELL_ENTRY-{case}", price, df['date'].iloc[-1], '')
 
-        add_to_signlas( f"{res_str}", df['close'].iloc[-1] + offset , df['date'].iloc[-1], '')  #
+        add_to_signlas( f"{res_str}", df['low'].iloc[-1] + offset , df['date'].iloc[-1], '')  #
 
     return
 
@@ -644,8 +644,7 @@ def check_buy_sell_condition(case):
 
 def price_retest(side='up', idx_list=[-2], level=0, both_sides=False):
 
-    global retest_for_level_in_previous_candle_dic
-    global retest_idx_for_level_called_from_config
+    global retest_indices_by_level_dic
     if level == 0:
         return False
 
@@ -677,7 +676,7 @@ def price_retest(side='up', idx_list=[-2], level=0, both_sides=False):
 
     if retest:
         add_to_candle_info_df(date=df['date'].iloc[retest_idx], price=df['close'].iloc[retest_idx],memo=f'retest @ {level}')
-        retest_idx_for_level_called_from_config[level] = retest_idx
+        retest_indices_by_level_dic[level] = retest_idx
 
     return retest
 
@@ -733,25 +732,30 @@ def add_to_signlas(event, price, date, memo=''):
     return
 
 
-def check_entry_and_retest(side='up', level=1):
-    if retest_idx_for_level_called_from_config.get(level, -1) == -1:
+def check_entry_vs_retest(side='up', level=1, retest_ohlc=''):
+    if retest_indices_by_level_dic.get(level, -1) == -1:
         return False
-    i = retest_idx_for_level_called_from_config.get(level, -1) # This is index for retest...
+
+    i = retest_indices_by_level_dic.get(level, -1) # This is index for retest...
+
     if side == 'up':
-        if df['close'].iloc[-1] > df['close'].iloc[i]:  # clode > retest close
+        ohlc_field = 'high' if retest_ohlc == '' else retest_ohlc
+        if df['high'].iloc[-1] > df[ohlc_field].iloc[i]:  # clode > retest close
             return True
         else:
             return False
     else:
-        if df['close'].iloc[-1] < df['close'].iloc[i]:
+        ohlc_field = 'low' if retest_ohlc == '' else retest_ohlc
+        if df['low'].iloc[-1] < df[ohlc_field].iloc[i]:
             return True
         else:
             return False
+    return False
 
 def add_candle_info_df_to_signals():
 
     df = candle_info_df
-    df = df.drop_duplicates() # for examomple multiple retest on one candle
+    df = df.drop_duplicates() # for example multiple retest on one candle
     df_grouped = (
         df.groupby(['date', 'price'], as_index=False)
         .agg({'memo': lambda x: ' | '.join(x)})
@@ -1146,7 +1150,7 @@ def get_back_test_data():   # get data from IB.... use
 def cut_df_starting_x_days_ago(df, days=5):
     last_date = df['date'].max()
 
-    cutoff = last_date - datetime.timedelta(days=5)
+    cutoff = last_date - datetime.timedelta(days=days)
 
     df = df[df['date'] >= cutoff]
     return df
@@ -1205,8 +1209,8 @@ if __name__ == "__main__":
             df.reset_index(drop=True, inplace=True) # reset index start from 0
 
             orig_df = df.copy()
+            for_chart_ohlc_df = df.copy()
 
-            save_ohlc_for_chart(df)
 
             calculate_PDL_PDH(df)
             starting_index = find_index(df, start="09:31")
@@ -1233,8 +1237,7 @@ if __name__ == "__main__":
                 logger.info(f"{symbol}, last row:\n{df[-1:].to_markdown()}")
 
 
-                retest_for_level_in_previous_candle_dic = {}
-                retest_idx_for_level_called_from_config = {}
+                retest_indices_by_level_dic = {}
 
                 find_add_key_levels_to_key_levels_df()
                 # add_test_key_levels()
@@ -1269,7 +1272,11 @@ if __name__ == "__main__":
             add_candle_info_df_to_signals()
 
             hover_df = convert_signals_to_hover_df(signals)  # for whole symbol ...
-            logger.info(f"hover_df[-10:]: {hover_df[-10:].to_markdown()}")
+            logger.info(f"hover_df[-10:]: \n{hover_df[-10:].to_markdown()}")
+
+            for_chart_ohlc_df = cut_df_starting_x_days_ago(for_chart_ohlc_df, days=1)  # we keep the last two days for chart only
+            save_ohlc_for_chart(for_chart_ohlc_df)
+
 
         save_df_to_csv_a_tabular(drawing_objects_df, '10-drawing_objects_df.csv', mode='w', dir=charts_dir)
         save_df_to_csv_a_tabular(key_levels_df, dir=portfolio_dir, file_name='11-key_levels_df.csv', mode='w')
