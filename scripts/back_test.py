@@ -540,10 +540,10 @@ def add_buy_a_sell_entries_to_signals(buy_sell_case_results_list):
 
 
         if can_buy:
-            add_to_signlas(f"BUY_ENTRY-{case}", price, df['date'].iloc[-1], f"{case} - {df['date'].iloc[-1].strftime('%H:%M:%S')}")
+            add_to_signlas(f"BUY_ENTRY-{case}", price, df['date'].iloc[-1], f"{case} - {res_str}")
 
         if can_sell:
-            add_to_signlas(f"SELL_ENTRY-{case}", price, df['date'].iloc[-1], f"{case} - {df['date'].iloc[-1].strftime('%H:%M:%S')}")
+            add_to_signlas(f"SELL_ENTRY-{case}", price, df['date'].iloc[-1], f"{case} - {res_str}")  # {df['date'].iloc[-1].strftime('%H:%M:%S')}
 
         add_to_signlas( f"{res_str}", df['low'].iloc[-1] + offset, df['date'].iloc[-1], '')  #
 
@@ -812,9 +812,9 @@ def add_candle_info_df_to_signals():
     offset = offset_symbol
     for index, row in df_grouped.iterrows():
         date = row['date']
-        date = date.strftime('%H:%M')  # just hh:mm from  2025-10-17 10:56:00-04:00
+        date.strftime('%H:%M')  # just hh:mm from  2025-10-17 10:56:00-04:00
         price = row['price']
-        memo = f"{row['memo']} - {date}"  # adding date to the memo ...
+        memo = f"{row['memo']} - {date.strftime('%H:%M')}"  # adding date to the memo ...
 
         add_to_signlas("CANDLE_INFO", price + offset, date, memo)  #
 

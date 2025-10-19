@@ -148,7 +148,7 @@ back_test:
   historical_days: 5 D
   start_date: 2025-10-13
 
-  back_test_date_start: 2025-10-01
+  back_test_date_start: 2025-10-17
   back_test_date_end: 2025-10-19
 
 test:
