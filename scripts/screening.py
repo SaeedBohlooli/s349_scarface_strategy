@@ -16,6 +16,7 @@ import os
 import yaml
 from pandas.tseries.offsets import BDay
 import logging
+from finta import TA
 
 print(f"os.path.join('../'): {os.path.join('../')}")
 sys.path.insert(0, f'../')
@@ -25,6 +26,7 @@ for dir_1 in os.listdir(os.path.join('../')):
 from utils import miscutils
 from utils import Constants
 from utils import email_util_ver_02
+from utils import atr_tolerance_helper
 
 portfolio_id = 'p250'
 configs_folder = f'../scripts/configs'
@@ -556,10 +558,10 @@ def add_buy_a_sell_entries_to_signals(buy_sell_case_results_list):
 
 
         if can_buy:
-            add_to_signlas(f"BUY_ENTRY-{case}", price, df['date'].iloc[-1], '')
+            add_to_signlas(f"BUY_ENTRY-{case}", price, df['date'].iloc[-1], f"{case} - {res_str}")
 
         if can_sell:
-            add_to_signlas(f"SELL_ENTRY-{case}", price, df['date'].iloc[-1], '')
+            add_to_signlas(f"SELL_ENTRY-{case}", price, df['date'].iloc[-1], f"{case} - {res_str}")  # {df['date'].iloc[-1].strftime('%H:%M:%S')}
 
         add_to_signlas( f"{res_str}", df['low'].iloc[-1] + offset, df['date'].iloc[-1], '')  #
 
@@ -577,6 +579,8 @@ def check_buy_and_sell_cases():
 
 def check_buy_sell_condition(case):
     res_str = ""
+    global break_out_indices_by_level_dic
+    global retest_indices_by_level_dic
     try:
 
         levels = get_levels_dic()  # used in config
@@ -603,6 +607,8 @@ def check_buy_sell_condition(case):
         sell_condition_06 = app_config['cases'][case]['short']['condition_06']
         buy_condition_07 = app_config['cases'][case]['long']['condition_07']
         sell_condition_07 = app_config['cases'][case]['short']['condition_07']
+        buy_condition_08 = app_config['cases'][case]['long']['condition_08']
+        sell_condition_08 = app_config['cases'][case]['short']['condition_08']
 
         eval_buy_condition_01 = eval(buy_condition_01)
         eval_buy_condition_02 = eval(buy_condition_02)
@@ -611,6 +617,7 @@ def check_buy_sell_condition(case):
         eval_buy_condition_05 = eval(buy_condition_05)
         eval_buy_condition_06 = eval(buy_condition_06)
         eval_buy_condition_07 = eval(buy_condition_07)
+        eval_buy_condition_08 = eval(buy_condition_08)
 
         eval_sell_condition_01 = eval(sell_condition_01)
         eval_sell_condition_02 = eval(sell_condition_02)
@@ -619,6 +626,7 @@ def check_buy_sell_condition(case):
         eval_sell_condition_05 = eval(sell_condition_05)
         eval_sell_condition_06 = eval(sell_condition_06)
         eval_sell_condition_07 = eval(sell_condition_07)
+        eval_sell_condition_08 = eval(sell_condition_08)
 
         logger.info(
             f"\ncase: {case} "
@@ -651,16 +659,37 @@ def check_buy_sell_condition(case):
             can_sell = True
 
         logger.info(f"{case}, check_buy_sell_condition(), can_buy: {can_buy}, can_sell: {can_sell}")
-        res_str = (f"res_{case}:{eval_buy_condition_01}.{eval_buy_condition_02}.{eval_buy_condition_03}.{eval_buy_condition_04}.{eval_buy_condition_05}.{eval_buy_condition_06} ... "
-                 f"{eval_sell_condition_01}.{eval_sell_condition_02}.{eval_sell_condition_03}.{eval_sell_condition_04}.{eval_sell_condition_05}.{eval_sell_condition_06}")
 
+        long_breakup_idx = break_out_indices_by_level_dic.get(eval(app_config['cases'][case]['long']['level']), 0)
+        long_retest_idx = retest_indices_by_level_dic.get(eval(app_config['cases'][case]['long']['level']), 0)
+
+        short_breakup_idx = break_out_indices_by_level_dic.get(eval(app_config['cases'][case]['short']['level']), 0)
+        short_retest_idx = retest_indices_by_level_dic.get(eval(app_config['cases'][case]['short']['level']), 0)
+
+        logger.debug(f"break_out_indices_by_level_dic: {break_out_indices_by_level_dic}")
+        logger.debug(f"retest_indices_by_level_dic: {retest_indices_by_level_dic}")
+
+        res_str = (f"res_{case}:{eval_buy_condition_01}.{eval_buy_condition_02}.{eval_buy_condition_03}.{eval_buy_condition_04}.{eval_buy_condition_05}.{eval_buy_condition_06}.{eval_buy_condition_07}..{long_breakup_idx}.{long_retest_idx}... "
+                 f"{eval_sell_condition_01}.{eval_sell_condition_02}.{eval_sell_condition_03}.{eval_sell_condition_04}.{eval_sell_condition_05}.{eval_sell_condition_06}.{eval_sell_condition_07}..{short_breakup_idx}.{short_retest_idx}"
+                   f"..{df['date'].iloc[-1].strftime('%H:%M')}")
+        res_str = res_str.replace('True', 'T')
+        res_str = res_str.replace('False', 'F')
     except Exception as e:
         print(traceback.format_exc())
         logger.error(f"error {e}")
 
     return case, can_buy, can_sell, res_str
 
+def check_retest_after_breakout(side='up', level=1):
 
+    retest_idx = retest_indices_by_level_dic.get(level, -1) # This is index for retest...
+    breakout_idx = break_out_indices_by_level_dic.get(level, -1) # This is index for breakout...
+    if retest_idx == -1 or breakout_idx == -1:
+        return False
+    if breakout_idx < retest_idx:   #  breakout -4 < retest -2
+        return True
+    else:
+        return False
 def price_retest(side='up', idx_list=[-2], level=0, both_sides=False):
 
     global retest_indices_by_level_dic
@@ -702,6 +731,10 @@ def price_retest(side='up', idx_list=[-2], level=0, both_sides=False):
         retest_indices_by_level_dic[level] = retest_idx
 
     return retest
+
+def dummy_call(level):
+    x = atr_tolerance_helper.get_dynamic_tolerance(df, level=level, min_tick=0.01)
+    add_to_candle_info_df(date=df['date'].iloc[-1], price=df['close'].iloc[-1],memo=f' {x} @ {level}')
 
 
 def breakout_in_last_x_candles(side='up', idx_list=[-2], level=0):
@@ -798,15 +831,16 @@ def add_candle_info_df_to_signals():
     df = df.drop_duplicates()
     df_grouped = (  # for example multiple retest on one candle
         df.groupby(['date', 'price'], as_index=False)
-        .agg({'memo': lambda x: ' | '.join(x)})
+        .agg({'memo': lambda x: ' <br> '.join(x)})
     )
 
     offset_symbol = app_config['symbols_meta'][symbol]['chart_entry_offset']
     offset = offset_symbol
     for index, row in df_grouped.iterrows():
         date = row['date']
+        date.strftime('%H:%M')  # just hh:mm from  2025-10-17 10:56:00-04:00
         price = row['price']
-        memo = f"{row['memo']} - {date}"  # adding date to the memo ...
+        memo = f"{row['memo']} <br> {date.strftime('%H:%M')}"  # adding date to the memo ...
 
         add_to_signlas("CANDLE_INFO", price + offset, date, memo)  #
 
@@ -834,10 +868,15 @@ def are_breakout_and_candles_aligned(side= 'up', level=0, ohlc_field='close'):
 
     if break_out_indices_by_level_dic.get(level, -1) == -1:
         return False
-    # TODO check j < i , to make sure break out is less than
 
     i = retest_indices_by_level_dic.get(level, -1) # This is index for retest...
     j = break_out_indices_by_level_dic.get(level, -1) # This is index for breakout...
+
+    if  j == i or j > i:
+        return  False
+
+
+
     j = j + 1 # we don't want to include the breakout in the check ...
     start, end = sorted([i, j])  # in case you mix order
     # say start -5 end -3.  this get -5, -4, -3, -2.  it mean both -5 and -3 is included too.
@@ -851,6 +890,32 @@ def are_breakout_and_candles_aligned(side= 'up', level=0, ohlc_field='close'):
             return True
         else:
             logger.info("Some close values <= level")
+
+    return False
+
+def no_failure_after_breakout(side='up', level=0, ohlc_field='open'):
+    # we want make sure all closes after breakout are above the level.
+    # for up, use 'open'
+    # for down use 'close'
+
+
+    if break_out_indices_by_level_dic.get(level, -1) == -1:
+        return False
+
+    i = -1 # the last candle
+    j = break_out_indices_by_level_dic.get(level, -1) # This is index for breakout...
+
+    if j == i:
+        return  False
+
+    start, end = sorted([i, j])  # in case you mix order
+    # say start -5 end -3.  this get -5, -4, -3, -2.  it mean both -5 and -3 is included too.
+    if side == 'up':
+        if (df.iloc[start:][ohlc_field] > level).all(): # all highs are above level
+            return True
+    else:
+        if (df.iloc[start:][ohlc_field] < level).all(): # all opens are less then elvel
+            return True
 
     return False
 
@@ -1211,17 +1276,20 @@ def cut_df_until_hour_x_on_last_day(df, cutoff_time="13:00"):
 
 def get_back_test_data():   # get data from IB.... use
     if app_config['back_test']['get_data_from_ib']: # if we need to go ti IB
+        ib = create_ib_connection()
+
         historical_days = app_config['back_test']['historical_days']
         start_date = app_config['back_test']['start_date']
 
         for symbol in app_config['symbols']:
-            contract = create_contract(symbol)
+            contract = create_equity_contract(symbol)
 
             df = get_historical_data_back_test(contract, start_date=start_date, historical_days=historical_days, time_frame='1 min')
             df = df.drop_duplicates()
             df = df.sort_values(by='date')
             logger.info(f"{symbol}, get_back_test_data, df['date'].min(): {df['date'].min()}, df['date'].max(): {df['date'].max()}")
-            file = f'{backtest_ohlc_dir}\{symbol}-1min.csv'
+            file = os.path.join(backtest_ohlc_dir, f'{symbol}-1min.csv')
+            print(f"saving to file: {file}")
             if os.path.exists(file):  # load file and merge with new one ...
                 logger.info(f"File {file} exists... loading it ...")
                 existing_df = pd.read_csv(file)
@@ -1235,6 +1303,8 @@ def get_back_test_data():   # get data from IB.... use
             logger.info(f"saving done ....")
 
     return
+
+
 
 def cut_df_starting_x_days_ago(df, days=5):
     last_date = df['date'].max()
@@ -1413,6 +1483,14 @@ def find_expiration_and_strikes_for_all():
         find_expiration_and_strikes(symbol)
     return
 
+def popualate_features(df):
+    period = 14
+    atr_df = pd.DataFrame()
+    atr_df[f'atr_{period}'] = TA.ATR(df, 14)
+    features_list = [df, atr_df]
+
+    df = pd.concat(features_list, axis=1)
+    return df
 
 # ############
 # End of IB sending order - only for live
@@ -1473,6 +1551,8 @@ if __name__ == "__main__":
             break_out_indices_by_level_dic = {}
 
             df = get_market_data(symbol, '1 min')
+            df = popualate_features(df)
+
             save_ohlc_for_chart(df)
 
             if run_number == 1: # only first run for each symbol ...

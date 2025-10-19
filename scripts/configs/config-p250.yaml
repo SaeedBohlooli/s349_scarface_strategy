@@ -1,6 +1,6 @@
 logging_level: logging.INFO
-symbols: ['QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR'] #, 'MNQ'
-#symbols: ['NVDA'] #, 'MNQ'
+#symbols: ['QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR'] #, 'MNQ'
+symbols: ['TSLA'] #, 'MNQ'
 # 6 * 2 * 60
 #symbols: ['QQQ']
 historical_days: 4 D
@@ -79,7 +79,7 @@ cases:
       condition_05: check_entry_vs_retest(side='up', level=max(levels['PDH'], levels['PMH'], levels['5MH'])  )
       condition_06: no_failure_after_breakout(side='up', ohlc_field ='close', level=max(levels['PDH'], levels['PMH'], levels['5MH']) )
       condition_07: check_retest_after_breakout(side='up', level=max(levels['PDH'], levels['PMH'], levels['5MH']))
-      condition_08: 1 == 1
+      condition_08: dummy_call(level=max(levels['PDH'], levels['PMH'], levels['5MH']))
 
       master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_06
 
@@ -92,7 +92,7 @@ cases:
       condition_05: check_entry_vs_retest(side='down', level=min(levels['PDL'], levels['PML'], levels['5ML']) )
       condition_06: no_failure_after_breakout(side='down', ohlc_field ='close', level=min(levels['PDL'], levels['PML'], levels['5ML']) )
       condition_07: check_retest_after_breakout(side='down', level=min(levels['PDL'], levels['PML'], levels['5ML']))
-      condition_08: 1 == 1
+      condition_08: dummy_call(level=min(levels['PDH'], levels['PMH'], levels['5MH']))
 
       master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07
 
@@ -106,8 +106,7 @@ cases:
       condition_05: check_entry_vs_retest(side='up', level=levels['5MH'] )
       condition_06: no_failure_after_breakout(side='up', ohlc_field='close', level=levels['5MH'])
       condition_07: check_retest_after_breakout(side='up', level=levels['5MH'])
-      condition_08: 1 == 1
-
+      condition_08: dummy_call(level=levels['5MH'])
 #      condition_01: symbol == 'AMD'
 #      condition_02: 1 == 1
 #      condition_03: 1 == 1
@@ -127,7 +126,7 @@ cases:
       condition_05: check_entry_vs_retest(side='down', level=levels['5ML'])
       condition_06: no_failure_after_breakout(side='down', ohlc_field='close', level=levels['5ML'])
       condition_07: check_retest_after_breakout(side='down', level=levels['5ML'])
-      condition_08: 1 == 1
+      condition_08: dummy_call(level=levels['5ML'])
 
       master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_06
 

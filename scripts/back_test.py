@@ -26,6 +26,7 @@ for dir_1 in os.listdir(os.path.join('../')):
 from utils import miscutils
 from utils import Constants
 from utils import email_util_ver_02
+from utils import atr_tolerance_helper
 
 portfolio_id = 'p250'
 configs_folder = f'../scripts/configs'
@@ -94,12 +95,30 @@ def get_previous_bday():
     prev_day = (pd.Timestamp.today() - BDay(1)).normalize()
     return prev_day
 
+def disconnect_ib(ib):
+        try:
+            logger.info("we need to diconnect first ...")
+            ib.disconnect()  # 🔹 Important: ensure full teardown
+            time.sleep(1)
+
+        except Exception as e:
+            logger.error(f"disconnect_ib: ⚠️ Exception: {e}")
+            time.sleep(1)
+
+
+def on_disconnect():
+    logger.warning("⚠️ IB disconnected! Reconnecting...")
+    create_ib_connection()
+
+
 def create_ib_connection():
     connected = False
     ib = None
     while not connected:
         try:
             ib = IB()
+            disconnect_ib(ib)
+            ib.disconnectedEvent += on_disconnect
             ib.connect(ib_config['ip'], ib_config['port'], clientId=ib_config['client_id'], timeout=0)
             connected = True
             logger.info(f"IB connected.")
@@ -107,8 +126,9 @@ def create_ib_connection():
             # TODO needs better exception handling
             logger.error(f"error: {e}")
             import traceback
-
-            print(traceback.format_exc())
+            logger.error(f"--------------")
+            logger.error(traceback.format_exc())
+            logger.info("Sleeping for 60 secs and retrying again ...")
             time.sleep(60)
     return ib
 
@@ -589,6 +609,8 @@ def check_buy_sell_condition(case):
         sell_condition_06 = app_config['cases'][case]['short']['condition_06']
         buy_condition_07 = app_config['cases'][case]['long']['condition_07']
         sell_condition_07 = app_config['cases'][case]['short']['condition_07']
+        buy_condition_08 = app_config['cases'][case]['long']['condition_08']
+        sell_condition_08 = app_config['cases'][case]['short']['condition_08']
 
         eval_buy_condition_01 = eval(buy_condition_01)
         eval_buy_condition_02 = eval(buy_condition_02)
@@ -597,6 +619,7 @@ def check_buy_sell_condition(case):
         eval_buy_condition_05 = eval(buy_condition_05)
         eval_buy_condition_06 = eval(buy_condition_06)
         eval_buy_condition_07 = eval(buy_condition_07)
+        eval_buy_condition_08 = eval(buy_condition_08)
 
         eval_sell_condition_01 = eval(sell_condition_01)
         eval_sell_condition_02 = eval(sell_condition_02)
@@ -605,6 +628,7 @@ def check_buy_sell_condition(case):
         eval_sell_condition_05 = eval(sell_condition_05)
         eval_sell_condition_06 = eval(sell_condition_06)
         eval_sell_condition_07 = eval(sell_condition_07)
+        eval_sell_condition_08 = eval(sell_condition_08)
 
         logger.info(
             f"\ncase: {case} "
@@ -710,6 +734,10 @@ def price_retest(side='up', idx_list=[-2], level=0, both_sides=False):
 
     return retest
 
+def dummy_call(level):
+    x = atr_tolerance_helper.get_dynamic_tolerance(df, level=level, min_tick=0.01)
+    add_to_candle_info_df(date=df['date'].iloc[-1], price=df['close'].iloc[-1],memo=f' {x} @ {level}')
+
 
 def breakout_in_last_x_candles(side='up', idx_list=[-2], level=0):
     global break_out_indices_by_level_dic
@@ -805,7 +833,7 @@ def add_candle_info_df_to_signals():
     df = df.drop_duplicates()
     df_grouped = (  # for example multiple retest on one candle
         df.groupby(['date', 'price'], as_index=False)
-        .agg({'memo': lambda x: ' | '.join(x)})
+        .agg({'memo': lambda x: ' <br> '.join(x)})
     )
 
     offset_symbol = app_config['symbols_meta'][symbol]['chart_entry_offset']
@@ -814,7 +842,7 @@ def add_candle_info_df_to_signals():
         date = row['date']
         date.strftime('%H:%M')  # just hh:mm from  2025-10-17 10:56:00-04:00
         price = row['price']
-        memo = f"{row['memo']} - {date.strftime('%H:%M')}"  # adding date to the memo ...
+        memo = f"{row['memo']} <br> {date.strftime('%H:%M')}"  # adding date to the memo ...
 
         add_to_signlas("CANDLE_INFO", price + offset, date, memo)  #
 
@@ -1368,10 +1396,7 @@ def find_expiration_and_strikes(symbol):
     options_meta_date_dic[symbol] = {}
     options_meta_date_dic.get(symbol)['expiry'] = expiry
     options_meta_date_dic.get(symbol)['strikes'] = strikes
-
-
-
-
+    return
 
 def create_option_contract(strike, expiry, right, exchange="CBOE", symbol='SPX', trading_class='SPXW'):
     contracts = []
@@ -1455,6 +1480,10 @@ def print_application_state(application_state, msg = ''):
     logger.warning(f"{msg}\n{pprint.pformat(application_state)}")
     return
 
+def find_expiration_and_strikes_for_all():
+    for symbol in app_config['symbols']:
+        find_expiration_and_strikes(symbol)
+    return
 
 def popualate_features(df):
     period = 14
@@ -1578,6 +1607,8 @@ if __name__ == "__main__":
 
                 add_buy_a_sell_entries_to_signals(buy_sell_case_results_list)
 
+                x = atr_tolerance_helper.get_dynamic_tolerance(df, level= get_levels_dic().get('5MH'), min_tick=0.01)
+                logger.info(f"x: {x}")
 
                 end_time = time.time()
 

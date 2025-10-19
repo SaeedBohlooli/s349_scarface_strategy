@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from finta import TA
 
 # --- Core ATR (Wilder's) ------------------------------------------------------
 def compute_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
@@ -19,6 +20,41 @@ def compute_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
 
     atr = pd.Series(tr, index=df.index, dtype=float).ewm(alpha=1/period, adjust=False).mean()
     return atr
+
+
+def compute_atr_sma(df: pd.DataFrame, period: int = 14) -> pd.Series:
+    """
+    Compute the Average True Range (ATR) using Wilder's smoothing.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame with columns ['high', 'low', 'close'].
+    period : int, default 14
+        Lookback period for ATR.
+
+    Returns
+    -------
+    pd.Series
+        ATR values aligned with df.index.
+    """
+    high = df['high']
+    low = df['low']
+    close = df['close']
+
+    # True Range (TR)
+    prev_close = close.shift(1)
+    tr = pd.concat([
+        high - low,
+        (high - prev_close).abs(),
+        (low - prev_close).abs()
+    ], axis=1).max(axis=1)
+
+    # Wilder's smoothing (EMA with alpha = 1/period)
+    atr_series = tr.ewm(alpha=1 / period, adjust=False).mean()
+
+    return atr_series
+
 
 # --- Dynamic factor based on volatility regime --------------------------------
 def dynamic_atr_tolerance_factor(atr_now: float, atr_baseline: float,
@@ -69,7 +105,8 @@ def get_dynamic_tolerance(df: pd.DataFrame,
         factor_cfg = {"low": 0.18, "normal": 0.25, "high": 0.30,
                       "low_thr": 0.8, "high_thr": 1.2}
 
-    atr_series = compute_atr(df, period=atr_period)
+    # atr_series = compute_atr_sma(df, period=atr_period)
+    atr_series = TA.ATR(df, 14)
     atr_now = float(atr_series.iloc[-1])
 
     # Baseline from recent history (rolling mean of ATR)
