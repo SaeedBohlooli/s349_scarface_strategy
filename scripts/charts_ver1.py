@@ -155,7 +155,7 @@ def draw_w_plotly_w_subplot_oirg_no_slidebar(df, chart_title='title'):
     fig.update_xaxes(showticklabels=True, row=1, col=1)  # showing X lables in the chart ...
 
     return fig
-def draw_w_plotly_w_subplot_1(chart_title='title'):
+def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
     global df
     logger.info(f"in draw_w_plotly_w_subplot:\n {df[-20:].to_markdown()}")
 
@@ -174,7 +174,7 @@ def draw_w_plotly_w_subplot_1(chart_title='title'):
     fig = make_subplots(rows=4, cols=1, shared_xaxes=True,
                         vertical_spacing=0.04,
                         row_heights=[0.78, 0.06, 0.06, 0.06],
-                        subplot_titles=('OHLC Chart', 'ATR', 'Volume', 'X'))
+                        subplot_titles=(f'{symbol}', f'ATR-{symbol}', f'Volume-{symbol}', f'X-{symbol}'))
 
     # Candlestick chart
     fig.add_trace(go.Candlestick(
@@ -213,7 +213,7 @@ def draw_w_plotly_w_subplot_1(chart_title='title'):
 
 
     fig.update_layout(
-        title=f'chart_title {chart_title}',
+        title=f'{chart_title}',
         width=1800,
         height=1400,
         xaxis=dict(
@@ -246,7 +246,10 @@ def draw_w_plotly_w_subplot_1(chart_title='title'):
                              )  # Volume row
         )
 
+
+
     )
+
 
     fig.update_yaxes(title_text="Price", row=1, col=1, title_standoff=20, automargin=True)
     fig.update_yaxes(title_text="ATR", row=2, col=1, title_standoff=20, automargin=True)
@@ -663,7 +666,7 @@ def index():
         time_frame = '1min'
 
         df = load_df_from_ohlc_file(portfolio_id='p250', time_frame=time_frame, symbol=symbol)
-        fig1 = draw_w_plotly_w_subplot_1(chart_title=f'{symbol}-{time_frame}')
+        fig1 = draw_w_plotly_w_subplot_1(symbol, chart_title=f'{symbol}-{time_frame}')
         fig1 = draw_objects(fig1,df, drawing_objects_df, symbol=symbol, time_frame=time_frame )
         fig1 = add_start_finish_day(fig1, df)
         fig1 = mark_market_time_only_last_one(fig1, df)

@@ -540,10 +540,10 @@ def add_buy_a_sell_entries_to_signals(buy_sell_case_results_list):
 
 
         if can_buy:
-            add_to_signlas(f"BUY_ENTRY-{case}", price, df['date'].iloc[-1], '')
+            add_to_signlas(f"BUY_ENTRY-{case}", price, df['date'].iloc[-1], f"{case} - {df['date'].iloc[-1].strftime('%H:%M:%S')}")
 
         if can_sell:
-            add_to_signlas(f"SELL_ENTRY-{case}", price, df['date'].iloc[-1], '')
+            add_to_signlas(f"SELL_ENTRY-{case}", price, df['date'].iloc[-1], f"{case} - {df['date'].iloc[-1].strftime('%H:%M:%S')}")
 
         add_to_signlas( f"{res_str}", df['low'].iloc[-1] + offset, df['date'].iloc[-1], '')  #
 
@@ -561,6 +561,8 @@ def check_buy_and_sell_cases():
 
 def check_buy_sell_condition(case):
     res_str = ""
+    global break_out_indices_by_level_dic
+    global retest_indices_by_level_dic
     try:
 
         levels = get_levels_dic()  # used in config
@@ -635,16 +637,37 @@ def check_buy_sell_condition(case):
             can_sell = True
 
         logger.info(f"{case}, check_buy_sell_condition(), can_buy: {can_buy}, can_sell: {can_sell}")
-        res_str = (f"res_{case}:{eval_buy_condition_01}.{eval_buy_condition_02}.{eval_buy_condition_03}.{eval_buy_condition_04}.{eval_buy_condition_05}.{eval_buy_condition_06} ... "
-                 f"{eval_sell_condition_01}.{eval_sell_condition_02}.{eval_sell_condition_03}.{eval_sell_condition_04}.{eval_sell_condition_05}.{eval_sell_condition_06}")
 
+        long_breakup_idx = break_out_indices_by_level_dic.get(eval(app_config['cases'][case]['long']['level']), 0)
+        long_retest_idx = retest_indices_by_level_dic.get(eval(app_config['cases'][case]['long']['level']), 0)
+
+        short_breakup_idx = break_out_indices_by_level_dic.get(eval(app_config['cases'][case]['short']['level']), 0)
+        short_retest_idx = retest_indices_by_level_dic.get(eval(app_config['cases'][case]['short']['level']), 0)
+
+        logger.debug(f"break_out_indices_by_level_dic: {break_out_indices_by_level_dic}")
+        logger.debug(f"retest_indices_by_level_dic: {retest_indices_by_level_dic}")
+
+        res_str = (f"res_{case}:{eval_buy_condition_01}.{eval_buy_condition_02}.{eval_buy_condition_03}.{eval_buy_condition_04}.{eval_buy_condition_05}.{eval_buy_condition_06}.{eval_buy_condition_07}..{long_breakup_idx}.{long_retest_idx}... "
+                 f"{eval_sell_condition_01}.{eval_sell_condition_02}.{eval_sell_condition_03}.{eval_sell_condition_04}.{eval_sell_condition_05}.{eval_sell_condition_06}.{eval_sell_condition_07}..{short_breakup_idx}.{short_retest_idx}"
+                   f"..{df['date'].iloc[-1].strftime('%H:%M')}")
+        res_str = res_str.replace('True', 'T')
+        res_str = res_str.replace('False', 'F')
     except Exception as e:
         print(traceback.format_exc())
         logger.error(f"error {e}")
 
     return case, can_buy, can_sell, res_str
 
+def check_retest_after_breakout(side='up', level=1):
 
+    retest_idx = retest_indices_by_level_dic.get(level, -1) # This is index for retest...
+    breakout_idx = break_out_indices_by_level_dic.get(level, -1) # This is index for breakout...
+    if retest_idx == -1 or breakout_idx == -1:
+        return False
+    if breakout_idx < retest_idx:   #  breakout -4 < retest -2
+        return True
+    else:
+        return False
 def price_retest(side='up', idx_list=[-2], level=0, both_sides=False):
 
     global retest_indices_by_level_dic
@@ -789,6 +812,7 @@ def add_candle_info_df_to_signals():
     offset = offset_symbol
     for index, row in df_grouped.iterrows():
         date = row['date']
+        date = date.strftime('%H:%M')  # just hh:mm from  2025-10-17 10:56:00-04:00
         price = row['price']
         memo = f"{row['memo']} - {date}"  # adding date to the memo ...
 
