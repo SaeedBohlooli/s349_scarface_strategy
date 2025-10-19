@@ -1262,7 +1262,8 @@ def get_back_test_data():   # get data from IB.... use
             df = df.drop_duplicates()
             df = df.sort_values(by='date')
             logger.info(f"{symbol}, get_back_test_data, df['date'].min(): {df['date'].min()}, df['date'].max(): {df['date'].max()}")
-            file = f'{backtest_ohlc_dir}\{symbol}-1min.csv'
+            file = os.path.join(backtest_ohlc_dir, f'{symbol}-1min.csv')
+            print(f"saving to file: {file}")
             if os.path.exists(file):  # load file and merge with new one ...
                 logger.info(f"File {file} exists... loading it ...")
                 existing_df = pd.read_csv(file)
@@ -1276,6 +1277,8 @@ def get_back_test_data():   # get data from IB.... use
             logger.info(f"saving done ....")
 
     return
+
+            
 
 def cut_df_starting_x_days_ago(df, days=5):
     last_date = df['date'].max()
