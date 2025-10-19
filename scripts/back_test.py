@@ -16,6 +16,7 @@ import os
 import yaml
 from pandas.tseries.offsets import BDay
 import logging
+from finta import TA
 
 print(f"os.path.join('../'): {os.path.join('../')}")
 sys.path.insert(0, f'../')
@@ -164,7 +165,7 @@ def create_equity_contract(symbol):
 
 def save_ohlc_for_chart(df):
     logger.info(f"in generate_for_chart, symbol: {symbol}, len(df): {len(df)}")
-    df = df[['date','open', 'high', 'low', 'close', 'volume']]
+    df = df[['date','open', 'high', 'low', 'close', 'volume', 'atr_14']]
     file = f"{charts_dir}/{symbol}-{time_frame.replace(' ', '')}.csv"
     df.to_csv(file, index=False, mode='w')
     return
@@ -1428,6 +1429,15 @@ def print_application_state(application_state, msg = ''):
     return
 
 
+def popualate_features(df):
+    period = 14
+    atr_df = pd.DataFrame()
+    atr_df[f'atr_{period}'] = TA.ATR(df, 14)
+    features_list = [df, atr_df]
+
+    df = pd.concat(features_list, axis=1)
+    return df
+
 # ############
 # End of IB sending order - only for live
 # ###########
@@ -1483,6 +1493,7 @@ if __name__ == "__main__":
             df = cut_df_until_hour_x_on_last_day(df, cutoff_time="11:00")
             df.reset_index(drop=True, inplace=True) # reset index start from 0
 
+            df = popualate_features(df)
             orig_df = df.copy()
             for_chart_ohlc_df = df.copy()
 

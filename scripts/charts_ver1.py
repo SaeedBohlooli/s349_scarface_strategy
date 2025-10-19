@@ -96,7 +96,7 @@ def draw_w_plotly_w_subplot_oirg_no_slidebar(df, chart_title='title'):
 
     # Candlestick chart
     fig.add_trace(go.Candlestick(
-        x=df.index,
+        x=df['date'],
         open=df['open'],
         high=df['high'],
         low=df['low'],
@@ -106,7 +106,7 @@ def draw_w_plotly_w_subplot_oirg_no_slidebar(df, chart_title='title'):
 
     # add volume ...
     fig.add_trace(go.Scatter(
-        x=df.index,
+        x=df['date'],
         y=df['volume'],
         line=dict(color='orange', width=2),
         name='Volume'
@@ -155,6 +155,108 @@ def draw_w_plotly_w_subplot_oirg_no_slidebar(df, chart_title='title'):
     fig.update_xaxes(showticklabels=True, row=1, col=1)  # showing X lables in the chart ...
 
     return fig
+def draw_w_plotly_w_subplot_1(chart_title='title'):
+    global df
+    logger.info(f"in draw_w_plotly_w_subplot:\n {df[-20:].to_markdown()}")
+
+    df['date'] = pd.to_datetime(df['date'])
+    end_time = df['date'].max() + pd.Timedelta(minutes=10)
+
+    hours_in_focus = int(app_config['chart']['hours_in_focus'])
+    start_time = end_time - pd.Timedelta(hours=hours_in_focus)
+
+
+
+    # Set 'date' as the index
+    # df.set_index('date', inplace=True)
+
+    # Create a subplot: (2 rows, shared x-axis)
+    fig = make_subplots(rows=4, cols=1, shared_xaxes=True,
+                        vertical_spacing=0.04,
+                        row_heights=[0.78, 0.06, 0.06, 0.06],
+                        subplot_titles=('OHLC Chart', 'ATR', 'Volume', 'X'))
+
+    # Candlestick chart
+    fig.add_trace(go.Candlestick(
+        x=df['date'],
+        open=df['open'],
+        high=df['high'],
+        low=df['low'],
+        close=df['close'],
+        name='Candles'
+    ), row=1, col=1)
+
+    fig.update_xaxes(showticklabels=True, row=1, col=1)
+
+
+    # ATR line chart
+    fig.add_trace(go.Scatter(
+        x=df['date'],
+        y=df['atr_14'],
+        line=dict(color='orange', width=2),
+        name='ATR'
+    ), row=2, col=1)
+
+    fig.add_trace(go.Scatter(
+        x=df['date'],
+        y=df['volume'],
+        line=dict(color='orange', width=2),
+        name='Volume'
+    ), row=3, col=1)
+
+    fig.add_trace(go.Scatter(
+        x=df['date'],
+        y=df['atr_14'],
+        line=dict(color='blue', width=2),
+        name='X'
+    ), row=4, col=1)
+
+
+    fig.update_layout(
+        title=f'chart_title {chart_title}',
+        width=1800,
+        height=1400,
+        xaxis=dict(
+            range=[start_time, end_time],  # limit slider to last 4 hours
+            rangeslider=dict(
+                visible=False,
+                # thickness=0.07  # makes it smaller so it doesn’t overlap ATR
+            ),
+            # showticklabels=True,
+            # type="date",
+            # rangebreaks=[
+            #     dict(bounds=["sat", "mon"]),  # skip weekends
+            #     dict(bounds=[0, 3.5], pattern="hour"),  # skip 00:00–09:30
+            #     dict(bounds=[20, 24], pattern="hour"),  # skip 16:00–24:00
+            # ]
+        ),
+        xaxis2=dict(
+            range=[start_time, end_time],  # 👈 sets visible window
+            rangeslider=dict(visible=False)  # ATR row
+        ),
+        xaxis3=dict(
+            range=[start_time, end_time],  # 👈 sets visible window
+            rangeslider=dict(visible=False)  # Volume row
+        ),
+        xaxis4=dict(
+            range=[start_time, end_time],  # 👈 sets visible window
+            rangeslider=dict(visible=True,
+                    thickness=0.07  # makes it smaller so it doesn’t overlap ATR
+
+                             )  # Volume row
+        )
+
+    )
+
+    fig.update_yaxes(title_text="Price", row=1, col=1, title_standoff=20, automargin=True)
+    fig.update_yaxes(title_text="ATR", row=2, col=1, title_standoff=20, automargin=True)
+    fig.update_yaxes(title_text="ATR", row=3, col=1, title_standoff=20, automargin=True)
+    fig.update_yaxes(title_text="ATR", row=4, col=1, title_standoff=20, automargin=True)
+
+    # Optional: rotate x-axis labels
+
+    return fig
+
 def draw_w_plotly_w_subplot(df, chart_title='title'):
 
     logger.info(f"in draw_w_plotly_w_subplot:\n {df[-20:].to_markdown()}")
@@ -175,7 +277,7 @@ def draw_w_plotly_w_subplot(df, chart_title='title'):
 
     # Candlestick chart
     fig.add_trace(go.Candlestick(
-        x=df.index,
+        x=df['date'],
         open=df['open'],
         high=df['high'],
         low=df['low'],
@@ -186,7 +288,7 @@ def draw_w_plotly_w_subplot(df, chart_title='title'):
 
     #
     # fig.add_trace(go.Bar(
-    #     x=df.index,
+    #     x=df['date'],
     #     y=df["volume"],
     #     name="Volume",
     #     marker_color="orange"
@@ -196,7 +298,7 @@ def draw_w_plotly_w_subplot(df, chart_title='title'):
 
     # # add volume ...
     # fig.add_trace(go.Scatter(
-    #     x=df.index,
+    #     x=df['date'],
     #     y=df['volume'],
     #     line=dict(color='orange', width=2),
     #     name='Volume'
@@ -212,8 +314,8 @@ def draw_w_plotly_w_subplot(df, chart_title='title'):
 
     fig.update_layout(
         title=f'{chart_title}',
-        width=1700,
-        height=1200,
+        width=1800,
+        height=1300,
         xaxis=dict(
             range=[start_time, end_time],  # 👈 focus last 4 hours
             rangeslider=dict(visible=True, thickness=0.05),
@@ -278,19 +380,39 @@ def draw_w_plotly_w_subplot_test(df, chart_title='title'):
 
     return fig
 
-def draw_objects(fig, df, symbol, time_frame):
-    for i in range(len(df)):
-        if df['symbol'].iloc[i] == symbol and df['time_frame'].iloc[i] == time_frame:
-            color = df['color'].iloc[i]
-            price = df['price_1'].iloc[i]
-            object = df['object'].iloc[i]
-            memo = df['memo'].iloc[i]
+def draw_objects(fig, df, drawing_objects_df, symbol, time_frame):
+
+    for i in range(len(drawing_objects_df)):
+
+        if drawing_objects_df['symbol'].iloc[i] == symbol and drawing_objects_df['time_frame'].iloc[i] == time_frame:
+            color = drawing_objects_df['color'].iloc[i]
+            price = drawing_objects_df['price_1'].iloc[i]
+            line_style = drawing_objects_df['object'].iloc[i]
+            memo = drawing_objects_df['memo'].iloc[i]
 
              # style: "solid", "dot", "dash", "longdash", "dashdot", "longdashdot"
 
-            fig.add_hline(y=price, line_color=color, line_dash = object , annotation_text = memo)
+            # fig.add_hline(y=price, line_color=color, line_dash = object , annotation_text = memo)
+            # Create a horizontal line using Scatter
+            x_vals = df['date']
+            y_vals = [price] * len(x_vals)
+
+            # Create a text list: only first point has text
+            text_vals = [''] * (len(x_vals) - 1) + [memo]
+
+            fig.add_trace(go.Scatter(
+                x=x_vals,
+                y=y_vals,
+                mode='lines+text',
+                line=dict(color=color, dash=line_style),
+                text=text_vals,
+                textposition='top right',  # always on the left
+                showlegend=True,
+                name=memo
+            ))
 
     return fig
+
 
 def add_start_finish_day(fig, df):
     logger.info(f"in add_start_finish_day")
@@ -356,8 +478,7 @@ def load_file_to_hover_df():
         return pd.DataFrame()
 
 
-def chart_orch(df1, portfolio_id='p700', symbol='TSLA', time_frame='1min'):
-    df = df1.copy()
+def chart_orch(df, portfolio_id='p700', symbol='TSLA', time_frame='1min'):
     logger.info(df[-12:].to_markdown())
 
     first_order_date = df.iloc[0]['date']
@@ -366,7 +487,7 @@ def chart_orch(df1, portfolio_id='p700', symbol='TSLA', time_frame='1min'):
 
     # draw plots
     # fig = draw_w_plotly_w_subplot(df, chart_title=f'{symbol}-{time_frame}')
-    fig = draw_w_plotly_w_subplot(df, chart_title=f'{symbol}-{time_frame}')
+    fig = draw_w_plotly_w_subplot_1(chart_title=f'{symbol}-{time_frame}')
     logger.info(f"\n{df[-10:].to_markdown()}")
 
     return fig
@@ -507,11 +628,12 @@ def create_chart_hovered_df(hover_df, symbol):
 app_config = load_app_config(portfolio_id)  # to be accisible form every where ...
 backtest_date = '20250810'
 charts_dir = ''
-
-
+chart_rows = 2
+df = pd.DataFrame()
 @app.route('/')
 def index():
     global charts_dir
+    global df
     portfolio_id = 'p250'
     app_config = load_app_config(portfolio_id)
     backtest_date = ''
@@ -535,13 +657,14 @@ def index():
     hover_df = load_file_to_hover_df()
     plots = []
     logger.info(f"================== call from client run_counter: {run_counter}")
+
     for symbol in app_config['symbols']:
         logger.info(f"================== {symbol}")
         time_frame = '1min'
-        df = load_df_from_ohlc_file(portfolio_id='p250', time_frame=time_frame, symbol=symbol)
 
-        fig1 = chart_orch(df, portfolio_id='p250', time_frame=time_frame, symbol=symbol)
-        fig1 = draw_objects(fig1,drawing_objects_df, symbol=symbol, time_frame=time_frame )
+        df = load_df_from_ohlc_file(portfolio_id='p250', time_frame=time_frame, symbol=symbol)
+        fig1 = draw_w_plotly_w_subplot_1(chart_title=f'{symbol}-{time_frame}')
+        fig1 = draw_objects(fig1,df, drawing_objects_df, symbol=symbol, time_frame=time_frame )
         fig1 = add_start_finish_day(fig1, df)
         fig1 = mark_market_time_only_last_one(fig1, df)
         chart_hovered_df = create_chart_hovered_df(hover_df, symbol)
