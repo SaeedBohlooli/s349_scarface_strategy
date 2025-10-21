@@ -1299,7 +1299,7 @@ def get_back_test_data():   # get data from IB.... use
         historical_days = app_config['back_test']['historical_days']
         start_date = app_config['back_test']['start_date']
 
-        for symbol in app_config['symbols']:
+        for symbol in app_config['screening_symbols']:
             contract = create_equity_contract(symbol)
 
             df = get_historical_data_back_test(contract, start_date=start_date, historical_days=historical_days, time_frame='1 min')
@@ -1520,7 +1520,7 @@ def print_application_state(application_state, msg = ''):
     return
 
 def find_expiration_and_strikes_for_all():
-    for symbol in app_config['symbols']:
+    for symbol in app_config['screening_symbols']:
         find_expiration_and_strikes(symbol)
     return
 
@@ -1841,7 +1841,7 @@ if __name__ == "__main__":
 
         get_live_portfolio_df(find_positions_to_monitor())
 
-        for symbol in app_config['symbols']:
+        for symbol in app_config['screening_symbols']:
             logger.info(f"-------------------{symbol}, run_number: {run_number}, unique_run_number: {unique_run_number}")
 
 

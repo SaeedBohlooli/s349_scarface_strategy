@@ -1,10 +1,8 @@
 logging_level: logging.INFO
-symbols: ['QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR', 'TSLL'] #, 'MNQ'   , 'SPY'
-#symbols: ['AMD'] #, 'MNQ'
-# 6 * 2 * 60
-#symbols: ['QQQ']
+screening_symbols: ['QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR', 'TSLL'] #, 'MNQ'   , 'SPY'
+trading_symbols: ['QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR', 'TSLL'] #, 'MNQ'   , 'SPY'
 historical_days: 4 D
-# 60min  * 24 hrs = 1540
+
 symbols_meta:
   QQQ:
     retest_tolerance_percentage: 0.0001
