@@ -1,6 +1,8 @@
 import traceback
+from collections import defaultdict
 from tabulate import tabulate
 from ib_insync import *
+import ib_insync.util as ib_util
 import pprint
 import logging
 import logging.handlers
@@ -13,10 +15,13 @@ import json
 import pandas as pd
 from pytz import timezone
 import os
-import yaml
 from pandas.tseries.offsets import BDay
 import logging
 from finta import TA
+
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True  # Optional: preserve quotes if any
 
 print(f"os.path.join('../'): {os.path.join('../')}")
 sys.path.insert(0, f'../')
@@ -36,10 +41,11 @@ portfolio_dir = f'../portfolios/results/{portfolio_id}'
 reports_dir = f'../portfolios/reports/{portfolio_id}'
 log_dir = f'../portfolios/logs/{portfolio_id}'
 detailed_log_dir = f'../portfolios/detailed-logs/{portfolio_id}'
-intermediate_dir = f'../../portfolios/intermediate/{portfolio_id}'
+intermediate_dir = f'../portfolios/intermediate/{portfolio_id}'
 
 ohlc_dir = f'../portfolios/ohlc/{portfolio_id}'
 charts_dir = f'../portfolios/charts/{portfolio_id}'
+backtest_ohlc_dir = f'../portfolios/backtest-ohlc/{portfolio_id}'
 
 def load_app_config(portfolio_id):
     global app_config
@@ -74,6 +80,7 @@ os.makedirs(detailed_log_dir, exist_ok=True)
 os.makedirs(ohlc_dir, exist_ok=True)
 os.makedirs(intermediate_dir, exist_ok=True)
 os.makedirs(charts_dir, exist_ok=True)
+os.makedirs(backtest_ohlc_dir, exist_ok=True)
 
 application_state_file_path = f'{intermediate_dir}/84-application_state.csv'
 
@@ -183,7 +190,7 @@ def create_equity_contract(symbol):
 
 def save_ohlc_for_chart(df):
     logger.info(f"in generate_for_chart, symbol: {symbol}, len(df): {len(df)}")
-    df = df[['date','open', 'high', 'low', 'close', 'volume']]
+    df = df[['date','open', 'high', 'low', 'close', 'volume', 'atr_14']]
     file = f"{charts_dir}/{symbol}-{time_frame.replace(' ', '')}.csv"
     df.to_csv(file, index=False, mode='w')
     return
@@ -533,7 +540,7 @@ def find_add_key_levels_add_to_key_levels_df():
 def add_buy_a_sell_entries_to_signals(buy_sell_case_results_list):
     for buy_sell_case_result in buy_sell_case_results_list:
 
-        logger.debug(f"buy_sell_case_result: {buy_sell_case_result} , type(buy_sell_case_result): {type(buy_sell_case_result)}")
+        logger.info(f"in add_buy_a_sell_entries_to_signals, buy_sell_case_result: {buy_sell_case_result} , type(buy_sell_case_result): {type(buy_sell_case_result)}")
         case = buy_sell_case_result[0]
         can_buy = buy_sell_case_result[1]
         can_sell = buy_sell_case_result[2]
@@ -581,6 +588,10 @@ def check_buy_sell_condition(case):
     res_str = ""
     global break_out_indices_by_level_dic
     global retest_indices_by_level_dic
+
+    can_buy = False
+    can_sell = False
+    res_str = ''
     try:
 
         levels = get_levels_dic()  # used in config
@@ -590,8 +601,6 @@ def check_buy_sell_condition(case):
 
         logger.debug(f"in check_buy_sell_condition, levels: {levels}")
 
-        can_buy = False
-        can_sell = False
 
         buy_condition_01 = app_config['cases'][case]['long']['condition_01']
         sell_condition_01 = app_config['cases'][case]['short']['condition_01']
@@ -675,9 +684,9 @@ def check_buy_sell_condition(case):
         res_str = res_str.replace('True', 'T')
         res_str = res_str.replace('False', 'F')
     except Exception as e:
-        print(traceback.format_exc())
-        logger.error(f"error {e}")
-
+        logger.error(f"in check_buy_sell_condition: error {e}")
+        logger.error(traceback.format_exc())
+        res_str = {case}
     return case, can_buy, can_sell, res_str
 
 def check_retest_after_breakout(side='up', level=1):
@@ -696,7 +705,8 @@ def price_retest(side='up', idx_list=[-2], level=0, both_sides=False):
     if level == 0:
         return False
 
-    tolerance_amount = app_config['symbols_meta'][symbol]['retest_tolerance_amount']
+    # tolerance_amount = app_config['symbols_meta'][symbol]['retest_tolerance_amount']
+    tolerance_amount = atr_tolerance_helper.get_dynamic_tolerance(df, level=0, min_tick=0.01).get('tolerance', 0)
 
     retest = False
     retest_idx = 0
@@ -937,7 +947,7 @@ def get_current_price(symbol):
     underlying = Stock(symbol, 'SMART', 'USD')
     ib.qualifyContracts(underlying)
     ticker = ib.reqMktData(underlying)
-    ib.sleep(1)
+    ib.sleep(0.2)
     underlying_price = ticker.last or ticker.close
     return underlying_price
 
@@ -1346,14 +1356,20 @@ def on_fill(trade, fill):
     logger.warning(f'in on_fill, fill: {fill}')
     logger.warning(f'in on_fill, fill.execution.order_id: {fill.execution.orderId}, fill.contract.symbol: {fill.contract.symbol}')
 
+    if False: # need to remove it late ....
+        flatten_dic = flatten(fill)
+        logger.info(f":flatten :{flatten_dic}")
+        flatten_fill_df = pd.concat([flatten_fill_df, pd.DataFrame([flatten_dic])], ignore_index=True)
 
-    flatten_dic = flatten(fill)
-    logger.info(f":flatten :{flatten_dic}")
-    flatten_fill_df = pd.concat([flatten_fill_df, pd.DataFrame([flatten_dic])], ignore_index=True)
+        flatten_dic = flatten(trade)
+        logger.info(f":flatten :{flatten_dic}")
+        flatten_trade_df = pd.concat([flatten_trade_df, pd.DataFrame([flatten_dic])], ignore_index=True)
 
-    flatten_dic = flatten(trade)
-    logger.info(f":flatten :{flatten_dic}")
-    flatten_trade_df = pd.concat([flatten_trade_df, pd.DataFrame([flatten_dic])], ignore_index=True)
+    df = ib_util.df([trade])
+    logger.info(f"on_fill, trade:\n{df.to_markdown()}")
+
+    df = ib_util.df([fill])
+    logger.info(f"on_fill, fill:\n{df.to_markdown()}")
 
     return
 
@@ -1415,7 +1431,7 @@ def create_option_contract(strike, expiry, right, exchange="CBOE", symbol='SPX',
     logger.info("qualifyContracts is done.")
     return contract
 
-def prepare_contract(symbol, side='long', right='C'):
+def prepare_contract(symbol, right='C'):
 
     underlying_price = get_current_price(symbol)
     strikes = options_meta_date_dic.get(symbol, {}).get('strikes')
@@ -1433,7 +1449,7 @@ def prepare_contract(symbol, side='long', right='C'):
         strike = otm_puts[-1]
 
     contract = create_option_contract(strike=strike, expiry=expiry, right=right,exchange="SMART", symbol=symbol, trading_class='')
-    logger.info(f"contracts: {contract}")
+    logger.info(f"in prepare_contract, contract: {contract}")
 
 
     return contract
@@ -1449,32 +1465,49 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
         can_sell = buy_sell_case_result[2]
         logger.info(f"case: {case}, can_buy: {can_buy}, can_sell: {can_sell}")
         if can_buy:
-            if open_trades_dic.get(symbol,None) == None:
+            if open_trades_dic.get(symbol,{}).get('available_quantity', 0) == 0:
                 logger.info(f"in check_buy_sell_result_to_send_order, can_buy: {can_buy}")
                 # send order
-                contract = prepare_contract(symbol, side='long', right='C')
-                send_order(contract, total_quantity=3)
-                application_state.setdefault('open_trades_dic', {})[symbol] = 'YES'
+                option_contract = prepare_contract(symbol, right='C')
+                send_order(option_contract, total_quantity=3)
+                data = {'side': 'long',
+                        'right': 'C',
+                        'starting_quantity':3,
+                        'available_quantity':3,
+                        'underlying_open_price': df['close'].iloc[-1] ,
+                        'u_run_number': unique_run_number
+                        }
+                application_state.setdefault('open_trades_dic', {})[symbol] = data
+                add_to_signlas('LONG_CALL_SENT',df['close'].iloc[-1],df['date'].iloc[-1], f'{data}' )
         if can_sell:
-            if open_trades_dic.get(symbol,None) != None:
+            if open_trades_dic.get(symbol,{}).get('quantity', 0) == 0:
                 # send order
                 logger.info(f"in check_buy_sell_result_to_send_order, can_sell: {can_sell}")
-                contract = prepare_contract(symbol, side='long', right='C')
-                send_order(contract, total_quantity=3)
-                application_state.setdefault('open_trades_dic', {})[symbol] = 'YES'
-
+                option_contract = prepare_contract(symbol, right='P')
+                send_order(option_contract, total_quantity=3)
+                data = {'side': 'long',
+                        'right': 'P',
+                        'starting_quantity': 3,
+                        'available_quantity': 3,
+                        'underlying_open_price': df['close'].iloc[-1],
+                        'u_run_number': unique_run_number
+                        }
+                application_state.setdefault('open_trades_dic', {})[symbol] = data
+                add_to_signlas('LONG_PUT_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f'{data}')
     return
 def dump_application_state_to_file():
     file_path = application_state_file_path
     with open(file_path, 'w') as f:
-        logger.info(f"saving at file_path: {file_path} , application_state: {application_state} ")
-        json.dump(application_state, f, indent=4)
-        logger.info(f"saving done. ")
-
+        try:
+            logger.info(f"saving at file_path: {file_path} , application_state: {application_state} ")
+            json.dump(application_state, f, indent=4)
+            logger.info(f"saving done. ")
+        except Exception as e:
+            # TODO add
+            logger.error(e)
     return
 
 def print_application_state(application_state, msg = ''):
-
     logger.warning(f"{msg}\n{pprint.pformat(application_state)}")
     return
 
@@ -1492,6 +1525,259 @@ def popualate_features(df):
     df = pd.concat(features_list, axis=1)
     return df
 
+def get_live_portfolio_df(positions):
+    """
+    Calculate and print PnL for all positions grouped by underlying + expiry.
+    Uses live market prices for unrealized PnL.
+    """
+    portfolio_df = pd.DataFrame()
+
+    option_groups = defaultdict(list)
+    # Group options by underlying + expiry
+    for pos in positions:
+        c = pos.contract
+        if c.secType == 'OPT':
+            key = (c.symbol, c.lastTradeDateOrContractMonth)
+            option_groups[key].append(pos)
+        else:
+            # Stock or other positions
+            # print(f"{c.secType}: {c.symbol} qty={pos.position} avgPrice={pos.avgCost}")
+            pass
+
+    # Compute PnL per group
+    for key, legs in option_groups.items():
+        symbol, expiry = key
+        open_positions_expiry = expiry
+        total_unrealized = 0.0
+        total_realized = 0.0
+        logger.info(f"in get_live_portfolio_df, Strategy: {symbol} {expiry}")
+
+        for leg in legs:
+            logger.info('--- -')
+            c = leg.contract
+            qty = leg.position
+            open_avg_cost = leg.avgCost
+            logger.info(f"in get_live_portfolio_df(), contract: { c}")
+            c.exchange = 'CBOE'
+            # Fetch live market price (use mid-price if bid/ask available)
+            ticker = ib.reqMktData(c,
+                                   )
+            logger.info(f"get_live_portfolio_df(), ticker: {ticker}")
+
+            ib.sleep(0.2)  # give it a moment to update
+            bid = ticker.bid if ticker.bid > 0 else None
+            ask = ticker.ask if ticker.ask > 0 else None
+            last = ticker.last if ticker.last > 0 else None
+
+            current_price = last or ((bid + ask)/2 if bid and ask else open_avg_cost)
+
+            # Calculate unrealized PnL
+            CONTRACT_MULTIPLIER = 100
+            unrealized = (current_price - open_avg_cost) * qty * CONTRACT_MULTIPLIER
+            unrealized_1 = (current_price * qty - open_avg_cost)  * 1
+
+            # Realized PnL from IB positions (if available)
+            realized = getattr(leg, 'realizedPNL', 0.0)
+
+            total_unrealized += unrealized
+            total_realized += realized
+
+            logger.info(f"  {c.right}  {c.strike}, qty={qty}, avg={open_avg_cost:.2f}, price={current_price:.2f}, bid: {ticker.bid}, ask: {ticker.ask},"
+                  f"unrealized={unrealized:.2f}, realized={realized:.2f} unrealized_1: {unrealized_1:.2f}")
+
+            data = {
+                'conId': c.conId,
+                'symbol': c.localSymbol,
+                'expiry': c.lastTradeDateOrContractMonth,
+                'right': c.right,
+                'open_qty': abs(qty),
+                'strike': c.strike,
+                'side': 'long' if qty > 0 else 'short',
+                'open_avg_cost': leg.avgCost,
+                'bid': ticker.bid if ticker.bid > 0 else 0,
+                'ask': ticker.ask if ticker.ask > 0 else 0,
+                'last': ticker.last,
+                'open_execution_price': 0,
+                'open_execution_orderRef': '',
+                'open_execution_execId': ''
+            }
+            portfolio_df = pd.concat([portfolio_df, pd.DataFrame([data])], ignore_index=True)
+            logger.info(f"portfolio_df:\n {portfolio_df.to_markdown()}")
+
+    return portfolio_df
+
+
+def get_all_open_option_positions():
+    positions = ib.positions()
+    logger.info(f"(get_all_open_option_positions(), positions: \n{tabulate(positions, headers='keys', tablefmt='psql')}")
+    return positions
+
+def my_tabulate(x):
+    try:
+        return tabulate(x, headers='keys', tablefmt='psql')
+    except Exception as e:
+        logger.error(f"e:{e}")
+        logger.warning(f" type(x): {type(x)}")
+        return "Error in tabular ..."
+
+
+def find_positions_to_monitor():
+    positions = get_all_open_option_positions()
+    logger.info(f"positions_to_monitor: \n{tabulate(positions, headers='keys', tablefmt='psql')}")
+    ps = []
+    for p in positions:
+        logger.info(f"p: {p}")
+        c = p.contract
+        if c.secType == 'OPT':
+            logger.info(f"It is an option")
+            ps.append(p)
+
+    logger.info(f"in find_positions_to_monitor()")
+    logger.info(f"find_positions_to_monitor()\n{my_tabulate(ps)}")
+    return ps
+
+
+def close_option_positions(positions, symbol='', close_qty=0):
+
+    for pos in positions:
+        contract = pos.contract
+        qty = pos.position
+
+        if contract.secType == 'OPT' and qty != 0:
+            if symbol != '' and symbol != contract.symbol:
+                logger.warning(f"We are not closing this {symbol}")
+                continue
+
+            # --- Step 2: Determine opposite action ---
+            action = 'SELL' if qty > 0 else 'BUY'
+
+            if close_qty > abs(qty):
+                logger.warning(f"@@@@ Trying to clsoe more than ope. so we ignore. close_qty: {close_qty}, qty: {qty}")
+
+            if close_qty == 0:
+                # is not passed. so close all
+                close_qty = abs(qty)
+
+            # --- Step 3: Create market order to close ---
+            order = MarketOrder(action, close_qty)
+            order.orderRef = f"CLOSE-{unique_run_number}"
+
+            # --- Step 4: Place the order ---
+            contract.exchange = 'SMART'  # or 'CBOE' if your account requires it
+            trade = ib.placeOrder(contract, order)
+            trade.fillEvent += on_fill
+            ib.sleep(0.5)  # small delay to avoid pacing violations
+
+            logger.info(f"close_option_positions(), trade: {trade}")
+            # Convert to DataFrame automatically
+            df = ib_util.df([trade])
+
+            logger.info(f"close_option_positions, trade:\n{df.to_markdown()}")
+            logger.info(f"Closing {contract.localSymbol}, action: {action}, close_qty: {close_qty}")
+
+    return
+
+
+def load_config(path = 'config.yaml') -> dict:
+    with open(path, 'r') as file:
+        config = yaml.load(file)
+    return config
+
+def reload_app_config():
+    global app_config
+    logger.info('loading config file ....')
+    config = load_config(f'{configs_folder}/config-{portfolio_id}.yaml')#['default']
+    logger.info('loading config file is done ....')
+    app_config = config
+    return app_config
+
+def update_config_and_save(config, key, value):
+    global app_config
+    existing_value = app_config[key]
+    if value != existing_value:
+        logger.info(f"in update_config_and_save, key: {key}, existing value: {existing_value}, new value: {value} ")
+        app_config = reload_app_config()
+        app_config[key] = value
+        file = f'{configs_folder}/config-{portfolio_id}.yaml'
+        with open(file, 'w') as f:
+            yaml.dump(app_config, f)
+    return
+
+def close_all_open_option_positions():
+    update_config_and_save(app_config, 'close_all_open_option_positions', False)
+    positions_to_monitor = find_positions_to_monitor()
+    close_option_positions(positions_to_monitor)
+
+
+
+def update_for_avg_cost(positions):
+    for position in positions:
+        symbol = position.contract.symbol
+        if  application_state.get('open_trades_dic', {}) != {}:
+            if application_state.get('open_trades_dic', {}).get(symbol, {}).get('avg_cost', 0) == 0:
+                logger.info(f"setting avgCost in {position.avgCost}")
+                application_state['open_trades_dic'][symbol]['avg_cost'] = position.avgCost
+                application_state['open_trades_dic'][symbol]['avg_cost_for_1_position'] = round(position.avgCost / abs(position.position), 3)
+
+    return
+
+def check_for_stop_loss_and_take_profit():
+    global application_state
+    open_trades_dic = application_state.get('open_trades_dic', {})
+    positions_to_monitor = find_positions_to_monitor()
+    update_for_avg_cost(positions_to_monitor)
+    for symbol, open_trade_info in open_trades_dic.items():
+
+        # ###
+        # stop loss
+        # ###
+        logger.info(f"in check_for_stop_loss, {symbol} , {open_trade_info}" )
+        underlying_open_price = open_trade_info.get('underlying_open_price')
+        underlying_current_price = get_current_price(symbol)
+
+        logger.info(f"symbol {symbol}, underlying_open_price: {underlying_open_price}, underlying_current_price: {underlying_current_price}")
+
+        stop_loss_condition = app_config['stop_loss_condition']
+        stop_loss_condition_evaluated = eval(stop_loss_condition)
+        logger.info(f"symbol {symbol}, stop_loss_condition: {stop_loss_condition}, stop_loss_condition_evaluated: {stop_loss_condition_evaluated}")
+        if stop_loss_condition_evaluated:
+            logger.warning("SL condition met")
+            close_option_positions(positions_to_monitor, symbol)
+            data = {}
+            application_state.setdefault('open_trades_dic', {})[symbol] = data
+
+        # ###
+        # Take profit
+        # ###
+        for take_profit in app_config['take_profits']:
+            if application_state['open_trades_dic'][symbol].get('take_profits',{}).get(take_profit,None ) != None:
+                logger.info(f"{symbol}, TP already is executed. {take_profit}")
+                continue
+            take_profit_condition = app_config['take_profits'][take_profit].get('condition', '1 == 2')
+            close_quantity_percentage = app_config['take_profits'][take_profit].get('close_quantity_percentage', 0)
+
+            take_profit_condition_evaluated = eval(take_profit_condition)
+
+            start_quantity = application_state.get('open_trades_dic', {}).get(symbol, {}).get('starting_quantity', 0)
+            available_quantity = application_state.get('open_trades_dic', {}).get(symbol, {}).get('available_quantity', 0)
+
+            close_quantity = round( start_quantity * close_quantity_percentage )
+
+            logger.info(f"symbol {symbol}, take_profit:{take_profit}, take_profit_condition: {take_profit_condition}, take_profit_condition_evaluated: {take_profit_condition_evaluated}, available_quantity: {available_quantity}, close_quantity: {close_quantity}, start_quantity:{start_quantity}, close_quantity_percentage: {close_quantity_percentage}")
+
+            if take_profit_condition_evaluated and available_quantity != 0 and close_quantity != 0:
+                logger.info(f"Sending TP ...")
+                # close_option_positions(positions_to_monitor, symbol, close_quantity)
+                application_state['open_trades_dic'][symbol]['available_quantity'] = available_quantity - close_quantity
+                application_state['open_trades_dic'][symbol].setdefault('take_profits', {})[take_profit] = { 'status': 'SENT',
+                                                                                                             'take_profit_condition': take_profit_condition,
+                                                                                                             'available_quantity_b4_tp' : available_quantity,
+                                                                                                             'close_quantity': close_quantity,
+                                                                                                             'u_run_number' : unique_run_number
+                                                                                                             }
+            else:
+                logger.warning(f"TP didn't go ... ")
+
 # ############
 # End of IB sending order - only for live
 # ###########
@@ -1504,8 +1790,13 @@ if __name__ == "__main__":
     ib = create_ib_connection()
     application_state = {}
     options_meta_date_dic = {}
+    unique_run_number = ''
+
     if app_config['load_application_state_from_file']:
         load_application_state_from_file()
+
+    if app_config['close_all_open_option_positions']:
+        close_all_open_option_positions()
 
 
 
@@ -1513,7 +1804,7 @@ if __name__ == "__main__":
     # support_resistance_map = {}
     time_frame = '1 min'
     drawing_objects_df = pd.DataFrame()
-    hover_df = pd.DataFrame( columns=['symbol', 'time_frame', 'object', 'color', 'date_1', 'price_1', 'date_2', 'price_2', 'memo','unique_id'])
+    hover_df = pd.DataFrame(columns=['symbol', 'time_frame', 'object', 'color', 'date_1', 'price_1', 'date_2', 'price_2', 'memo','unique_id'])
     key_levels_df = pd.DataFrame( columns=['symbol', 'time_frame', 'key_level', 'price', 'memo','unique_id'])
     open_trades_dic = {}
 
@@ -1521,13 +1812,12 @@ if __name__ == "__main__":
 
 
 
-    if False: # for testing sending order
-        symbol = 'NVDA'
-        contract = prepare_contract(symbol, side='long', right='C')
-        send_order(contract, total_quantity=1)
-        application_state.setdefault('open_trades_dic', {})[symbol] = 'YES'
+
 
     run_number = 0
+
+    get_live_portfolio_df(find_positions_to_monitor())
+
     while True:
       try:
         start_time = time.time()
@@ -1539,6 +1829,8 @@ if __name__ == "__main__":
         logger.info(f"==================== run_number: {run_number},  unique_run_number: {unique_run_number}")
         if run_number == 1:
             find_expiration_and_strikes_for_all()
+
+        get_live_portfolio_df(find_positions_to_monitor())
 
         for symbol in app_config['symbols']:
             logger.info(f"-------------------{symbol}, run_number: {run_number}, unique_run_number: {unique_run_number}")
@@ -1565,6 +1857,8 @@ if __name__ == "__main__":
 
             buy_sell_case_results_list = check_buy_and_sell_cases()
             check_buy_sell_result_to_send_order(buy_sell_case_results_list)
+            check_for_stop_loss_and_take_profit()
+#            check_take_profit()
 
             add_buy_a_sell_entries_to_signals(buy_sell_case_results_list)
             add_candle_info_df_to_signals()
@@ -1585,6 +1879,9 @@ if __name__ == "__main__":
         end_time = time.time()
 
         sleep_enough()
+        if app_config['exit']:
+            update_config_and_save(config, 'exit', False)
+            exit(1)
         consequence_exception = 0
       except Exception as e:
           consequence_exception = consequence_exception + 1
