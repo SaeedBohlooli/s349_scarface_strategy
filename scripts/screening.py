@@ -523,15 +523,20 @@ def detect_candle_patterns(df):
     return signals
 
 
-def find_add_key_levels_add_to_key_levels_df():
+def find_add_key_levels_to_key_levels_df():
 
-    low_for_5_min, high_for_5_min = find_session_high_and_low(df, start="09:30", end="09:35")
+    # ###
+    # for live
+    # ###
+    wait_until_end_of_period = True
+
+    low_for_5_min, high_for_5_min = find_session_high_and_low(df, start="09:30", end="09:34", wait_until_end_of_period= wait_until_end_of_period)
     add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dot', color='Black', price_1=low_for_5_min, memo=f'5ML {low_for_5_min}', unique_id=f'{symbol}-{time_frame}-5ML')
     add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dot', color ='Black', price_1=high_for_5_min, memo=f'5MH {high_for_5_min}', unique_id=f'{symbol}-{time_frame}-5MH')
     add_to_key_levels_df(symbol, time_frame, '5ML', low_for_5_min, f'5ML {low_for_5_min}')
     add_to_key_levels_df(symbol, time_frame, '5MH', high_for_5_min, f'5MH {high_for_5_min}')
 
-    low_for_pre_market, high_for_pre_market = find_session_high_and_low(df, start="04:00", end="09:30", wait_until_end_of_period=False)
+    low_for_pre_market, high_for_pre_market = find_session_high_and_low(df, start="04:00", end="09:29", wait_until_end_of_period= wait_until_end_of_period)
     add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dash', color='Red', price_1=low_for_pre_market, memo=f'PML {low_for_pre_market}', unique_id=f'{symbol}-{time_frame}-PML')
     add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dash', color ='Red', price_1=high_for_pre_market, memo=f'PMH {high_for_pre_market}', unique_id=f'{symbol}-{time_frame}-PMH')
     add_to_key_levels_df(symbol, time_frame, 'PML', low_for_pre_market, f'PML {low_for_pre_market}')
@@ -742,9 +747,11 @@ def price_retest(side='up', idx_list=[-2], level=0, both_sides=False):
 
     return retest
 
+def add_atr_to_candle_info():
+    x = atr_tolerance_helper.get_dynamic_tolerance(df, level=0, min_tick=0.01)
+    add_to_candle_info_df(date=df['date'].iloc[-1], price=df['close'].iloc[-1],memo=f'{x}')
 def dummy_call(level):
-    x = atr_tolerance_helper.get_dynamic_tolerance(df, level=level, min_tick=0.01)
-    add_to_candle_info_df(date=df['date'].iloc[-1], price=df['close'].iloc[-1],memo=f' {x} @ {level}')
+    return True
 
 
 def breakout_in_last_x_candles(side='up', idx_list=[-2], level=0):
@@ -1285,6 +1292,7 @@ def cut_df_until_hour_x_on_last_day(df, cutoff_time="13:00"):
     return cut_df
 
 def get_back_test_data():   # get data from IB.... use
+    global ib
     if app_config['back_test']['get_data_from_ib']: # if we need to go ti IB
         ib = create_ib_connection()
 
@@ -1745,6 +1753,7 @@ def check_for_stop_loss_and_take_profit():
             close_option_positions(positions_to_monitor, symbol)
             data = {}
             application_state.setdefault('open_trades_dic', {})[symbol] = data
+            add_to_signlas('LONG_CALL_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f'{data}')
 
         # ###
         # Take profit
@@ -1850,7 +1859,7 @@ if __name__ == "__main__":
             if run_number == 1: # only first run for each symbol ...
                 calculate_PDL_PDH(df)
 
-            find_add_key_levels_add_to_key_levels_df()
+            find_add_key_levels_to_key_levels_df()
 
             key_levels_list = get_key_levels_list()
             logger.info(f"key_levels_list: {key_levels_list}")
@@ -1862,6 +1871,7 @@ if __name__ == "__main__":
 
             add_buy_a_sell_entries_to_signals(buy_sell_case_results_list)
             add_candle_info_df_to_signals()
+            add_atr_to_candle_info()
             logger.debug(f"{symbol}, signals: {signals}")
             hover_df = convert_signals_to_hover_df(signals)
 
