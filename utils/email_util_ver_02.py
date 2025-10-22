@@ -1,10 +1,6 @@
-import argparse
 import email, smtplib, ssl
-import socket
 import logging
-import os
 
-from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -18,10 +14,8 @@ def send_email(to_emails, subject, body):
 
     if to_emails == "" or to_emails == "x":
         logger.info(f'we are not sending emails ...to_emails: {to_emails} ')
-
         return
-
-    if True:
+    try:
         username = 'sambob1020@gmail.com'
         password = 'qkbj tgfj osuj nged'
         fromMy = 'Samo App<sambob1020@gmail.com>'
@@ -42,4 +36,7 @@ def send_email(to_emails, subject, body):
         # server_ssl.quit()
         server_ssl.close()
         logger.warning('successfully sent the mail')
+    except Exception as e:
+        logger.error(f"{e}")
+
     return

@@ -1389,7 +1389,7 @@ def send_order(contract, total_quantity=1):
     ib.sleep(1)
     logger.info(f"Order sent ....")
     logger.info(trade)
-
+    send_email(event='order_sent')
     return
 
 
@@ -1465,6 +1465,10 @@ def prepare_contract(symbol, right='C'):
 
 def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
     global  application_state
+    if app_config['symbols_meta'][symbol]['can_trade']:
+        logger.debug(f"We are not trading {symbol}.")
+        return
+
     open_trades_dic = application_state.get('open_trades_dic', {})
     for buy_sell_case_result in buy_sell_case_results_list:
 
@@ -1508,7 +1512,7 @@ def dump_application_state_to_file():
     file_path = application_state_file_path
     with open(file_path, 'w') as f:
         try:
-            logger.info(f"saving at file_path: {file_path} , application_state: {application_state} ")
+            logger.info(f"saving at file_path: {file_path}")
             json.dump(application_state, f, indent=4)
             logger.info(f"saving done. ")
         except Exception as e:
@@ -1522,7 +1526,8 @@ def print_application_state(application_state, msg = ''):
 
 def find_expiration_and_strikes_for_all():
     for symbol in app_config['symbols']:
-        find_expiration_and_strikes(symbol)
+        if app_config['symbols_meta'][symbol]['contract_type'] == 'Equity':
+            find_expiration_and_strikes(symbol)
     return
 
 def popualate_features(df):
@@ -1641,7 +1646,6 @@ def find_positions_to_monitor():
             logger.info(f"It is an option")
             ps.append(p)
 
-    logger.info(f"in find_positions_to_monitor()")
     logger.info(f"find_positions_to_monitor()\n{my_tabulate(ps)}")
     return ps
 
@@ -1722,8 +1726,8 @@ def close_all_open_option_positions():
 def update_for_avg_cost(positions):
     for position in positions:
         symbol = position.contract.symbol
-        if  application_state.get('open_trades_dic', {}) != {}:
-            if application_state.get('open_trades_dic', {}).get(symbol, {}).get('avg_cost', 0) == 0:
+        if application_state.get('open_trades_dic', {}) != {}:
+            if application_state.get('open_trades_dic', {}).get(symbol, {}).get('available_quantity', 0) != 0:
                 logger.info(f"setting avgCost in {position.avgCost}")
                 application_state['open_trades_dic'][symbol]['avg_cost'] = position.avgCost
                 application_state['open_trades_dic'][symbol]['avg_cost_for_1_position'] = round(position.avgCost / abs(position.position), 3)
@@ -1740,6 +1744,9 @@ def check_for_stop_loss_and_take_profit():
         # ###
         # stop loss
         # ###
+        if open_trade_info.get('available_quantity', 0) == 0:
+            logger.info(f"{symbol}, check_for_stop_loss_and_take_profit(), available_quantity: 0")
+            continue
         logger.info(f"in check_for_stop_loss, {symbol} , {open_trade_info}" )
         underlying_open_price = open_trade_info.get('underlying_open_price')
         underlying_current_price = get_current_price(symbol)
@@ -1755,11 +1762,15 @@ def check_for_stop_loss_and_take_profit():
             data = {}
             application_state.setdefault('open_trades_dic', {})[symbol] = data
             add_to_signlas('LONG_CALL_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f'{data}')
+            send_email(event='stop_loss_sent')
 
         # ###
         # Take profit
         # ###
         for take_profit in app_config['take_profits']:
+            if application_state['open_trades_dic'][symbol].get('available_quantity',0) != 0:
+                logger.info(f"{symbol}, available_quantity is 0 ")
+                continue
             if application_state['open_trades_dic'][symbol].get('take_profits',{}).get(take_profit,None ) != None:
                 logger.info(f"{symbol}, TP already is executed. {take_profit}")
                 continue
@@ -1785,8 +1796,49 @@ def check_for_stop_loss_and_take_profit():
                                                                                                              'close_quantity': close_quantity,
                                                                                                              'u_run_number' : unique_run_number
                                                                                                              }
+                send_email(event='take_profit_sent')
+
             else:
-                logger.warning(f"TP didn't go ... ")
+                logger.warning(f"{symbol}. TP didn't go ... ")
+
+
+def send_email(event='order_sent'):
+    if app_config['email']['send_email']:
+        recipients = app_config['email']['recipients']
+        if event.lower() == 'order_sent':
+            symbol = 'x'
+            subject = f'Order Sent {symbol}'
+            body = (f" Order opened ... <br>"
+                    f"Later more detail will come ...<br>")
+
+        elif event.lower() == 'stop_loss_sent':
+            subject = f'Stop Loss {symbol}'
+            body = (f"Stop Loss Sent ... <br>"
+                    f"Later more detail will come ...<br>")
+
+        elif event.lower() == 'take_profit_sent':
+            subject = f'Take Profit {symbol}'
+            body = (f"Take Profit Sent ... <br>"
+                    f"Later more detail will come ...<br>")
+
+        email_util_ver_02.send_email(recipients, subject=subject, body=body)
+
+    return
+
+def compute_relative_strength(stock_df: pd.DataFrame, qqq_df: pd.DataFrame, period: int = 20):
+    # Ensure aligned timeframes
+    merged = pd.merge(stock_df[['date', 'close']], qqq_df[['date', 'close']], on='date', suffixes=('_stock', '_qqq'))
+
+    merged['rs_ratio'] = merged['close_stock'] / merged['close_qqq']
+    merged['rs_ema'] = merged['rs_ratio'].ewm(span=period, adjust=False).mean()
+    merged['rs_roc'] = merged['rs_ema'].pct_change(periods=period)
+
+    return merged[['date', 'rs_ratio', 'rs_ema', 'rs_roc']]
+
+def preppare_qqq_df(qqq_df):
+    qqq_df = qqq_df[qqq_df['date'].isin(df['date'])]
+    qqq_df.reset_index(drop=True, inplace=True)  # reset index start from 0
+    return qqq_df
 
 # ############
 # End of IB sending order - only for live
@@ -1817,7 +1869,7 @@ if __name__ == "__main__":
         drawing_objects_df = pd.DataFrame()
         hover_df = pd.DataFrame(columns=['symbol', 'time_frame', 'object', 'color', 'date_1', 'price_1', 'date_2', 'price_2', 'memo', 'unique_id'])
         key_levels_df = pd.DataFrame(columns=['symbol', 'time_frame', 'key_level', 'price', 'memo', 'unique_id'])
-
+        dfs_map = {}
         back_test_date = d.strftime('%Y-%m-%d')
         logger.info(f"back_test_date: {back_test_date}")
         charts_dir = f'../portfolios/backtest-charts/{unique_run_number}--{back_test_date}/{portfolio_id}'
@@ -1860,11 +1912,25 @@ if __name__ == "__main__":
             run_id = 0
             signals = []
             candle_info_df = pd.DataFrame(columns=['date', 'price', 'memo'])
+            relative_strength_df = pd.DataFrame()
 
             while my_index < last_index:
                 df = orig_df.iloc[:my_index]
+                qqq_df = pd.read_csv(f'{backtest_ohlc_dir}/QQQ-1min.csv')
+                # cit it exactly like df
+                qqq_df['date'] = pd.to_datetime(qqq_df['date'])
+                qqq_df = qqq_df[qqq_df['date'].isin(df['date'])]
+                qqq_df.reset_index(drop=True, inplace=True)  # reset index start from 0
 
-                if symbol == 'NVDA' and back_test_date == '2025-10-14' and df['date'].iloc[-1].strftime('%Y-%m-%d %H:%M:%S') == '2025-10-14 09:42:00':
+                logger.info(f"df: \n{df[-2:].to_markdown()}")
+                logger.info(f"qqq_df:\n{qqq_df[-2:].to_markdown()}")
+                logger.info(f"df: \n{df[:2].to_markdown()}")
+                logger.info(f"qqq_df: \n{qqq_df[:2].to_markdown()}")
+
+                relative_strength_df = compute_relative_strength(df, qqq_df, period=20)
+                logger.info(f"relative_strength_df:\n{relative_strength_df[-2:].to_markdown()} ")
+                if symbol == 'AMD':
+                # if symbol == 'NVDA' and back_test_date == '2025-10-14' and df['date'].iloc[-1].strftime('%Y-%m-%d %H:%M:%S') == '2025-10-14 09:42:00':
                     logger.info('Stop for debug')
 
                 run_id += 1
@@ -1918,6 +1984,10 @@ if __name__ == "__main__":
 
             for_chart_ohlc_df = cut_df_starting_x_days_ago(for_chart_ohlc_df, days=1)  # we keep the last two days for chart only
             save_ohlc_for_chart(for_chart_ohlc_df)
+
+            relative_strength_df = cut_df_starting_x_days_ago(relative_strength_df, days=1)  # we keep the last two days for chart only
+            file = f"{charts_dir}/{symbol}-{time_frame.replace(' ', '')}-relative_strength.csv"
+            relative_strength_df.to_csv(file, index=False)
 
 
         save_df_to_csv_a_tabular(drawing_objects_df, '10-drawing_objects_df.csv', mode='w', dir=charts_dir)

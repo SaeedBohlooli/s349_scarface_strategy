@@ -1299,7 +1299,7 @@ def get_back_test_data():   # get data from IB.... use
         historical_days = app_config['back_test']['historical_days']
         start_date = app_config['back_test']['start_date']
 
-        for symbol in app_config['screening_symbols']:
+        for symbol in app_config['symbols']:
             contract = create_equity_contract(symbol)
 
             df = get_historical_data_back_test(contract, start_date=start_date, historical_days=historical_days, time_frame='1 min')
@@ -1388,7 +1388,7 @@ def send_order(contract, total_quantity=1):
     ib.sleep(1)
     logger.info(f"Order sent ....")
     logger.info(trade)
-
+    send_email(event='order_sent')
     return
 
 
@@ -1464,6 +1464,10 @@ def prepare_contract(symbol, right='C'):
 
 def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
     global  application_state
+    if app_config['symbols_meta'][symbol]['can_trade']:
+        logger.debug(f"We are not trading {symbol}.")
+        return
+
     open_trades_dic = application_state.get('open_trades_dic', {})
     for buy_sell_case_result in buy_sell_case_results_list:
 
@@ -1507,7 +1511,7 @@ def dump_application_state_to_file():
     file_path = application_state_file_path
     with open(file_path, 'w') as f:
         try:
-            logger.info(f"saving at file_path: {file_path} , application_state: {application_state} ")
+            logger.info(f"saving at file_path: {file_path}")
             json.dump(application_state, f, indent=4)
             logger.info(f"saving done. ")
         except Exception as e:
@@ -1520,8 +1524,9 @@ def print_application_state(application_state, msg = ''):
     return
 
 def find_expiration_and_strikes_for_all():
-    for symbol in app_config['screening_symbols']:
-        find_expiration_and_strikes(symbol)
+    for symbol in app_config['symbols']:
+        if app_config['symbols_meta'][symbol]['contract_type'] == 'Equity':
+            find_expiration_and_strikes(symbol)
     return
 
 def popualate_features(df):
@@ -1640,7 +1645,6 @@ def find_positions_to_monitor():
             logger.info(f"It is an option")
             ps.append(p)
 
-    logger.info(f"in find_positions_to_monitor()")
     logger.info(f"find_positions_to_monitor()\n{my_tabulate(ps)}")
     return ps
 
@@ -1721,8 +1725,8 @@ def close_all_open_option_positions():
 def update_for_avg_cost(positions):
     for position in positions:
         symbol = position.contract.symbol
-        if  application_state.get('open_trades_dic', {}) != {}:
-            if application_state.get('open_trades_dic', {}).get(symbol, {}).get('avg_cost', 0) == 0:
+        if application_state.get('open_trades_dic', {}) != {}:
+            if application_state.get('open_trades_dic', {}).get(symbol, {}).get('available_quantity', 0) != 0:
                 logger.info(f"setting avgCost in {position.avgCost}")
                 application_state['open_trades_dic'][symbol]['avg_cost'] = position.avgCost
                 application_state['open_trades_dic'][symbol]['avg_cost_for_1_position'] = round(position.avgCost / abs(position.position), 3)
@@ -1739,6 +1743,9 @@ def check_for_stop_loss_and_take_profit():
         # ###
         # stop loss
         # ###
+        if open_trade_info.get('available_quantity', 0) == 0:
+            logger.info(f"{symbol}, check_for_stop_loss_and_take_profit(), available_quantity: 0")
+            continue
         logger.info(f"in check_for_stop_loss, {symbol} , {open_trade_info}" )
         underlying_open_price = open_trade_info.get('underlying_open_price')
         underlying_current_price = get_current_price(symbol)
@@ -1754,11 +1761,15 @@ def check_for_stop_loss_and_take_profit():
             data = {}
             application_state.setdefault('open_trades_dic', {})[symbol] = data
             add_to_signlas('LONG_CALL_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f'{data}')
+            send_email(event='stop_loss_sent')
 
         # ###
         # Take profit
         # ###
         for take_profit in app_config['take_profits']:
+            if application_state['open_trades_dic'][symbol].get('available_quantity',0) != 0:
+                logger.info(f"{symbol}, available_quantity is 0 ")
+                continue
             if application_state['open_trades_dic'][symbol].get('take_profits',{}).get(take_profit,None ) != None:
                 logger.info(f"{symbol}, TP already is executed. {take_profit}")
                 continue
@@ -1784,15 +1795,111 @@ def check_for_stop_loss_and_take_profit():
                                                                                                              'close_quantity': close_quantity,
                                                                                                              'u_run_number' : unique_run_number
                                                                                                              }
+                send_email(event='take_profit_sent')
+
             else:
-                logger.warning(f"TP didn't go ... ")
+                logger.warning(f"{symbol}. TP didn't go ... ")
+
+
+def send_email(event='order_sent'):
+    if app_config['email']['send_email']:
+        recipients = app_config['email']['recipients']
+        if event.lower() == 'order_sent':
+            symbol = 'x'
+            subject = f'Order Sent {symbol}'
+            body = (f" Order opened ... <br>"
+                    f"Later more detail will come ...<br>")
+
+        elif event.lower() == 'stop_loss_sent':
+            subject = f'Stop Loss {symbol}'
+            body = (f"Stop Loss Sent ... <br>"
+                    f"Later more detail will come ...<br>")
+
+        elif event.lower() == 'take_profit_sent':
+            subject = f'Take Profit {symbol}'
+            body = (f"Take Profit Sent ... <br>"
+                    f"Later more detail will come ...<br>")
+
+        email_util_ver_02.send_email(recipients, subject=subject, body=body)
+
+    return
+
+def compute_relative_strength(stock_df: pd.DataFrame, qqq_df: pd.DataFrame, period: int = 20):
+    # Ensure aligned timeframes
+    merged = pd.merge(stock_df[['date', 'close']], qqq_df[['date', 'close']], on='date', suffixes=('_stock', '_qqq'))
+
+    merged['rs_ratio'] = merged['close_stock'] / merged['close_qqq']
+    merged['rs_ema'] = merged['rs_ratio'].ewm(span=period, adjust=False).mean()
+    merged['rs_roc'] = merged['rs_ema'].pct_change(periods=period)
+
+    return merged[['date', 'rs_ratio', 'rs_ema', 'rs_roc']]
+
+def preppare_qqq_df(qqq_df):
+    qqq_df = qqq_df[qqq_df['date'].isin(df['date'])]
+    qqq_df.reset_index(drop=True, inplace=True)  # reset index start from 0
+    return qqq_df
+
+
+
+
+def compute_intraday_rs(stock_df: pd.DataFrame, qqq_df: pd.DataFrame):
+    """
+    Computes intraday relative strength (RS) of a stock vs QQQ
+    anchored at the 9:30 open (regular session open).
+
+    Returns merged DataFrame with:
+        - stock_pct: stock % change since 9:30
+        - qqq_pct: QQQ % change since 9:30
+        - rs_rel: ratio of their changes
+        - rs_delta: difference of their changes
+    """
+
+    # --- Ensure datetime is parsed ---
+    stock_df['date'] = pd.to_datetime(stock_df['date'])
+    qqq_df['date'] = pd.to_datetime(qqq_df['date'])
+
+    # --- Find latest trading date ---
+
+    # --- Get 9:30 open prices for that day ---
+    def get_930_open(df):
+        latest_date = df['date'].dt.date.max()
+        mask = (
+                (df['date'].dt.date == latest_date) &
+                (df['date'].dt.time == pd.Timestamp("09:30").time())
+        )
+        if not df.loc[mask].empty:
+            return df.loc[mask].iloc[0]['open']
+        else:
+            # Fallback to first bar of session if not exactly 09:30
+            return df[df['date'].dt.date == latest_date].iloc[0]['open']
+
+    stock_open = get_930_open(stock_df)
+    qqq_open = get_930_open(qqq_df)
+
+    # --- Merge both dataframes on datetime (nearest or exact match) ---
+    merged = pd.merge_asof(
+        stock_df.sort_values('date'),
+        qqq_df.sort_values('date'),
+        on='date',
+        suffixes=('_stock', '_qqq')
+    )
+
+    # --- Compute % change from 9:30 anchor ---
+    merged['stock_pct'] = merged['close_stock'] / stock_open - 1
+    merged['qqq_pct'] = merged['close_qqq'] / qqq_open - 1
+
+    # --- Relative performance ---
+    merged['rs_rel'] = merged['stock_pct'] / merged['qqq_pct'].replace(0, pd.NA)
+    merged['rs_delta'] = merged['stock_pct'] - merged['qqq_pct']
+
+    return merged[['date', 'close_stock', 'close_qqq', 'stock_pct', 'qqq_pct', 'rs_rel', 'rs_delta']]
+
 
 # ############
 # End of IB sending order - only for live
 # ###########
 
 if __name__ == "__main__":
-
 
     app_config = load_app_config(portfolio_id)
     ib_config = load_ib_config()
@@ -1841,7 +1948,8 @@ if __name__ == "__main__":
 
         get_live_portfolio_df(find_positions_to_monitor())
 
-        for symbol in app_config['screening_symbols']:
+        qqq_df = pd.DataFrame()
+        for symbol in app_config['symbols']:
             logger.info(f"-------------------{symbol}, run_number: {run_number}, unique_run_number: {unique_run_number}")
 
 
@@ -1853,9 +1961,14 @@ if __name__ == "__main__":
 
             df = get_market_data(symbol, '1 min')
             df = popualate_features(df)
+            if symbol == 'QQQ':
+                qqq_df = df
+
+            qqq_df = preppare_qqq_df(qqq_df)
 
             save_ohlc_for_chart(df)
-
+            relative_strength_df = compute_relative_strength(df, qqq_df, period=20)
+            intraday_rs_df = compute_intraday_rs(df, qqq_df)
             if run_number == 1: # only first run for each symbol ...
                 calculate_PDL_PDH(df)
 
@@ -1878,19 +1991,28 @@ if __name__ == "__main__":
             save_df_to_csv_a_tabular(drawing_objects_df, '10-drawing_objects_df.csv', mode='w', dir=charts_dir)
             save_df_to_csv_a_tabular(key_levels_df, dir=portfolio_dir, file_name='11-key_levels_df.csv', mode='w')
             save_df_to_csv_a_tabular(hover_df, dir=charts_dir, file_name='12-hover_df.csv', mode='a')
+            # move it to a fun ...
+            file = f"{charts_dir}/{symbol}-{time_frame.replace(' ', '')}-relative_strength.csv"
+            relative_strength_df.to_csv(file, index=False)
 
+
+            # move it to a fun ...
+            file = f"{charts_dir}/{symbol}-{time_frame.replace(' ', '')}-intraday_rs_df.csv"
+            intraday_rs_df.to_csv(file, index=False)
+
+            intraday_rs_df
             if run_number % 4 == 0:
                 app_config = load_app_config(portfolio_id)
 
             dump_application_state_to_file()
-            print_application_state(application_state)
+            print_application_state(application_state, msg='application_state:')
 
 
         end_time = time.time()
 
         sleep_enough()
         if app_config['exit']:
-            update_config_and_save(config, 'exit', False)
+            update_config_and_save(app_config, 'exit', False)
             exit(1)
         consequence_exception = 0
       except Exception as e:

@@ -157,10 +157,16 @@ def draw_w_plotly_w_subplot_oirg_no_slidebar(df, chart_title='title'):
     return fig
 def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
     global df
+    global relative_strenght_df
+    global intraday_rs_df
     logger.info(f"in draw_w_plotly_w_subplot:\n {df[-20:].to_markdown()}")
 
     df['date'] = pd.to_datetime(df['date'])
     end_time = df['date'].max() + pd.Timedelta(minutes=10)
+
+    relative_strenght_df['date'] = pd.to_datetime(relative_strenght_df['date'])
+    intraday_rs_df['date'] = pd.to_datetime(intraday_rs_df['date'])
+
 
     hours_in_focus = int(app_config['chart']['hours_in_focus'])
     start_time = end_time - pd.Timedelta(hours=hours_in_focus)
@@ -171,10 +177,10 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
     # df.set_index('date', inplace=True)
 
     # Create a subplot: (2 rows, shared x-axis)
-    fig = make_subplots(rows=4, cols=1, shared_xaxes=True,
+    fig = make_subplots(rows=6, cols=1, shared_xaxes=True,
                         vertical_spacing=0.04,
-                        row_heights=[0.78, 0.06, 0.06, 0.06],
-                        subplot_titles=(f'{symbol}', f'ATR-{symbol}', f'Volume-{symbol}', f'X-{symbol}'))
+                        row_heights=[0.75, 0.05, 0.05, 0.05, 0.05, 0.05],
+                        subplot_titles=(f'{symbol}', f'ATR-{symbol}', f'Volume-{symbol}', f'RS-ratio-and-ema-{symbol}', f'RS-roc-{symbol}', f'RS-Rel-{symbol}'))
 
     # Candlestick chart
     fig.add_trace(go.Candlestick(
@@ -205,11 +211,33 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
     ), row=3, col=1)
 
     fig.add_trace(go.Scatter(
-        x=df['date'],
-        y=df['atr_14'],
+        x=relative_strenght_df['date'],
+        y=relative_strenght_df['rs_ratio'],
         line=dict(color='blue', width=2),
-        name='X'
+        name='rs_ratio'
     ), row=4, col=1)
+
+
+    fig.add_trace(go.Scatter(
+        x=relative_strenght_df['date'],
+        y=relative_strenght_df['rs_ema'],
+        line=dict(color='red', width=1, dash='dot'),
+        name='rs_ema'
+    ), row=4, col=1)
+
+    fig.add_trace(go.Scatter(
+        x=relative_strenght_df['date'],
+        y=relative_strenght_df['rs_roc'],
+        line=dict(color='blue', width=2),
+        name='rs_roc'
+    ), row=5, col=1)
+
+    fig.add_trace(go.Scatter(
+        x=intraday_rs_df['date'],
+        y=intraday_rs_df['rs_rel'],
+        line=dict(color='blue', width=2),
+        name='rs_rel'
+    ), row=6, col=1)
 
 
     fig.update_layout(
@@ -220,15 +248,8 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
             range=[start_time, end_time],  # limit slider to last 4 hours
             rangeslider=dict(
                 visible=False,
-                # thickness=0.07  # makes it smaller so it doesn’t overlap ATR
             ),
-            # showticklabels=True,
-            # type="date",
-            # rangebreaks=[
-            #     dict(bounds=["sat", "mon"]),  # skip weekends
-            #     dict(bounds=[0, 3.5], pattern="hour"),  # skip 00:00–09:30
-            #     dict(bounds=[20, 24], pattern="hour"),  # skip 16:00–24:00
-            # ]
+
         ),
         xaxis2=dict(
             range=[start_time, end_time],  # 👈 sets visible window
@@ -240,21 +261,27 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
         ),
         xaxis4=dict(
             range=[start_time, end_time],  # 👈 sets visible window
+            rangeslider=dict(visible=False)  # Volume row
+        ),
+        xaxis5=dict(
+            range=[start_time, end_time],  # 👈 sets visible window
+            rangeslider=dict(visible=False)
+        ),
+        xaxis6=dict(
+            range=[start_time, end_time],  # 👈 sets visible window
             rangeslider=dict(visible=True,
                     thickness=0.07  # makes it smaller so it doesn’t overlap ATR
-
-                             )  # Volume row
+                    )
         )
-
-
-
     )
 
 
     fig.update_yaxes(title_text="Price", row=1, col=1, title_standoff=20, automargin=True)
-    fig.update_yaxes(title_text="ATR", row=2, col=1, title_standoff=20, automargin=True)
+    fig.update_yaxes(title_text="Volume", row=2, col=1, title_standoff=20, automargin=True)
     fig.update_yaxes(title_text="ATR", row=3, col=1, title_standoff=20, automargin=True)
-    fig.update_yaxes(title_text="ATR", row=4, col=1, title_standoff=20, automargin=True)
+    fig.update_yaxes(title_text="RS", row=4, col=1, title_standoff=20, automargin=True)
+    fig.update_yaxes(title_text="RS", row=5, col=1, title_standoff=20, automargin=True)
+    fig.update_yaxes(title_text="RS Rel", row=6, col=1, title_standoff=20, automargin=True)
 
     # Optional: rotate x-axis labels
 
@@ -442,6 +469,31 @@ def add_start_finish_day(fig, df):
         )
 
     return fig
+
+
+def load_relative_strength_df_from_file(portfolio_id='p700', symbol='TSLA', time_frame='1min'):
+    file = f'{charts_dir}/{symbol}-{time_frame}-relative_strength.csv'
+    logger.info(f"load_relative_strength_df_from_file, reading file: {file}")
+
+    df = pd.read_csv(file)
+    df['date'] = pd.to_datetime(df['date'])
+
+    df = df[-app_config['chart']['1m_candles']:]
+
+    logger.info(f"in load_relative_strength_df_from_file, df: \n{df[-5:].to_markdown()}")
+    return df
+
+def load_intraday_rs_df_from_file(portfolio_id='p700', symbol='TSLA', time_frame='1min'):
+    file = f'{charts_dir}/{symbol}-{time_frame}-intraday_rs_df.csv'
+    logger.info(f"load_intraday_rs_df_from_file, reading file: {file}")
+
+    df = pd.read_csv(file)
+    df['date'] = pd.to_datetime(df['date'])
+
+    df = df[-app_config['chart']['1m_candles']:]
+
+    logger.info(f"in load_intraday_rs_df_from_file, df: \n{df[-5:].to_markdown()}")
+    return df
 
 def load_df_from_ohlc_file(portfolio_id='p700', symbol='TSLA', time_frame='1min'):
     file = f'{charts_dir}/{symbol}-{time_frame}.csv'
@@ -633,10 +685,14 @@ backtest_date = '20250810'
 charts_dir = ''
 chart_rows = 2
 df = pd.DataFrame()
+relative_strenght_df = pd.DataFrame()
+intraday_rs_df = pd.DataFrame()
 @app.route('/')
 def index():
     global charts_dir
     global df
+    global relative_strenght_df
+    global intraday_rs_df
     portfolio_id = 'p250'
     app_config = load_app_config(portfolio_id)
     backtest_date = ''
@@ -666,6 +722,8 @@ def index():
         time_frame = '1min'
 
         df = load_df_from_ohlc_file(portfolio_id='p250', time_frame=time_frame, symbol=symbol)
+        relative_strenght_df = load_relative_strength_df_from_file(portfolio_id='p250',time_frame=time_frame, symbol=symbol)
+        intraday_rs_df = load_intraday_rs_df_from_file(portfolio_id='p250',time_frame=time_frame, symbol=symbol)
         fig1 = draw_w_plotly_w_subplot_1(symbol, chart_title=f'{symbol}-{time_frame}')
         fig1 = draw_objects(fig1,df, drawing_objects_df, symbol=symbol, time_frame=time_frame )
         fig1 = add_start_finish_day(fig1, df)

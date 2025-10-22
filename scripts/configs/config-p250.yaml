@@ -1,24 +1,20 @@
 logging_level: logging.INFO
-screening_symbols: ['QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR', 'TSLL'] #, 'MNQ'   , 'SPY'
-trading_symbols: ['QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR', 'TSLL'] #, 'MNQ'   , 'SPY'
+symbols: [ 'QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR', 'TSLL', 'AMZN' ,'MNQ', 'SPY']
 historical_days: 4 D
 
 symbols_meta:
   QQQ:
+    can_trade: True
+    contract_type: Equity
     retest_tolerance_percentage: 0.0001
-#    retest_tolerance_amount: min ( 0.5, atr_14)
     retest_tolerance_amount: 0.5
     levels_closeness_limit: 2
     min_required_move_from_level: 0.5
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
-    trade:
-      open_trade:
-        contracts: 4
-        take_profit: 1
-        stop_loss:
-# 606  0.06 as retest
   TSLA:
+    can_trade: True
+    contract_type: Equity
     retest_tolerance_percentage: 0.003
     retest_tolerance_amount: 0.5
     levels_closeness_limit: 2
@@ -26,6 +22,8 @@ symbols_meta:
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
   AAPL:
+    can_trade: True
+    contract_type: Equity
     retest_tolerance_percentage: 0.003
     retest_tolerance_amount: 0.5
     levels_closeness_limit: 2
@@ -33,6 +31,8 @@ symbols_meta:
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
   NVDA:
+    can_trade: True
+    contract_type: Equity
     retest_tolerance_percentage: 0.003
     retest_tolerance_amount: 0.5
     levels_closeness_limit: 2
@@ -40,6 +40,8 @@ symbols_meta:
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
   AMD:
+    can_trade: True
+    contract_type: Equity
     retest_tolerance_percentage: 0.003
     retest_tolerance_amount: 0.5
     levels_closeness_limit: 2
@@ -47,6 +49,8 @@ symbols_meta:
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
   PLTR:
+    can_trade: True
+    contract_type: Equity
     retest_tolerance_percentage: 0.003
     retest_tolerance_amount: 0.5
     levels_closeness_limit: 2
@@ -54,6 +58,8 @@ symbols_meta:
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
   TSLL:
+    can_trade: True
+    contract_type: Equity
     retest_tolerance_percentage: 0.003
     retest_tolerance_amount: 0.5
     levels_closeness_limit: 2
@@ -61,6 +67,8 @@ symbols_meta:
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
   SPY:
+    can_trade: False
+    contract_type: Equity
     retest_tolerance_percentage: 0.003
     retest_tolerance_amount: 0.5
     levels_closeness_limit: 2
@@ -68,14 +76,24 @@ symbols_meta:
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
   MNQ:
+    can_trade: False
+    contract_type: Future
+    contract_month: 202512
     retest_tolerance_percentage: 0.003
     retest_tolerance_amount: 5
-    contract_month: 202512
     levels_closeness_limit: 10
     min_required_move_from_level: 10
     breakout_confirmation_distance: 2
     chart_entry_offset: 20
-
+  AMZN:
+    can_trade: True
+    contract_type: Equity
+    retest_tolerance_percentage: 0.003
+    retest_tolerance_amount: 0.5
+    levels_closeness_limit: 2
+    min_required_move_from_level: 0.5
+    breakout_confirmation_distance: 0.15
+    chart_entry_offset: 1
 cases:
   case_1:
     # These conditons filtering choppy days
@@ -190,8 +208,8 @@ chart:
   1m_candles: 2000
   cutoff_in_hours: 0
   hours_in_focus: 2
-#  source: live  # use live ot back_test
-  source: back_test  # use live ot back_test
+  source: live  # use live ot back_test
+#  source: back_test  # use live ot back_test
   # back_test
   # live
 
@@ -204,24 +222,8 @@ back_test:
   historical_days: 5 D
   start_date: 2025-10-13
 
-  back_test_date_start: 2025-10-16
+  back_test_date_start: 2025-10-20
   back_test_date_end: 2025-10-23
-
-test:
-  levels:
-    level_1:
-      symbol: 'x'
-      price: 257.5
-      memo: 'test on 257.5'
-    level_2:
-      symbol: 'x'
-      price: 258.30
-      memo: 'test on 258.30'
-    level_3:
-      symbol: 'x'
-      price: 604
-      memo: 'test on 604'
-
 
 
 #stop_loss_condition: underlying_current_price < underlying_open_price
@@ -245,3 +247,8 @@ take_profits:
   t4:
     condition: 1 == 2
     close_quantity_percentage: 0.3
+
+email:
+  send_email: True
+  #recipients: vikaskaler.bnr@gmail.com,saeed.bx1@yahoo.com
+  recipients: saeed.bx1@yahoo.com
