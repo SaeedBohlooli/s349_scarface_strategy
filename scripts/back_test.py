@@ -43,7 +43,7 @@ portfolio_dir = f'../portfolios/results/{portfolio_id}'
 reports_dir = f'../portfolios/reports/{portfolio_id}'
 log_dir = f'../portfolios/logs/{portfolio_id}'
 detailed_log_dir = f'../portfolios/detailed-logs/{portfolio_id}'
-intermediate_dir = f'../../portfolios/intermediate/{portfolio_id}'
+intermediate_dir = f'../portfolios/intermediate/{portfolio_id}'
 
 ohlc_dir = f'../portfolios/backtest-ohlc/{portfolio_id}'
 charts_dir = f'../portfolios/charts/{portfolio_id}'
@@ -85,11 +85,6 @@ os.makedirs(charts_dir, exist_ok=True)
 os.makedirs(backtest_ohlc_dir, exist_ok=True)
 
 application_state_file_path = f'{intermediate_dir}/84-application_state.csv'
-
-# ####
-# common ...
-# ####
-
 
 def load_ib_config():
     logger.warning(f"loading app_config ....")
@@ -166,7 +161,7 @@ def get_historical_data(contract, historical_days, time_frame):
 # for apps
 # ###
 def get_market_data(symbol, time_frame ='1 day'):
-    historical_days = app_config['back_test']['historical_days']
+    historical_days = app_config[mode]['historical_days']
     logger.info(f"symbol: {symbol}, time_frame: {time_frame} , historical_days: {historical_days}")
     contract = create_equity_contract(symbol)
 
@@ -272,7 +267,7 @@ def add_to_drawing_objects_df(symbol='TSLA', time_frame='1m', object='dash', col
         drawing_objects_df = pd.concat([drawing_objects_df, pd.DataFrame([data])], ignore_index=True)
 
 
-def is_between(now=None, start_str="9:25", end_str="10:30"):
+def is_between(now=None, start_str="9:25", end_str="11:00"):
     if now is None:
         now = datetime.datetime.now().time()
 
@@ -284,8 +279,8 @@ def is_between(now=None, start_str="9:25", end_str="10:30"):
 
 def sleep_enough():
     run_spend_time = round(end_time - start_time, 2)
-    if is_between():
-        logger.warning(f'{run_number}) run_spend_time: {run_spend_time} seconds')
+    if is_between(start_str="9:25", end_str="11:00"):
+        logger.warning(f'{run_number}) run_spend_time: {run_spend_time} seconds, no sleep ...')
     else:
         run_should_take = app_config['run_should_take_seconds']
         need_sleep_seconds = 0
@@ -526,6 +521,7 @@ def detect_candle_patterns(df):
 
 
 def find_add_key_levels_to_key_levels_df():
+
     # ###
     # for back test
     # ###
@@ -1806,7 +1802,6 @@ def send_email(event='order_sent'):
     if app_config['email']['send_email']:
         recipients = app_config['email']['recipients']
         if event.lower() == 'order_sent':
-            symbol = 'x'
             subject = f'Order Sent {symbol}'
             body = (f" Order opened ... <br>"
                     f"Later more detail will come ...<br>")
@@ -1833,12 +1828,69 @@ def compute_relative_strength(stock_df: pd.DataFrame, qqq_df: pd.DataFrame, peri
     merged['rs_ema'] = merged['rs_ratio'].ewm(span=period, adjust=False).mean()
     merged['rs_roc'] = merged['rs_ema'].pct_change(periods=period)
 
+    merged = merged.fillna(0)
     return merged[['date', 'rs_ratio', 'rs_ema', 'rs_roc']]
 
 def preppare_qqq_df(qqq_df):
     qqq_df = qqq_df[qqq_df['date'].isin(df['date'])]
     qqq_df.reset_index(drop=True, inplace=True)  # reset index start from 0
     return qqq_df
+
+
+
+
+def compute_intraday_rs(stock_df: pd.DataFrame, qqq_df: pd.DataFrame):
+    """
+    Computes intraday relative strength (RS) of a stock vs QQQ
+    anchored at the 9:30 open (regular session open).
+
+    Returns merged DataFrame with:
+        - stock_pct: stock % change since 9:30
+        - qqq_pct: QQQ % change since 9:30
+        - rs_rel: ratio of their changes
+        - rs_delta: difference of their changes
+    """
+
+    # --- Ensure datetime is parsed ---
+    stock_df['date'] = pd.to_datetime(stock_df['date'])
+    qqq_df['date'] = pd.to_datetime(qqq_df['date'])
+
+    # --- Find latest trading date ---
+
+    # --- Get 9:30 open prices for that day ---
+    def get_930_open(df):
+        latest_date = df['date'].dt.date.max()
+        mask = (
+                (df['date'].dt.date == latest_date) &
+                (df['date'].dt.time == pd.Timestamp("09:30").time())
+        )
+        if not df.loc[mask].empty:
+            return df.loc[mask].iloc[0]['open']
+        else:
+            # Fallback to first bar of session if not exactly 09:30
+            return df[df['date'].dt.date == latest_date].iloc[0]['open']
+
+    stock_open = get_930_open(stock_df)
+    qqq_open = get_930_open(qqq_df)
+
+    # --- Merge both dataframes on datetime (nearest or exact match) ---
+    merged = pd.merge_asof(
+        stock_df.sort_values('date'),
+        qqq_df.sort_values('date'),
+        on='date',
+        suffixes=('_stock', '_qqq')
+    )
+
+    # --- Compute % change from 9:30 anchor ---
+    merged['stock_pct'] = merged['close_stock'] / stock_open - 1
+    merged['qqq_pct'] = merged['close_qqq'] / qqq_open - 1
+
+    # --- Relative performance ---
+    merged['rs_rel'] = merged['stock_pct'] / merged['qqq_pct'].replace(0, pd.NA)
+    merged['rs_delta'] = merged['stock_pct'] - merged['qqq_pct']
+
+    return merged[['date', 'close_stock', 'close_qqq', 'stock_pct', 'qqq_pct', 'rs_rel', 'rs_delta']]
+
 
 # ############
 # End of IB sending order - only for live
@@ -1851,8 +1903,6 @@ if __name__ == "__main__":
     ib_config = load_ib_config()
     ib = None
     get_back_test_data()
-
-    # support_resistance_map = {}
 
     back_test_date_start = app_config['back_test']['back_test_date_start']
     back_test_date_end = app_config['back_test']['back_test_date_end']
@@ -1869,7 +1919,6 @@ if __name__ == "__main__":
         drawing_objects_df = pd.DataFrame()
         hover_df = pd.DataFrame(columns=['symbol', 'time_frame', 'object', 'color', 'date_1', 'price_1', 'date_2', 'price_2', 'memo', 'unique_id'])
         key_levels_df = pd.DataFrame(columns=['symbol', 'time_frame', 'key_level', 'price', 'memo', 'unique_id'])
-        dfs_map = {}
         back_test_date = d.strftime('%Y-%m-%d')
         logger.info(f"back_test_date: {back_test_date}")
         charts_dir = f'../portfolios/backtest-charts/{unique_run_number}--{back_test_date}/{portfolio_id}'
@@ -1884,6 +1933,7 @@ if __name__ == "__main__":
 
             df_filtered = df[df['date'].dt.strftime("%Y-%m-%d") == back_test_date]
             if len(df_filtered) ==0: # no data so go for next one ....
+                logger.warning(f"no data ...{symbol} {d}")
                 break
             os.makedirs(charts_dir, exist_ok=True)
 
@@ -1914,13 +1964,18 @@ if __name__ == "__main__":
             candle_info_df = pd.DataFrame(columns=['date', 'price', 'memo'])
             relative_strength_df = pd.DataFrame()
 
+            orig_qqq_df = pd.read_csv(f'{backtest_ohlc_dir}/QQQ-1min.csv')
             while my_index < last_index:
                 df = orig_df.iloc[:my_index]
-                qqq_df = pd.read_csv(f'{backtest_ohlc_dir}/QQQ-1min.csv')
+
+                qqq_df = orig_qqq_df.copy()
                 # cit it exactly like df
                 qqq_df['date'] = pd.to_datetime(qqq_df['date'])
                 qqq_df = qqq_df[qqq_df['date'].isin(df['date'])]
                 qqq_df.reset_index(drop=True, inplace=True)  # reset index start from 0
+                if True:
+                    missing_rows_in_qqq_df = df.loc[~df['date'].isin(qqq_df['date'])]
+                    logger.warning(f"{missing_rows_in_qqq_df[-10:].to_markdown()}")
 
                 logger.info(f"df: \n{df[-2:].to_markdown()}")
                 logger.info(f"qqq_df:\n{qqq_df[-2:].to_markdown()}")
@@ -1928,6 +1983,8 @@ if __name__ == "__main__":
                 logger.info(f"qqq_df: \n{qqq_df[:2].to_markdown()}")
 
                 relative_strength_df = compute_relative_strength(df, qqq_df, period=20)
+                intraday_rs_df = compute_intraday_rs(df, qqq_df)
+
                 logger.info(f"relative_strength_df:\n{relative_strength_df[-2:].to_markdown()} ")
                 if symbol == 'AMD':
                 # if symbol == 'NVDA' and back_test_date == '2025-10-14' and df['date'].iloc[-1].strftime('%Y-%m-%d %H:%M:%S') == '2025-10-14 09:42:00':
@@ -1985,9 +2042,13 @@ if __name__ == "__main__":
             for_chart_ohlc_df = cut_df_starting_x_days_ago(for_chart_ohlc_df, days=1)  # we keep the last two days for chart only
             save_ohlc_for_chart(for_chart_ohlc_df)
 
-            relative_strength_df = cut_df_starting_x_days_ago(relative_strength_df, days=1)  # we keep the last two days for chart only
-            file = f"{charts_dir}/{symbol}-{time_frame.replace(' ', '')}-relative_strength.csv"
-            relative_strength_df.to_csv(file, index=False)
+            extra_features_df = for_chart_ohlc_df.copy()
+            extra_features_df = extra_features_df.merge(relative_strength_df, on='date', how='left')
+            extra_features_df = extra_features_df.merge(intraday_rs_df, on='date', how='left')
+
+            extra_features_df = cut_df_starting_x_days_ago(extra_features_df, days=1)  # we keep the last two days for chart only
+            file = f"{charts_dir}/{symbol}-{time_frame.replace(' ', '')}-extra_features_df.csv"
+            extra_features_df.to_csv(file, index=False)
 
 
         save_df_to_csv_a_tabular(drawing_objects_df, '10-drawing_objects_df.csv', mode='w', dir=charts_dir)

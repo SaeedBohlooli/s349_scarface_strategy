@@ -37,6 +37,8 @@ portfolio_id = 'p250'
 configs_folder = f'../scripts/configs'
 config_file = f'{configs_folder}/app-config.yaml'
 
+mode = 'live'
+
 portfolio_dir = f'../portfolios/results/{portfolio_id}'
 reports_dir = f'../portfolios/reports/{portfolio_id}'
 log_dir = f'../portfolios/logs/{portfolio_id}'
@@ -84,11 +86,6 @@ os.makedirs(backtest_ohlc_dir, exist_ok=True)
 
 application_state_file_path = f'{intermediate_dir}/84-application_state.csv'
 
-# ####
-# common ...
-# ####
-
-
 def load_ib_config():
     logger.warning(f"loading app_config ....")
     app_config = miscutils.load_config(f'{configs_folder}/ib-config.yaml')
@@ -114,6 +111,7 @@ def disconnect_ib(ib):
 def on_disconnect():
     logger.warning("⚠️ IB disconnected! Reconnecting...")
     create_ib_connection()
+    retrun
 
 
 def create_ib_connection():
@@ -160,11 +158,8 @@ def get_historical_data(contract, historical_days, time_frame):
     return df
 
 
-# ####
-# for apps
-# ###
 def get_market_data(symbol, time_frame ='1 day'):
-    historical_days = app_config['historical_days']
+    historical_days = app_config[mode]['historical_days']
     logger.info(f"symbol: {symbol}, time_frame: {time_frame} , historical_days: {historical_days}")
     contract = create_equity_contract(symbol)
 
@@ -270,7 +265,7 @@ def add_to_drawing_objects_df(symbol='TSLA', time_frame='1m', object='dash', col
         drawing_objects_df = pd.concat([drawing_objects_df, pd.DataFrame([data])], ignore_index=True)
 
 
-def is_between(now=None, start_str="9:25", end_str="10:30"):
+def is_between(now=None, start_str="9:25", end_str="11:00"):
     if now is None:
         now = datetime.datetime.now().time()
 
@@ -282,8 +277,8 @@ def is_between(now=None, start_str="9:25", end_str="10:30"):
 
 def sleep_enough():
     run_spend_time = round(end_time - start_time, 2)
-    if is_between():
-        logger.warning(f'{run_number}) run_spend_time: {run_spend_time} seconds')
+    if is_between(start_str="9:25", end_str="11:00"):
+        logger.warning(f'{run_number}) run_spend_time: {run_spend_time} seconds, no sleep ...')
     else:
         run_should_take = app_config['run_should_take_seconds']
         need_sleep_seconds = 0
@@ -1805,7 +1800,6 @@ def send_email(event='order_sent'):
     if app_config['email']['send_email']:
         recipients = app_config['email']['recipients']
         if event.lower() == 'order_sent':
-            symbol = 'x'
             subject = f'Order Sent {symbol}'
             body = (f" Order opened ... <br>"
                     f"Later more detail will come ...<br>")
@@ -1832,6 +1826,7 @@ def compute_relative_strength(stock_df: pd.DataFrame, qqq_df: pd.DataFrame, peri
     merged['rs_ema'] = merged['rs_ratio'].ewm(span=period, adjust=False).mean()
     merged['rs_roc'] = merged['rs_ema'].pct_change(periods=period)
 
+    merged = merged.fillna(0)
     return merged[['date', 'rs_ratio', 'rs_ema', 'rs_roc']]
 
 def preppare_qqq_df(qqq_df):
@@ -1904,6 +1899,7 @@ if __name__ == "__main__":
     app_config = load_app_config(portfolio_id)
     ib_config = load_ib_config()
     ib = create_ib_connection()
+
     application_state = {}
     options_meta_date_dic = {}
     unique_run_number = ''
@@ -1915,21 +1911,14 @@ if __name__ == "__main__":
         close_all_open_option_positions()
 
 
-
-
-    # support_resistance_map = {}
     time_frame = '1 min'
+
     drawing_objects_df = pd.DataFrame()
     hover_df = pd.DataFrame(columns=['symbol', 'time_frame', 'object', 'color', 'date_1', 'price_1', 'date_2', 'price_2', 'memo','unique_id'])
     key_levels_df = pd.DataFrame( columns=['symbol', 'time_frame', 'key_level', 'price', 'memo','unique_id'])
-    open_trades_dic = {}
+    open_trades_dic = {} # need to be rmeoved ...
 
     consequence_exception = 0
-
-
-
-
-
     run_number = 0
 
     get_live_portfolio_df(find_positions_to_monitor())
@@ -1939,18 +1928,18 @@ if __name__ == "__main__":
         start_time = time.time()
         run_number += 1
         now = datetime.datetime.now()
-        run_date_time = now.strftime("%Y-%m-%d__%H-%M")
+        date_yyyy_mm_dd_hh_mm = now.strftime("%Y-%m-%d__%H-%M")
         unique_run_number = f"{now.strftime('%Y%m%d-%H%M%S')}--{run_number}"
 
         logger.info(f"==================== run_number: {run_number},  unique_run_number: {unique_run_number}")
         if run_number == 1:
-            find_expiration_and_strikes_for_all()
+            find_expiration_and_strikes_for_all()   # TODO expiration and striked need to be updated
 
-        get_live_portfolio_df(find_positions_to_monitor())
+        get_live_portfolio_df(find_positions_to_monitor()) # TODO why we need in every run...
 
         qqq_df = pd.DataFrame()
         for symbol in app_config['symbols']:
-            logger.info(f"-------------------{symbol}, run_number: {run_number}, unique_run_number: {unique_run_number}")
+            logger.info(f"------------------- {symbol}, run_number: {run_number}, unique_run_number: {unique_run_number}")
 
 
             signals = []
@@ -1962,13 +1951,16 @@ if __name__ == "__main__":
             df = get_market_data(symbol, '1 min')
             df = popualate_features(df)
             if symbol == 'QQQ':
-                qqq_df = df
+                qqq_df = df.copy()
 
             qqq_df = preppare_qqq_df(qqq_df)
+            if True:
+                missing_rows_in_qqq_df = df.loc[~df['date'].isin(qqq_df['date'])]
+                logger.warning(f"{missing_rows_in_qqq_df[-10:].to_markdown()}")
 
-            save_ohlc_for_chart(df)
             relative_strength_df = compute_relative_strength(df, qqq_df, period=20)
             intraday_rs_df = compute_intraday_rs(df, qqq_df)
+
             if run_number == 1: # only first run for each symbol ...
                 calculate_PDL_PDH(df)
 
@@ -1980,7 +1972,6 @@ if __name__ == "__main__":
             buy_sell_case_results_list = check_buy_and_sell_cases()
             check_buy_sell_result_to_send_order(buy_sell_case_results_list)
             check_for_stop_loss_and_take_profit()
-#            check_take_profit()
 
             add_buy_a_sell_entries_to_signals(buy_sell_case_results_list)
             add_candle_info_df_to_signals()
@@ -1991,22 +1982,23 @@ if __name__ == "__main__":
             save_df_to_csv_a_tabular(drawing_objects_df, '10-drawing_objects_df.csv', mode='w', dir=charts_dir)
             save_df_to_csv_a_tabular(key_levels_df, dir=portfolio_dir, file_name='11-key_levels_df.csv', mode='w')
             save_df_to_csv_a_tabular(hover_df, dir=charts_dir, file_name='12-hover_df.csv', mode='a')
+
+            save_ohlc_for_chart(df)
+
+            # Extra features ...
             # move it to a fun ...
-            file = f"{charts_dir}/{symbol}-{time_frame.replace(' ', '')}-relative_strength.csv"
-            relative_strength_df.to_csv(file, index=False)
+            extra_features_df = df.copy()
+            extra_features_df = extra_features_df.merge(relative_strength_df, on='date', how='left')
+            extra_features_df = extra_features_df.merge(intraday_rs_df, on='date', how='left')
 
+            file = f"{charts_dir}/{symbol}-{time_frame.replace(' ', '')}-extra_features_df.csv"
+            extra_features_df.to_csv(file, index=False)
 
-            # move it to a fun ...
-            file = f"{charts_dir}/{symbol}-{time_frame.replace(' ', '')}-intraday_rs_df.csv"
-            intraday_rs_df.to_csv(file, index=False)
-
-            intraday_rs_df
             if run_number % 4 == 0:
                 app_config = load_app_config(portfolio_id)
 
             dump_application_state_to_file()
             print_application_state(application_state, msg='application_state:')
-
 
         end_time = time.time()
 
@@ -2017,7 +2009,6 @@ if __name__ == "__main__":
         consequence_exception = 0
       except Exception as e:
           consequence_exception = consequence_exception + 1
-          # TODO needs better exception handling
           logger.error(f"X error: {e}")
           import traceback
 
@@ -2030,6 +2021,6 @@ if __name__ == "__main__":
 
           if isinstance(e, ConnectionError):
               # set a flag and set connection in loop .. exists if riase exceptin
-              logger.error("It's a ConnectionError, try to reconnect ")
+              logger.error("@@@@ It's a ConnectionError, try to reconnect ")
               ib = create_ib_connection()
               logger.warning("Done.")

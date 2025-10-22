@@ -1,6 +1,5 @@
 logging_level: logging.INFO
 symbols: [ 'QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR', 'TSLL', 'AMZN' ,'MNQ', 'SPY']
-historical_days: 4 D
 
 symbols_meta:
   QQQ:
@@ -212,6 +211,9 @@ chart:
 #  source: back_test  # use live ot back_test
   # back_test
   # live
+
+live:
+  historical_days: 4 D
 
 close_all_open_option_positions: false
 load_application_state_from_file: true

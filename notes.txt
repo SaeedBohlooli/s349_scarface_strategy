@@ -1,0 +1,5 @@
+merged = df.merge(qqq_df[['date', 'x1']], on='date', how='left')
+merged['x1'] = merged['x1'].fillna(method='ffill')  # forward fill last known value
+
+merged = df.merge(qqq_df[['date', 'x1']], on='date', how='left')
+

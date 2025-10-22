@@ -483,16 +483,16 @@ def load_relative_strength_df_from_file(portfolio_id='p700', symbol='TSLA', time
     logger.info(f"in load_relative_strength_df_from_file, df: \n{df[-5:].to_markdown()}")
     return df
 
-def load_intraday_rs_df_from_file(portfolio_id='p700', symbol='TSLA', time_frame='1min'):
-    file = f'{charts_dir}/{symbol}-{time_frame}-intraday_rs_df.csv'
-    logger.info(f"load_intraday_rs_df_from_file, reading file: {file}")
+def load_extra_features_df(portfolio_id='p700', symbol='TSLA', time_frame='1min'):
+    file = f'{charts_dir}/{symbol}-{time_frame}-extra_features_df.csv'
+    logger.info(f"load_extra_features_df_from_file, reading file: {file}")
 
     df = pd.read_csv(file)
     df['date'] = pd.to_datetime(df['date'])
 
     df = df[-app_config['chart']['1m_candles']:]
 
-    logger.info(f"in load_intraday_rs_df_from_file, df: \n{df[-5:].to_markdown()}")
+    logger.info(f"in load_extra_features_df_from_file, df: \n{df[-5:].to_markdown()}")
     return df
 
 def load_df_from_ohlc_file(portfolio_id='p700', symbol='TSLA', time_frame='1min'):
@@ -685,14 +685,13 @@ backtest_date = '20250810'
 charts_dir = ''
 chart_rows = 2
 df = pd.DataFrame()
-relative_strenght_df = pd.DataFrame()
-intraday_rs_df = pd.DataFrame()
+extra_features_df = pd.DataFrame()
 @app.route('/')
 def index():
     global charts_dir
     global df
     global relative_strenght_df
-    global intraday_rs_df
+    global extra_features_df
     portfolio_id = 'p250'
     app_config = load_app_config(portfolio_id)
     backtest_date = ''
@@ -722,8 +721,7 @@ def index():
         time_frame = '1min'
 
         df = load_df_from_ohlc_file(portfolio_id='p250', time_frame=time_frame, symbol=symbol)
-        relative_strenght_df = load_relative_strength_df_from_file(portfolio_id='p250',time_frame=time_frame, symbol=symbol)
-        intraday_rs_df = load_intraday_rs_df_from_file(portfolio_id='p250',time_frame=time_frame, symbol=symbol)
+        extra_features_df = load_extra_features_df(portfolio_id='p250', time_frame=time_frame, symbol=symbol)
         fig1 = draw_w_plotly_w_subplot_1(symbol, chart_title=f'{symbol}-{time_frame}')
         fig1 = draw_objects(fig1,df, drawing_objects_df, symbol=symbol, time_frame=time_frame )
         fig1 = add_start_finish_day(fig1, df)
