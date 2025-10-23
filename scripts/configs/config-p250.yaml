@@ -76,7 +76,7 @@ symbols_meta:
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
   MNQ:
-    can_trade: False
+    can_trade: True
     contract_type: Future
     contract_month: 202512
     retest_tolerance_percentage: 0.003
