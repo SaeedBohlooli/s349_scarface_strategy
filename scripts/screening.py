@@ -348,7 +348,7 @@ def save_df_to_csv_a_tabular(df=None, file_name='', mode='w', dir=''):
         write_file_in_tabulate(src_file_path=file)
     return
 
-def write_file_in_tabulate(src_file_path, dest_file_path= None):
+def write_file_in_tabulate(src_file_path, dest_file_path= None, number_of_rows=0):
 
     df = pd.read_csv(src_file_path)
     if len(df) > 0:
@@ -359,7 +359,11 @@ def write_file_in_tabulate(src_file_path, dest_file_path= None):
         # for col in df.select_dtypes(include=['object', 'bool']):
         #     df[col] = df[col].astype(str)
         with open(dest_file_path, 'w') as f:
-            f.write(tabulate(df.astype(str), headers='keys', tablefmt='psql'))
+            if number_of_rows == 0:
+                # write all
+                f.write(tabulate(df.astype(str), headers='keys', tablefmt='psql'))
+            else:
+                f.write(tabulate(df[-number_of_rows:].astype(str), headers='keys', tablefmt='psql'))
     return
 
 # 0.001
@@ -1902,15 +1906,20 @@ def compute_intraday_rs(stock_df: pd.DataFrame, qqq_df: pd.DataFrame):
         suffixes=('_stock', '_qqq')
     )
 
+    logger.info(f'stock_open: {stock_open}, qqq_open: {qqq_open}')
     # --- Compute % change from 9:30 anchor ---
     merged['stock_pct'] = merged['close_stock'] / stock_open - 1
     merged['qqq_pct'] = merged['close_qqq'] / qqq_open - 1
+    merged['qqq_930'] = qqq_open
+    merged['stock_930'] = stock_open
 
     # --- Relative performance ---
     merged['rs_rel'] = merged['stock_pct'] / merged['qqq_pct'].replace(0, pd.NA)
     merged['rs_delta'] = merged['stock_pct'] - merged['qqq_pct']
+    cap_value = 100
+    merged['rs_rel'] = merged['rs_rel'].clip(lower=-cap_value, upper=cap_value)
 
-    return merged[['date', 'close_stock', 'close_qqq', 'stock_pct', 'qqq_pct', 'rs_rel', 'rs_delta']]
+    return merged[['date', 'close_stock', 'close_qqq', 'stock_pct', 'qqq_pct', 'rs_rel', 'rs_delta', 'qqq_930', 'stock_930']]
 
 
 def call_api_top_step(symbol, side):
@@ -1934,6 +1943,7 @@ def call_api_top_step(symbol, side):
 # ###########
 
 if __name__ == "__main__":
+
 
     app_config = load_app_config(portfolio_id)
     ib_config = load_ib_config()

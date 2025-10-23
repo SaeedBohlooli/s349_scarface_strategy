@@ -1,3 +1,6 @@
+import threading
+import time
+import requests
 import traceback
 from collections import defaultdict
 from tabulate import tabulate
@@ -1478,9 +1481,6 @@ def prepare_contract(symbol, right='C'):
 
 def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
     global  application_state
-    if not app_config['symbols_meta'][symbol]['can_trade']:
-        logger.info(f"We are not trading {symbol}.")
-        return
 
     open_trades_dic = application_state.get('open_trades_dic', {})
     for buy_sell_case_result in buy_sell_case_results_list:
@@ -1490,6 +1490,14 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
         can_buy = buy_sell_case_result[1]
         can_sell = buy_sell_case_result[2]
         logger.info(f"case: {case}, can_buy: {can_buy}, can_sell: {can_sell}")
+        if symbol == 'MNQ' and (can_buy or can_sell):
+            # create a new Thread for calling TopStep
+            side = 'BUY' if can_buy else 'SELL'
+            t = threading.Thread(target=call_api_top_step, args=(symbol, side))
+            t.start()
+        if not app_config['symbols_meta'][symbol]['can_trade']:
+            logger.info(f"We are not trading {symbol}.")
+            continue
         if can_buy:
             if open_trades_dic.get(symbol,{}).get('available_quantity', 0) == 0:
                 logger.info(f"in check_buy_sell_result_to_send_order, can_buy: {can_buy}")
@@ -1914,6 +1922,22 @@ def compute_intraday_rs(stock_df: pd.DataFrame, qqq_df: pd.DataFrame):
     return merged[['date', 'close_stock', 'close_qqq', 'stock_pct', 'qqq_pct', 'rs_rel', 'rs_delta', 'qqq_930', 'stock_930']]
 
 
+def call_api_top_step(symbol, side):
+    try:
+        # app_config['topstep']['session']
+        print(" in thread ...")
+        url = "https://api.example.com/data"
+        params = {"symbol": "AAPL"}
+        response = requests.get(url, params=params)
+        print(f"Status: {response.status_code}")
+        print(f"Response: {response.text}")
+    except Exception as e:
+        # TODO needs better exception handling
+        print(f"error: {e}")
+        import traceback
+        print(f"--------------")
+        print(traceback.format_exc())
+    return
 # ############
 # End of IB sending order - only for live
 # ###########
