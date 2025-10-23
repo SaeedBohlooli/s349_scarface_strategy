@@ -111,7 +111,7 @@ def disconnect_ib(ib):
 def on_disconnect():
     logger.warning("⚠️ IB disconnected! Reconnecting...")
     create_ib_connection()
-    retrun
+    return
 
 
 def create_ib_connection():
@@ -1259,6 +1259,21 @@ def cut_df_until_date(df, cutoff_date):
 
     return df[df_dates <= cutoff_date]
 
+def cut_df_strating_hour_x_on_last_day(df, cutoff_time="13:00"):
+    df = df.copy()
+    df['date'] = pd.to_datetime(df['date'])
+
+    # Find the last trading day in the DataFrame
+    last_day = df['date'].dt.normalize().max()
+
+    # Create masks
+    mask_time = df['date'].dt.time >= pd.to_datetime(cutoff_time).time()
+    mask_day = df['date'].dt.normalize() == last_day
+
+    # Keep everything aftere that cutoff on the last day, and all prior days
+    cut_df = df[(mask_day & mask_time)]
+    return cut_df
+
 def cut_df_until_hour_x_on_last_day(df, cutoff_time="13:00"):
     """
     Cut the DataFrame up to (and including) a specific time on the last day in df['date'].
@@ -1459,8 +1474,8 @@ def prepare_contract(symbol, right='C'):
 
 def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
     global  application_state
-    if app_config['symbols_meta'][symbol]['can_trade']:
-        logger.debug(f"We are not trading {symbol}.")
+    if not app_config['symbols_meta'][symbol]['can_trade']:
+        logger.info(f"We are not trading {symbol}.")
         return
 
     open_trades_dic = application_state.get('open_trades_dic', {})
@@ -1652,14 +1667,14 @@ def close_option_positions(positions, symbol='', close_qty=0):
 
         if contract.secType == 'OPT' and qty != 0:
             if symbol != '' and symbol != contract.symbol:
-                logger.warning(f"We are not closing this {symbol}")
+                logger.warning(f"@@@ We are not closing this symbol: {symbol}, contract.symbol: {contract.symbol}")
                 continue
 
             # --- Step 2: Determine opposite action ---
             action = 'SELL' if qty > 0 else 'BUY'
 
             if close_qty > abs(qty):
-                logger.warning(f"@@@@ Trying to clsoe more than ope. so we ignore. close_qty: {close_qty}, qty: {qty}")
+                logger.warning(f"@@@@ Trying to close more than ope. so we ignore. close_qty: {close_qty}, qty: {qty}")
 
             if close_qty == 0:
                 # is not passed. so close all
@@ -1762,8 +1777,8 @@ def check_for_stop_loss_and_take_profit():
         # Take profit
         # ###
         for take_profit in app_config['take_profits']:
-            if application_state['open_trades_dic'][symbol].get('available_quantity',0) != 0:
-                logger.info(f"{symbol}, available_quantity is 0 ")
+            if application_state['open_trades_dic'][symbol].get('available_quantity',0) == 0:
+                logger.info(f"{symbol}, check_for_stop_loss_and_take_profit(), available_quantity is 0 ")
                 continue
             if application_state['open_trades_dic'][symbol].get('take_profits',{}).get(take_profit,None ) != None:
                 logger.info(f"{symbol}, TP already is executed. {take_profit}")

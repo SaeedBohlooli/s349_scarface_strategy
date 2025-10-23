@@ -111,6 +111,7 @@ def disconnect_ib(ib):
 def on_disconnect():
     logger.warning("⚠️ IB disconnected! Reconnecting...")
     create_ib_connection()
+    return
 
 
 def create_ib_connection():
@@ -157,9 +158,6 @@ def get_historical_data(contract, historical_days, time_frame):
     return df
 
 
-# ####
-# for apps
-# ###
 def get_market_data(symbol, time_frame ='1 day'):
     historical_days = app_config[mode]['historical_days']
     logger.info(f"symbol: {symbol}, time_frame: {time_frame} , historical_days: {historical_days}")
@@ -347,7 +345,7 @@ def save_df_to_csv_a_tabular(df=None, file_name='', mode='w', dir=''):
         write_file_in_tabulate(src_file_path=file)
     return
 
-def write_file_in_tabulate(src_file_path, dest_file_path= None):
+def write_file_in_tabulate(src_file_path, dest_file_path= None, number_of_rows=0):
 
     df = pd.read_csv(src_file_path)
     if len(df) > 0:
@@ -358,7 +356,11 @@ def write_file_in_tabulate(src_file_path, dest_file_path= None):
         # for col in df.select_dtypes(include=['object', 'bool']):
         #     df[col] = df[col].astype(str)
         with open(dest_file_path, 'w') as f:
-            f.write(tabulate(df.astype(str), headers='keys', tablefmt='psql'))
+            if number_of_rows == 0:
+                # write all
+                f.write(tabulate(df.astype(str), headers='keys', tablefmt='psql'))
+            else:
+                f.write(tabulate(df[-number_of_rows:].astype(str), headers='keys', tablefmt='psql'))
     return
 
 # 0.001
@@ -1261,6 +1263,21 @@ def cut_df_until_date(df, cutoff_date):
 
     return df[df_dates <= cutoff_date]
 
+def cut_df_strating_hour_x_on_last_day(df, cutoff_time="13:00"):
+    df = df.copy()
+    df['date'] = pd.to_datetime(df['date'])
+
+    # Find the last trading day in the DataFrame
+    last_day = df['date'].dt.normalize().max()
+
+    # Create masks
+    mask_time = df['date'].dt.time >= pd.to_datetime(cutoff_time).time()
+    mask_day = df['date'].dt.normalize() == last_day
+
+    # Keep everything aftere that cutoff on the last day, and all prior days
+    cut_df = df[(mask_day & mask_time)]
+    return cut_df
+
 def cut_df_until_hour_x_on_last_day(df, cutoff_time="13:00"):
     """
     Cut the DataFrame up to (and including) a specific time on the last day in df['date'].
@@ -1319,7 +1336,7 @@ def get_back_test_data():   # get data from IB.... use
 
     return
 
-            
+
 
 def cut_df_starting_x_days_ago(df, days=5):
     last_date = df['date'].max()
@@ -1461,8 +1478,8 @@ def prepare_contract(symbol, right='C'):
 
 def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
     global  application_state
-    if app_config['symbols_meta'][symbol]['can_trade']:
-        logger.debug(f"We are not trading {symbol}.")
+    if not app_config['symbols_meta'][symbol]['can_trade']:
+        logger.info(f"We are not trading {symbol}.")
         return
 
     open_trades_dic = application_state.get('open_trades_dic', {})
@@ -1654,14 +1671,14 @@ def close_option_positions(positions, symbol='', close_qty=0):
 
         if contract.secType == 'OPT' and qty != 0:
             if symbol != '' and symbol != contract.symbol:
-                logger.warning(f"We are not closing this {symbol}")
+                logger.warning(f"@@@ We are not closing this symbol: {symbol}, contract.symbol: {contract.symbol}")
                 continue
 
             # --- Step 2: Determine opposite action ---
             action = 'SELL' if qty > 0 else 'BUY'
 
             if close_qty > abs(qty):
-                logger.warning(f"@@@@ Trying to clsoe more than ope. so we ignore. close_qty: {close_qty}, qty: {qty}")
+                logger.warning(f"@@@@ Trying to close more than ope. so we ignore. close_qty: {close_qty}, qty: {qty}")
 
             if close_qty == 0:
                 # is not passed. so close all
@@ -1764,8 +1781,8 @@ def check_for_stop_loss_and_take_profit():
         # Take profit
         # ###
         for take_profit in app_config['take_profits']:
-            if application_state['open_trades_dic'][symbol].get('available_quantity',0) != 0:
-                logger.info(f"{symbol}, available_quantity is 0 ")
+            if application_state['open_trades_dic'][symbol].get('available_quantity',0) == 0:
+                logger.info(f"{symbol}, check_for_stop_loss_and_take_profit(), available_quantity is 0 ")
                 continue
             if application_state['open_trades_dic'][symbol].get('take_profits',{}).get(take_profit,None ) != None:
                 logger.info(f"{symbol}, TP already is executed. {take_profit}")
@@ -1881,15 +1898,20 @@ def compute_intraday_rs(stock_df: pd.DataFrame, qqq_df: pd.DataFrame):
         suffixes=('_stock', '_qqq')
     )
 
+    logger.info(f'stock_open: {stock_open}, qqq_open: {qqq_open}')
     # --- Compute % change from 9:30 anchor ---
     merged['stock_pct'] = merged['close_stock'] / stock_open - 1
     merged['qqq_pct'] = merged['close_qqq'] / qqq_open - 1
+    merged['qqq_930'] = qqq_open
+    merged['stock_930'] = stock_open
 
     # --- Relative performance ---
     merged['rs_rel'] = merged['stock_pct'] / merged['qqq_pct'].replace(0, pd.NA)
     merged['rs_delta'] = merged['stock_pct'] - merged['qqq_pct']
+    cap_value = 100
+    merged['rs_rel'] = merged['rs_rel'].clip(lower=-cap_value, upper=cap_value)
 
-    return merged[['date', 'close_stock', 'close_qqq', 'stock_pct', 'qqq_pct', 'rs_rel', 'rs_delta']]
+    return merged[['date', 'close_stock', 'close_qqq', 'stock_pct', 'qqq_pct', 'rs_rel', 'rs_delta', 'qqq_930', 'stock_930']]
 
 
 # ############
@@ -2039,17 +2061,19 @@ if __name__ == "__main__":
             hover_df = convert_signals_to_hover_df(signals)  # for whole symbol ...
             logger.info(f"hover_df[-10:]: \n{hover_df[-10:].to_markdown()}")
 
-            for_chart_ohlc_df = cut_df_starting_x_days_ago(for_chart_ohlc_df, days=1)  # we keep the last two days for chart only
+            for_chart_ohlc_df = cut_df_strating_hour_x_on_last_day(for_chart_ohlc_df, cutoff_time="09:15")
             save_ohlc_for_chart(for_chart_ohlc_df)
 
             extra_features_df = for_chart_ohlc_df.copy()
             extra_features_df = extra_features_df.merge(relative_strength_df, on='date', how='left')
             extra_features_df = extra_features_df.merge(intraday_rs_df, on='date', how='left')
+            extra_features_df = cut_df_strating_hour_x_on_last_day(extra_features_df, cutoff_time="09:15")
 
-            extra_features_df = cut_df_starting_x_days_ago(extra_features_df, days=1)  # we keep the last two days for chart only
+
+
             file = f"{charts_dir}/{symbol}-{time_frame.replace(' ', '')}-extra_features_df.csv"
             extra_features_df.to_csv(file, index=False)
-
+            write_file_in_tabulate(src_file_path=file, number_of_rows=230)
 
         save_df_to_csv_a_tabular(drawing_objects_df, '10-drawing_objects_df.csv', mode='w', dir=charts_dir)
         save_df_to_csv_a_tabular(key_levels_df, dir=portfolio_dir, file_name='11-key_levels_df.csv', mode='w')

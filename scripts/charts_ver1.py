@@ -157,15 +157,13 @@ def draw_w_plotly_w_subplot_oirg_no_slidebar(df, chart_title='title'):
     return fig
 def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
     global df
-    global relative_strenght_df
-    global intraday_rs_df
+    global extra_features_df
     logger.info(f"in draw_w_plotly_w_subplot:\n {df[-20:].to_markdown()}")
 
     df['date'] = pd.to_datetime(df['date'])
     end_time = df['date'].max() + pd.Timedelta(minutes=10)
 
-    relative_strenght_df['date'] = pd.to_datetime(relative_strenght_df['date'])
-    intraday_rs_df['date'] = pd.to_datetime(intraday_rs_df['date'])
+    extra_features_df['date'] = pd.to_datetime(extra_features_df['date'])
 
 
     hours_in_focus = int(app_config['chart']['hours_in_focus'])
@@ -211,30 +209,30 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
     ), row=3, col=1)
 
     fig.add_trace(go.Scatter(
-        x=relative_strenght_df['date'],
-        y=relative_strenght_df['rs_ratio'],
+        x=extra_features_df['date'],
+        y=extra_features_df['rs_ratio'],
         line=dict(color='blue', width=2),
         name='rs_ratio'
     ), row=4, col=1)
 
 
     fig.add_trace(go.Scatter(
-        x=relative_strenght_df['date'],
-        y=relative_strenght_df['rs_ema'],
+        x=extra_features_df['date'],
+        y=extra_features_df['rs_ema'],
         line=dict(color='red', width=1, dash='dot'),
         name='rs_ema'
     ), row=4, col=1)
 
     fig.add_trace(go.Scatter(
-        x=relative_strenght_df['date'],
-        y=relative_strenght_df['rs_roc'],
+        x=extra_features_df['date'],
+        y=extra_features_df['rs_roc'],
         line=dict(color='blue', width=2),
         name='rs_roc'
     ), row=5, col=1)
 
     fig.add_trace(go.Scatter(
-        x=intraday_rs_df['date'],
-        y=intraday_rs_df['rs_rel'],
+        x=extra_features_df['date'],
+        y=extra_features_df['rs_rel'],
         line=dict(color='blue', width=2),
         name='rs_rel'
     ), row=6, col=1)
@@ -471,17 +469,17 @@ def add_start_finish_day(fig, df):
     return fig
 
 
-def load_relative_strength_df_from_file(portfolio_id='p700', symbol='TSLA', time_frame='1min'):
-    file = f'{charts_dir}/{symbol}-{time_frame}-relative_strength.csv'
-    logger.info(f"load_relative_strength_df_from_file, reading file: {file}")
-
-    df = pd.read_csv(file)
-    df['date'] = pd.to_datetime(df['date'])
-
-    df = df[-app_config['chart']['1m_candles']:]
-
-    logger.info(f"in load_relative_strength_df_from_file, df: \n{df[-5:].to_markdown()}")
-    return df
+# def load_relative_strength_df_from_file(portfolio_id='p700', symbol='TSLA', time_frame='1min'):
+#     file = f'{charts_dir}/{symbol}-{time_frame}-relative_strength.csv'
+#     logger.info(f"load_relative_strength_df_from_file, reading file: {file}")
+#
+#     df = pd.read_csv(file)
+#     df['date'] = pd.to_datetime(df['date'])
+#
+#     df = df[-app_config['chart']['1m_candles']:]
+#
+#     logger.info(f"in load_relative_strength_df_from_file, df: \n{df[-5:].to_markdown()}")
+#     return df
 
 def load_extra_features_df(portfolio_id='p700', symbol='TSLA', time_frame='1min'):
     file = f'{charts_dir}/{symbol}-{time_frame}-extra_features_df.csv'
@@ -690,7 +688,6 @@ extra_features_df = pd.DataFrame()
 def index():
     global charts_dir
     global df
-    global relative_strenght_df
     global extra_features_df
     portfolio_id = 'p250'
     app_config = load_app_config(portfolio_id)

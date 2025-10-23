@@ -1,5 +1,6 @@
 logging_level: logging.INFO
 symbols: [ 'QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR', 'TSLL', 'AMZN' ,'MNQ', 'SPY']
+#symbols: [ 'QQQ', 'AMD' ]
 
 symbols_meta:
   QQQ:
@@ -62,7 +63,7 @@ symbols_meta:
     retest_tolerance_percentage: 0.003
     retest_tolerance_amount: 0.5
     levels_closeness_limit: 2
-    min_required_move_from_level: 0.5
+    min_required_move_from_level: 0.04
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
   SPY:
@@ -160,7 +161,7 @@ cases:
       condition_06: no_failure_after_breakout(side='up', ohlc_field='close',level=levels['5MH'])
       condition_07: check_retest_after_breakout(side='up', level=levels['5MH'])
       condition_08: dummy_call(level=levels['5MH'])
-#      condition_01: symbol == 'AMD' and run_number > 2 and 1==2
+#      condition_01: symbol == 'TSLA' and run_number > 2 and 1==1
 #      condition_02: 1 == 1
 #      condition_03: 1 == 1
 #      condition_04: 1 == 1
@@ -203,14 +204,7 @@ cases:
         eval_sell_condition_05 and eval_sell_condition_06 and 
         eval_sell_condition_06
 
-chart:
-  1m_candles: 2000
-  cutoff_in_hours: 0
-  hours_in_focus: 2
-  source: live  # use live ot back_test
-#  source: back_test  # use live ot back_test
-  # back_test
-  # live
+
 
 live:
   historical_days: 4 D
@@ -220,16 +214,24 @@ load_application_state_from_file: true
 run_should_take_seconds: 15
 
 back_test:
-  get_data_from_ib: False  # put this True only for first run
+  get_data_from_ib: False
+#  get_data_from_ib: True
+  # put this True only for first run
   historical_days: 5 D
-  start_date: 2025-10-13
+  start_date: 2025-10-22
 
   back_test_date_start: 2025-10-20
-  back_test_date_end: 2025-10-23
+  back_test_date_end: 2025-10-20
 
+chart:
+  1m_candles: 2000
+  cutoff_in_hours: 0
+  hours_in_focus: 2
+#  source: live
+  source: back_test
 
-#stop_loss_condition: underlying_current_price < underlying_open_price
-stop_loss_condition: 1 == 2 and symbol == 'AMD'
+stop_loss_condition: underlying_current_price < underlying_open_price
+#stop_loss_condition: 1 == 2 and symbol == 'AMD'
 exit: false
 
 
@@ -251,6 +253,6 @@ take_profits:
     close_quantity_percentage: 0.3
 
 email:
-  send_email: True
+  send_email: False
   #recipients: vikaskaler.bnr@gmail.com,saeed.bx1@yahoo.com
   recipients: saeed.bx1@yahoo.com
