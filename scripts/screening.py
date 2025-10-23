@@ -592,16 +592,21 @@ def check_buy_and_sell_cases():
 
 
 def check_buy_sell_condition(case):
-    res_str = ""
     global break_out_indices_by_level_dic
     global retest_indices_by_level_dic
 
     can_buy = False
     can_sell = False
     res_str = ''
-    try:
+    long_level = -1
+    short_level = -1
 
+    try:
         levels = get_levels_dic()  # used in config
+
+        long_level = eval(app_config['cases'][case]['long']['level'])
+        short_level = eval(app_config['cases'][case]['short']['level'])
+
         levels_closeness_limit = app_config['symbols_meta'][symbol]['levels_closeness_limit']  # used in config
         min_required_move_from_level = app_config['symbols_meta'][symbol]['min_required_move_from_level']  # used in config
         price = df['close'].iloc[-1]  # used in config
@@ -655,7 +660,6 @@ def check_buy_sell_condition(case):
             f"\nbuy_condition_07: {buy_condition_07} "
             f"\n{eval_buy_condition_01}.{eval_buy_condition_02}.{eval_buy_condition_03}.{eval_buy_condition_04}.{eval_buy_condition_05}.{eval_buy_condition_06}.{eval_buy_condition_07}"
             f"\n"
-            f"\n"
             f"\ncase: {case} "
             f"\nsell_condition_01: {sell_condition_01}"
             f"\nsell_condition_02: {sell_condition_02}"
@@ -665,7 +669,6 @@ def check_buy_sell_condition(case):
             f"\nsell_condition_06: {sell_condition_06}"
             f"\nsell_condition_07: {sell_condition_07}"
             f"\n{eval_sell_condition_01}.{eval_sell_condition_02}.{eval_sell_condition_03}.{eval_sell_condition_04}.{eval_sell_condition_05}.{eval_sell_condition_06}.{eval_sell_condition_07}"
-            f"\n"
             f"\n"
         )
 
@@ -694,7 +697,7 @@ def check_buy_sell_condition(case):
         logger.error(f"in check_buy_sell_condition: error {e}")
         logger.error(traceback.format_exc())
         res_str = {case}
-    return case, can_buy, can_sell, res_str
+    return case, can_buy, can_sell, res_str, long_level, short_level
 
 def check_retest_after_breakout(side='up', level=1):
 
@@ -1400,12 +1403,13 @@ def on_fill(trade, fill):
 
 def send_order(contract, total_quantity=1):
     order = MarketOrder('BUY', totalQuantity=total_quantity)
+    order.orderRef = f"OPEN-{unique_run_number}"
     trade = ib.placeOrder(contract, order)
+    # TODO convert to ib df
     trade.fillEvent += on_fill
     ib.sleep(1)
     logger.info(f"Order sent ....")
     logger.info(trade)
-    send_email(event='order_sent')
     return
 
 
@@ -1489,6 +1493,11 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
         case = buy_sell_case_result[0]
         can_buy = buy_sell_case_result[1]
         can_sell = buy_sell_case_result[2]
+        case_result = buy_sell_case_result[3]
+        long_level = buy_sell_case_result[4]
+        short_level = buy_sell_case_result[5]
+
+
         logger.info(f"case: {case}, can_buy: {can_buy}, can_sell: {can_sell}")
         if symbol == 'MNQ' and (can_buy or can_sell):
             # create a new Thread for calling TopStep
@@ -1498,36 +1507,43 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
         if not app_config['symbols_meta'][symbol]['can_trade']:
             logger.info(f"We are not trading {symbol}.")
             continue
+        total_quantity = 4
         if can_buy:
             if open_trades_dic.get(symbol,{}).get('available_quantity', 0) == 0:
-                logger.info(f"in check_buy_sell_result_to_send_order, can_buy: {can_buy}")
+                logger.info(f"{symbol}, in check_buy_sell_result_to_send_order, can_buy: {can_buy}")
                 # send order
                 option_contract = prepare_contract(symbol, right='C')
-                send_order(option_contract, total_quantity=3)
+                send_order(option_contract, total_quantity=total_quantity)
                 data = {'side': 'long',
                         'right': 'C',
-                        'starting_quantity':3,
-                        'available_quantity':3,
+                        'starting_quantity':total_quantity,
+                        'available_quantity':total_quantity,
                         'underlying_open_price': df['close'].iloc[-1] ,
-                        'u_run_number': unique_run_number
+                        'u_run_number': unique_run_number,
+                        'level_used_to_open' : long_level
                         }
                 application_state.setdefault('open_trades_dic', {})[symbol] = data
                 add_to_signlas('LONG_CALL_SENT',df['close'].iloc[-1],df['date'].iloc[-1], f'{data}' )
+                send_email(event='order_sent')
+
         if can_sell:
             if open_trades_dic.get(symbol,{}).get('quantity', 0) == 0:
                 # send order
-                logger.info(f"in check_buy_sell_result_to_send_order, can_sell: {can_sell}")
+                logger.info(f"{symbol}, in check_buy_sell_result_to_send_order, can_sell: {can_sell}")
                 option_contract = prepare_contract(symbol, right='P')
                 send_order(option_contract, total_quantity=3)
                 data = {'side': 'long',
                         'right': 'P',
-                        'starting_quantity': 3,
-                        'available_quantity': 3,
+                        'starting_quantity': total_quantity,
+                        'available_quantity': total_quantity,
                         'underlying_open_price': df['close'].iloc[-1],
-                        'u_run_number': unique_run_number
+                        'u_run_number': unique_run_number,
+                        'level_used_to_open': short_level
                         }
                 application_state.setdefault('open_trades_dic', {})[symbol] = data
                 add_to_signlas('LONG_PUT_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f'{data}')
+                send_email(event='order_sent')
+
     return
 def dump_application_state_to_file():
     file_path = application_state_file_path
@@ -1560,86 +1576,129 @@ def popualate_features(df):
     df = pd.concat(features_list, axis=1)
     return df
 
-def get_live_portfolio_df(positions):
-    """
-    Calculate and print PnL for all positions grouped by underlying + expiry.
-    Uses live market prices for unrealized PnL.
-    """
+def get_live_quote_for_option_postitions(option_positions):
     portfolio_df = pd.DataFrame()
+    for p in option_positions:
+        contract = p.contract
+        contract.exchange = 'CBOE'  # TODO why not smart!
+        ticker = ib.reqMktData(contract, '', False, False)
+        ib.sleep(1)  # short wait for data
+        print(f"{contract.symbol} {contract.lastTradeDateOrContractMonth} "
+              f"{contract.right} {contract.strike} | "
+              f"Bid: {ticker.bid}, Ask: {ticker.ask}, Last: {ticker.last}")
+        qty = p.position
+        data = {
+            'conId': contract.conId,
+            'symbol': contract.symbol,
+            'localSymbol': contract.localSymbol,
+            'expiry': contract.lastTradeDateOrContractMonth,
+            'right': contract.right,
+            'open_qty': abs(qty),
+            'strike': contract.strike,
+            'side': 'long' if qty > 0 else 'short',
+            'bid': ticker.bid if ticker.bid > 0 else 0,
+            'ask': ticker.ask if ticker.ask > 0 else 0,
+            'last': ticker.last,
+            'open_execution_price': 0,
+            'open_execution_orderRef': '',
+            'open_execution_execId': ''
+        }
+        portfolio_df = pd.concat([portfolio_df, pd.DataFrame([data])], ignore_index=True)
 
-    option_groups = defaultdict(list)
-    # Group options by underlying + expiry
-    for pos in positions:
-        c = pos.contract
-        if c.secType == 'OPT':
-            key = (c.symbol, c.lastTradeDateOrContractMonth)
-            option_groups[key].append(pos)
-        else:
-            # Stock or other positions
-            # print(f"{c.secType}: {c.symbol} qty={pos.position} avgPrice={pos.avgCost}")
-            pass
-
-    # Compute PnL per group
-    for key, legs in option_groups.items():
-        symbol, expiry = key
-        open_positions_expiry = expiry
-        total_unrealized = 0.0
-        total_realized = 0.0
-        logger.info(f"in get_live_portfolio_df, Strategy: {symbol} {expiry}")
-
-        for leg in legs:
-            logger.info('--- -')
-            c = leg.contract
-            qty = leg.position
-            open_avg_cost = leg.avgCost
-            logger.info(f"in get_live_portfolio_df(), contract: { c}")
-            c.exchange = 'CBOE'
-            # Fetch live market price (use mid-price if bid/ask available)
-            ticker = ib.reqMktData(c,
-                                   )
-            logger.info(f"get_live_portfolio_df(), ticker: {ticker}")
-
-            ib.sleep(0.2)  # give it a moment to update
-            bid = ticker.bid if ticker.bid > 0 else None
-            ask = ticker.ask if ticker.ask > 0 else None
-            last = ticker.last if ticker.last > 0 else None
-
-            current_price = last or ((bid + ask)/2 if bid and ask else open_avg_cost)
-
-            # Calculate unrealized PnL
-            CONTRACT_MULTIPLIER = 100
-            unrealized = (current_price - open_avg_cost) * qty * CONTRACT_MULTIPLIER
-            unrealized_1 = (current_price * qty - open_avg_cost)  * 1
-
-            # Realized PnL from IB positions (if available)
-            realized = getattr(leg, 'realizedPNL', 0.0)
-
-            total_unrealized += unrealized
-            total_realized += realized
-
-            logger.info(f"  {c.right}  {c.strike}, qty={qty}, avg={open_avg_cost:.2f}, price={current_price:.2f}, bid: {ticker.bid}, ask: {ticker.ask},"
-                  f"unrealized={unrealized:.2f}, realized={realized:.2f} unrealized_1: {unrealized_1:.2f}")
-
-            data = {
-                'conId': c.conId,
-                'symbol': c.localSymbol,
-                'expiry': c.lastTradeDateOrContractMonth,
-                'right': c.right,
-                'open_qty': abs(qty),
-                'strike': c.strike,
-                'side': 'long' if qty > 0 else 'short',
-                'open_avg_cost': leg.avgCost,
-                'bid': ticker.bid if ticker.bid > 0 else 0,
-                'ask': ticker.ask if ticker.ask > 0 else 0,
-                'last': ticker.last,
-                'open_execution_price': 0,
-                'open_execution_orderRef': '',
-                'open_execution_execId': ''
-            }
-            portfolio_df = pd.concat([portfolio_df, pd.DataFrame([data])], ignore_index=True)
-            logger.info(f"portfolio_df:\n {portfolio_df.to_markdown()}")
-
+    logger.info(f"get_live_quote_for_option_postitions(), portfolio_df:\n {portfolio_df.to_markdown()}")
     return portfolio_df
+
+def get_bid_and_ask(df, symbol):
+    if len(df) == 0:
+        return -1, -1
+    rows = df.loc[df['symbol'] == symbol]
+    if rows.empty:
+        return -1, -1  # symbol not found
+    row = rows.iloc[0]
+    bid = row['bid'] if pd.notna(row['bid']) else -1
+    ask = row['ask'] if pd.notna(row['ask']) else -1
+
+    return bid, ask
+# def get_live_portfolio_df(positions):
+#     """
+#     Calculate and print PnL for all positions grouped by underlying + expiry.
+#     Uses live market prices for unrealized PnL.
+#     """
+#     portfolio_df = pd.DataFrame()
+#
+#     option_groups = defaultdict(list)
+#     # Group options by underlying + expiry
+#     for pos in positions:
+#         c = pos.contract
+#         if c.secType == 'OPT':
+#             key = (c.symbol, c.lastTradeDateOrContractMonth)
+#             option_groups[key].append(pos)
+#         else:
+#             # Stock or other positions
+#             # print(f"{c.secType}: {c.symbol} qty={pos.position} avgPrice={pos.avgCost}")
+#             pass
+#
+#     # Compute PnL per group
+#     for key, legs in option_groups.items():
+#         symbol, expiry = key
+#         open_positions_expiry = expiry
+#         total_unrealized = 0.0
+#         total_realized = 0.0
+#         logger.info(f"in get_live_portfolio_df, Strategy: {symbol} {expiry}")
+#
+#         for leg in legs:
+#             logger.info('--- -')
+#             c = leg.contract
+#             qty = leg.position
+#             open_avg_cost = leg.avgCost
+#             logger.info(f"in get_live_portfolio_df(), contract: { c}")
+#             c.exchange = 'CBOE'
+#             # Fetch live market price (use mid-price if bid/ask available)
+#             ticker = ib.reqMktData(c,
+#                                    )
+#             logger.info(f"get_live_portfolio_df(), ticker: {ticker}")
+#
+#             ib.sleep(0.2)  # give it a moment to update
+#             bid = ticker.bid if ticker.bid > 0 else None
+#             ask = ticker.ask if ticker.ask > 0 else None
+#             last = ticker.last if ticker.last > 0 else None
+#
+#             current_price = last or ((bid + ask)/2 if bid and ask else open_avg_cost)
+#
+#             # Calculate unrealized PnL
+#             CONTRACT_MULTIPLIER = 100
+#             unrealized = (current_price - open_avg_cost) * qty * CONTRACT_MULTIPLIER
+#             unrealized_1 = (current_price * qty - open_avg_cost)  * 1
+#
+#             # Realized PnL from IB positions (if available)
+#             realized = getattr(leg, 'realizedPNL', 0.0)
+#
+#             total_unrealized += unrealized
+#             total_realized += realized
+#
+#             logger.info(f"right: {c.right}  strike: {c.strike}, qty={qty}, avg={open_avg_cost:.2f}, price={current_price:.2f}, "
+#                         f"bid: {ticker.bid}, ask: {ticker.ask}, unrealized={unrealized:.2f}, realized={realized:.2f}, unrealized_1: {unrealized_1:.2f}")
+#
+#             data = {
+#                 'conId': c.conId,
+#                 'symbol': c.localSymbol,
+#                 'expiry': c.lastTradeDateOrContractMonth,
+#                 'right': c.right,
+#                 'open_qty': abs(qty),
+#                 'strike': c.strike,
+#                 'side': 'long' if qty > 0 else 'short',
+#                 'open_avg_cost': leg.avgCost,
+#                 'bid': ticker.bid if ticker.bid > 0 else 0,
+#                 'ask': ticker.ask if ticker.ask > 0 else 0,
+#                 'last': ticker.last,
+#                 'open_execution_price': 0,
+#                 'open_execution_orderRef': '',
+#                 'open_execution_execId': ''
+#             }
+#             portfolio_df = pd.concat([portfolio_df, pd.DataFrame([data])], ignore_index=True)
+#             logger.info(f"portfolio_df:\n {portfolio_df.to_markdown()}")
+#
+#     return portfolio_df
 
 
 def get_all_open_option_positions():
@@ -1748,10 +1807,13 @@ def update_for_avg_cost(positions):
     for position in positions:
         symbol = position.contract.symbol
         if application_state.get('open_trades_dic', {}) != {}:
-            if application_state.get('open_trades_dic', {}).get(symbol, {}).get('available_quantity', 0) != 0:
-                logger.info(f"setting avgCost in {position.avgCost}")
-                application_state['open_trades_dic'][symbol]['avg_cost'] = position.avgCost
-                application_state['open_trades_dic'][symbol]['avg_cost_for_1_position'] = round(position.avgCost / abs(position.position), 3)
+            if application_state.get('open_trades_dic', {}).get(symbol, {}) != {}: # There is open order ...
+                if application_state.get('open_trades_dic', {}).get(symbol, {}).get('avg_cost', 0) == 0:  # only if not set before ...
+                    logger.info(f"setting avgCost in {position.avgCost}")
+                    application_state['open_trades_dic'][symbol]['avg_cost'] = position.avgCost
+                    application_state['open_trades_dic'][symbol]['cost_for_trade'] = position.avgCost * abs(position.position)
+                    application_state['open_trades_dic'][symbol]['avg_cost_for_1_position'] = position.avgCost
+                    application_state['open_trades_dic'][symbol]['avg_cost_for_1_contract'] =  position.avgCost/ 100
 
     return
 
@@ -1760,6 +1822,8 @@ def check_for_stop_loss_and_take_profit():
     open_trades_dic = application_state.get('open_trades_dic', {})
     positions_to_monitor = find_positions_to_monitor()
     update_for_avg_cost(positions_to_monitor)
+    portfolio_df = get_live_quote_for_option_postitions(positions_to_monitor)
+
     for symbol, open_trade_info in open_trades_dic.items():
 
         # ###
@@ -1769,10 +1833,20 @@ def check_for_stop_loss_and_take_profit():
             logger.info(f"{symbol}, check_for_stop_loss_and_take_profit(), available_quantity: 0")
             continue
         logger.info(f"in check_for_stop_loss, {symbol} , {open_trade_info}" )
-        underlying_open_price = open_trade_info.get('underlying_open_price')
+        underlying_open_price = float(open_trade_info.get('underlying_open_price', -1))  # used in config ...
+        level_used_to_open = float(open_trade_info.get('level_used_to_open', -1)) # used in config ...
+
         underlying_current_price = get_current_price(symbol)
 
-        logger.info(f"symbol {symbol}, underlying_open_price: {underlying_open_price}, underlying_current_price: {underlying_current_price}")
+
+        current_bid,current_ask = get_bid_and_ask(portfolio_df, symbol)
+        application_state['open_trades_dic'][symbol]['current_bid'] = current_bid
+        application_state['open_trades_dic'][symbol]['current_ask'] = current_ask
+        application_state['open_trades_dic'][symbol]['current_value'] = current_ask * application_state['open_trades_dic'][symbol]['starting_quantity'] * 100
+        application_state['open_trades_dic'][symbol]['current_pnl'] = application_state['open_trades_dic'][symbol]['current_value'] - application_state['open_trades_dic'][symbol]['cost_for_trade']
+
+
+        logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, underlying_open_price: {underlying_open_price}, underlying_current_price: {underlying_current_price}, level_used_to_open: {level_used_to_open}, current_bid: {current_bid}, current_ask: {current_ask}")
 
         stop_loss_condition = app_config['stop_loss_condition']
         stop_loss_condition_evaluated = eval(stop_loss_condition)
@@ -1805,7 +1879,7 @@ def check_for_stop_loss_and_take_profit():
 
             close_quantity = round( start_quantity * close_quantity_percentage )
 
-            logger.info(f"symbol {symbol}, take_profit:{take_profit}, take_profit_condition: {take_profit_condition}, take_profit_condition_evaluated: {take_profit_condition_evaluated}, available_quantity: {available_quantity}, close_quantity: {close_quantity}, start_quantity:{start_quantity}, close_quantity_percentage: {close_quantity_percentage}")
+            logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, take_profit: {take_profit}, take_profit_condition: {take_profit_condition}, take_profit_condition_evaluated: {take_profit_condition_evaluated}, available_quantity: {available_quantity}, close_quantity: {close_quantity}, start_quantity:{start_quantity}, close_quantity_percentage: {close_quantity_percentage}")
 
             if take_profit_condition_evaluated and available_quantity != 0 and close_quantity != 0:
                 logger.info(f"Sending TP ...")
@@ -1826,6 +1900,8 @@ def check_for_stop_loss_and_take_profit():
 def send_email(event='order_sent'):
     if app_config['email']['send_email']:
         recipients = app_config['email']['recipients']
+        subject = ''
+        body = ''
         if event.lower() == 'order_sent':
             subject = f'Order Sent {symbol}'
             body = (f" Order opened ... <br>"
@@ -1942,12 +2018,92 @@ def call_api_top_step(symbol, side):
 # End of IB sending order - only for live
 # ###########
 
+def on_commission_report(report):
+    logger.info(f"report: {report}")
+    logger.info(f"Commission Report: execId={report.execId}, "
+                f"commission={report.commission:.2f} {report.currency}, "
+                f"realizedPNL={report.realizedPNL:.2f}")
+
+def cancel_open_orders(symbol = ''):
+    if not app_config['cancel_open_orders_on_start']:
+        return
+    update_config_and_save(app_config, 'cancel_open_orders_on_start', False)
+
+    open_orders = ib.reqAllOpenOrders()
+    # Cancel all open orders
+    for order in open_orders:
+        logger.info('----')
+        logger.warning(f"Canceling open order, order_id: {order.order.orderId}, order: {order}")
+        contract = order.contract
+
+        if not isinstance(contract, Option):
+            logger.warning(f"it is NOT an option!!!")
+        else:
+            logger.warning(f"it is an option!!!")
+            if symbol != '' and order.contract.symbol != symbol:
+                logger.warning(f"in cancel_all_open_orders, not canceling order.contract.symbol: {order.contract.symbol}")
+                continue
+            else:
+                trade = ib.cancelOrder(order.order)
+                trade.fillEvent += on_fill
+
+                logger.warning(f"open order canceled, trade: {trade}")
+                while not trade.isDone():
+                    logger.warning(f"sleep until is done, trade.isDone(): {trade.isDone()}")
+                    ib.sleep(0.5)
+    return
+
+
+def on_portfolio_update(item):
+    """Update or insert portfolio position."""
+    global ib_portfolio_df
+    contract = item.contract
+    logger.info(f"on_portfolio_update, item: {item}")
+
+    key = f"{contract.symbol}_{contract.right}_{contract.strike}_{contract.lastTradeDateOrContractMonth}"
+
+    # Build record dict
+    record = {
+        'symbol': contract.symbol,
+        'right': contract.right,
+        'strike': contract.strike,
+        'expiry': contract.lastTradeDateOrContractMonth,
+        'position': item.position,
+        'marketPrice': item.marketPrice,
+        'averageCost': item.averageCost,
+        'marketValue': item.marketValue,
+        'unrealizedPNL': item.unrealizedPNL,
+        'realizedPNL': item.realizedPNL,
+        'account': item.account,
+        'timestamp': datetime.now()
+    }
+
+    # Update or insert
+    if not ib_portfolio_df.empty and key in ib_portfolio_df.index:
+        ib_portfolio_df.loc[key] = record
+    else:
+        # Append new row with key as index
+        new_row = pd.DataFrame([record], index=[key])
+        ib_portfolio_df = pd.concat([ib_portfolio_df, new_row])
+
+    # Optional: remove zero-position rows (closed positions)
+    portfolio_df = ib_portfolio_df[ib_portfolio_df['position'] != 0]
+    ib_portfolio_df.set_index(['symbol', 'right', 'strike', 'expiry'], inplace=True, drop=False)
+
+    logger.info(f"Updated portfolio row for {key}")
+
+    return
+
 if __name__ == "__main__":
 
+
+    ib_portfolio_df = pd.DataFrame(columns=['symbol', 'right', 'strike', 'expiry', 'position', 'marketPrice', 'averageCost', 'marketValue', 'unrealizedPNL', 'realizedPNL', 'account', 'timestamp' ])
 
     app_config = load_app_config(portfolio_id)
     ib_config = load_ib_config()
     ib = create_ib_connection()
+    ib.commissionReportEvent += on_commission_report
+    # ib.updatePortfolioEvent += on_portfolio_update TEstafter 12 pm
 
     application_state = {}
     options_meta_date_dic = {}
@@ -1959,6 +2115,8 @@ if __name__ == "__main__":
     if app_config['close_all_open_option_positions']:
         close_all_open_option_positions()
 
+    if app_config['cancel_open_orders_on_start']:
+        cancel_open_orders()
 
     time_frame = '1 min'
 
@@ -1970,7 +2128,7 @@ if __name__ == "__main__":
     consequence_exception = 0
     run_number = 0
 
-    get_live_portfolio_df(find_positions_to_monitor())
+    # get_live_portfolio_df(find_positions_to_monitor())
 
     while True:
       try:
@@ -1984,12 +2142,12 @@ if __name__ == "__main__":
         if run_number == 1:
             find_expiration_and_strikes_for_all()   # TODO expiration and striked need to be updated
 
-        get_live_portfolio_df(find_positions_to_monitor()) # TODO why we need in every run...
+        # get_live_portfolio_df(find_positions_to_monitor()) # TODO why we need in every run...
 
         qqq_df = pd.DataFrame()
         for symbol in app_config['symbols']:
             logger.info(f"------------------- {symbol}, run_number: {run_number}, unique_run_number: {unique_run_number}")
-
+            symbol_start_time = time.time()
 
             signals = []
             # These are for each symbol ...
@@ -2005,7 +2163,8 @@ if __name__ == "__main__":
             qqq_df = preppare_qqq_df(qqq_df)
             if True:
                 missing_rows_in_qqq_df = df.loc[~df['date'].isin(qqq_df['date'])]
-                logger.warning(f"{missing_rows_in_qqq_df[-10:].to_markdown()}")
+                if len(missing_rows_in_qqq_df) > 0:
+                    logger.warning(f"{missing_rows_in_qqq_df[-10:].to_markdown()}")
 
             relative_strength_df = compute_relative_strength(df, qqq_df, period=20)
             intraday_rs_df = compute_intraday_rs(df, qqq_df)
@@ -2048,6 +2207,10 @@ if __name__ == "__main__":
 
             dump_application_state_to_file()
             print_application_state(application_state, msg='application_state:')
+
+            symbol_end_time = time.time()
+            symbol_run_spend_time = round(symbol_end_time - symbol_start_time, 2)
+            logger.warning(f'{symbol} run_number: {run_number}, symbol_run_spend_time: {symbol_run_spend_time} seconds')
 
         end_time = time.time()
 

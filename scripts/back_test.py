@@ -2052,20 +2052,6 @@ if __name__ == "__main__":
 
                 key_levels_list = get_key_levels_list()
 
-                if False:
-                    signals = detect_breakout_retest_ver1(df, key_levels_list, check_breakout=False)
-
-                if False:
-                    signals = detect_breakout_retest_ver_2(df, key_levels_list, check_breakout=False)
-
-
-                if False:
-                    signals = detect_reversal_near_keylevel(df, key_levels_list)
-
-                if True: # adding candle patterns
-                    signals = detect_candle_patterns(df)
-
-
                 buy_sell_case_results_list = check_buy_and_sell_cases()
 
                 add_buy_a_sell_entries_to_signals(buy_sell_case_results_list)
