@@ -112,8 +112,12 @@ def disconnect_ib(ib):
 
 
 def on_disconnect():
-    logger.warning("⚠️ IB disconnected! Reconnecting...")
-    create_ib_connection()
+    try:
+        logger.warning("⚠️ IB disconnected! Reconnecting...")
+        create_ib_connection()
+    except Exception as e:
+        logger.error(f"disconnect_ib: ⚠️ Exception: {e}")
+        time.sleep(1)
     return
 
 
@@ -203,6 +207,7 @@ def calculate_PDL_PDH(df):
     unique_days = sorted(df['date'].dt.normalize().unique())
 
     if len(unique_days) < 2:
+        logger.warning(f"unique_days: {unique_days}")
         raise ValueError("Not enough days in DataFrame to get previous day's data")
 
     # --- Select the previous day ---
@@ -547,7 +552,7 @@ def find_add_key_levels_to_key_levels_df():
 def add_buy_a_sell_entries_to_signals(buy_sell_case_results_list):
     for buy_sell_case_result in buy_sell_case_results_list:
 
-        logger.info(f"in add_buy_a_sell_entries_to_signals, buy_sell_case_result: {buy_sell_case_result} , type(buy_sell_case_result): {type(buy_sell_case_result)}")
+        logger.info(f"add_buy_a_sell_entries_to_signals(), buy_sell_case_result: {buy_sell_case_result}")
         case = buy_sell_case_result[0]
         can_buy = buy_sell_case_result[1]
         can_sell = buy_sell_case_result[2]
@@ -688,9 +693,10 @@ def check_buy_sell_condition(case):
         logger.debug(f"break_out_indices_by_level_dic: {break_out_indices_by_level_dic}")
         logger.debug(f"retest_indices_by_level_dic: {retest_indices_by_level_dic}")
 
-        res_str = (f"res_{case}:{eval_buy_condition_01}.{eval_buy_condition_02}.{eval_buy_condition_03}.{eval_buy_condition_04}.{eval_buy_condition_05}.{eval_buy_condition_06}.{eval_buy_condition_07}..{long_breakup_idx}.{long_retest_idx}... "
-                 f"{eval_sell_condition_01}.{eval_sell_condition_02}.{eval_sell_condition_03}.{eval_sell_condition_04}.{eval_sell_condition_05}.{eval_sell_condition_06}.{eval_sell_condition_07}..{short_breakup_idx}.{short_retest_idx}"
-                   f"..{df['date'].iloc[-1].strftime('%H:%M')}")
+        # This is shown in the chart ..
+        res_str = (f"res_{case}:{eval_buy_condition_01}.{eval_buy_condition_02}.{eval_buy_condition_03}|{eval_buy_condition_04}.{eval_buy_condition_05}.{eval_buy_condition_06}|{eval_buy_condition_07} .. {long_breakup_idx}.{long_retest_idx} ... "
+                 f"{eval_sell_condition_01}.{eval_sell_condition_02}.{eval_sell_condition_03}|{eval_sell_condition_04}.{eval_sell_condition_05}.{eval_sell_condition_06}|{eval_sell_condition_07} .. {short_breakup_idx}.{short_retest_idx}"
+                   f".. {df['date'].iloc[-1].strftime('%H:%M')}")
         res_str = res_str.replace('True', 'T')
         res_str = res_str.replace('False', 'F')
     except Exception as e:
@@ -776,19 +782,23 @@ def breakout_in_last_x_candles(side='up', idx_list=[-2], level=0):
         if side == 'up':
             if row["low"] < level and row["close"] > level + gap:
                 logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
+                breakout_idx = idx
                 breakout_happened = True
 
             if previous['open'] < level and row["close"] > level: # the -2 opened below level and -1 closed above gap.
                 logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
+                breakout_idx = idx
                 breakout_happened = True
 
         else:
-            if row["high"] > level and row["close"] < level:
+            if row["high"] > level and row["close"] < level  - gap:
                 logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
+                breakout_idx = idx
                 breakout_happened = True
 
-            if previous['open'] > level and row["close"] < level - gap: # the -2 opened above level and -1 closed belowe gap.
+            if previous['open'] > level and row["close"] < level: # the -2 opened above level and -1 closed belowe gap.
                 logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
+                breakout_idx = idx
                 breakout_happened = True
 
 
@@ -1835,20 +1845,23 @@ def check_for_stop_loss_and_take_profit():
         logger.info(f"in check_for_stop_loss, {symbol} , {open_trade_info}" )
         underlying_open_price = float(open_trade_info.get('underlying_open_price', -1))  # used in config ...
         level_used_to_open = float(open_trade_info.get('level_used_to_open', -1)) # used in config ...
+        underlying_previous_candle_close = df['close'].iloc[-2] # used in config
 
         underlying_current_price = get_current_price(symbol)
 
-
+        right = application_state['open_trades_dic'][symbol]['right']
+        side = application_state['open_trades_dic'][symbol]['side']
         current_bid,current_ask = get_bid_and_ask(portfolio_df, symbol)
+
         application_state['open_trades_dic'][symbol]['current_bid'] = current_bid
         application_state['open_trades_dic'][symbol]['current_ask'] = current_ask
         application_state['open_trades_dic'][symbol]['current_value'] = current_ask * application_state['open_trades_dic'][symbol]['starting_quantity'] * 100
         application_state['open_trades_dic'][symbol]['current_pnl'] = application_state['open_trades_dic'][symbol]['current_value'] - application_state['open_trades_dic'][symbol]['cost_for_trade']
 
 
-        logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, underlying_open_price: {underlying_open_price}, underlying_current_price: {underlying_current_price}, level_used_to_open: {level_used_to_open}, current_bid: {current_bid}, current_ask: {current_ask}")
+        logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, underlying_open_price: {underlying_open_price}, underlying_current_price: {underlying_current_price}, level_used_to_open: {level_used_to_open}, current_bid: {current_bid}, current_ask: {current_ask}, underlying_previous_candle_close: {underlying_previous_candle_close}")
 
-        stop_loss_condition = app_config['stop_loss_condition']
+        stop_loss_condition = app_config[right]['stop_loss_condition']
         stop_loss_condition_evaluated = eval(stop_loss_condition)
         logger.info(f"symbol {symbol}, stop_loss_condition: {stop_loss_condition}, stop_loss_condition_evaluated: {stop_loss_condition_evaluated}")
         if stop_loss_condition_evaluated:
@@ -2096,12 +2109,13 @@ def on_portfolio_update(item):
 
 if __name__ == "__main__":
 
-
     ib_portfolio_df = pd.DataFrame(columns=['symbol', 'right', 'strike', 'expiry', 'position', 'marketPrice', 'averageCost', 'marketValue', 'unrealizedPNL', 'realizedPNL', 'account', 'timestamp' ])
+
 
     app_config = load_app_config(portfolio_id)
     ib_config = load_ib_config()
     ib = create_ib_connection()
+
     ib.commissionReportEvent += on_commission_report
     # ib.updatePortfolioEvent += on_portfolio_update TEstafter 12 pm
 
@@ -2145,8 +2159,12 @@ if __name__ == "__main__":
         # get_live_portfolio_df(find_positions_to_monitor()) # TODO why we need in every run...
 
         qqq_df = pd.DataFrame()
+        symbol_number = 0
         for symbol in app_config['symbols']:
-            logger.info(f"------------------- {symbol}, run_number: {run_number}, unique_run_number: {unique_run_number}")
+            symbol_number += 1
+            unique_run_number = f"{unique_run_number}--{symbol_number}"
+
+            logger.info(f"------------------- {symbol}, unique_run_number: {unique_run_number}")
             symbol_start_time = time.time()
 
             signals = []

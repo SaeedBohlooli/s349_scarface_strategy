@@ -1,10 +1,10 @@
 logging_level: logging.INFO
-symbols: [ 'QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR', 'TSLL', 'AMZN' ,'MNQ', 'SPY']
-#symbols: [ 'QQQ', 'AMD' ]
+symbols: ['QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR', 'TSLL', 'AMZN', 'MNQ', 'SPY']
+#symbols: ['QQQ', 'AMD']
 
 symbols_meta:
   QQQ:
-    can_trade: True
+    can_trade: true
     contract_type: Equity
     retest_tolerance_percentage: 0.0001
     retest_tolerance_amount: 0.5
@@ -13,7 +13,7 @@ symbols_meta:
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
   TSLA:
-    can_trade: True
+    can_trade: true
     contract_type: Equity
     retest_tolerance_percentage: 0.003
     retest_tolerance_amount: 0.5
@@ -22,7 +22,7 @@ symbols_meta:
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
   AAPL:
-    can_trade: True
+    can_trade: true
     contract_type: Equity
     retest_tolerance_percentage: 0.003
     retest_tolerance_amount: 0.5
@@ -31,7 +31,7 @@ symbols_meta:
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
   NVDA:
-    can_trade: True
+    can_trade: true
     contract_type: Equity
     retest_tolerance_percentage: 0.003
     retest_tolerance_amount: 0.5
@@ -40,7 +40,7 @@ symbols_meta:
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
   AMD:
-    can_trade: True
+    can_trade: true
     contract_type: Equity
     retest_tolerance_percentage: 0.003
     retest_tolerance_amount: 0.5
@@ -49,7 +49,7 @@ symbols_meta:
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
   PLTR:
-    can_trade: True
+    can_trade: true
     contract_type: Equity
     retest_tolerance_percentage: 0.003
     retest_tolerance_amount: 0.5
@@ -58,7 +58,7 @@ symbols_meta:
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
   TSLL:
-    can_trade: True
+    can_trade: true
     contract_type: Equity
     retest_tolerance_percentage: 0.003
     retest_tolerance_amount: 0.5
@@ -67,7 +67,7 @@ symbols_meta:
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
   SPY:
-    can_trade: False
+    can_trade: false
     contract_type: Equity
     retest_tolerance_percentage: 0.003
     retest_tolerance_amount: 0.5
@@ -76,7 +76,7 @@ symbols_meta:
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
   MNQ:
-    can_trade: True
+    can_trade: true
     contract_type: Future
     contract_month: 202512
     retest_tolerance_percentage: 0.003
@@ -86,7 +86,7 @@ symbols_meta:
     breakout_confirmation_distance: 2
     chart_entry_offset: 20
   AMZN:
-    can_trade: True
+    can_trade: true
     contract_type: Equity
     retest_tolerance_percentage: 0.003
     retest_tolerance_amount: 0.5
@@ -94,74 +94,49 @@ symbols_meta:
     min_required_move_from_level: 0.5
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
+
 cases:
   case_1:
-    # These conditons filtering choppy days
     long:
-      # FIXME the close should be at least 40 cents above level - see note "bug in breakout"
-      #TODO while reviwing we relaized we may relax the deep of the candle once the retest happens. see the Tesla for Oct 30 in onenote
-      # TODO breakout should happen after breakout ...
       level: max(levels['PDH'], levels['PMH'], levels['5MH'])
-      condition_01: abs(levels['PDH'] - levels['PMH']) < levels_closeness_limit 
-        and abs(levels['5MH'] - levels['PDH']) < levels_closeness_limit
-      condition_02: breakout_in_last_x_candles(side='up', idx_list=[-5], 
-        level=max (levels['PDH'] , levels['PMH'], levels['5MH'] ) )
-      condition_03: price_retest(side='up', idx_list=[-2,-3,-4], 
-        level=max(levels['PDH'], levels['PMH'], levels['5MH'])  , 
-        both_sides=True)
-      condition_04: price + min_required_move_from_level > max (levels['PDH'], 
-        levels['PMH'], levels['5MH'] )
-      condition_05: check_entry_vs_retest(side='up', level=max(levels['PDH'], 
-        levels['PMH'], levels['5MH'])  )
-      condition_06: no_failure_after_breakout(side='up', ohlc_field ='close', 
-        level=max(levels['PDH'], levels['PMH'], levels['5MH']) )
-      condition_07: check_retest_after_breakout(side='up', 
-        level=max(levels['PDH'], levels['PMH'], levels['5MH']))
-      condition_08: dummy_call(level=max(levels['PDH'], levels['PMH'], 
-        levels['5MH']))
+      condition_01: abs(levels['PDH'] - levels['PMH']) < levels_closeness_limit and abs(levels['5MH'] - levels['PDH']) < levels_closeness_limit
+      condition_02: breakout_in_last_x_candles(side='up', idx_list=[-5], level=max (levels['PDH'] , levels['PMH'], levels['5MH'] ) )
+      condition_03: price_retest(side='up', idx_list=[-2,-3,-4], level=max(levels['PDH'], levels['PMH'], levels['5MH']), both_sides=True)
+      condition_04: price + min_required_move_from_level > max (levels['PDH'], levels['PMH'], levels['5MH'] )
+      condition_05: check_entry_vs_retest(side='up', level=max(levels['PDH'], levels['PMH'], levels['5MH'])  )
+      condition_06: no_failure_after_breakout(side='up', ohlc_field ='close', level=max(levels['PDH'], levels['PMH'], levels['5MH']) )
+      condition_07: check_retest_after_breakout(side='up', level=max(levels['PDH'], levels['PMH'], levels['5MH']))
+      condition_08: dummy_call(level=max(levels['PDH'], levels['PMH'], levels['5MH']))
 
-      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and 
-        eval_buy_condition_03 and eval_buy_condition_04 and 
-        eval_buy_condition_05 and eval_buy_condition_06 and 
-        eval_buy_condition_06
+      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and 
+        eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07
 
     short:
       level: min(levels['PDL'], levels['PML'], levels['5ML'])
-      condition_01: abs(levels['PDL'] - levels['PML']) < levels_closeness_limit 
-        and abs(levels['5ML'] - levels['PDL']) < levels_closeness_limit
-      condition_02: breakout_in_last_x_candles(side='down', idx_list=[-5], 
-        level=min(levels['PDL'], levels['PML'], levels['5ML'] ) )
-      condition_03: price_retest(side='down', idx_list=[-2,-3,-4], 
-        level=min(levels['PDL'], levels['PML'], levels['5ML']) )
-      condition_04: price  < min(levels['PDL'], levels['PML'], levels['5ML']) - 
-        min_required_move_from_level
-      condition_05: check_entry_vs_retest(side='down', level=min(levels['PDL'], 
-        levels['PML'], levels['5ML']) )
-      condition_06: no_failure_after_breakout(side='down', ohlc_field ='close', 
-        level=min(levels['PDL'], levels['PML'], levels['5ML']) )
-      condition_07: check_retest_after_breakout(side='down', 
-        level=min(levels['PDL'], levels['PML'], levels['5ML']))
-      condition_08: dummy_call(level=min(levels['PDH'], levels['PMH'], 
-        levels['5MH']))
+      condition_01: abs(levels['PDL'] - levels['PML']) < levels_closeness_limit and abs(levels['5ML'] - levels['PDL']) < levels_closeness_limit
+      condition_02: breakout_in_last_x_candles(side='down', idx_list=[-5], level=min(levels['PDL'], levels['PML'], levels['5ML'] ) )
+      condition_03: price_retest(side='down', idx_list=[-2,-3,-4], level=min(levels['PDL'], levels['PML'], levels['5ML']) )
+      condition_04: price  < min(levels['PDL'], levels['PML'], levels['5ML']) - min_required_move_from_level
+      condition_05: check_entry_vs_retest(side='down', level=min(levels['PDL'], levels['PML'], levels['5ML']) )
+      condition_06: no_failure_after_breakout(side='down', ohlc_field ='close', level=min(levels['PDL'], levels['PML'], levels['5ML']) )
+      condition_07: check_retest_after_breakout(side='down', level=min(levels['PDL'], levels['PML'], levels['5ML']))
+      condition_08: dummy_call(level=min(levels['PDH'], levels['PMH'], levels['5MH']))
 
-      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and 
-        eval_sell_condition_03 and eval_sell_condition_04 and 
-        eval_sell_condition_05 and eval_sell_condition_06 and 
-        eval_sell_condition_07
+      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and 
+        eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07
 
   case_2:
     long:
       level: levels['5MH']
       condition_01: 1 == 1
-      condition_02: breakout_in_last_x_candles(side='up',
-        idx_list=[-3,-4-5,-6,-7,-8,-9,-10,-11], level=levels['5MH'])
+      condition_02: breakout_in_last_x_candles(side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=levels['5MH'])
       condition_03: price_retest(side='up', idx_list=[-2,-3,-4], level=levels['5MH'], both_sides=True )
       condition_04: price + min_required_move_from_level >  levels['5MH']
-      condition_05: check_entry_vs_retest(side='up', level=levels['5MH'] )
+      condition_05: check_entry_vs_retest(side='up', level=levels['5MH'])
       condition_06: no_failure_after_breakout(side='up', ohlc_field='close',level=levels['5MH'])
       condition_07: check_retest_after_breakout(side='up', level=levels['5MH'])
       condition_08: dummy_call(level=levels['5MH'])
-#      condition_01: symbol == 'TSLA' and run_number > 2 and 1==1
+#      condition_01: symbol == 'AAPL' and run_number == 1 and 1==1
 #      condition_02: 1 == 1
 #      condition_03: 1 == 1
 #      condition_04: 1 == 1
@@ -170,24 +145,18 @@ cases:
 #      condition_07: 1 == 1
 #      condition_08: 1 == 1
 
-      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and 
-        eval_buy_condition_03 and eval_buy_condition_04 and 
-        eval_buy_condition_05 and eval_buy_condition_06 and 
-        eval_buy_condition_07
+      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and 
+        eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07
 
     short:
       level: levels['5ML']
       condition_01: 1 == 1
-      condition_02: breakout_in_last_x_candles(side='down', 
-        idx_list=[-3,-4-5,-6,-7,-8,-9,-10,-11], level=levels['5ML'])
-      condition_03: price_retest(side='down', idx_list=[-2,-3,-4], 
-        level=levels['5ML'],both_sides=True)
+      condition_02: breakout_in_last_x_candles(side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=levels['5ML'])
+      condition_03: price_retest(side='down', idx_list=[-2,-3,-4], level=levels['5ML'],both_sides=True)
       condition_04: price < levels['5ML'] - min_required_move_from_level
       condition_05: check_entry_vs_retest(side='down', level=levels['5ML'])
-      condition_06: no_failure_after_breakout(side='down', ohlc_field='close', 
-        level=levels['5ML'])
-      condition_07: check_retest_after_breakout(side='down', 
-        level=levels['5ML'])
+      condition_06: no_failure_after_breakout(side='down', ohlc_field='close', level=levels['5ML'])
+      condition_07: check_retest_after_breakout(side='down', level=levels['5ML'])
       condition_08: dummy_call(level=levels['5ML'])
 
 #      condition_01: 1 == 2
@@ -199,10 +168,8 @@ cases:
 #      condition_07: 1 == 1
 #      condition_08: 1 == 1
 
-      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and 
-        eval_sell_condition_03 and eval_sell_condition_04 and 
-        eval_sell_condition_05 and eval_sell_condition_06 and 
-        eval_sell_condition_06
+      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and 
+        eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07
 
 
 
@@ -210,49 +177,59 @@ live:
   historical_days: 4 D
 
 close_all_open_option_positions: false
+cancel_open_orders_on_start: false
+
 load_application_state_from_file: true
 run_should_take_seconds: 15
 
 back_test:
-  get_data_from_ib: False
-#  get_data_from_ib: True
-  # put this True only for first run
-  historical_days: 5 D
-  start_date: 2025-10-22
+  get_data_from_ib: True
+#  get_data_from_ib: False
 
-  back_test_date_start: 2025-10-20
-  back_test_date_end: 2025-10-20
+  historical_days: 5 D
+  start_date: 2025-10-10
+
+  back_test_date_start: 2025-10-23
+  back_test_date_end: 2025-10-25
 
 chart:
+#  source: live
+  source: back_test
   1m_candles: 2000
   cutoff_in_hours: 0
   hours_in_focus: 2
-#  source: live
-  source: back_test
 
-stop_loss_condition: underlying_current_price < underlying_open_price
-#stop_loss_condition: 1 == 2 and symbol == 'AMD'
+stop_loss_condition: underlying_current_price < level_used_to_open and 1 ==2
+# stop_loss_condition: 1 == 2 and symbol == 'AMD'
 exit: false
+rights:
+  C:
+    stop_loss_condition: underlying_previous_candle_close < level_used_to_open
+  P:
+    stop_loss_condition: underlying_previous_candle_close > level_used_to_open
 
 
 take_profits:
   t1:
-    condition: 1 == 2 and symbol == 'AMD'
-    close_quantity_percentage: 0.3
+    condition: current_ask > avg_cost_for_1_contract * 0.4
+    close_quantity_percentage: 0.5
+    reset_stop_loss: true
+    reset_stop_loss_price: underlying_open_price
 
   t2:
-    condition: 1 == 2
-    close_quantity_percentage: 0.3
+    condition: current_ask > avg_cost_for_1_contract * 0.6
+    close_quantity_percentage: 0.25
 
   t3:
-    condition: 1 == 2
-    close_quantity_percentage: 0.3
-#
-  t4:
-    condition: 1 == 2
-    close_quantity_percentage: 0.3
+    condition: current_ask > avg_cost_for_1_contract * 0.7
+    close_quantity_percentage: 0.25
+##
+#  t4:
+#    condition: 1 == 2
+#    close_quantity_percentage: 0.3
 
 email:
-  send_email: False
+  send_email: true
   #recipients: vikaskaler.bnr@gmail.com,saeed.bx1@yahoo.com
   recipients: saeed.bx1@yahoo.com
+# To show levels in the price scale, open 'Chart Settings', go to 'Scales', make sure 'Indicators and Financials Value' is checked.
