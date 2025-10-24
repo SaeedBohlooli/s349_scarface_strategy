@@ -1,4 +1,5 @@
 logging_level: logging.INFO
+#logging_level: logging.WARNING
 symbols: ['QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR', 'TSLL', 'AMZN', 'MNQ', 'SPY']
 #symbols: ['QQQ', 'AMD']
 
@@ -176,14 +177,14 @@ cases:
 live:
   historical_days: 4 D
 
-close_all_open_option_positions: false
+close_all_open_option_positions: True
 cancel_open_orders_on_start: false
 
 load_application_state_from_file: true
 run_should_take_seconds: 15
 
 back_test:
-  get_data_from_ib: True
+  get_data_from_ib: true
 #  get_data_from_ib: False
 
   historical_days: 5 D
@@ -193,8 +194,8 @@ back_test:
   back_test_date_end: 2025-10-25
 
 chart:
-#  source: live
-  source: back_test
+  source: live
+#  source: back_test
   1m_candles: 2000
   cutoff_in_hours: 0
   hours_in_focus: 2
@@ -211,17 +212,17 @@ rights:
 
 take_profits:
   t1:
-    condition: current_ask > avg_cost_for_1_contract * 0.4
+    condition: current_ask > avg_cost_for_1_contract * 0.4 and ( avg_cost_for_1_contract != -1 and current_ask != -1)
     close_quantity_percentage: 0.5
     reset_stop_loss: true
     reset_stop_loss_price: underlying_open_price
 
   t2:
-    condition: current_ask > avg_cost_for_1_contract * 0.6
+    condition: current_ask > avg_cost_for_1_contract * 0.6  ( avg_cost_for_1_contract != -1 and current_ask != -1)
     close_quantity_percentage: 0.25
 
   t3:
-    condition: current_ask > avg_cost_for_1_contract * 0.7
+    condition: current_ask > avg_cost_for_1_contract * 0.7  ( avg_cost_for_1_contract != -1 and current_ask != -1)
     close_quantity_percentage: 0.25
 ##
 #  t4:
@@ -229,7 +230,7 @@ take_profits:
 #    close_quantity_percentage: 0.3
 
 email:
-  send_email: true
+  send_email: false
   #recipients: vikaskaler.bnr@gmail.com,saeed.bx1@yahoo.com
   recipients: saeed.bx1@yahoo.com
 # To show levels in the price scale, open 'Chart Settings', go to 'Scales', make sure 'Indicators and Financials Value' is checked.
