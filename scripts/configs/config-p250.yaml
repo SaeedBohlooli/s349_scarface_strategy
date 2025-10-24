@@ -137,7 +137,9 @@ cases:
       condition_06: no_failure_after_breakout(side='up', ohlc_field='close',level=levels['5MH'])
       condition_07: check_retest_after_breakout(side='up', level=levels['5MH'])
       condition_08: dummy_call(level=levels['5MH'])
-#      condition_01: symbol == 'AAPL' and run_number == 1 and 1==1
+
+      # Use the below for test
+#      condition_01: symbol == 'AAPL' and 1 == 1
 #      condition_02: 1 == 1
 #      condition_03: 1 == 1
 #      condition_04: 1 == 1
@@ -160,7 +162,7 @@ cases:
       condition_07: check_retest_after_breakout(side='down', level=levels['5ML'])
       condition_08: dummy_call(level=levels['5ML'])
 
-#      condition_01: 1 == 2
+#      condition_01: symbol == 'PLTR' and 1 == 1
 #      condition_02: 1 == 1
 #      condition_03: 1 == 1
 #      condition_04: 1 == 1
@@ -177,7 +179,7 @@ cases:
 live:
   historical_days: 4 D
 
-close_all_open_option_positions: True
+close_all_open_option_positions: False
 cancel_open_orders_on_start: false
 
 load_application_state_from_file: true
@@ -200,7 +202,6 @@ chart:
   cutoff_in_hours: 0
   hours_in_focus: 2
 
-stop_loss_condition: underlying_current_price < level_used_to_open and 1 ==2
 # stop_loss_condition: 1 == 2 and symbol == 'AMD'
 exit: false
 rights:
@@ -212,17 +213,19 @@ rights:
 
 take_profits:
   t1:
-    condition: current_ask > avg_cost_for_1_contract * 0.4 and ( avg_cost_for_1_contract != -1 and current_ask != -1)
+    condition: current_ask > avg_cost_for_1_contract * 1.4 and ( avg_cost_for_1_contract != -1 and current_ask != -1)
+#    condition: current_ask > avg_cost_for_1_contract * 0.2 and ( avg_cost_for_1_contract != -1 and current_ask != -1)
     close_quantity_percentage: 0.5
     reset_stop_loss: true
     reset_stop_loss_price: underlying_open_price
 
   t2:
-    condition: current_ask > avg_cost_for_1_contract * 0.6  ( avg_cost_for_1_contract != -1 and current_ask != -1)
+
+    condition: current_ask > avg_cost_for_1_contract * 1.6  and ( avg_cost_for_1_contract != -1 and current_ask != -1)
     close_quantity_percentage: 0.25
 
   t3:
-    condition: current_ask > avg_cost_for_1_contract * 0.7  ( avg_cost_for_1_contract != -1 and current_ask != -1)
+    condition: current_ask > avg_cost_for_1_contract * 1.7  and ( avg_cost_for_1_contract != -1 and current_ask != -1)
     close_quantity_percentage: 0.25
 ##
 #  t4:
@@ -230,7 +233,7 @@ take_profits:
 #    close_quantity_percentage: 0.3
 
 email:
-  send_email: false
+  send_email: True
   #recipients: vikaskaler.bnr@gmail.com,saeed.bx1@yahoo.com
   recipients: saeed.bx1@yahoo.com
 # To show levels in the price scale, open 'Chart Settings', go to 'Scales', make sure 'Indicators and Financials Value' is checked.

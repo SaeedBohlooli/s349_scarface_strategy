@@ -552,7 +552,7 @@ def find_add_key_levels_to_key_levels_df():
 def add_buy_a_sell_entries_to_signals(buy_sell_case_results_list):
     for buy_sell_case_result in buy_sell_case_results_list:
 
-        logger.info(f"add_buy_a_sell_entries_to_signals(), buy_sell_case_result: {buy_sell_case_result}")
+        logger.debug(f"add_buy_a_sell_entries_to_signals(), buy_sell_case_result: {buy_sell_case_result}")
         case = buy_sell_case_result[0]
         can_buy = buy_sell_case_result[1]
         can_sell = buy_sell_case_result[2]
@@ -682,7 +682,7 @@ def check_buy_sell_condition(case):
         if eval(app_config['cases'][case]['short']['master_condition']):
             can_sell = True
 
-        logger.info(f"{case}, check_buy_sell_condition(), can_buy: {can_buy}, can_sell: {can_sell}")
+        logger.info(f"check_buy_sell_condition(), {case}, can_buy: {can_buy}, can_sell: {can_sell}")
 
         long_breakup_idx = break_out_indices_by_level_dic.get(eval(app_config['cases'][case]['long']['level']), 0)
         long_retest_idx = retest_indices_by_level_dic.get(eval(app_config['cases'][case]['long']['level']), 0)
@@ -768,7 +768,7 @@ def dummy_call(level):
 def breakout_in_last_x_candles(side='up', idx_list=[-2], level=0):
     global break_out_indices_by_level_dic
 
-    logger.info(f"in breakout_in_last_x_candles, symbol: {symbol}, idx_list: {idx_list}, level:{level}")
+    logger.debug(f"in breakout_in_last_x_candles, symbol: {symbol}, idx_list: {idx_list}, level:{level}")
 
     if level == 0:
         return False
@@ -1337,7 +1337,7 @@ def get_back_test_data():   # get data from IB.... use
             df = df.sort_values(by='date')
             logger.info(f"{symbol}, get_back_test_data, df['date'].min(): {df['date'].min()}, df['date'].max(): {df['date'].max()}")
             file = os.path.join(backtest_ohlc_dir, f'{symbol}-1min.csv')
-            print(f"saving to file: {file}")
+            logger.info(f"saving to file: {file}")
             if os.path.exists(file):  # load file and merge with new one ...
                 logger.info(f"File {file} exists... loading it ...")
                 existing_df = pd.read_csv(file)
@@ -1404,10 +1404,10 @@ def on_fill(trade, fill):
         flatten_trade_df = pd.concat([flatten_trade_df, pd.DataFrame([flatten_dic])], ignore_index=True)
 
     df = ib_util.df([trade])
-    logger.info(f"on_fill, trade:\n{df.to_markdown()}")
+    logger.warning(f"on_fill, trade:\n{df.to_markdown()}")
 
     df = ib_util.df([fill])
-    logger.info(f"on_fill, fill:\n{df.to_markdown()}")
+    logger.warning(f"on_fill, fill:\n{df.to_markdown()}")
 
     return
 
@@ -1418,8 +1418,8 @@ def send_order(contract, total_quantity=1):
     # TODO convert to ib df
     trade.fillEvent += on_fill
     ib.sleep(1)
-    logger.info(f"Order sent ....")
-    logger.info(trade)
+    logger.warning(f"Order sent ....")
+    logger.warning(trade)
     return
 
 
@@ -1496,7 +1496,6 @@ def prepare_contract(symbol, right='C'):
 def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
     global  application_state
 
-    open_trades_dic = application_state.get('open_trades_dic', {})
     for buy_sell_case_result in buy_sell_case_results_list:
 
         logger.debug(f"buy_sell_case_result: {buy_sell_case_result} , type(buy_sell_case_result): {type(buy_sell_case_result)}")
@@ -1519,7 +1518,7 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
             continue
         total_quantity = 4
         if can_buy:
-            if open_trades_dic.get(symbol,{}).get('available_quantity', 0) == 0:
+            if application_state.get('open_trades_dic', {}).get(symbol,{}).get('available_quantity', 0) == 0:
                 logger.info(f"{symbol}, in check_buy_sell_result_to_send_order, can_buy: {can_buy}")
                 # send order
                 option_contract = prepare_contract(symbol, right='C')
@@ -1530,25 +1529,29 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
                         'available_quantity':total_quantity,
                         'underlying_open_price': df['close'].iloc[-1] ,
                         'u_run_number': unique_run_number,
-                        'level_used_to_open' : long_level
+                        'level_used_to_open' : long_level,
+                        'expiry': option_contract.expiry,
+                        'strike': option_contract.strike
                         }
                 application_state.setdefault('open_trades_dic', {})[symbol] = data
                 add_to_signlas('LONG_CALL_SENT',df['close'].iloc[-1],df['date'].iloc[-1], f'{data}' )
                 send_email(event='order_sent')
 
         if can_sell:
-            if open_trades_dic.get(symbol,{}).get('quantity', 0) == 0:
+            if application_state.get('open_trades_dic', {}).get(symbol,{}).get('quantity', 0) == 0:
                 # send order
                 logger.info(f"{symbol}, in check_buy_sell_result_to_send_order, can_sell: {can_sell}")
                 option_contract = prepare_contract(symbol, right='P')
-                send_order(option_contract, total_quantity=3)
+                send_order(option_contract, total_quantity=total_quantity)
                 data = {'side': 'long',
                         'right': 'P',
                         'starting_quantity': total_quantity,
                         'available_quantity': total_quantity,
                         'underlying_open_price': df['close'].iloc[-1],
                         'u_run_number': unique_run_number,
-                        'level_used_to_open': short_level
+                        'level_used_to_open': short_level,
+                        'expiry': option_contract.expiry,
+                        'strike': option_contract.strike
                         }
                 application_state.setdefault('open_trades_dic', {})[symbol] = data
                 add_to_signlas('LONG_PUT_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f'{data}')
@@ -1586,14 +1589,14 @@ def popualate_features(df):
     df = pd.concat(features_list, axis=1)
     return df
 
-def get_live_quote_for_option_postitions(option_positions):
+def get_live_quote_for_option_positions(option_positions):
     portfolio_df = pd.DataFrame()
     for p in option_positions:
         contract = p.contract
         contract.exchange = 'CBOE'  # TODO why not smart!
         ticker = ib.reqMktData(contract, '', False, False)
-        ib.sleep(1)  # short wait for data
-        print(f"{contract.symbol} {contract.lastTradeDateOrContractMonth} "
+        ib.sleep(0.3)  # short wait for data
+        logger.info(f"{contract.symbol} {contract.lastTradeDateOrContractMonth} "
               f"{contract.right} {contract.strike} | "
               f"Bid: {ticker.bid}, Ask: {ticker.ask}, Last: {ticker.last}")
         qty = p.position
@@ -1615,7 +1618,7 @@ def get_live_quote_for_option_postitions(option_positions):
         }
         portfolio_df = pd.concat([portfolio_df, pd.DataFrame([data])], ignore_index=True)
 
-    logger.info(f"get_live_quote_for_option_postitions(), portfolio_df:\n {portfolio_df.to_markdown()}")
+    logger.info(f"get_live_quote_for_option_positions(), portfolio_df:\n {portfolio_df.to_markdown()}")
     return portfolio_df
 
 def get_bid_and_ask(df, symbol):
@@ -1711,7 +1714,7 @@ def get_bid_and_ask(df, symbol):
 #     return portfolio_df
 
 
-def get_all_open_option_positions():
+def get_all_open_positions():
     positions = ib.positions()
     logger.info(f"(get_all_open_option_positions(), positions: \n{tabulate(positions, headers='keys', tablefmt='psql')}")
     return positions
@@ -1726,14 +1729,14 @@ def my_tabulate(x):
 
 
 def find_positions_to_monitor():
-    positions = get_all_open_option_positions()
+    positions = get_all_open_positions()
     logger.info(f"positions_to_monitor: \n{tabulate(positions, headers='keys', tablefmt='psql')}")
     ps = []
     for p in positions:
-        logger.info(f"p: {p}")
+        logger.debug(f"p: {p}")
         c = p.contract
         if c.secType == 'OPT':
-            logger.info(f"It is an option")
+            logger.debug(f"It is an option")
             ps.append(p)
 
     logger.info(f"find_positions_to_monitor()\n{my_tabulate(ps)}")
@@ -1823,18 +1826,14 @@ def update_for_avg_cost(positions):
                     application_state['open_trades_dic'][symbol]['avg_cost'] = position.avgCost
                     application_state['open_trades_dic'][symbol]['cost_for_trade'] = position.avgCost * abs(position.position)
                     application_state['open_trades_dic'][symbol]['avg_cost_for_1_position'] = position.avgCost
-                    application_state['open_trades_dic'][symbol]['avg_cost_for_1_contract'] =  position.avgCost/ 100
+                    application_state['open_trades_dic'][symbol]['avg_cost_for_1_contract'] =  position.avgCost / 100
 
     return
 
 def check_for_stop_loss_and_take_profit():
     global application_state
-    open_trades_dic = application_state.get('open_trades_dic', {})
-    positions_to_monitor = find_positions_to_monitor()
-    update_for_avg_cost(positions_to_monitor)
-    portfolio_df = get_live_quote_for_option_postitions(positions_to_monitor)
 
-    for symbol, open_trade_info in open_trades_dic.items():
+    for symbol, open_trade_info in application_state.get('open_trades_dic', {}).items():
 
         # ###
         # stop loss

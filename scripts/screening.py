@@ -552,7 +552,7 @@ def find_add_key_levels_to_key_levels_df():
 def add_buy_a_sell_entries_to_signals(buy_sell_case_results_list):
     for buy_sell_case_result in buy_sell_case_results_list:
 
-        logger.info(f"add_buy_a_sell_entries_to_signals(), buy_sell_case_result: {buy_sell_case_result}")
+        logger.debug(f"add_buy_a_sell_entries_to_signals(), buy_sell_case_result: {buy_sell_case_result}")
         case = buy_sell_case_result[0]
         can_buy = buy_sell_case_result[1]
         can_sell = buy_sell_case_result[2]
@@ -682,7 +682,7 @@ def check_buy_sell_condition(case):
         if eval(app_config['cases'][case]['short']['master_condition']):
             can_sell = True
 
-        logger.info(f"{case}, check_buy_sell_condition(), can_buy: {can_buy}, can_sell: {can_sell}")
+        logger.info(f"check_buy_sell_condition(), {case}, can_buy: {can_buy}, can_sell: {can_sell}")
 
         long_breakup_idx = break_out_indices_by_level_dic.get(eval(app_config['cases'][case]['long']['level']), 0)
         long_retest_idx = retest_indices_by_level_dic.get(eval(app_config['cases'][case]['long']['level']), 0)
@@ -768,7 +768,7 @@ def dummy_call(level):
 def breakout_in_last_x_candles(side='up', idx_list=[-2], level=0):
     global break_out_indices_by_level_dic
 
-    logger.info(f"in breakout_in_last_x_candles, symbol: {symbol}, idx_list: {idx_list}, level:{level}")
+    logger.debug(f"in breakout_in_last_x_candles, symbol: {symbol}, idx_list: {idx_list}, level:{level}")
 
     if level == 0:
         return False
@@ -1337,7 +1337,7 @@ def get_back_test_data():   # get data from IB.... use
             df = df.sort_values(by='date')
             logger.info(f"{symbol}, get_back_test_data, df['date'].min(): {df['date'].min()}, df['date'].max(): {df['date'].max()}")
             file = os.path.join(backtest_ohlc_dir, f'{symbol}-1min.csv')
-            print(f"saving to file: {file}")
+            logger.info(f"saving to file: {file}")
             if os.path.exists(file):  # load file and merge with new one ...
                 logger.info(f"File {file} exists... loading it ...")
                 existing_df = pd.read_csv(file)
@@ -1404,10 +1404,10 @@ def on_fill(trade, fill):
         flatten_trade_df = pd.concat([flatten_trade_df, pd.DataFrame([flatten_dic])], ignore_index=True)
 
     df = ib_util.df([trade])
-    logger.info(f"on_fill, trade:\n{df.to_markdown()}")
+    logger.warning(f"on_fill, trade:\n{df.to_markdown()}")
 
     df = ib_util.df([fill])
-    logger.info(f"on_fill, fill:\n{df.to_markdown()}")
+    logger.warning(f"on_fill, fill:\n{df.to_markdown()}")
 
     return
 
@@ -1418,8 +1418,8 @@ def send_order(contract, total_quantity=1):
     # TODO convert to ib df
     trade.fillEvent += on_fill
     ib.sleep(1)
-    logger.info(f"Order sent ....")
-    logger.info(trade)
+    logger.warning(f"Order sent ....")
+    logger.warning(trade)
     return
 
 
@@ -1481,22 +1481,36 @@ def prepare_contract(symbol, right='C'):
     otm_calls = [s for s in strikes if s > underlying_price]
     itm_puts = [s for s in strikes if s > underlying_price]
     otm_puts = [s for s in strikes if s < underlying_price]
+    if len(otm_calls) !=0 and len(otm_puts) != 0:
+        if right == 'C':
+            strike = otm_calls[0]
+        else:
+            strike = otm_puts[-1]
 
-    if right == 'C':
-        strike = otm_calls[0]
+        contract = create_option_contract(strike=strike, expiry=expiry, right=right,exchange="SMART", symbol=symbol, trading_class='')
+        logger.info(f"in prepare_contract, contract: {contract}")
+
+
+        return contract
+
     else:
-        strike = otm_puts[-1]
+        logger.error (f"@@@@ in prepare_contract, we have issue  strikes: {strikes}, expiry: {expiry}")
 
-    contract = create_option_contract(strike=strike, expiry=expiry, right=right,exchange="SMART", symbol=symbol, trading_class='')
-    logger.info(f"in prepare_contract, contract: {contract}")
-
-
-    return contract
+        # TODO log the error
+        #   File "C:\Users\saeed\Documents\13-code-git\s349_scarface_strategy\scripts\screening.py", line 2202, in <module>
+        #     check_buy_sell_result_to_send_order(buy_sell_case_results_list)
+        #   File "C:\Users\saeed\Documents\13-code-git\s349_scarface_strategy\scripts\screening.py", line 1525, in check_buy_sell_result_to_send_order
+        #     option_contract = prepare_contract(symbol, right='C')
+        #                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        #   File "C:\Users\saeed\Documents\13-code-git\s349_scarface_strategy\scripts\screening.py", line 1486, in prepare_contract
+        #     strike = otm_calls[0]
+        #              ~~~~~~~~~^^^
+        # IndexError: list index out of range
+        return None
 
 def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
     global  application_state
 
-    open_trades_dic = application_state.get('open_trades_dic', {})
     for buy_sell_case_result in buy_sell_case_results_list:
 
         logger.debug(f"buy_sell_case_result: {buy_sell_case_result} , type(buy_sell_case_result): {type(buy_sell_case_result)}")
@@ -1511,48 +1525,55 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
         logger.info(f"case: {case}, can_buy: {can_buy}, can_sell: {can_sell}")
         if symbol == 'MNQ' and (can_buy or can_sell):
             # create a new Thread for calling TopStep
-            side = 'BUY' if can_buy else 'SELL'
-            t = threading.Thread(target=call_api_top_step, args=(symbol, side))
-            t.start()
+            # side = 'BUY' if can_buy else 'SELL'
+            # t = threading.Thread(target=call_api_top_step, args=(symbol, side))
+            # t.start()
+            pass
         if not app_config['symbols_meta'][symbol]['can_trade']:
             logger.info(f"We are not trading {symbol}.")
             continue
         total_quantity = 4
         if can_buy:
-            if open_trades_dic.get(symbol,{}).get('available_quantity', 0) == 0:
+            if application_state.get('open_trades_dic', {}).get(symbol,{}).get('available_quantity', 0) == 0:
                 logger.info(f"{symbol}, in check_buy_sell_result_to_send_order, can_buy: {can_buy}")
                 # send order
                 option_contract = prepare_contract(symbol, right='C')
-                send_order(option_contract, total_quantity=total_quantity)
-                data = {'side': 'long',
-                        'right': 'C',
-                        'starting_quantity':total_quantity,
-                        'available_quantity':total_quantity,
-                        'underlying_open_price': df['close'].iloc[-1] ,
-                        'u_run_number': unique_run_number,
-                        'level_used_to_open' : long_level
-                        }
-                application_state.setdefault('open_trades_dic', {})[symbol] = data
-                add_to_signlas('LONG_CALL_SENT',df['close'].iloc[-1],df['date'].iloc[-1], f'{data}' )
-                send_email(event='order_sent')
+                if option_contract != None:
+                    send_order(option_contract, total_quantity=total_quantity)
+                    data = {'side': 'long',
+                            'right': 'C',
+                            'starting_quantity':total_quantity,
+                            'available_quantity':total_quantity,
+                            'underlying_open_price': df['close'].iloc[-1] ,
+                            'u_run_number': unique_run_number,
+                            'level_used_to_open' : long_level,
+                           'expiry': option_contract.lastTradeDateOrContractMonth,
+                            'strike': option_contract.strike
+                            }
+                    application_state.setdefault('open_trades_dic', {})[symbol] = data
+                    add_to_signlas('LONG_CALL_SENT',df['close'].iloc[-1],df['date'].iloc[-1], f'{data}' )
+                    send_email(event='order_sent')
 
         if can_sell:
-            if open_trades_dic.get(symbol,{}).get('quantity', 0) == 0:
+            if application_state.get('open_trades_dic', {}).get(symbol,{}).get('available_quantity', 0) == 0:
                 # send order
                 logger.info(f"{symbol}, in check_buy_sell_result_to_send_order, can_sell: {can_sell}")
                 option_contract = prepare_contract(symbol, right='P')
-                send_order(option_contract, total_quantity=3)
-                data = {'side': 'long',
-                        'right': 'P',
-                        'starting_quantity': total_quantity,
-                        'available_quantity': total_quantity,
-                        'underlying_open_price': df['close'].iloc[-1],
-                        'u_run_number': unique_run_number,
-                        'level_used_to_open': short_level
-                        }
-                application_state.setdefault('open_trades_dic', {})[symbol] = data
-                add_to_signlas('LONG_PUT_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f'{data}')
-                send_email(event='order_sent')
+                if option_contract != None: # TODO check to see what happens if we isgnore this case
+                    send_order(option_contract, total_quantity=total_quantity)
+                    data = {'side': 'long',
+                            'right': 'P',
+                            'starting_quantity': total_quantity,
+                            'available_quantity': total_quantity,
+                            'underlying_open_price': df['close'].iloc[-1],
+                            'u_run_number': unique_run_number,
+                            'level_used_to_open': short_level,
+                            'expiry': option_contract.lastTradeDateOrContractMonth,
+                            'strike': option_contract.strike
+                            }
+                    application_state.setdefault('open_trades_dic', {})[symbol] = data
+                    add_to_signlas('LONG_PUT_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f'{data}')
+                    send_email(event='order_sent')
 
     return
 def dump_application_state_to_file():
@@ -1586,14 +1607,14 @@ def popualate_features(df):
     df = pd.concat(features_list, axis=1)
     return df
 
-def get_live_quote_for_option_postitions(option_positions):
+def get_live_quote_for_option_positions(option_positions):
     portfolio_df = pd.DataFrame()
     for p in option_positions:
         contract = p.contract
         contract.exchange = 'CBOE'  # TODO why not smart!
         ticker = ib.reqMktData(contract, '', False, False)
-        ib.sleep(1)  # short wait for data
-        print(f"{contract.symbol} {contract.lastTradeDateOrContractMonth} "
+        ib.sleep(0.3)  # short wait for data
+        logger.info(f"{contract.symbol} {contract.lastTradeDateOrContractMonth} "
               f"{contract.right} {contract.strike} | "
               f"Bid: {ticker.bid}, Ask: {ticker.ask}, Last: {ticker.last}")
         qty = p.position
@@ -1615,7 +1636,7 @@ def get_live_quote_for_option_postitions(option_positions):
         }
         portfolio_df = pd.concat([portfolio_df, pd.DataFrame([data])], ignore_index=True)
 
-    logger.info(f"get_live_quote_for_option_postitions(), portfolio_df:\n {portfolio_df.to_markdown()}")
+    logger.info(f"get_live_quote_for_option_positions(), portfolio_df:\n {portfolio_df.to_markdown()}")
     return portfolio_df
 
 def get_bid_and_ask(df, symbol):
@@ -1711,7 +1732,7 @@ def get_bid_and_ask(df, symbol):
 #     return portfolio_df
 
 
-def get_all_open_option_positions():
+def get_all_open_positions():
     positions = ib.positions()
     logger.info(f"(get_all_open_option_positions(), positions: \n{tabulate(positions, headers='keys', tablefmt='psql')}")
     return positions
@@ -1726,14 +1747,14 @@ def my_tabulate(x):
 
 
 def find_positions_to_monitor():
-    positions = get_all_open_option_positions()
+    positions = get_all_open_positions()
     logger.info(f"positions_to_monitor: \n{tabulate(positions, headers='keys', tablefmt='psql')}")
     ps = []
     for p in positions:
-        logger.info(f"p: {p}")
+        logger.debug(f"p: {p}")
         c = p.contract
         if c.secType == 'OPT':
-            logger.info(f"It is an option")
+            logger.debug(f"It is an option")
             ps.append(p)
 
     logger.info(f"find_positions_to_monitor()\n{my_tabulate(ps)}")
@@ -1744,7 +1765,13 @@ def close_option_positions(positions, symbol='', close_qty=0):
 
     for pos in positions:
         contract = pos.contract
-        qty = pos.position
+        if close_qty == 0:
+            qty = pos.position
+        else:
+            qty = close_qty
+
+        # if close_qty > abs(qty):
+        #     logger.warning(f"@@@@ Trying to close more than ope. so we ignore. close_qty: {close_qty}, qty: {qty}")
 
         if contract.secType == 'OPT' and qty != 0:
             if symbol != '' and symbol != contract.symbol:
@@ -1754,15 +1781,10 @@ def close_option_positions(positions, symbol='', close_qty=0):
             # --- Step 2: Determine opposite action ---
             action = 'SELL' if qty > 0 else 'BUY'
 
-            if close_qty > abs(qty):
-                logger.warning(f"@@@@ Trying to close more than ope. so we ignore. close_qty: {close_qty}, qty: {qty}")
-
-            if close_qty == 0:
-                # is not passed. so close all
-                close_qty = abs(qty)
-
             # --- Step 3: Create market order to close ---
-            order = MarketOrder(action, close_qty)
+            qty = abs(qty)
+
+            order = MarketOrder(action, qty)
             order.orderRef = f"CLOSE-{unique_run_number}"
 
             # --- Step 4: Place the order ---
@@ -1776,7 +1798,7 @@ def close_option_positions(positions, symbol='', close_qty=0):
             df = ib_util.df([trade])
 
             logger.info(f"close_option_positions, trade:\n{df.to_markdown()}")
-            logger.info(f"Closing {contract.localSymbol}, action: {action}, close_qty: {close_qty}")
+            logger.info(f"Closing {contract.localSymbol}, action: {action}, qty: {qty}")
 
     return
 
@@ -1802,8 +1824,14 @@ def update_config_and_save(config, key, value):
         app_config = reload_app_config()
         app_config[key] = value
         file = f'{configs_folder}/config-{portfolio_id}.yaml'
-        with open(file, 'w') as f:
-            yaml.dump(app_config, f)
+        with open(file, 'w') as f:  #TODO fix it
+            yaml.dump(app_config, f
+            #           ,
+            # width=float("inf"),             # prevents line wrapping
+            # default_flow_style=False,       # human-readable multi-line style
+            # allow_unicode=True,             # handles any special characters
+            # sort_keys=False
+                        )# keep original order if using PyYAML ≥5.1)
     return
 
 def close_all_open_option_positions():
@@ -1823,18 +1851,14 @@ def update_for_avg_cost(positions):
                     application_state['open_trades_dic'][symbol]['avg_cost'] = position.avgCost
                     application_state['open_trades_dic'][symbol]['cost_for_trade'] = position.avgCost * abs(position.position)
                     application_state['open_trades_dic'][symbol]['avg_cost_for_1_position'] = position.avgCost
-                    application_state['open_trades_dic'][symbol]['avg_cost_for_1_contract'] =  position.avgCost/ 100
+                    application_state['open_trades_dic'][symbol]['avg_cost_for_1_contract'] =  position.avgCost / 100
 
     return
 
 def check_for_stop_loss_and_take_profit():
     global application_state
-    open_trades_dic = application_state.get('open_trades_dic', {})
-    positions_to_monitor = find_positions_to_monitor()
-    update_for_avg_cost(positions_to_monitor)
-    portfolio_df = get_live_quote_for_option_postitions(positions_to_monitor)
 
-    for symbol, open_trade_info in open_trades_dic.items():
+    for symbol, open_trade_info in application_state.get('open_trades_dic', {}).items():
 
         # ###
         # stop loss
@@ -1842,26 +1866,36 @@ def check_for_stop_loss_and_take_profit():
         if open_trade_info.get('available_quantity', 0) == 0:
             logger.info(f"{symbol}, check_for_stop_loss_and_take_profit(), available_quantity: 0")
             continue
-        logger.info(f"in check_for_stop_loss, {symbol} , {open_trade_info}" )
+        logger.info(f"in check_for_stop_loss, {symbol} ,\n{pprint.pformat(open_trade_info)}" )
+        symbol_df = dfs_map.get(symbol, pd.DataFrame())
         underlying_open_price = float(open_trade_info.get('underlying_open_price', -1))  # used in config ...
         level_used_to_open = float(open_trade_info.get('level_used_to_open', -1)) # used in config ...
-        underlying_previous_candle_close = df['close'].iloc[-2] # used in config
-
+        avg_cost_for_1_contract = open_trade_info.get('avg_cost_for_1_contract', -1) # used in config
         underlying_current_price = get_current_price(symbol)
+
+        if len(symbol_df) == 0:
+            # it maybe first run and we dont have it yet in the dic ...
+            underlying_previous_candle_close = underlying_current_price
+        else:
+            underlying_previous_candle_close = symbol_df['close'].iloc[-2] # used in config
+
 
         right = application_state['open_trades_dic'][symbol]['right']
         side = application_state['open_trades_dic'][symbol]['side']
-        current_bid,current_ask = get_bid_and_ask(portfolio_df, symbol)
+        current_bid, current_ask = get_bid_and_ask(portfolio_df, symbol)
 
         application_state['open_trades_dic'][symbol]['current_bid'] = current_bid
         application_state['open_trades_dic'][symbol]['current_ask'] = current_ask
         application_state['open_trades_dic'][symbol]['current_value'] = current_ask * application_state['open_trades_dic'][symbol]['starting_quantity'] * 100
-        application_state['open_trades_dic'][symbol]['current_pnl'] = application_state['open_trades_dic'][symbol]['current_value'] - application_state['open_trades_dic'][symbol]['cost_for_trade']
+        application_state['open_trades_dic'][symbol]['current_pnl'] = application_state['open_trades_dic'][symbol].get('current_value', 0) - application_state['open_trades_dic'][symbol].get('cost_for_trade', 0)
 
 
-        logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, underlying_open_price: {underlying_open_price}, underlying_current_price: {underlying_current_price}, level_used_to_open: {level_used_to_open}, current_bid: {current_bid}, current_ask: {current_ask}, underlying_previous_candle_close: {underlying_previous_candle_close}")
 
-        stop_loss_condition = app_config[right]['stop_loss_condition']
+        logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}" )
+        logger.info(f"level_used_to_open: {level_used_to_open}, underlying_open_price: {underlying_open_price}, underlying_current_price:, {underlying_current_price},underlying_previous_candle_close: {underlying_previous_candle_close}")
+        logger.info(f"current_bid: {current_bid}, current_ask: {current_ask}, avg_cost_for_1_contract: {avg_cost_for_1_contract}")
+
+        stop_loss_condition = app_config['rights'][right]['stop_loss_condition']
         stop_loss_condition_evaluated = eval(stop_loss_condition)
         logger.info(f"symbol {symbol}, stop_loss_condition: {stop_loss_condition}, stop_loss_condition_evaluated: {stop_loss_condition_evaluated}")
         if stop_loss_condition_evaluated:
@@ -1892,14 +1926,15 @@ def check_for_stop_loss_and_take_profit():
 
             close_quantity = round( start_quantity * close_quantity_percentage )
 
-            logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, take_profit: {take_profit}, take_profit_condition: {take_profit_condition}, take_profit_condition_evaluated: {take_profit_condition_evaluated}, available_quantity: {available_quantity}, close_quantity: {close_quantity}, start_quantity:{start_quantity}, close_quantity_percentage: {close_quantity_percentage}")
-
-            if take_profit_condition_evaluated and available_quantity != 0 and close_quantity != 0:
-                logger.info(f"Sending TP ...")
-                # close_option_positions(positions_to_monitor, symbol, close_quantity)
+            logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, take_profit: {take_profit}")
+            logger.info(f"available_quantity: {available_quantity}, close_quantity_percentage: {close_quantity_percentage}, close_quantity: {close_quantity}, start_quantity:{start_quantity}")
+            logger.info(f"take_profit_condition: {take_profit_condition}, take_profit_condition_evaluated: {take_profit_condition_evaluated}")
+            if take_profit_condition_evaluated and available_quantity > 0 and close_quantity != 0 and close_quantity <= available_quantity :
+                logger.info(f"Sending TP ...{take_profit}")
+                close_option_positions(positions_to_monitor, symbol, close_quantity)  # for close send negative
                 application_state['open_trades_dic'][symbol]['available_quantity'] = available_quantity - close_quantity
                 application_state['open_trades_dic'][symbol].setdefault('take_profits', {})[take_profit] = { 'status': 'SENT',
-                                                                                                             'take_profit_condition': take_profit_condition,
+                                                                                                             # 'take_profit_condition': take_profit_condition, # bad formed
                                                                                                              'available_quantity_b4_tp' : available_quantity,
                                                                                                              'close_quantity': close_quantity,
                                                                                                              'u_run_number' : unique_run_number
@@ -1907,8 +1942,13 @@ def check_for_stop_loss_and_take_profit():
                 send_email(event='take_profit_sent')
 
             else:
-                logger.warning(f"{symbol}. TP didn't go ... ")
+                logger.warning(f"{symbol}. {take_profit} TP didn't go ...  ")
 
+
+        # check to clean up
+        if application_state['open_trades_dic'].get(symbol, {}) != {} and application_state['open_trades_dic'][symbol].get('available_quantity', 0) == 0:
+            logger.info(f"{symbol}, the available_quantity is zero, so we set empty dic for it")
+            application_state['open_trades_dic'][symbol] = {}
 
 def send_email(event='order_sent'):
     if app_config['email']['send_email']:
@@ -2031,7 +2071,7 @@ def call_api_top_step(symbol, side):
 # End of IB sending order - only for live
 # ###########
 
-def on_commission_report(report):
+def on_commission_report(self, report):
     logger.info(f"report: {report}")
     logger.info(f"Commission Report: execId={report.execId}, "
                 f"commission={report.commission:.2f} {report.currency}, "
@@ -2137,12 +2177,10 @@ if __name__ == "__main__":
     drawing_objects_df = pd.DataFrame()
     hover_df = pd.DataFrame(columns=['symbol', 'time_frame', 'object', 'color', 'date_1', 'price_1', 'date_2', 'price_2', 'memo','unique_id'])
     key_levels_df = pd.DataFrame( columns=['symbol', 'time_frame', 'key_level', 'price', 'memo','unique_id'])
-    open_trades_dic = {} # need to be rmeoved ...
 
     consequence_exception = 0
     run_number = 0
-
-    # get_live_portfolio_df(find_positions_to_monitor())
+    dfs_map = {}
 
     while True:
       try:
@@ -2150,9 +2188,9 @@ if __name__ == "__main__":
         run_number += 1
         now = datetime.datetime.now()
         date_yyyy_mm_dd_hh_mm = now.strftime("%Y-%m-%d__%H-%M")
-        unique_run_number = f"{now.strftime('%Y%m%d-%H%M%S')}--{run_number}"
+        date_run_number = f"{now.strftime('%Y%m%d-%H%M%S')}--{run_number}"
 
-        logger.info(f"==================== run_number: {run_number},  unique_run_number: {unique_run_number}")
+        logger.info(f"==================== run_number: {run_number},  date_run_number: {date_run_number}")
         if run_number == 1:
             find_expiration_and_strikes_for_all()   # TODO expiration and striked need to be updated
 
@@ -2160,11 +2198,16 @@ if __name__ == "__main__":
 
         qqq_df = pd.DataFrame()
         symbol_number = 0
+
+        positions_to_monitor = find_positions_to_monitor()
+        update_for_avg_cost(positions_to_monitor)
+        portfolio_df = get_live_quote_for_option_positions(positions_to_monitor)
+
         for symbol in app_config['symbols']:
             symbol_number += 1
-            unique_run_number = f"{unique_run_number}--{symbol_number}"
+            unique_run_number = f"{date_run_number}--{symbol_number}"
 
-            logger.info(f"------------------- {symbol}, unique_run_number: {unique_run_number}")
+            logger.warning(f"------------------- {symbol}, unique_run_number: {unique_run_number}")
             symbol_start_time = time.time()
 
             signals = []
@@ -2175,6 +2218,7 @@ if __name__ == "__main__":
 
             df = get_market_data(symbol, '1 min')
             df = popualate_features(df)
+            dfs_map[symbol] = df.copy()
             if symbol == 'QQQ':
                 qqq_df = df.copy()
 
@@ -2182,7 +2226,7 @@ if __name__ == "__main__":
             if True:
                 missing_rows_in_qqq_df = df.loc[~df['date'].isin(qqq_df['date'])]
                 if len(missing_rows_in_qqq_df) > 0:
-                    logger.warning(f"{missing_rows_in_qqq_df[-10:].to_markdown()}")
+                    logger.warning(f"missing_rows_in_qqq_df: \n{missing_rows_in_qqq_df[-10:].to_markdown()}")
 
             relative_strength_df = compute_relative_strength(df, qqq_df, period=20)
             intraday_rs_df = compute_intraday_rs(df, qqq_df)
@@ -2205,9 +2249,6 @@ if __name__ == "__main__":
             logger.debug(f"{symbol}, signals: {signals}")
             hover_df = convert_signals_to_hover_df(signals)
 
-            save_df_to_csv_a_tabular(drawing_objects_df, '10-drawing_objects_df.csv', mode='w', dir=charts_dir)
-            save_df_to_csv_a_tabular(key_levels_df, dir=portfolio_dir, file_name='11-key_levels_df.csv', mode='w')
-            save_df_to_csv_a_tabular(hover_df, dir=charts_dir, file_name='12-hover_df.csv', mode='a')
 
             save_ohlc_for_chart(df)
 
@@ -2230,7 +2271,13 @@ if __name__ == "__main__":
             symbol_run_spend_time = round(symbol_end_time - symbol_start_time, 2)
             logger.warning(f'{symbol} run_number: {run_number}, symbol_run_spend_time: {symbol_run_spend_time} seconds')
 
+
+        save_df_to_csv_a_tabular(drawing_objects_df, '10-drawing_objects_df.csv', mode='w', dir=charts_dir)
+        save_df_to_csv_a_tabular(key_levels_df, dir=portfolio_dir, file_name='11-key_levels_df.csv', mode='w')
+        save_df_to_csv_a_tabular(hover_df, dir=charts_dir, file_name='12-hover_df.csv', mode='a')
         end_time = time.time()
+
+
 
         sleep_enough()
         if app_config['exit']:
