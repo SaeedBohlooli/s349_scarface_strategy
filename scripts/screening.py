@@ -1466,9 +1466,14 @@ def create_option_contract(strike, expiry, right, exchange="CBOE", symbol='SPX',
 
     logger.info(f"calling qualifyContracts : ")
     #ib.qualifyContracts(*contracts)
-    ib.qualifyContracts(contract)
+    qualified = ib.qualifyContracts(contract)
     logger.info("qualifyContracts is done.")
-    return contract
+
+    if not qualified:
+        logger.warning(f"@@@@ Contract not found, qualified: {qualified}")
+        return None
+    else:
+        return contract
 
 def prepare_contract(symbol, right='C'):
 
@@ -1553,6 +1558,8 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
                     application_state.setdefault('open_trades_dic', {})[symbol] = data
                     add_to_signlas('LONG_CALL_SENT',df['close'].iloc[-1],df['date'].iloc[-1], f'{data}' )
                     send_email(event='order_sent')
+                else:
+                    logger.warning(f"@@@ we didn't send order option_contract: {option_contract}")
 
         if can_sell:
             if application_state.get('open_trades_dic', {}).get(symbol,{}).get('available_quantity', 0) == 0:

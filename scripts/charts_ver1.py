@@ -230,11 +230,30 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
         name='rs_roc'
     ), row=5, col=1)
 
+    fig.add_trace(go.Scatter( # line on 0
+        x=extra_features_df['date'],
+        y=[0] * len(extra_features_df),
+        mode='lines',
+        name='Zero Line',
+        line=dict(color='black', dash='dot', width=1),
+        showlegend=False
+    ), row=5, col=1)
+
+
     fig.add_trace(go.Scatter(
         x=extra_features_df['date'],
         y=extra_features_df['rs_rel'],
         line=dict(color='blue', width=2),
         name='rs_rel'
+    ), row=6, col=1)
+
+    fig.add_trace(go.Scatter( # line on 0
+        x=extra_features_df['date'],
+        y=[0] * len(extra_features_df),
+        mode='lines',
+        name='Zero Line',
+        line=dict(color='black', dash='dot', width=1),
+        showlegend=False
     ), row=6, col=1)
 
 
@@ -496,7 +515,8 @@ def load_extra_features_df(portfolio_id='p700', symbol='TSLA', time_frame='1min'
 def load_df_from_ohlc_file(portfolio_id='p700', symbol='TSLA', time_frame='1min'):
     file = f'{charts_dir}/{symbol}-{time_frame}.csv'
     logger.info(f"load_ohlc_file_to_df, reading file: {file}")
-
+    if not os.path.exists(file):
+        return pd.DataFrame()
     df = pd.read_csv(file)
     df['date'] = pd.to_datetime(df['date'])
 
@@ -718,6 +738,9 @@ def index():
         time_frame = '1min'
 
         df = load_df_from_ohlc_file(portfolio_id='p250', time_frame=time_frame, symbol=symbol)
+        if len(df) == 0:
+            continue
+
         extra_features_df = load_extra_features_df(portfolio_id='p250', time_frame=time_frame, symbol=symbol)
         fig1 = draw_w_plotly_w_subplot_1(symbol, chart_title=f'{symbol}-{time_frame}')
         fig1 = draw_objects(fig1,df, drawing_objects_df, symbol=symbol, time_frame=time_frame )

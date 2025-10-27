@@ -25,6 +25,7 @@ from finta import TA
 from ruamel.yaml import YAML
 yaml = YAML()
 yaml.preserve_quotes = True  # Optional: preserve quotes if any
+yaml.width = 1000 # so will not wrap lines in the yaml file
 
 print(f"os.path.join('../'): {os.path.join('../')}")
 sys.path.insert(0, f'../')
@@ -560,9 +561,9 @@ def add_buy_a_sell_entries_to_signals(buy_sell_case_results_list):
         offset_symbol = app_config['symbols_meta'][symbol]['chart_entry_offset']
 
         if "1" in case:  # for case_1 goes -1
-            offset = -1 * offset_symbol
-        elif "2" in case: # for case_2 goes -2
             offset = -2 * offset_symbol
+        elif "2" in case: # for case_2 goes -2
+            offset = -0.75 * offset_symbol
         else:
             offset = -3 * offset_symbol
 
@@ -597,8 +598,6 @@ def check_buy_and_sell_cases():
 
 
 def check_buy_sell_condition(case):
-    global break_out_indices_by_level_dic
-    global retest_indices_by_level_dic
 
     can_buy = False
     can_sell = False
@@ -684,19 +683,20 @@ def check_buy_sell_condition(case):
 
         logger.info(f"check_buy_sell_condition(), {case}, can_buy: {can_buy}, can_sell: {can_sell}")
 
-        long_breakup_idx = break_out_indices_by_level_dic.get(eval(app_config['cases'][case]['long']['level']), 0)
-        long_retest_idx = retest_indices_by_level_dic.get(eval(app_config['cases'][case]['long']['level']), 0)
+        long_breakup_idxs = break_out_indices_by_level_set.get(long_level, set())
+        long_retest_idxs = retest_indices_by_level_set.get(long_level, set())
 
-        short_breakup_idx = break_out_indices_by_level_dic.get(eval(app_config['cases'][case]['short']['level']), 0)
-        short_retest_idx = retest_indices_by_level_dic.get(eval(app_config['cases'][case]['short']['level']), 0)
+        short_breakup_idxs = break_out_indices_by_level_set.get(short_level, set())
+        short_retest_idxs = retest_indices_by_level_set.get(short_level, set())
 
-        logger.debug(f"break_out_indices_by_level_dic: {break_out_indices_by_level_dic}")
-        logger.debug(f"retest_indices_by_level_dic: {retest_indices_by_level_dic}")
+
+
 
         # This is shown in the chart ..
-        res_str = (f"res_{case}:{eval_buy_condition_01}.{eval_buy_condition_02}.{eval_buy_condition_03}|{eval_buy_condition_04}.{eval_buy_condition_05}.{eval_buy_condition_06}|{eval_buy_condition_07} .. {long_breakup_idx}.{long_retest_idx} ... "
-                 f"{eval_sell_condition_01}.{eval_sell_condition_02}.{eval_sell_condition_03}|{eval_sell_condition_04}.{eval_sell_condition_05}.{eval_sell_condition_06}|{eval_sell_condition_07} .. {short_breakup_idx}.{short_retest_idx}"
-                   f".. {df['date'].iloc[-1].strftime('%H:%M')}")
+        res_str = (f"res_{case}:<br>"
+                   f"{eval_buy_condition_01}.{eval_buy_condition_02}.{eval_buy_condition_03}|{eval_buy_condition_04}.{eval_buy_condition_05}.{eval_buy_condition_06}|{eval_buy_condition_07} .. {long_breakup_idxs}.{long_retest_idxs} <br>"
+                   f"{eval_sell_condition_01}.{eval_sell_condition_02}.{eval_sell_condition_03}|{eval_sell_condition_04}.{eval_sell_condition_05}.{eval_sell_condition_06}|{eval_sell_condition_07} .. {short_breakup_idxs}.{short_retest_idxs} <br>"
+                   f"{df['date'].iloc[-1].strftime('%H:%M')}, breakout: {breakout_idx} , retest: {retest_idx}")
         res_str = res_str.replace('True', 'T')
         res_str = res_str.replace('False', 'F')
     except Exception as e:
@@ -705,19 +705,26 @@ def check_buy_sell_condition(case):
         res_str = {case}
     return case, can_buy, can_sell, res_str, long_level, short_level
 
-def check_retest_after_breakout(side='up', level=1):
+def is_retest_after_breakout(side='up', level=1):
+    global retest_idx, breakout_idx
 
-    retest_idx = retest_indices_by_level_dic.get(level, -1) # This is index for retest...
-    breakout_idx = break_out_indices_by_level_dic.get(level, -1) # This is index for breakout...
-    if retest_idx == -1 or breakout_idx == -1:
-        return False
-    if breakout_idx < retest_idx:   #  breakout -4 < retest -2
+    breakout_idxs = break_out_indices_by_level_set.get(level, set())
+    retest_idxs = retest_indices_by_level_set.get(level, set())
+
+    if retest_idxs == set() or breakout_idxs == set():
+        return  False
+    if max(retest_idxs) > min(breakout_idxs):
+        retest_idx = max(retest_idxs)
+        valid_breakouts = [b for b in breakout_idxs if b < retest_idx]   # all the breakout idxs that are before retest_idx
+        if valid_breakouts:
+            breakout_idx = max(valid_breakouts)  # closest (largest) breakout before retest
+
         return True
     else:
         return False
+
 def price_retest(side='up', idx_list=[-2], level=0, both_sides=False):
 
-    global retest_indices_by_level_dic
     if level == 0:
         return False
 
@@ -725,7 +732,6 @@ def price_retest(side='up', idx_list=[-2], level=0, both_sides=False):
     tolerance_amount = atr_tolerance_helper.get_dynamic_tolerance(df, level=0, min_tick=0.01).get('tolerance', 0)
 
     retest = False
-    retest_idx = 0
 
     for idx in idx_list:
         row = df.iloc[idx]
@@ -734,27 +740,24 @@ def price_retest(side='up', idx_list=[-2], level=0, both_sides=False):
         # --- Retest detection ---
         if side == 'up':
             if level > row["low"] and level - row["low"] <= tolerance_amount and row["close"] > level:
+                add_to_retest_indices_by_level_set(level, idx)
                 logger.info(f"price_retest(), symbol: {symbol}, level: {level}, date:{df.iloc[idx]['date']} ")
                 retest = True
                 diff = abs(row['low']-level)
+
             if both_sides and abs(level - row["low"]) <= tolerance_amount and row["close"] > level:   # close > level.  low is close to the level in both sides.
+                add_to_retest_indices_by_level_set(level, idx)
                 retest = True
                 diff = abs(row['low']-level)
         else:
             if row["high"] > level and row["high"] - level <= tolerance_amount and row["close"] < level:
+                add_to_retest_indices_by_level_set(level, idx)
                 retest = True
                 diff = abs(row['high'] - level)
             if both_sides and abs(level - row["high"]) <= tolerance_amount and row["close"] < level:   # close < level.  high is close to the level in both sides.
+                add_to_retest_indices_by_level_set(level, idx)
                 retest = True
                 diff = abs(row['high']-level)
-
-        if retest: # we dont want continue if retest happened
-            retest_idx = idx
-            break
-
-    if retest:
-        add_to_candle_info_df(date=df['date'].iloc[retest_idx], price=df['close'].iloc[retest_idx],memo=f'retest({round(diff,2)}) @ {level}')
-        retest_indices_by_level_dic[level] = retest_idx
 
     return retest
 
@@ -766,7 +769,6 @@ def dummy_call(level):
 
 
 def breakout_in_last_x_candles(side='up', idx_list=[-2], level=0):
-    global break_out_indices_by_level_dic
 
     logger.debug(f"in breakout_in_last_x_candles, symbol: {symbol}, idx_list: {idx_list}, level:{level}")
 
@@ -782,38 +784,51 @@ def breakout_in_last_x_candles(side='up', idx_list=[-2], level=0):
         if side == 'up':
             if row["low"] < level and row["close"] > level + gap:
                 logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
-                breakout_idx = idx
+                add_to_break_out_indices_by_level_set(level, idx)
                 breakout_happened = True
-
-            if previous['open'] < level and row["close"] > level: # the -2 opened below level and -1 closed above gap.
+            # if previous['open'] < level and row["close"] > level: # the -2 opened below level and -1 closed above gap.
+            if previous['open'] < level and row["close"] > level and row["close"] > row["open"]: # the -2 opened below level and -1 closed above gap and -1 is up trned candle
                 logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
-                breakout_idx = idx
+                add_to_break_out_indices_by_level_set(level, idx)
                 breakout_happened = True
-
         else:
             if row["high"] > level and row["close"] < level  - gap:
                 logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
-                breakout_idx = idx
+                add_to_break_out_indices_by_level_set(level, idx)
                 breakout_happened = True
 
-            if previous['open'] > level and row["close"] < level: # the -2 opened above level and -1 closed belowe gap.
+            if previous['open'] > level and row["close"] < level and row["close"] < row["open"]: # the -2 opened above level and -1 closed below ga and -1 is down trend candle.
                 logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
-                breakout_idx = idx
+                add_to_break_out_indices_by_level_set(level, idx)
                 breakout_happened = True
 
 
-        if breakout_happened:
-            breakout_idx = idx
-            break
-
-
-    if breakout_happened:
-        add_to_candle_info_df(date=df['date'].iloc[breakout_idx], price=df['close'].iloc[breakout_idx],memo=f'breakout @ {level}')
-        break_out_indices_by_level_dic[level] = breakout_idx
 
     return breakout_happened
 
 
+def add_to_break_out_indices_by_level_set(level, idx):
+
+    global break_out_indices_by_level_set
+    logger.info(f"{df['date'].iloc[-1]}, break_out_indices_by_level_set: {break_out_indices_by_level_set}")
+    # if level not in break_out_indices_by_level_set:
+    if break_out_indices_by_level_set.get(level, set()) == set():
+        break_out_indices_by_level_set[level] = set()
+
+    break_out_indices_by_level_set[level].add(idx)
+    add_to_candle_info_df(date=df['date'].iloc[idx], price=df['close'].iloc[idx], memo=f'breakout @ {level}')
+    return
+
+def add_to_retest_indices_by_level_set(level, idx):
+    global retest_indices_by_level_set
+    logger.info(f"{df['date'].iloc[-1]}, retest_indices_by_level_set: {retest_indices_by_level_set}")
+    # if level not in retest_indices_by_level_set:
+    if retest_indices_by_level_set.get(level, set()) == set():
+        retest_indices_by_level_set[level] = set()
+
+    retest_indices_by_level_set[level].add(idx)
+    add_to_candle_info_df(date=df['date'].iloc[idx], price=df['close'].iloc[idx], memo=f'reset @ {level}')
+    return
 
 def get_levels_dic():
     global key_levels_df
@@ -836,24 +851,34 @@ def add_to_signlas(event, price, date, memo=''):
 
 
 def check_entry_vs_retest(side='up', level=1, retest_ohlc=''):
-    if retest_indices_by_level_dic.get(level, -1) == -1:
-        return False
 
-    i = retest_indices_by_level_dic.get(level, -1) # This is index for retest...
+    if retest_idx == 0 or breakout_idx == 0:
+        return False
 
     if side == 'up':
         ohlc_field = 'high' if retest_ohlc == '' else retest_ohlc
-        if df['high'].iloc[-1] > df[ohlc_field].iloc[i]:  # clode > retest high
+        if df['high'].iloc[-1] > df[ohlc_field].iloc[retest_idx]:  # clode > retest high
             return True
         else:
             return False
     else:
         ohlc_field = 'low' if retest_ohlc == '' else retest_ohlc
-        if df['low'].iloc[-1] < df[ohlc_field].iloc[i]:
+        if df['low'].iloc[-1] < df[ohlc_field].iloc[retest_idx]:
             return True
         else:
             return False
     return False
+
+
+def check_price_vs_level(side='up', price=0, level=0):
+
+    min_required_move_from_level = app_config['symbols_meta'][symbol]['min_required_move_from_level']
+
+    if side == 'up':
+        return price + min_required_move_from_level > level
+    else:
+        return price < level - min_required_move_from_level
+
 
 def add_candle_info_df_to_signals():
     if len(candle_info_df) == 0:
@@ -890,40 +915,6 @@ def add_to_candle_info_df(date, price, memo):
 
     return
 
-def are_breakout_and_candles_aligned(side= 'up', level=0, ohlc_field='close'):
-    # we want make sure all closes between breakout and retest are above the level.
-    # for up, use 'open'
-    # for down use 'close'
-
-    if retest_indices_by_level_dic.get(level, -1) == -1:
-        return False
-
-    if break_out_indices_by_level_dic.get(level, -1) == -1:
-        return False
-
-    i = retest_indices_by_level_dic.get(level, -1) # This is index for retest...
-    j = break_out_indices_by_level_dic.get(level, -1) # This is index for breakout...
-
-    if  j == i or j > i:
-        return  False
-
-
-
-    j = j + 1 # we don't want to include the breakout in the check ...
-    start, end = sorted([i, j])  # in case you mix order
-    # say start -5 end -3.  this get -5, -4, -3, -2.  it mean both -5 and -3 is included too.
-    if side == 'up':
-        if (df.iloc[start:end + 1][ohlc_field] > level).all():
-            return True
-        else:
-            logger.info("Some close values <= level")
-    else:
-        if (df.iloc[start:end + 1][ohlc_field] < level).all():
-            return True
-        else:
-            logger.info("Some close values <= level")
-
-    return False
 
 def no_failure_after_breakout(side='up', level=0, ohlc_field='open'):
     # we want make sure all closes after breakout are above the level.
@@ -931,11 +922,11 @@ def no_failure_after_breakout(side='up', level=0, ohlc_field='open'):
     # for down use 'close'
 
 
-    if break_out_indices_by_level_dic.get(level, -1) == -1:
+    if breakout_idx == 0:
         return False
 
     i = -1 # the last candle
-    j = break_out_indices_by_level_dic.get(level, -1) # This is index for breakout...
+    j = breakout_idx # This is index for breakout...
 
     if j == i:
         return  False
@@ -1333,7 +1324,7 @@ def get_back_test_data():   # get data from IB.... use
             contract = create_equity_contract(symbol)
 
             df = get_historical_data_back_test(contract, start_date=start_date, historical_days=historical_days, time_frame='1 min')
-            df = df.drop_duplicates()
+            df = df.drop_duplicates(subset=[f'date'], keep=f'last')
             df = df.sort_values(by='date')
             logger.info(f"{symbol}, get_back_test_data, df['date'].min(): {df['date'].min()}, df['date'].max(): {df['date'].max()}")
             file = os.path.join(backtest_ohlc_dir, f'{symbol}-1min.csv')
@@ -1345,7 +1336,7 @@ def get_back_test_data():   # get data from IB.... use
                     existing_df['date'] = pd.to_datetime(existing_df['date'])
                     df = pd.concat([df, existing_df])
                     df = df.sort_values(by='date')
-                    df = df.drop_duplicates()
+                    df = df.drop_duplicates(subset=[f'date'], keep=f'last')
             logger.info(f"saving df ....")
             df.to_csv(file, index=False)
             logger.info(f"saving done ....")
@@ -1481,17 +1472,32 @@ def prepare_contract(symbol, right='C'):
     otm_calls = [s for s in strikes if s > underlying_price]
     itm_puts = [s for s in strikes if s > underlying_price]
     otm_puts = [s for s in strikes if s < underlying_price]
+    if len(otm_calls) !=0 and len(otm_puts) != 0:
+        if right == 'C':
+            strike = otm_calls[0]
+        else:
+            strike = otm_puts[-1]
 
-    if right == 'C':
-        strike = otm_calls[0]
+        contract = create_option_contract(strike=strike, expiry=expiry, right=right,exchange="SMART", symbol=symbol, trading_class='')
+        logger.info(f"in prepare_contract, contract: {contract}")
+
+
+        return contract
+
     else:
-        strike = otm_puts[-1]
+        logger.error (f"@@@@ in prepare_contract, we have issue  strikes: {strikes}, expiry: {expiry}")
 
-    contract = create_option_contract(strike=strike, expiry=expiry, right=right,exchange="SMART", symbol=symbol, trading_class='')
-    logger.info(f"in prepare_contract, contract: {contract}")
-
-
-    return contract
+        # TODO log the error
+        #   File "C:\Users\saeed\Documents\13-code-git\s349_scarface_strategy\scripts\screening.py", line 2202, in <module>
+        #     check_buy_sell_result_to_send_order(buy_sell_case_results_list)
+        #   File "C:\Users\saeed\Documents\13-code-git\s349_scarface_strategy\scripts\screening.py", line 1525, in check_buy_sell_result_to_send_order
+        #     option_contract = prepare_contract(symbol, right='C')
+        #                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        #   File "C:\Users\saeed\Documents\13-code-git\s349_scarface_strategy\scripts\screening.py", line 1486, in prepare_contract
+        #     strike = otm_calls[0]
+        #              ~~~~~~~~~^^^
+        # IndexError: list index out of range
+        return None
 
 def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
     global  application_state
@@ -1510,9 +1516,10 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
         logger.info(f"case: {case}, can_buy: {can_buy}, can_sell: {can_sell}")
         if symbol == 'MNQ' and (can_buy or can_sell):
             # create a new Thread for calling TopStep
-            side = 'BUY' if can_buy else 'SELL'
-            t = threading.Thread(target=call_api_top_step, args=(symbol, side))
-            t.start()
+            # side = 'BUY' if can_buy else 'SELL'
+            # t = threading.Thread(target=call_api_top_step, args=(symbol, side))
+            # t.start()
+            pass
         if not app_config['symbols_meta'][symbol]['can_trade']:
             logger.info(f"We are not trading {symbol}.")
             continue
@@ -1522,40 +1529,42 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
                 logger.info(f"{symbol}, in check_buy_sell_result_to_send_order, can_buy: {can_buy}")
                 # send order
                 option_contract = prepare_contract(symbol, right='C')
-                send_order(option_contract, total_quantity=total_quantity)
-                data = {'side': 'long',
-                        'right': 'C',
-                        'starting_quantity':total_quantity,
-                        'available_quantity':total_quantity,
-                        'underlying_open_price': df['close'].iloc[-1] ,
-                        'u_run_number': unique_run_number,
-                        'level_used_to_open' : long_level,
-                        'expiry': option_contract.expiry,
-                        'strike': option_contract.strike
-                        }
-                application_state.setdefault('open_trades_dic', {})[symbol] = data
-                add_to_signlas('LONG_CALL_SENT',df['close'].iloc[-1],df['date'].iloc[-1], f'{data}' )
-                send_email(event='order_sent')
+                if option_contract != None:
+                    send_order(option_contract, total_quantity=total_quantity)
+                    data = {'side': 'long',
+                            'right': 'C',
+                            'starting_quantity':total_quantity,
+                            'available_quantity':total_quantity,
+                            'underlying_open_price': df['close'].iloc[-1] ,
+                            'u_run_number': unique_run_number,
+                            'level_used_to_open' : long_level,
+                           'expiry': option_contract.lastTradeDateOrContractMonth,
+                            'strike': option_contract.strike
+                            }
+                    application_state.setdefault('open_trades_dic', {})[symbol] = data
+                    add_to_signlas('LONG_CALL_SENT',df['close'].iloc[-1],df['date'].iloc[-1], f'{data}' )
+                    send_email(event='order_sent')
 
         if can_sell:
-            if application_state.get('open_trades_dic', {}).get(symbol,{}).get('quantity', 0) == 0:
+            if application_state.get('open_trades_dic', {}).get(symbol,{}).get('available_quantity', 0) == 0:
                 # send order
                 logger.info(f"{symbol}, in check_buy_sell_result_to_send_order, can_sell: {can_sell}")
                 option_contract = prepare_contract(symbol, right='P')
-                send_order(option_contract, total_quantity=total_quantity)
-                data = {'side': 'long',
-                        'right': 'P',
-                        'starting_quantity': total_quantity,
-                        'available_quantity': total_quantity,
-                        'underlying_open_price': df['close'].iloc[-1],
-                        'u_run_number': unique_run_number,
-                        'level_used_to_open': short_level,
-                        'expiry': option_contract.expiry,
-                        'strike': option_contract.strike
-                        }
-                application_state.setdefault('open_trades_dic', {})[symbol] = data
-                add_to_signlas('LONG_PUT_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f'{data}')
-                send_email(event='order_sent')
+                if option_contract != None: # TODO check to see what happens if we isgnore this case
+                    send_order(option_contract, total_quantity=total_quantity)
+                    data = {'side': 'long',
+                            'right': 'P',
+                            'starting_quantity': total_quantity,
+                            'available_quantity': total_quantity,
+                            'underlying_open_price': df['close'].iloc[-1],
+                            'u_run_number': unique_run_number,
+                            'level_used_to_open': short_level,
+                            'expiry': option_contract.lastTradeDateOrContractMonth,
+                            'strike': option_contract.strike
+                            }
+                    application_state.setdefault('open_trades_dic', {})[symbol] = data
+                    add_to_signlas('LONG_PUT_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f'{data}')
+                    send_email(event='order_sent')
 
     return
 def dump_application_state_to_file():
@@ -1747,7 +1756,13 @@ def close_option_positions(positions, symbol='', close_qty=0):
 
     for pos in positions:
         contract = pos.contract
-        qty = pos.position
+        if close_qty == 0:
+            qty = pos.position
+        else:
+            qty = close_qty
+
+        # if close_qty > abs(qty):
+        #     logger.warning(f"@@@@ Trying to close more than ope. so we ignore. close_qty: {close_qty}, qty: {qty}")
 
         if contract.secType == 'OPT' and qty != 0:
             if symbol != '' and symbol != contract.symbol:
@@ -1757,15 +1772,10 @@ def close_option_positions(positions, symbol='', close_qty=0):
             # --- Step 2: Determine opposite action ---
             action = 'SELL' if qty > 0 else 'BUY'
 
-            if close_qty > abs(qty):
-                logger.warning(f"@@@@ Trying to close more than ope. so we ignore. close_qty: {close_qty}, qty: {qty}")
-
-            if close_qty == 0:
-                # is not passed. so close all
-                close_qty = abs(qty)
-
             # --- Step 3: Create market order to close ---
-            order = MarketOrder(action, close_qty)
+            qty = abs(qty)
+
+            order = MarketOrder(action, qty)
             order.orderRef = f"CLOSE-{unique_run_number}"
 
             # --- Step 4: Place the order ---
@@ -1779,7 +1789,7 @@ def close_option_positions(positions, symbol='', close_qty=0):
             df = ib_util.df([trade])
 
             logger.info(f"close_option_positions, trade:\n{df.to_markdown()}")
-            logger.info(f"Closing {contract.localSymbol}, action: {action}, close_qty: {close_qty}")
+            logger.info(f"Closing {contract.localSymbol}, action: {action}, qty: {qty}")
 
     return
 
@@ -1805,8 +1815,9 @@ def update_config_and_save(config, key, value):
         app_config = reload_app_config()
         app_config[key] = value
         file = f'{configs_folder}/config-{portfolio_id}.yaml'
-        with open(file, 'w') as f:
+        with open(file, 'w') as f:  #TODO fix it
             yaml.dump(app_config, f)
+
     return
 
 def close_all_open_option_positions():
@@ -1841,26 +1852,36 @@ def check_for_stop_loss_and_take_profit():
         if open_trade_info.get('available_quantity', 0) == 0:
             logger.info(f"{symbol}, check_for_stop_loss_and_take_profit(), available_quantity: 0")
             continue
-        logger.info(f"in check_for_stop_loss, {symbol} , {open_trade_info}" )
+        logger.info(f"in check_for_stop_loss, {symbol} ,\n{pprint.pformat(open_trade_info)}" )
+        symbol_df = dfs_map.get(symbol, pd.DataFrame())
         underlying_open_price = float(open_trade_info.get('underlying_open_price', -1))  # used in config ...
         level_used_to_open = float(open_trade_info.get('level_used_to_open', -1)) # used in config ...
-        underlying_previous_candle_close = df['close'].iloc[-2] # used in config
-
+        avg_cost_for_1_contract = open_trade_info.get('avg_cost_for_1_contract', -1) # used in config
         underlying_current_price = get_current_price(symbol)
+
+        if len(symbol_df) == 0:
+            # it maybe first run and we dont have it yet in the dic ...
+            underlying_previous_candle_close = underlying_current_price
+        else:
+            underlying_previous_candle_close = symbol_df['close'].iloc[-2] # used in config
+
 
         right = application_state['open_trades_dic'][symbol]['right']
         side = application_state['open_trades_dic'][symbol]['side']
-        current_bid,current_ask = get_bid_and_ask(portfolio_df, symbol)
+        current_bid, current_ask = get_bid_and_ask(portfolio_df, symbol)
 
         application_state['open_trades_dic'][symbol]['current_bid'] = current_bid
         application_state['open_trades_dic'][symbol]['current_ask'] = current_ask
         application_state['open_trades_dic'][symbol]['current_value'] = current_ask * application_state['open_trades_dic'][symbol]['starting_quantity'] * 100
-        application_state['open_trades_dic'][symbol]['current_pnl'] = application_state['open_trades_dic'][symbol]['current_value'] - application_state['open_trades_dic'][symbol]['cost_for_trade']
+        application_state['open_trades_dic'][symbol]['current_pnl'] = application_state['open_trades_dic'][symbol].get('current_value', 0) - application_state['open_trades_dic'][symbol].get('cost_for_trade', 0)
 
 
-        logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, underlying_open_price: {underlying_open_price}, underlying_current_price: {underlying_current_price}, level_used_to_open: {level_used_to_open}, current_bid: {current_bid}, current_ask: {current_ask}, underlying_previous_candle_close: {underlying_previous_candle_close}")
 
-        stop_loss_condition = app_config[right]['stop_loss_condition']
+        logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}" )
+        logger.info(f"level_used_to_open: {level_used_to_open}, underlying_open_price: {underlying_open_price}, underlying_current_price:, {underlying_current_price},underlying_previous_candle_close: {underlying_previous_candle_close}")
+        logger.info(f"current_bid: {current_bid}, current_ask: {current_ask}, avg_cost_for_1_contract: {avg_cost_for_1_contract}")
+
+        stop_loss_condition = app_config['rights'][right]['stop_loss_condition']
         stop_loss_condition_evaluated = eval(stop_loss_condition)
         logger.info(f"symbol {symbol}, stop_loss_condition: {stop_loss_condition}, stop_loss_condition_evaluated: {stop_loss_condition_evaluated}")
         if stop_loss_condition_evaluated:
@@ -1891,14 +1912,15 @@ def check_for_stop_loss_and_take_profit():
 
             close_quantity = round( start_quantity * close_quantity_percentage )
 
-            logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, take_profit: {take_profit}, take_profit_condition: {take_profit_condition}, take_profit_condition_evaluated: {take_profit_condition_evaluated}, available_quantity: {available_quantity}, close_quantity: {close_quantity}, start_quantity:{start_quantity}, close_quantity_percentage: {close_quantity_percentage}")
-
-            if take_profit_condition_evaluated and available_quantity != 0 and close_quantity != 0:
-                logger.info(f"Sending TP ...")
-                # close_option_positions(positions_to_monitor, symbol, close_quantity)
+            logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, take_profit: {take_profit}")
+            logger.info(f"available_quantity: {available_quantity}, close_quantity_percentage: {close_quantity_percentage}, close_quantity: {close_quantity}, start_quantity:{start_quantity}")
+            logger.info(f"take_profit_condition: {take_profit_condition}, take_profit_condition_evaluated: {take_profit_condition_evaluated}")
+            if take_profit_condition_evaluated and available_quantity > 0 and close_quantity != 0 and close_quantity <= available_quantity :
+                logger.info(f"Sending TP ...{take_profit}")
+                close_option_positions(positions_to_monitor, symbol, close_quantity)  # for close send negative
                 application_state['open_trades_dic'][symbol]['available_quantity'] = available_quantity - close_quantity
                 application_state['open_trades_dic'][symbol].setdefault('take_profits', {})[take_profit] = { 'status': 'SENT',
-                                                                                                             'take_profit_condition': take_profit_condition,
+                                                                                                             # 'take_profit_condition': take_profit_condition, # bad formed
                                                                                                              'available_quantity_b4_tp' : available_quantity,
                                                                                                              'close_quantity': close_quantity,
                                                                                                              'u_run_number' : unique_run_number
@@ -1906,8 +1928,13 @@ def check_for_stop_loss_and_take_profit():
                 send_email(event='take_profit_sent')
 
             else:
-                logger.warning(f"{symbol}. TP didn't go ... ")
+                logger.warning(f"{symbol}. {take_profit} TP didn't go ...  ")
 
+
+        # check to clean up
+        if application_state['open_trades_dic'].get(symbol, {}) != {} and application_state['open_trades_dic'][symbol].get('available_quantity', 0) == 0:
+            logger.info(f"{symbol}, the available_quantity is zero, so we set empty dic for it")
+            application_state['open_trades_dic'][symbol] = {}
 
 def send_email(event='order_sent'):
     if app_config['email']['send_email']:
@@ -1947,6 +1974,7 @@ def compute_relative_strength(stock_df: pd.DataFrame, qqq_df: pd.DataFrame, peri
 def preppare_qqq_df(qqq_df):
     qqq_df = qqq_df[qqq_df['date'].isin(df['date'])]
     qqq_df.reset_index(drop=True, inplace=True)  # reset index start from 0
+
     return qqq_df
 
 
@@ -2004,7 +2032,7 @@ def compute_intraday_rs(stock_df: pd.DataFrame, qqq_df: pd.DataFrame):
     # --- Relative performance ---
     merged['rs_rel'] = merged['stock_pct'] / merged['qqq_pct'].replace(0, pd.NA)
     merged['rs_delta'] = merged['stock_pct'] - merged['qqq_pct']
-    cap_value = 100
+    cap_value = 10
     merged['rs_rel'] = merged['rs_rel'].clip(lower=-cap_value, upper=cap_value)
 
     return merged[['date', 'close_stock', 'close_qqq', 'stock_pct', 'qqq_pct', 'rs_rel', 'rs_delta', 'qqq_930', 'stock_930']]
@@ -2030,7 +2058,7 @@ def call_api_top_step(symbol, side):
 # End of IB sending order - only for live
 # ###########
 
-def on_commission_report(report):
+def on_commission_report(self, report):
     logger.info(f"report: {report}")
     logger.info(f"Commission Report: execId={report.execId}, "
                 f"commission={report.commission:.2f} {report.currency}, "
@@ -2110,6 +2138,9 @@ if __name__ == "__main__":
 
 
     app_config = load_app_config(portfolio_id)
+
+    update_config_and_save(app_config, 'test_yaml', False)
+
     ib_config = load_ib_config()
     ib = None
     get_back_test_data()
@@ -2136,10 +2167,12 @@ if __name__ == "__main__":
             time_frame = '1min'
 
             df = pd.read_csv(f'{backtest_ohlc_dir}/{symbol}-{time_frame}.csv')
+            df = df.drop_duplicates(subset=[f'date'], keep=f'last') # KEEP IT
             df['date'] = pd.to_datetime(df['date'])
 
-            if back_test_date == '2025-10-17':
+            if back_test_date == '2025-10-xx':
                 logger.info('Stop for debug')
+
 
             df_filtered = df[df['date'].dt.strftime("%Y-%m-%d") == back_test_date]
             if len(df_filtered) ==0: # no data so go for next one ....
@@ -2176,7 +2209,11 @@ if __name__ == "__main__":
 
             orig_qqq_df = pd.read_csv(f'{backtest_ohlc_dir}/QQQ-1min.csv')
             while my_index < last_index:
+                logger.info(f"------ {symbol} {df['date'].iloc[-1]}, my_index: {my_index}")
                 df = orig_df.iloc[:my_index]
+
+                if df['date'].iloc[-1].strftime('%Y-%m-%d %H:%M') == '2025-10-01 10:04':
+                    logger.info('Stop for debug')
 
                 qqq_df = orig_qqq_df.copy()
                 # cit it exactly like df
@@ -2187,10 +2224,10 @@ if __name__ == "__main__":
                     missing_rows_in_qqq_df = df.loc[~df['date'].isin(qqq_df['date'])]
                     logger.warning(f"{missing_rows_in_qqq_df[-10:].to_markdown()}")
 
-                logger.info(f"df: \n{df[-2:].to_markdown()}")
-                logger.info(f"qqq_df:\n{qqq_df[-2:].to_markdown()}")
-                logger.info(f"df: \n{df[:2].to_markdown()}")
-                logger.info(f"qqq_df: \n{qqq_df[:2].to_markdown()}")
+                logger.info(f"df[-2:]: \n{df[-2:].to_markdown()}")
+                logger.info(f"qqq_df[-2:]:\n{qqq_df[-2:].to_markdown()}")
+                logger.info(f"df[:2]: \n{df[:2].to_markdown()}")
+                logger.info(f"qqq_df[:2]: \n{qqq_df[:2].to_markdown()}")
 
                 relative_strength_df = compute_relative_strength(df, qqq_df, period=20)
                 intraday_rs_df = compute_intraday_rs(df, qqq_df)
@@ -2208,8 +2245,10 @@ if __name__ == "__main__":
                 logger.info(f"{symbol}, last row:\n{df[-1:].to_markdown()}")
 
 
-                retest_indices_by_level_dic = {}
-                break_out_indices_by_level_dic = {}
+                retest_indices_by_level_set = {}
+                break_out_indices_by_level_set = {}
+                retest_idx = 0
+                breakout_idx = 0
 
                 find_add_key_levels_to_key_levels_df()
                 # add_test_key_levels()
