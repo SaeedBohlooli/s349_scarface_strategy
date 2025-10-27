@@ -45,13 +45,22 @@ mode = 'back_test'
 
 portfolio_dir = f'../portfolios/results/{portfolio_id}'
 reports_dir = f'../portfolios/reports/{portfolio_id}'
-log_dir = f'../portfolios/logs/{portfolio_id}'
-detailed_log_dir = f'../portfolios/detailed-logs/{portfolio_id}'
+log_dir = f'../../portfolios/logs/{portfolio_id}-{mode}'
+detailed_log_dir = f'../../portfolios/detailed-logs/{portfolio_id}-{mode}'
 intermediate_dir = f'../portfolios/intermediate/{portfolio_id}'
 
 ohlc_dir = f'../portfolios/backtest-ohlc/{portfolio_id}'
 charts_dir = f'../portfolios/charts/{portfolio_id}'
 backtest_ohlc_dir = f'../portfolios/backtest-ohlc/{portfolio_id}'
+
+os.makedirs(portfolio_dir, exist_ok=True)
+os.makedirs(reports_dir, exist_ok=True)
+os.makedirs(log_dir, exist_ok=True)
+os.makedirs(detailed_log_dir, exist_ok=True)
+os.makedirs(ohlc_dir, exist_ok=True)
+os.makedirs(intermediate_dir, exist_ok=True)
+os.makedirs(charts_dir, exist_ok=True)
+os.makedirs(backtest_ohlc_dir, exist_ok=True)
 
 def load_app_config(portfolio_id):
     global app_config
@@ -767,8 +776,7 @@ def add_atr_to_candle_info():
 def dummy_call(level):
     return True
 
-
-def breakout_in_last_x_candles(side='up', idx_list=[-2], level=0):
+def breakout_in_last_x_candles_old(side='up', idx_list=[-2], level=0):
 
     logger.debug(f"in breakout_in_last_x_candles, symbol: {symbol}, idx_list: {idx_list}, level:{level}")
 
@@ -802,6 +810,52 @@ def breakout_in_last_x_candles(side='up', idx_list=[-2], level=0):
                 add_to_break_out_indices_by_level_set(level, idx)
                 breakout_happened = True
 
+
+
+    return breakout_happened
+
+
+
+def breakout_in_last_x_candles(side='up', idx_list=[-2], level=0):
+
+    logger.debug(f"in breakout_in_last_x_candles, symbol: {symbol}, idx_list: {idx_list}, level:{level}")
+
+    if level == 0:
+        return False
+    gap = app_config['symbols_meta'][symbol]['breakout_confirmation_distance']
+    breakout_happened = False
+
+    for idx in idx_list:
+        row = df.iloc[idx]
+        previous = df.iloc[idx-1]
+        # --- Breakout detection ---
+
+
+        # --- breakout condition ---
+        if side == 'up':
+            breakout = (
+                (row["low"] < level and row["close"] > level + gap)
+                or (previous["open"] < level and row["close"] > level)
+            )
+        else:
+            breakout = (
+                (row["high"] > level and row["close"] < level - gap)
+                or (previous["open"] > level and row["close"] < level)
+            )
+
+        if not breakout:
+            continue
+
+
+        # --- candle body confirmation ---
+        body = abs(row["close"] - row["open"])
+        candle_range = row["high"] - row["low"]
+        if candle_range > 0 and body / candle_range < 0.5:
+            continue
+
+        logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
+        add_to_break_out_indices_by_level_set(level, idx)
+        breakout_happened = True
 
 
     return breakout_happened
@@ -1457,9 +1511,14 @@ def create_option_contract(strike, expiry, right, exchange="CBOE", symbol='SPX',
 
     logger.info(f"calling qualifyContracts : ")
     #ib.qualifyContracts(*contracts)
-    ib.qualifyContracts(contract)
+    qualified = ib.qualifyContracts(contract)
     logger.info("qualifyContracts is done.")
-    return contract
+
+    if not qualified:
+        logger.warning(f"@@@@ Contract not found, qualified: {qualified}")
+        return None
+    else:
+        return contract
 
 def prepare_contract(symbol, right='C'):
 
@@ -1544,6 +1603,8 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
                     application_state.setdefault('open_trades_dic', {})[symbol] = data
                     add_to_signlas('LONG_CALL_SENT',df['close'].iloc[-1],df['date'].iloc[-1], f'{data}' )
                     send_email(event='order_sent')
+                else:
+                    logger.warning(f"@@@ we didn't send order option_contract: {option_contract}")
 
         if can_sell:
             if application_state.get('open_trades_dic', {}).get(symbol,{}).get('available_quantity', 0) == 0:

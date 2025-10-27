@@ -25,6 +25,7 @@ from finta import TA
 from ruamel.yaml import YAML
 yaml = YAML()
 yaml.preserve_quotes = True  # Optional: preserve quotes if any
+yaml.width = 1000 # so will not wrap lines in the yaml file
 
 print(f"os.path.join('../'): {os.path.join('../')}")
 sys.path.insert(0, f'../')
@@ -44,13 +45,22 @@ mode = 'live'
 
 portfolio_dir = f'../portfolios/results/{portfolio_id}'
 reports_dir = f'../portfolios/reports/{portfolio_id}'
-log_dir = f'../portfolios/logs/{portfolio_id}'
-detailed_log_dir = f'../portfolios/detailed-logs/{portfolio_id}'
+log_dir = f'../../portfolios/logs/{portfolio_id}-{mode}'
+detailed_log_dir = f'../../portfolios/detailed-logs/{portfolio_id}-{mode}'
 intermediate_dir = f'../portfolios/intermediate/{portfolio_id}'
 
 ohlc_dir = f'../portfolios/ohlc/{portfolio_id}'
 charts_dir = f'../portfolios/charts/{portfolio_id}'
 backtest_ohlc_dir = f'../portfolios/backtest-ohlc/{portfolio_id}'
+
+os.makedirs(portfolio_dir, exist_ok=True)
+os.makedirs(reports_dir, exist_ok=True)
+os.makedirs(log_dir, exist_ok=True)
+os.makedirs(detailed_log_dir, exist_ok=True)
+os.makedirs(ohlc_dir, exist_ok=True)
+os.makedirs(intermediate_dir, exist_ok=True)
+os.makedirs(charts_dir, exist_ok=True)
+os.makedirs(backtest_ohlc_dir, exist_ok=True)
 
 def load_app_config(portfolio_id):
     global app_config
@@ -560,9 +570,9 @@ def add_buy_a_sell_entries_to_signals(buy_sell_case_results_list):
         offset_symbol = app_config['symbols_meta'][symbol]['chart_entry_offset']
 
         if "1" in case:  # for case_1 goes -1
-            offset = -1 * offset_symbol
-        elif "2" in case: # for case_2 goes -2
             offset = -2 * offset_symbol
+        elif "2" in case: # for case_2 goes -2
+            offset = -0.75 * offset_symbol
         else:
             offset = -3 * offset_symbol
 
@@ -597,8 +607,6 @@ def check_buy_and_sell_cases():
 
 
 def check_buy_sell_condition(case):
-    global break_out_indices_by_level_dic
-    global retest_indices_by_level_dic
 
     can_buy = False
     can_sell = False
@@ -684,19 +692,20 @@ def check_buy_sell_condition(case):
 
         logger.info(f"check_buy_sell_condition(), {case}, can_buy: {can_buy}, can_sell: {can_sell}")
 
-        long_breakup_idx = break_out_indices_by_level_dic.get(eval(app_config['cases'][case]['long']['level']), 0)
-        long_retest_idx = retest_indices_by_level_dic.get(eval(app_config['cases'][case]['long']['level']), 0)
+        long_breakup_idxs = break_out_indices_by_level_set.get(long_level, set())
+        long_retest_idxs = retest_indices_by_level_set.get(long_level, set())
 
-        short_breakup_idx = break_out_indices_by_level_dic.get(eval(app_config['cases'][case]['short']['level']), 0)
-        short_retest_idx = retest_indices_by_level_dic.get(eval(app_config['cases'][case]['short']['level']), 0)
+        short_breakup_idxs = break_out_indices_by_level_set.get(short_level, set())
+        short_retest_idxs = retest_indices_by_level_set.get(short_level, set())
 
-        logger.debug(f"break_out_indices_by_level_dic: {break_out_indices_by_level_dic}")
-        logger.debug(f"retest_indices_by_level_dic: {retest_indices_by_level_dic}")
+
+
 
         # This is shown in the chart ..
-        res_str = (f"res_{case}:{eval_buy_condition_01}.{eval_buy_condition_02}.{eval_buy_condition_03}|{eval_buy_condition_04}.{eval_buy_condition_05}.{eval_buy_condition_06}|{eval_buy_condition_07} .. {long_breakup_idx}.{long_retest_idx} ... "
-                 f"{eval_sell_condition_01}.{eval_sell_condition_02}.{eval_sell_condition_03}|{eval_sell_condition_04}.{eval_sell_condition_05}.{eval_sell_condition_06}|{eval_sell_condition_07} .. {short_breakup_idx}.{short_retest_idx}"
-                   f".. {df['date'].iloc[-1].strftime('%H:%M')}")
+        res_str = (f"res_{case}:<br>"
+                   f"{eval_buy_condition_01}.{eval_buy_condition_02}.{eval_buy_condition_03}|{eval_buy_condition_04}.{eval_buy_condition_05}.{eval_buy_condition_06}|{eval_buy_condition_07} .. {long_breakup_idxs}.{long_retest_idxs} <br>"
+                   f"{eval_sell_condition_01}.{eval_sell_condition_02}.{eval_sell_condition_03}|{eval_sell_condition_04}.{eval_sell_condition_05}.{eval_sell_condition_06}|{eval_sell_condition_07} .. {short_breakup_idxs}.{short_retest_idxs} <br>"
+                   f"{df['date'].iloc[-1].strftime('%H:%M')}, breakout: {breakout_idx} , retest: {retest_idx}")
         res_str = res_str.replace('True', 'T')
         res_str = res_str.replace('False', 'F')
     except Exception as e:
@@ -705,19 +714,26 @@ def check_buy_sell_condition(case):
         res_str = {case}
     return case, can_buy, can_sell, res_str, long_level, short_level
 
-def check_retest_after_breakout(side='up', level=1):
+def is_retest_after_breakout(side='up', level=1):
+    global retest_idx, breakout_idx
 
-    retest_idx = retest_indices_by_level_dic.get(level, -1) # This is index for retest...
-    breakout_idx = break_out_indices_by_level_dic.get(level, -1) # This is index for breakout...
-    if retest_idx == -1 or breakout_idx == -1:
-        return False
-    if breakout_idx < retest_idx:   #  breakout -4 < retest -2
+    breakout_idxs = break_out_indices_by_level_set.get(level, set())
+    retest_idxs = retest_indices_by_level_set.get(level, set())
+
+    if retest_idxs == set() or breakout_idxs == set():
+        return  False
+    if max(retest_idxs) > min(breakout_idxs):
+        retest_idx = max(retest_idxs)
+        valid_breakouts = [b for b in breakout_idxs if b < retest_idx]   # all the breakout idxs that are before retest_idx
+        if valid_breakouts:
+            breakout_idx = max(valid_breakouts)  # closest (largest) breakout before retest
+
         return True
     else:
         return False
+
 def price_retest(side='up', idx_list=[-2], level=0, both_sides=False):
 
-    global retest_indices_by_level_dic
     if level == 0:
         return False
 
@@ -725,7 +741,6 @@ def price_retest(side='up', idx_list=[-2], level=0, both_sides=False):
     tolerance_amount = atr_tolerance_helper.get_dynamic_tolerance(df, level=0, min_tick=0.01).get('tolerance', 0)
 
     retest = False
-    retest_idx = 0
 
     for idx in idx_list:
         row = df.iloc[idx]
@@ -734,27 +749,24 @@ def price_retest(side='up', idx_list=[-2], level=0, both_sides=False):
         # --- Retest detection ---
         if side == 'up':
             if level > row["low"] and level - row["low"] <= tolerance_amount and row["close"] > level:
+                add_to_retest_indices_by_level_set(level, idx)
                 logger.info(f"price_retest(), symbol: {symbol}, level: {level}, date:{df.iloc[idx]['date']} ")
                 retest = True
                 diff = abs(row['low']-level)
+
             if both_sides and abs(level - row["low"]) <= tolerance_amount and row["close"] > level:   # close > level.  low is close to the level in both sides.
+                add_to_retest_indices_by_level_set(level, idx)
                 retest = True
                 diff = abs(row['low']-level)
         else:
             if row["high"] > level and row["high"] - level <= tolerance_amount and row["close"] < level:
+                add_to_retest_indices_by_level_set(level, idx)
                 retest = True
                 diff = abs(row['high'] - level)
             if both_sides and abs(level - row["high"]) <= tolerance_amount and row["close"] < level:   # close < level.  high is close to the level in both sides.
+                add_to_retest_indices_by_level_set(level, idx)
                 retest = True
                 diff = abs(row['high']-level)
-
-        if retest: # we dont want continue if retest happened
-            retest_idx = idx
-            break
-
-    if retest:
-        add_to_candle_info_df(date=df['date'].iloc[retest_idx], price=df['close'].iloc[retest_idx],memo=f'retest({round(diff,2)}) @ {level}')
-        retest_indices_by_level_dic[level] = retest_idx
 
     return retest
 
@@ -766,7 +778,6 @@ def dummy_call(level):
 
 
 def breakout_in_last_x_candles(side='up', idx_list=[-2], level=0):
-    global break_out_indices_by_level_dic
 
     logger.debug(f"in breakout_in_last_x_candles, symbol: {symbol}, idx_list: {idx_list}, level:{level}")
 
@@ -774,46 +785,65 @@ def breakout_in_last_x_candles(side='up', idx_list=[-2], level=0):
         return False
     gap = app_config['symbols_meta'][symbol]['breakout_confirmation_distance']
     breakout_happened = False
-    breakout_idx = 0
+
     for idx in idx_list:
         row = df.iloc[idx]
         previous = df.iloc[idx-1]
         # --- Breakout detection ---
+
+
+        # --- breakout condition ---
         if side == 'up':
-            if row["low"] < level and row["close"] > level + gap:
-                logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
-                breakout_idx = idx
-                breakout_happened = True
-
-            if previous['open'] < level and row["close"] > level: # the -2 opened below level and -1 closed above gap.
-                logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
-                breakout_idx = idx
-                breakout_happened = True
-
+            breakout = (
+                (row["low"] < level and row["close"] > level + gap)
+                or (previous["open"] < level and row["close"] > level)
+            )
         else:
-            if row["high"] > level and row["close"] < level  - gap:
-                logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
-                breakout_idx = idx
-                breakout_happened = True
+            breakout = (
+                (row["high"] > level and row["close"] < level - gap)
+                or (previous["open"] > level and row["close"] < level)
+            )
 
-            if previous['open'] > level and row["close"] < level: # the -2 opened above level and -1 closed belowe gap.
-                logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
-                breakout_idx = idx
-                breakout_happened = True
+        if not breakout:
+            continue
 
 
-        if breakout_happened:
-            breakout_idx = idx
-            break
+        # --- candle body confirmation ---
+        body = abs(row["close"] - row["open"])
+        candle_range = row["high"] - row["low"]
+        if candle_range > 0 and body / candle_range < 0.5:
+            continue
 
+        logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
+        add_to_break_out_indices_by_level_set(level, idx)
+        breakout_happened = True
 
-    if breakout_happened:
-        add_to_candle_info_df(date=df['date'].iloc[breakout_idx], price=df['close'].iloc[breakout_idx],memo=f'breakout @ {level}')
-        break_out_indices_by_level_dic[level] = breakout_idx
 
     return breakout_happened
 
 
+def add_to_break_out_indices_by_level_set(level, idx):
+
+    global break_out_indices_by_level_set
+    logger.info(f"{df['date'].iloc[-1]}, break_out_indices_by_level_set: {break_out_indices_by_level_set}")
+    # if level not in break_out_indices_by_level_set:
+    if break_out_indices_by_level_set.get(level, set()) == set():
+        break_out_indices_by_level_set[level] = set()
+
+    break_out_indices_by_level_set[level].add(idx)
+    add_to_candle_info_df(date=df['date'].iloc[idx], price=df['close'].iloc[idx], memo=f'breakout @ {level}')
+    return
+
+def add_to_retest_indices_by_level_set(level, idx):
+    global retest_indices_by_level_set
+    logger.info(f"{df['date'].iloc[-1]}, retest_indices_by_level_set: {retest_indices_by_level_set}")
+    # if level not in retest_indices_by_level_set:
+    if retest_indices_by_level_set.get(level, set()) == set():
+        retest_indices_by_level_set[level] = set()
+
+    retest_indices_by_level_set[level].add(idx)
+    add_to_candle_info_df(date=df['date'].iloc[idx], price=df['close'].iloc[idx], memo=f'reset @ {level}')
+    return
 
 def get_levels_dic():
     global key_levels_df
@@ -836,24 +866,34 @@ def add_to_signlas(event, price, date, memo=''):
 
 
 def check_entry_vs_retest(side='up', level=1, retest_ohlc=''):
-    if retest_indices_by_level_dic.get(level, -1) == -1:
-        return False
 
-    i = retest_indices_by_level_dic.get(level, -1) # This is index for retest...
+    if retest_idx == 0 or breakout_idx == 0:
+        return False
 
     if side == 'up':
         ohlc_field = 'high' if retest_ohlc == '' else retest_ohlc
-        if df['high'].iloc[-1] > df[ohlc_field].iloc[i]:  # clode > retest high
+        if df['high'].iloc[-1] > df[ohlc_field].iloc[retest_idx]:  # clode > retest high
             return True
         else:
             return False
     else:
         ohlc_field = 'low' if retest_ohlc == '' else retest_ohlc
-        if df['low'].iloc[-1] < df[ohlc_field].iloc[i]:
+        if df['low'].iloc[-1] < df[ohlc_field].iloc[retest_idx]:
             return True
         else:
             return False
     return False
+
+
+def check_price_vs_level(side='up', price=0, level=0):
+
+    min_required_move_from_level = app_config['symbols_meta'][symbol]['min_required_move_from_level']
+
+    if side == 'up':
+        return price + min_required_move_from_level > level
+    else:
+        return price < level - min_required_move_from_level
+
 
 def add_candle_info_df_to_signals():
     if len(candle_info_df) == 0:
@@ -931,11 +971,11 @@ def no_failure_after_breakout(side='up', level=0, ohlc_field='open'):
     # for down use 'close'
 
 
-    if break_out_indices_by_level_dic.get(level, -1) == -1:
+    if breakout_idx == 0:
         return False
 
     i = -1 # the last candle
-    j = break_out_indices_by_level_dic.get(level, -1) # This is index for breakout...
+    j = breakout_idx # This is index for breakout...
 
     if j == i:
         return  False
@@ -1333,7 +1373,7 @@ def get_back_test_data():   # get data from IB.... use
             contract = create_equity_contract(symbol)
 
             df = get_historical_data_back_test(contract, start_date=start_date, historical_days=historical_days, time_frame='1 min')
-            df = df.drop_duplicates()
+            df = df.drop_duplicates(subset=[f'date'], keep=f'last')
             df = df.sort_values(by='date')
             logger.info(f"{symbol}, get_back_test_data, df['date'].min(): {df['date'].min()}, df['date'].max(): {df['date'].max()}")
             file = os.path.join(backtest_ohlc_dir, f'{symbol}-1min.csv')
@@ -1345,7 +1385,7 @@ def get_back_test_data():   # get data from IB.... use
                     existing_df['date'] = pd.to_datetime(existing_df['date'])
                     df = pd.concat([df, existing_df])
                     df = df.sort_values(by='date')
-                    df = df.drop_duplicates()
+                    df = df.drop_duplicates(subset=[f'date'], keep=f'last')
             logger.info(f"saving df ....")
             df.to_csv(file, index=False)
             logger.info(f"saving done ....")
@@ -1832,13 +1872,8 @@ def update_config_and_save(config, key, value):
         app_config[key] = value
         file = f'{configs_folder}/config-{portfolio_id}.yaml'
         with open(file, 'w') as f:  #TODO fix it
-            yaml.dump(app_config, f
-            #           ,
-            # width=float("inf"),             # prevents line wrapping
-            # default_flow_style=False,       # human-readable multi-line style
-            # allow_unicode=True,             # handles any special characters
-            # sort_keys=False
-                        )# keep original order if using PyYAML ≥5.1)
+            yaml.dump(app_config, f)
+
     return
 
 def close_all_open_option_positions():
@@ -2052,7 +2087,7 @@ def compute_intraday_rs(stock_df: pd.DataFrame, qqq_df: pd.DataFrame):
     # --- Relative performance ---
     merged['rs_rel'] = merged['stock_pct'] / merged['qqq_pct'].replace(0, pd.NA)
     merged['rs_delta'] = merged['stock_pct'] - merged['qqq_pct']
-    cap_value = 100
+    cap_value = 10
     merged['rs_rel'] = merged['rs_rel'].clip(lower=-cap_value, upper=cap_value)
 
     return merged[['date', 'close_stock', 'close_qqq', 'stock_pct', 'qqq_pct', 'rs_rel', 'rs_delta', 'qqq_930', 'stock_930']]
@@ -2220,8 +2255,10 @@ if __name__ == "__main__":
             signals = []
             # These are for each symbol ...
             candle_info_df = pd.DataFrame(columns=['date', 'price', 'memo'])
-            retest_indices_by_level_dic = {}
-            break_out_indices_by_level_dic = {}
+            retest_indices_by_level_set = {}
+            break_out_indices_by_level_set = {}
+            retest_idx = 0
+            breakout_idx = 0
 
             df = get_market_data(symbol, '1 min')
             df = popualate_features(df)

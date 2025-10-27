@@ -187,10 +187,10 @@ back_test:
 #  get_data_from_ib: False
 
   historical_days: 5 D
-  start_date: 2025-09-01
+  start_date: 2025-10-27
 
-  back_test_date_start: 2025-09-24
-  back_test_date_end: 2025-10-25
+  back_test_date_start: 2025-10-01
+  back_test_date_end: 2025-10-30
 
 chart:
 #  source: live

@@ -113,6 +113,7 @@ def draw_w_plotly_w_subplot_oirg_no_slidebar(df, chart_title='title'):
     ), row=2, col=1)
 
 
+
     #
     # fig.update_layout(
     #     title=f'{chart_title}',
@@ -175,11 +176,13 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
     # df.set_index('date', inplace=True)
 
     # Create a subplot: (2 rows, shared x-axis)
-    fig = make_subplots(rows=6, cols=1, shared_xaxes=True,
+    fig = make_subplots(rows=8, cols=1, shared_xaxes=True,
                         vertical_spacing=0.04,
-                        row_heights=[0.75, 0.05, 0.05, 0.05, 0.05, 0.05],
-                        subplot_titles=(f'{symbol}', f'ATR-{symbol}', f'Volume-{symbol}', f'RS-ratio-and-ema-{symbol}', f'RS-roc-{symbol}', f'RS-Rel-{symbol}'))
+                        row_heights=[0.65, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05],
+                        subplot_titles=(f'{symbol}', f'ATR-{symbol}', f'Volume-{symbol}', f'RS-ratio-and-ema-{symbol}', f'RS-roc-{symbol}', f'RS-Rel-{symbol}', f'Vol Ratio-{symbol}'))
 
+    row_in_chart = 0
+    row_in_chart += 1
     # Candlestick chart
     fig.add_trace(go.Candlestick(
         x=df['date'],
@@ -188,47 +191,68 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
         low=df['low'],
         close=df['close'],
         name='Candles'
-    ), row=1, col=1)
+    ), row=row_in_chart, col=1)
 
     fig.update_xaxes(showticklabels=True, row=1, col=1)
 
-
+    row_in_chart += 1
     # ATR line chart
     fig.add_trace(go.Scatter(
         x=df['date'],
         y=df['atr_14'],
         line=dict(color='orange', width=2),
         name='ATR'
-    ), row=2, col=1)
+    ), row=row_in_chart, col=1)
 
+    # Clip outlier volumes above a certain percentile
+    cap = df['volume'].quantile(0.95)  # 95th percentile
+    df['volume_clipped'] = df['volume'].clip(upper=cap)
+    # volume
+    row_in_chart += 1
     fig.add_trace(go.Scatter(
         x=df['date'],
-        y=df['volume'],
+        y=df['volume_clipped'],
         line=dict(color='orange', width=2),
         name='Volume'
-    ), row=3, col=1)
+    ), row=row_in_chart, col=1)
 
+    # --- Compute SMA(20) ---
+    df['volume_sma20'] = df['volume'].rolling(window=20).mean()
+
+    # --- Add SMA(20) for volume ---
+    fig.add_trace(go.Scatter(
+        x=df['date'],
+        y=df['volume_sma20'],
+        line=dict(color='blue', width=2, dash='dot'),  # dashed blue line
+        name='Vol SMA 20'
+    ), row=row_in_chart, col=1)
+
+
+    # rs_ratio
+    row_in_chart += 1
     fig.add_trace(go.Scatter(
         x=extra_features_df['date'],
         y=extra_features_df['rs_ratio'],
         line=dict(color='blue', width=2),
         name='rs_ratio'
-    ), row=4, col=1)
+    ), row=row_in_chart, col=1)
 
-
+    # rs_ema
     fig.add_trace(go.Scatter(
         x=extra_features_df['date'],
         y=extra_features_df['rs_ema'],
         line=dict(color='red', width=1, dash='dot'),
         name='rs_ema'
-    ), row=4, col=1)
+    ), row=row_in_chart, col=1)
 
+    # rs_roc
+    row_in_chart += 1
     fig.add_trace(go.Scatter(
         x=extra_features_df['date'],
         y=extra_features_df['rs_roc'],
         line=dict(color='blue', width=2),
         name='rs_roc'
-    ), row=5, col=1)
+    ), row=row_in_chart, col=1)
 
     fig.add_trace(go.Scatter( # line on 0
         x=extra_features_df['date'],
@@ -237,15 +261,16 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
         name='Zero Line',
         line=dict(color='black', dash='dot', width=1),
         showlegend=False
-    ), row=5, col=1)
+    ), row=row_in_chart, col=1)
 
-
+    #rs_rel
+    row_in_chart += 1
     fig.add_trace(go.Scatter(
         x=extra_features_df['date'],
         y=extra_features_df['rs_rel'],
         line=dict(color='blue', width=2),
         name='rs_rel'
-    ), row=6, col=1)
+    ), row=row_in_chart, col=1)
 
     fig.add_trace(go.Scatter( # line on 0
         x=extra_features_df['date'],
@@ -254,7 +279,22 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
         name='Zero Line',
         line=dict(color='black', dash='dot', width=1),
         showlegend=False
-    ), row=6, col=1)
+    ), row=row_in_chart, col=1)
+
+
+    # vol ratio
+    row_in_chart += 1
+    df['volume_sma10'] = df['volume'].rolling(window=10).mean()
+    df['VR'] = df['volume'] / df['volume_sma10']
+    cap = df['VR'].quantile(0.95)  # 95th percentile
+    df['VR_clipped'] = df['VR'].clip(upper=cap)
+
+    fig.add_trace(go.Scatter(
+        x=df['date'],
+        y=df['VR_clipped'],
+        line=dict(color='blue', width=2),
+        name='VR = volume/ vol_sma10 '
+    ), row=row_in_chart, col=1)
 
 
     fig.update_layout(
@@ -286,6 +326,10 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
         ),
         xaxis6=dict(
             range=[start_time, end_time],  # 👈 sets visible window
+            rangeslider=dict(visible=False)
+        ),
+        xaxis7=dict(
+            range=[start_time, end_time],  # 👈 sets visible window
             rangeslider=dict(visible=True,
                     thickness=0.07  # makes it smaller so it doesn’t overlap ATR
                     )
@@ -294,11 +338,12 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
 
 
     fig.update_yaxes(title_text="Price", row=1, col=1, title_standoff=20, automargin=True)
-    fig.update_yaxes(title_text="Volume", row=2, col=1, title_standoff=20, automargin=True)
-    fig.update_yaxes(title_text="ATR", row=3, col=1, title_standoff=20, automargin=True)
+    fig.update_yaxes(title_text="ATR", row=2, col=1, title_standoff=20, automargin=True)
+    fig.update_yaxes(title_text="Volume", row=3, col=1, title_standoff=20, automargin=True)
     fig.update_yaxes(title_text="RS", row=4, col=1, title_standoff=20, automargin=True)
     fig.update_yaxes(title_text="RS", row=5, col=1, title_standoff=20, automargin=True)
     fig.update_yaxes(title_text="RS Rel", row=6, col=1, title_standoff=20, automargin=True)
+    fig.update_yaxes(title_text="Volume Ratio", row=7, col=1, title_standoff=20, automargin=True)
 
     # Optional: rotate x-axis labels
 
