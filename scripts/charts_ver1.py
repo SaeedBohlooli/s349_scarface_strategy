@@ -296,6 +296,14 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
         name='VR = volume/ vol_sma10 '
     ), row=row_in_chart, col=1)
 
+    fig.add_trace(go.Scatter( # line on 1
+        x=df['date'],
+        y=[1] * len(df),
+        mode='lines',
+        name='1 Line',
+        line=dict(color='red', dash='dot', width=1),
+        showlegend=False
+    ), row=row_in_chart, col=1)
 
     fig.update_layout(
         title=f'{chart_title}',
