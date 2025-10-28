@@ -2246,6 +2246,8 @@ if __name__ == "__main__":
         portfolio_df = get_live_quote_for_option_positions(positions_to_monitor)
 
         for symbol in app_config['symbols']:
+            if symbol == 'MNQ':
+                logger.info("Here is for debug")
             symbol_number += 1
             unique_run_number = f"{date_run_number}--{symbol_number}"
 

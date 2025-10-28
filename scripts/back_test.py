@@ -850,7 +850,7 @@ def breakout_in_last_x_candles(side='up', idx_list=[-2], level=0):
         # --- candle body confirmation ---
         body = abs(row["close"] - row["open"])
         candle_range = row["high"] - row["low"]
-        if candle_range > 0 and body / candle_range < 0.5:
+        if candle_range > 0 and body / candle_range < 0.5: # do not remove candle_rage > 0 will raise devided by zero exception
             continue
 
         logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
