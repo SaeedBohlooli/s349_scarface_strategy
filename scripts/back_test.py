@@ -739,7 +739,8 @@ def price_retest(side='up', idx_list=[-2], level=0, both_sides=False):
 
     # tolerance_amount = app_config['symbols_meta'][symbol]['retest_tolerance_amount']
     tolerance_amount = atr_tolerance_helper.get_dynamic_tolerance(df, level=0, min_tick=0.01).get('tolerance', 0)
-
+    tolerance_amount = tolerance_amount * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1)
+    logger.info(f"price_retest(), tolerance_amount: {tolerance_amount}")
     retest = False
 
     for idx in idx_list:

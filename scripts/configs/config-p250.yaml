@@ -13,6 +13,7 @@ symbols_meta:
     min_required_move_from_level: 0.5
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
+    retest_tolerance_multiplier: 1
   TSLA:
     can_trade: true
     contract_type: Equity
@@ -22,6 +23,7 @@ symbols_meta:
     min_required_move_from_level: 0.5
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
+    retest_tolerance_multiplier: 1.5
   AAPL:
     can_trade: true
     contract_type: Equity
@@ -31,6 +33,7 @@ symbols_meta:
     min_required_move_from_level: 0.5
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
+    retest_tolerance_multiplier: 1
   NVDA:
     can_trade: true
     contract_type: Equity
@@ -40,6 +43,7 @@ symbols_meta:
     min_required_move_from_level: 0.5
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
+    retest_tolerance_multiplier: 1
   AMD:
     can_trade: true
     contract_type: Equity
@@ -49,6 +53,7 @@ symbols_meta:
     min_required_move_from_level: 0.5
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
+    retest_tolerance_multiplier: 1
   PLTR:
     can_trade: true
     contract_type: Equity
@@ -58,6 +63,7 @@ symbols_meta:
     min_required_move_from_level: 0.5
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
+    retest_tolerance_multiplier: 1
   TSLL:
     can_trade: true
     contract_type: Equity
@@ -67,6 +73,7 @@ symbols_meta:
     min_required_move_from_level: 0.04
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
+    retest_tolerance_multiplier: 1.5
   SPY:
     can_trade: false
     contract_type: Equity
@@ -76,6 +83,7 @@ symbols_meta:
     min_required_move_from_level: 0.5
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
+    retest_tolerance_multiplier: 1
   MNQ:
     can_trade: true
     contract_type: Future
@@ -86,6 +94,7 @@ symbols_meta:
     min_required_move_from_level: 10
     breakout_confirmation_distance: 2
     chart_entry_offset: 20
+    retest_tolerance_multiplier: 1
   AMZN:
     can_trade: true
     contract_type: Equity
@@ -95,6 +104,7 @@ symbols_meta:
     min_required_move_from_level: 0.5
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
+    retest_tolerance_multiplier: 1
 
 cases:
   case_1:

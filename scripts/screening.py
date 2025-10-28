@@ -739,7 +739,8 @@ def price_retest(side='up', idx_list=[-2], level=0, both_sides=False):
 
     # tolerance_amount = app_config['symbols_meta'][symbol]['retest_tolerance_amount']
     tolerance_amount = atr_tolerance_helper.get_dynamic_tolerance(df, level=0, min_tick=0.01).get('tolerance', 0)
-
+    tolerance_amount = tolerance_amount * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1)
+    logger.info(f"price_retest(), tolerance_amount: {tolerance_amount}")
     retest = False
 
     for idx in idx_list:
@@ -776,6 +777,45 @@ def add_atr_to_candle_info():
 def dummy_call(level):
     return True
 
+def breakout_in_last_x_candles_old(side='up', idx_list=[-2], level=0):
+
+    logger.debug(f"in breakout_in_last_x_candles, symbol: {symbol}, idx_list: {idx_list}, level:{level}")
+
+    if level == 0:
+        return False
+    gap = app_config['symbols_meta'][symbol]['breakout_confirmation_distance']
+    breakout_happened = False
+    breakout_idx = 0
+    for idx in idx_list:
+        row = df.iloc[idx]
+        previous = df.iloc[idx-1]
+        # --- Breakout detection ---
+        if side == 'up':
+            if row["low"] < level and row["close"] > level + gap:
+                logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
+                add_to_break_out_indices_by_level_set(level, idx)
+                breakout_happened = True
+            # if previous['open'] < level and row["close"] > level: # the -2 opened below level and -1 closed above gap.
+            if previous['open'] < level and row["close"] > level and row["close"] > row["open"]: # the -2 opened below level and -1 closed above gap and -1 is up trned candle
+                logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
+                add_to_break_out_indices_by_level_set(level, idx)
+                breakout_happened = True
+        else:
+            if row["high"] > level and row["close"] < level  - gap:
+                logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
+                add_to_break_out_indices_by_level_set(level, idx)
+                breakout_happened = True
+
+            if previous['open'] > level and row["close"] < level and row["close"] < row["open"]: # the -2 opened above level and -1 closed below ga and -1 is down trend candle.
+                logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
+                add_to_break_out_indices_by_level_set(level, idx)
+                breakout_happened = True
+
+
+
+    return breakout_happened
+
+
 
 def breakout_in_last_x_candles(side='up', idx_list=[-2], level=0):
 
@@ -811,7 +851,7 @@ def breakout_in_last_x_candles(side='up', idx_list=[-2], level=0):
         # --- candle body confirmation ---
         body = abs(row["close"] - row["open"])
         candle_range = row["high"] - row["low"]
-        if candle_range > 0 and body / candle_range < 0.5:
+        if candle_range > 0 and body / candle_range < 0.5: # do not remove candle_rage > 0 will raise devided by zero exception
             continue
 
         logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
@@ -930,40 +970,6 @@ def add_to_candle_info_df(date, price, memo):
 
     return
 
-def are_breakout_and_candles_aligned(side= 'up', level=0, ohlc_field='close'):
-    # we want make sure all closes between breakout and retest are above the level.
-    # for up, use 'open'
-    # for down use 'close'
-
-    if retest_indices_by_level_dic.get(level, -1) == -1:
-        return False
-
-    if break_out_indices_by_level_dic.get(level, -1) == -1:
-        return False
-
-    i = retest_indices_by_level_dic.get(level, -1) # This is index for retest...
-    j = break_out_indices_by_level_dic.get(level, -1) # This is index for breakout...
-
-    if  j == i or j > i:
-        return  False
-
-
-
-    j = j + 1 # we don't want to include the breakout in the check ...
-    start, end = sorted([i, j])  # in case you mix order
-    # say start -5 end -3.  this get -5, -4, -3, -2.  it mean both -5 and -3 is included too.
-    if side == 'up':
-        if (df.iloc[start:end + 1][ohlc_field] > level).all():
-            return True
-        else:
-            logger.info("Some close values <= level")
-    else:
-        if (df.iloc[start:end + 1][ohlc_field] < level).all():
-            return True
-        else:
-            logger.info("Some close values <= level")
-
-    return False
 
 def no_failure_after_breakout(side='up', level=0, ohlc_field='open'):
     # we want make sure all closes after breakout are above the level.
@@ -2030,6 +2036,7 @@ def compute_relative_strength(stock_df: pd.DataFrame, qqq_df: pd.DataFrame, peri
 def preppare_qqq_df(qqq_df):
     qqq_df = qqq_df[qqq_df['date'].isin(df['date'])]
     qqq_df.reset_index(drop=True, inplace=True)  # reset index start from 0
+
     return qqq_df
 
 
