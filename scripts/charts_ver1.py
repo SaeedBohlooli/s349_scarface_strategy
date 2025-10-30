@@ -16,6 +16,7 @@ from plotly.subplots import make_subplots
 import datetime
 from utils import Constants
 from utils import miscutils
+from utils import df_utils
 
 # logger = logging.getLogger(__name__)
 logger = miscutils.setup_logger(__name__, logging.INFO)
@@ -747,6 +748,12 @@ def create_chart_hovered_df(hover_df, symbol):
     df['date'] = df['date_1']
     df['price'] = df['price_1']
     df['text'] = df['memo']
+
+    df['date'] = pd.to_datetime(df['date'], errors='coerce')
+    if app_config['chart']['source'] == 'live':
+        df = df_utils.cut_df_strating_hour_x_on_last_day(df,cutoff_time='08:00' )
+
+
 #  ⇗ ↛ ⇧
     # http://xahlee.info/comp/unicode_geometric_shapes.html
 # ◒

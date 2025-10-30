@@ -40,7 +40,7 @@ from utils import atr_tolerance_helper
 
 portfolio_id = 'p250'
 configs_folder = f'../scripts/configs'
-config_file = f'{configs_folder}/app-config.yaml'
+# config_file = f'{configs_folder}/app-config.yaml'
 
 mode = 'live'
 
