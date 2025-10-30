@@ -222,11 +222,25 @@ take_profits:
 
   t4:
     condition: >
-      (right == 'C' and is_executed_take_profits(symbol, take_profits=['t1']) and current_price < underlying_open_price)
+      (right == 'C' and is_executed_take_profits(symbol, take_profit_list=['t1']) and current_price < underlying_open_price)
       or
       (right == 'P' and is_executed_take_profits(symbol, take_profit_list=['t1']) and current_price > underlying_open_price)
     close_quantity_percentage: 1
 
+#  t3_test:
+#    condition: symbol == 'NVDA' and 1 == 1
+#    close_quantity_percentage: 0.1
+#
+#  t5_test:
+#    condition: symbol == 'AMD' and 1 == 2
+#    close_quantity_percentage: 0.1
+#
+#  t_even_break_test:
+#    condition: >
+#      (right == 'C' and is_executed_take_profits(symbol, take_profit_list=['t3_test']) and 1 == 1)
+#      or
+#      (right == 'P' and is_executed_take_profits(symbol, take_profit_list=['t5_test']) and 1 == 2)
+#    close_quantity_percentage: -1 # -1 means all positions
 
 
 live:
