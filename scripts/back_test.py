@@ -140,6 +140,9 @@ def create_ib_connection():
             disconnect_ib(ib)
             # ib.disconnectedEvent += on_disconnect
             ib.connect(ib_config['ip'], ib_config['port'], clientId=ib_config['client_id'], timeout=0)
+            ib.commissionReportEvent += on_commission_report
+            ib.updatePortfolioEvent += on_portfolio_update
+
             connected = True
             logger.info(f"IB connected.")
         except Exception as e:
@@ -396,7 +399,7 @@ def write_file_in_tabulate(src_file_path, dest_file_path= None, number_of_rows=0
                 # write all
                 f.write(tabulate(df.astype(str), headers='keys', tablefmt='psql'))
             else:
-                f.write(tabulate(df[-number_of_rows:].astype(str), headers='keys', tablefmt='psql'))
+                f.write(tabulate(df[-number_of_rows:].astype(str), headers='keys', tablefmt='psql')) #, numalign=None, stralign='left'
     return
 
 # 0.001
@@ -2036,6 +2039,7 @@ def check_for_stop_loss_and_take_profit():
     global application_state
 
     for symbol, open_trade_info in application_state.get('open_trades_dic', {}).items():
+        logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}" )
 
         # ###
         # stop loss
@@ -2044,11 +2048,12 @@ def check_for_stop_loss_and_take_profit():
             logger.info(f"{symbol}, check_for_stop_loss_and_take_profit(), available_quantity: 0")
             continue
         logger.info(f"in check_for_stop_loss, {symbol} ,\n{pprint.pformat(open_trade_info)}" )
+
         symbol_df = dfs_map.get(symbol, pd.DataFrame())
         underlying_open_price = float(open_trade_info.get('underlying_open_price', -1))  # used in config ...
         level_used_to_open = float(open_trade_info.get('level_used_to_open', -1)) # used in config ...
         avg_cost_for_1_contract = open_trade_info.get('avg_cost_for_1_contract', -1) # used in config
-        underlying_current_price = get_current_price_from_ib(symbol)
+        underlying_current_price = get_current_price_from_ib(symbol) # used in config
 
         if len(symbol_df) == 0:
             # it maybe first run and we dont have it yet in the dic ...
@@ -2059,40 +2064,45 @@ def check_for_stop_loss_and_take_profit():
 
         right = application_state['open_trades_dic'][symbol]['right']
         side = application_state['open_trades_dic'][symbol]['side']
-        current_bid, current_ask = get_bid_and_ask(portfolio_df, symbol)
+        current_bid, current_ask = get_bid_and_ask(portfolio_df, symbol) #used in config
 
+        # update app status ...
         application_state['open_trades_dic'][symbol]['current_bid'] = current_bid
         application_state['open_trades_dic'][symbol]['current_ask'] = current_ask
         application_state['open_trades_dic'][symbol]['current_value'] = current_ask * application_state['open_trades_dic'][symbol]['starting_quantity'] * 100
         application_state['open_trades_dic'][symbol]['current_pnl'] = application_state['open_trades_dic'][symbol].get('current_value', 0) - application_state['open_trades_dic'][symbol].get('cost_for_trade', 0)
 
 
-
-        logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}" )
-        logger.info(f"level_used_to_open: {level_used_to_open}, underlying_open_price: {underlying_open_price}, underlying_current_price:, {underlying_current_price},underlying_previous_candle_close: {underlying_previous_candle_close}")
+        logger.info(f"level_used_to_open: {level_used_to_open}, underlying_open_price: {underlying_open_price}, "
+                    f"underlying_current_price:, {underlying_current_price}, underlying_previous_candle_close: {underlying_previous_candle_close}")
         logger.info(f"current_bid: {current_bid}, current_ask: {current_ask}, avg_cost_for_1_contract: {avg_cost_for_1_contract}")
 
         stop_loss_condition = app_config['rights'][right]['stop_loss_condition']
         stop_loss_condition_evaluated = eval(stop_loss_condition)
+
         logger.info(f"symbol {symbol}, stop_loss_condition: {stop_loss_condition}, stop_loss_condition_evaluated: {stop_loss_condition_evaluated}")
+
         if stop_loss_condition_evaluated:
-            logger.warning("SL condition met")
+            logger.warning("SL condition met ...")
             close_option_positions(positions_to_monitor, symbol)
             data = {}
             application_state.setdefault('open_trades_dic', {})[symbol] = data
-            add_to_signlas('LONG_CALL_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f'{data}')
+            add_to_signlas('STOP_LOSS_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f'{data}')
             send_email(event='stop_loss_sent')
-            add_to_stop_loss_history_df(
-                {'symbol': symbol,
-                 'stop_loss_condition': stop_loss_condition,
-                 'current_bid': current_bid,
-                 'current_ask': current_ask,
-                 'sl_u_run_number': unique_run_number,
-                 'open_u_run_number': '',
-                 'sl_order_ref': '',
-                 'open_order_ref': ''
-                 }
-            )
+            data = {
+                'symbol': symbol,
+                'right': application_state['open_trades_dic'][symbol]['right'],
+                'strike':  application_state['open_trades_dic'][symbol]['strike'],
+                'expiry': application_state['open_trades_dic'][symbol]['expiry'],
+                'stop_loss_condition': stop_loss_condition,
+                'current_bid': current_bid,
+                'current_ask': current_ask,
+                'sl_u_run_number': unique_run_number,
+                'open_u_run_number': '',
+                'sl_order_ref': '',
+                'open_order_ref': ''
+                }
+            add_to_stop_loss_history_df(data)
         # ###
         # Take profit
         # ###
@@ -2111,7 +2121,7 @@ def check_for_stop_loss_and_take_profit():
             start_quantity = application_state.get('open_trades_dic', {}).get(symbol, {}).get('starting_quantity', 0)
             available_quantity = application_state.get('open_trades_dic', {}).get(symbol, {}).get('available_quantity', 0)
 
-            close_quantity = round( start_quantity * close_quantity_percentage )
+            close_quantity = round(start_quantity * close_quantity_percentage )
 
             logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, take_profit: {take_profit}")
             logger.info(f"available_quantity: {available_quantity}, close_quantity_percentage: {close_quantity_percentage}, close_quantity: {close_quantity}, start_quantity:{start_quantity}")
@@ -2120,13 +2130,29 @@ def check_for_stop_loss_and_take_profit():
                 logger.info(f"Sending TP ...{take_profit}")
                 close_option_positions(positions_to_monitor, symbol, close_quantity)  # for close send negative
                 application_state['open_trades_dic'][symbol]['available_quantity'] = available_quantity - close_quantity
-                data = { 'status': 'SENT',
-                         # 'take_profit_condition': take_profit_condition, # bad formed
-                         'available_quantity_b4_tp' : available_quantity,
-                         'close_quantity': close_quantity,
-                         'u_run_number' : unique_run_number
-                         }
+
+                data = {
+                    'status': 'SENT',
+                    'available_quantity_b4_tp' : available_quantity,
+                    'close_quantity': close_quantity,
+                    'u_run_number': unique_run_number
+                }
                 application_state['open_trades_dic'][symbol].setdefault('take_profits', {})[take_profit] = data
+
+                data = {
+                    'symbol': symbol,
+                    'right': application_state['open_trades_dic'][symbol]['right'],
+                    'strike': application_state['open_trades_dic'][symbol]['strike'],
+                    'expiry': application_state['open_trades_dic'][symbol]['expiry'],
+                    'current_bid': current_bid,
+                    'current_ask': current_ask,
+                    'available_quantity_b4_tp': available_quantity,
+                    'take_profit_case': take_profit,
+                    'take_profit_condition': take_profit_condition,
+                    'close_quantity': close_quantity,
+                    'u_run_number': unique_run_number,
+                    'take_profit': {app_config['take_profits'][take_profit]}
+                }
                 add_to_take_profit_history_df(data)
                 send_email(event='take_profit_sent')
 
@@ -2138,6 +2164,8 @@ def check_for_stop_loss_and_take_profit():
         if application_state['open_trades_dic'].get(symbol, {}) != {} and application_state['open_trades_dic'][symbol].get('available_quantity', 0) == 0:
             logger.info(f"{symbol}, the available_quantity is zero, so we set empty dic for it")
             application_state['open_trades_dic'][symbol] = {}
+
+    return
 
 def send_email(event='order_sent'):
     if app_config['email']['send_email']:
@@ -2163,6 +2191,13 @@ def send_email(event='order_sent'):
 
     return
 
+def preppare_qqq_df(qqq_df):
+    qqq_df = qqq_df[qqq_df['date'].isin(df['date'])]
+    qqq_df.reset_index(drop=True, inplace=True)  # reset index start from 0
+
+    return qqq_df
+
+
 def compute_relative_strength(stock_df: pd.DataFrame, qqq_df: pd.DataFrame, period: int = 20):
     # Ensure aligned timeframes
     merged = pd.merge(stock_df[['date', 'close']], qqq_df[['date', 'close']], on='date', suffixes=('_stock', '_qqq'))
@@ -2173,12 +2208,6 @@ def compute_relative_strength(stock_df: pd.DataFrame, qqq_df: pd.DataFrame, peri
 
     merged = merged.fillna(0)
     return merged[['date', 'rs_ratio', 'rs_ema', 'rs_roc']]
-
-def preppare_qqq_df(qqq_df):
-    qqq_df = qqq_df[qqq_df['date'].isin(df['date'])]
-    qqq_df.reset_index(drop=True, inplace=True)  # reset index start from 0
-
-    return qqq_df
 
 
 def compute_intraday_rs(stock_df: pd.DataFrame, qqq_df: pd.DataFrame):
@@ -2231,12 +2260,29 @@ def compute_intraday_rs(stock_df: pd.DataFrame, qqq_df: pd.DataFrame):
     merged['stock_930'] = stock_open
 
     # --- Relative performance ---
-    merged['rs_rel'] = merged['stock_pct'] / merged['qqq_pct'].replace(0, pd.NA)
-    merged['rs_delta'] = merged['stock_pct'] - merged['qqq_pct']
-    cap_value = 10
-    merged['rs_rel'] = merged['rs_rel'].clip(lower=-cap_value, upper=cap_value)
 
-    return merged[['date', 'close_stock', 'close_qqq', 'stock_pct', 'qqq_pct', 'rs_rel', 'rs_delta', 'qqq_930', 'stock_930']]
+    merged['rs_rel'] = np.where(
+        merged['qqq_pct'].abs() > 0.0005,
+        merged['stock_pct'] / merged['qqq_pct'],
+        np.nan
+    ).clip(-10, 10)
+
+    merged['rs_delta'] = merged['stock_pct'] - merged['qqq_pct']
+
+    smooth_span = 5
+    merged['rs_rel_ema'] = merged['rs_rel'].ewm(span=smooth_span, adjust=False).mean()
+    merged['rs_delta_ema'] = merged['rs_delta'].ewm(span=smooth_span, adjust=False).mean()
+
+    merged['rs_delta'] = merged['stock_pct'] - merged['qqq_pct']
+
+    # Directional filter
+    merged['same_direction'] = np.where("YES",  (
+                                       (merged['stock_pct'] > 0) & (merged['qqq_pct'] > 0)
+                               ) | (
+                                       (merged['stock_pct'] < 0) & (merged['qqq_pct'] < 0)
+                               ), "NO")
+    # , 'same_direction',
+    return merged[['date', 'close_stock', 'close_qqq', 'stock_pct', 'qqq_pct', 'rs_rel', 'rs_delta', 'qqq_930', 'stock_930', 'rs_rel_ema', 'rs_delta_ema']]
 
 
 def call_api_top_step(symbol, side):
@@ -2259,9 +2305,18 @@ def call_api_top_step(symbol, side):
 # End of IB sending order - only for live
 # ###########
 
-def on_commission_report(commission_report):
-    # logger.info("@@@ on_commission_report, trade:", trade)
-    logger.info("@@@ on_commission_report, commission_report:", commission_report)
+def on_commission_report(*args):
+    global ib_commission_df
+    logger.info(f"Number of args: {len(args)}")
+    for i, arg in enumerate(args):
+        logger.info(f"Arg {i}: {arg}")
+
+    report = args[-1]   # last argument is the CommissionReport
+    flatten_dic = flatten(report)
+    ib_commission_df = pd.concat([ib_commission_df, pd.DataFrame([flatten_dic])], ignore_index=True)
+
+
+    logger.info(f"@@@ on_commission_report, report: {report}")
     return
 
 def cancel_open_orders(symbol = ''):
@@ -2297,40 +2352,12 @@ def cancel_open_orders(symbol = ''):
 def on_portfolio_update(item):
     """Update or insert portfolio position."""
     global ib_portfolio_df
-    contract = item.contract
-    logger.info(f"on_portfolio_update, item: {item}")
+    flatten_dic = flatten(item)
+    logger.info(f"on_portfolio_update(), flatten :{flatten_dic}")
+    ib_portfolio_df = pd.concat([ib_portfolio_df, pd.DataFrame([flatten_dic])], ignore_index=True)
 
-    key = f"{contract.symbol}_{contract.right}_{contract.strike}_{contract.lastTradeDateOrContractMonth}"
-
-    # Build record dict
-    record = {
-        'symbol': contract.symbol,
-        'right': contract.right,
-        'strike': contract.strike,
-        'expiry': contract.lastTradeDateOrContractMonth,
-        'position': item.position,
-        'marketPrice': item.marketPrice,
-        'averageCost': item.averageCost,
-        'marketValue': item.marketValue,
-        'unrealizedPNL': item.unrealizedPNL,
-        'realizedPNL': item.realizedPNL,
-        'account': item.account,
-        'timestamp': datetime.now()
-    }
-
-    # Update or insert
-    if not ib_portfolio_df.empty and key in ib_portfolio_df.index:
-        ib_portfolio_df.loc[key] = record
-    else:
-        # Append new row with key as index
-        new_row = pd.DataFrame([record], index=[key])
-        ib_portfolio_df = pd.concat([ib_portfolio_df, new_row])
-
-    # Optional: remove zero-position rows (closed positions)
-    ib_portfolio_df = ib_portfolio_df[ib_portfolio_df['position'] != 0]
-    ib_portfolio_df.set_index(['symbol', 'right', 'strike', 'expiry'], inplace=True, drop=False)
-
-    logger.info(f"Updated portfolio row for {key}")
+    # TODO this should be index for thid
+    #     key = f"{contract.symbol}_{contract.right}_{contract.strike}_{contract.lastTradeDateOrContractMonth}"
 
     return
 

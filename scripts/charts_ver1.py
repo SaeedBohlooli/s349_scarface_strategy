@@ -212,12 +212,12 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
                         vertical_spacing=0.04,
                         row_heights=[0.65, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05],
                         subplot_titles=(f'{symbol}',
-                                        f'Vol Ratio-{symbol}',
-                                        f'RS-Rel-{symbol}',
+                                        f'Volume Ratio {symbol}',
+                                        f'Relative Strength Relative {symbol}',
+                                        f'Relative Strength Delta {symbol}',
+                                        f'Relative Strength Rate of Change {symbol}',
                                         f'ATR-{symbol}',
                                         f'Volume-{symbol}',
-                                        f'RS-ratio-and-ema-{symbol}',
-                                        f'RS-roc-{symbol}',
 
                                         )
                         )
@@ -242,13 +242,14 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
     df['volume_sma10'] = df['volume'].rolling(window=10).mean()
     df['VR'] = df['volume'] / df['volume_sma10']
     cap = df['VR'].quantile(0.95)  # 95th percentile
-    df['VR_clipped'] = df['VR'].clip(upper=cap)
+    df['VR'] = df['VR'].clip(upper=cap)
+    df['VR_sma10'] = df['VR'].rolling(window=10).mean()
 
     fig.add_trace(go.Scatter(
         x=df['date'],
-        y=df['VR_clipped'],
+        y=df['VR'],
         line=dict(color='blue', width=2),
-        name='VR = volume/ vol_sma10 '
+        name='volume ratio '
     ), row=row_in_chart, col=1)
 
     fig.add_trace(go.Scatter( # line on 1
@@ -259,6 +260,14 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
         line=dict(color='red', dash='dot', width=1),
         showlegend=False
     ), row=row_in_chart, col=1)
+
+    fig.add_trace(go.Scatter(
+        x=df['date'],
+        y=df['VR_sma10'],
+        line=dict(color='blue', dash='dot', width=2),
+        name='VR_sma10'
+    ), row=row_in_chart, col=1)
+
 
     #rs_rel
     row_in_chart += 1
@@ -278,54 +287,32 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
         showlegend=False
     ), row=row_in_chart, col=1)
 
-    # ATR line chart
-    row_in_chart += 1
-    fig.add_trace(go.Scatter(
-        x=df['date'],
-        y=df['atr_14'],
-        line=dict(color='orange', width=2),
-        name='ATR'
-    ), row=row_in_chart, col=1)
-
-    # Clip outlier volumes above a certain percentile
-    cap = df['volume'].quantile(0.95)  # 95th percentile
-    df['volume_clipped'] = df['volume'].clip(upper=cap)
-    # volume
-    row_in_chart += 1
-    fig.add_trace(go.Scatter(
-        x=df['date'],
-        y=df['volume_clipped'],
-        line=dict(color='orange', width=2),
-        name='Volume'
-    ), row=row_in_chart, col=1)
-
-    # --- Compute SMA(20) ---
-    df['volume_sma20'] = df['volume'].rolling(window=20).mean()
-
-    # --- Add SMA(20) for volume ---
-    fig.add_trace(go.Scatter(
-        x=df['date'],
-        y=df['volume_sma20'],
-        line=dict(color='blue', width=2, dash='dot'),  # dashed blue line
-        name='Vol SMA 20'
-    ), row=row_in_chart, col=1)
 
 
-    # rs_ratio
+    # rs_delta
     row_in_chart += 1
     fig.add_trace(go.Scatter(
         x=extra_features_df['date'],
-        y=extra_features_df['rs_ratio'],
+        y=extra_features_df['rs_delta'],
         line=dict(color='blue', width=2),
-        name='rs_ratio'
+        name='rs_delta'
     ), row=row_in_chart, col=1)
 
-    # rs_ema
+    # rs_delta_ema
     fig.add_trace(go.Scatter(
         x=extra_features_df['date'],
-        y=extra_features_df['rs_ema'],
+        y=extra_features_df['rs_delta_ema'],
         line=dict(color='red', width=1, dash='dot'),
-        name='rs_ema'
+        name='rs_delta_ema'
+    ), row=row_in_chart, col=1)
+
+    fig.add_trace(go.Scatter( # line on 0
+        x=extra_features_df['date'],
+        y=[0] * len(extra_features_df),
+        mode='lines',
+        name='Zero Line',
+        line=dict(color='black', dash='dot', width=1),
+        showlegend=False
     ), row=row_in_chart, col=1)
 
     # rs_roc
@@ -346,10 +333,38 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
         showlegend=False
     ), row=row_in_chart, col=1)
 
+    # ATR line chart
+    row_in_chart += 1
+    fig.add_trace(go.Scatter(
+        x=df['date'],
+        y=df['atr_14'],
+        line=dict(color='orange', width=2),
+        name='ATR'
+    ), row=row_in_chart, col=1)
 
+    # volume
+    # Clip outlier volumes above a certain percentile
+    cap = df['volume'].quantile(0.95)  # 95th percentile
+    df['volume_clipped'] = df['volume'].clip(upper=cap)
 
+    row_in_chart += 1
+    fig.add_trace(go.Scatter(
+        x=df['date'],
+        y=df['volume_clipped'],
+        line=dict(color='orange', width=2),
+        name='Volume'
+    ), row=row_in_chart, col=1)
 
+    # --- Compute SMA(20) ---
+    df['volume_sma20'] = df['volume'].rolling(window=20).mean()
 
+    # --- Add SMA(20) for volume ---
+    fig.add_trace(go.Scatter(
+        x=df['date'],
+        y=df['volume_sma20'],
+        line=dict(color='blue', width=2, dash='dot'),  # dashed blue line
+        name='Vol SMA 20'
+    ), row=row_in_chart, col=1)
 
     fig.update_layout(
         title=f'{chart_title}',

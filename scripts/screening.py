@@ -2259,12 +2259,29 @@ def compute_intraday_rs(stock_df: pd.DataFrame, qqq_df: pd.DataFrame):
     merged['stock_930'] = stock_open
 
     # --- Relative performance ---
-    merged['rs_rel'] = merged['stock_pct'] / merged['qqq_pct'].replace(0, pd.NA)
-    merged['rs_delta'] = merged['stock_pct'] - merged['qqq_pct']
-    cap_value = 10
-    merged['rs_rel'] = merged['rs_rel'].clip(lower=-cap_value, upper=cap_value)
 
-    return merged[['date', 'close_stock', 'close_qqq', 'stock_pct', 'qqq_pct', 'rs_rel', 'rs_delta', 'qqq_930', 'stock_930']]
+    merged['rs_rel'] = np.where(
+        merged['qqq_pct'].abs() > 0.0005,
+        merged['stock_pct'] / merged['qqq_pct'],
+        np.nan
+    ).clip(-10, 10)
+
+    merged['rs_delta'] = merged['stock_pct'] - merged['qqq_pct']
+
+    smooth_span = 5
+    merged['rs_rel_ema'] = merged['rs_rel'].ewm(span=smooth_span, adjust=False).mean()
+    merged['rs_delta_ema'] = merged['rs_delta'].ewm(span=smooth_span, adjust=False).mean()
+
+    merged['rs_delta'] = merged['stock_pct'] - merged['qqq_pct']
+
+    # Directional filter
+    merged['same_direction'] = np.where("YES",  (
+                                       (merged['stock_pct'] > 0) & (merged['qqq_pct'] > 0)
+                               ) | (
+                                       (merged['stock_pct'] < 0) & (merged['qqq_pct'] < 0)
+                               ), "NO")
+    # , 'same_direction',
+    return merged[['date', 'close_stock', 'close_qqq', 'stock_pct', 'qqq_pct', 'rs_rel', 'rs_delta', 'qqq_930', 'stock_930', 'rs_rel_ema', 'rs_delta_ema']]
 
 
 def call_api_top_step(symbol, side):

@@ -1,7 +1,7 @@
 logging_level: logging.INFO
 #logging_level: logging.WARNING
 symbols: ['QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR', 'TSLL', 'AMZN', 'MNQ', 'SPY']
-#symbols: ['QQQ', 'PLTR']
+#symbols: ['QQQ', 'PLTR', 'TSLA']
 
 symbols_meta:
   QQQ:
@@ -118,8 +118,12 @@ cases:
       condition_06: check_price_vs_level(side='up', price=price, level=long_level )
       condition_07: abs(levels['PDH'] - levels['PMH']) < levels_closeness_limit and abs(levels['5MH'] - levels['PDH']) < levels_closeness_limit
       condition_08: 1 == 1
+      condition_09: 1 == 1
+      condition_10: 1 == 1
 
-      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07
+
+      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and 
+        eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07
 
     short:
       level: min(levels['PDL'], levels['PML'], levels['5ML'])
@@ -131,8 +135,11 @@ cases:
       condition_06: check_price_vs_level(side='down', price=price, level=short_level )
       condition_07: abs(levels['PDL'] - levels['PML']) < levels_closeness_limit and abs(levels['5ML'] - levels['PDL']) < levels_closeness_limit
       condition_08: 1 == 1
+      condition_09: 1 == 1
+      condition_10: 1 == 1
 
-      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07
+      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 
+          and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07
 
   case_2:
     long:
@@ -145,6 +152,8 @@ cases:
       condition_06: check_price_vs_level(side='up', price=price, level=long_level )
       condition_07: 1 == 1
       condition_08: 1 == 1
+      condition_09: 1 == 1
+      condition_10: 1 == 1
 
       # Use the below for test
 #      condition_01: symbol == 'AMD' and 1 == 1
@@ -155,8 +164,11 @@ cases:
 #      condition_06: 1 == 1
 #      condition_07: 1 == 1
 #      condition_08: 1 == 1
+#      condition_09: 1 == 1
+#      condition_10: 1 == 1
 
-      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07
+      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 
+         and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07
 
     short:
       level: levels['5ML']
@@ -168,6 +180,8 @@ cases:
       condition_06: check_price_vs_level(side='down', price=price, level=short_level )
       condition_07: 1 == 1
       condition_08: 1 == 1
+      condition_09: 1 == 1
+      condition_10: 1 == 1
 
 #      condition_01: symbol == 'TSLA' and 1 == 1
 #      condition_02: 1 == 1
@@ -177,8 +191,11 @@ cases:
 #      condition_06: 1 == 1
 #      condition_07: 1 == 1
 #      condition_08: 1 == 1
+#      condition_09: 1 == 1
+#      condition_10: 1 == 1
 
-      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07
+      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 
+        and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07
 
 rights:
   C:
@@ -194,8 +211,6 @@ take_profits:
   t1:
     condition: current_ask > avg_cost_for_1_contract * 1.4 and ( avg_cost_for_1_contract != -1 and current_ask != -1)
     close_quantity_percentage: 0.5
-    reset_stop_loss: true
-    reset_stop_loss_price: underlying_open_price
 
   t2:
     condition: current_ask > avg_cost_for_1_contract * 1.5  and ( avg_cost_for_1_contract != -1 and current_ask != -1)
@@ -206,8 +221,12 @@ take_profits:
     close_quantity_percentage: 0.25
 
 #  t4:
-#    condition: symbol == 'PLTR'
-#    close_quantity_percentage: 0.50
+#    condition: >
+#      (right == 'C' and is_executed_take_profits(symbol, take_profits=['t1']) and current_price < underlying_open_price)
+#      or
+#      (right == 'P' and is_executed_take_profits(symbol, take_profit_list=['t1']) and current_price > underlying_open_price)
+#    close_quantity_percentage: 1
+
 
 
 live:
@@ -220,14 +239,14 @@ live:
 
 
 back_test:
-  get_data_from_ib: True
-#  get_data_from_ib: False
+#  get_data_from_ib: True
+  get_data_from_ib: False
 
   historical_days: 5 D
   start_date: 2025-10-27
 
-  back_test_date_start: 2025-10-27
-  back_test_date_end: 2025-10-30
+  back_test_date_start: 2025-10-20
+  back_test_date_end: 2025-10-29
 
 chart:
 #  source: live
