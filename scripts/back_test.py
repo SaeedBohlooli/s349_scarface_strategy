@@ -1620,6 +1620,20 @@ def prepare_contract(symbol, right='C'):
         # IndexError: list index out of range
         return None
 
+
+def number_of_trades_today(symbol):
+    number_of_trades_today = application_state.get('number_of_trades', {}).get(date_yyyymmdd,{}).get(symbol,0)
+    return number_of_trades_today
+
+def add_to_number_of_trades_today(symbol):
+    global application_state
+    current_number = number_of_trades_today(symbol)
+    if current_number == 0:
+        application_state.setdefault('number_of_trades', {}).setdefault(date_yyyymmdd, {})[symbol] = 1
+    else:
+        application_state.setdefault('number_of_trades', {})[date_yyyymmdd][symbol] += 1
+    return
+
 def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
     global  application_state
 
@@ -1644,71 +1658,85 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
         if not app_config['symbols_meta'][symbol]['can_trade']:
             logger.info(f"We are not trading {symbol}.")
             continue
+       #### TODO TODO merge can_buy with can_selll
         if can_buy:
-            if application_state.get('open_trades_dic', {}).get(symbol,{}).get('available_quantity', 0) == 0:
-                logger.info(f"{symbol}, in check_buy_sell_result_to_send_order, can_buy: {can_buy}")
-                # send order
-                option_contract = prepare_contract(symbol, right='C')
-                if option_contract != None:
-                    bid, ask = get_quote_for_option_bid_ask(symbol=symbol, strike=option_contract.strike, right=option_contract.right, expiry=option_contract.lastTradeDateOrContractMonth)
-                    if bid ==0 or ask ==0:
-                        logger.warning("@@@@ ...bid ==0 or ask ==0")
-                    else:
-                        total_quantity = calculate_number_of_contracts(ask)
-                        if total_quantity == 0: # we dont have enough capital
-                            continue
-                        send_order(option_contract, total_quantity=total_quantity)
-                        data = {
-                            'symbol' : symbol,
-                            'side': 'long',
-                            'right': 'C',
-                            'starting_quantity':total_quantity,
-                            'available_quantity':total_quantity,
-                            'underlying_open_price': df['close'].iloc[-1] ,
-                            'u_run_number': unique_run_number,
-                            'level_used_to_open' : long_level,
-                            'expiry': option_contract.lastTradeDateOrContractMonth,
-                            'strike': option_contract.strike,
-                            'open_bid': bid,
-                            'open_ask': ask
-                        }
-                        application_state.setdefault('open_trades_dic', {})[symbol] = data
-                        add_to_signlas('LONG_CALL_SENT',df['close'].iloc[-1],df['date'].iloc[-1], f'{data}' )
-                        add_to_order_history_df(data)
-                        send_email(event='order_sent')
-                else:
-                    logger.warning(f"@@@ we didn't send order option_contract: {option_contract}")
+            logger.info(f"{symbol}, in check_buy_sell_result_to_send_order, can_buy: {can_buy}")
+            if application_state.get('open_trades_dic', {}).get(symbol,{}).get('available_quantity', 0) != 0:
+                continue
+            option_contract = prepare_contract(symbol, right='C')
+            if option_contract == None:
+                logger.warning(f"@@@ we didn't send order option_contract: {option_contract}")
+                continue
+            bid, ask = get_quote_for_option_bid_ask(symbol=symbol, strike=option_contract.strike, right=option_contract.right, expiry=option_contract.lastTradeDateOrContractMonth)
+            if bid ==0 or ask ==0:
+                logger.warning(f"@@@@ ...bid ==0 or ask ==0")
+                continue
+            total_quantity = calculate_number_of_contracts(ask)
+            if total_quantity == 0: # we dont have enough capital
+                logger.warning(f"@@ ....TBD")
+                continue
+            if number_of_trades_today(symbol) >= app_config['live']['max_num_of_trade_per_symbol_per_day']:
+                logger.warning(f"@@  {symbol} ....number_of_trades_today{number_of_trades_today(symbol)}")
+                continue
+            send_order(option_contract, total_quantity=total_quantity)
+            data = {
+                'symbol' : symbol,
+                'side': 'long',
+                'right': 'C',
+                'starting_quantity':total_quantity,
+                'available_quantity':total_quantity,
+                'underlying_open_price': df['close'].iloc[-1] ,
+                'u_run_number': unique_run_number,
+                'level_used_to_open' : long_level,
+                'expiry': option_contract.lastTradeDateOrContractMonth,
+                'strike': option_contract.strike,
+                'open_bid': bid,
+                'open_ask': ask
+            }
+            application_state.setdefault('open_trades_dic', {})[symbol] = data
+            add_to_signlas('LONG_CALL_SENT',df['close'].iloc[-1],df['date'].iloc[-1], f'{data}' )
+            add_to_order_history_df(data)
+            add_to_number_of_trades_today(symbol)
+            send_email(event='order_sent')
 
         if can_sell:
-            if application_state.get('open_trades_dic', {}).get(symbol,{}).get('available_quantity', 0) == 0:
-                # send order
-                logger.info(f"{symbol}, in check_buy_sell_result_to_send_order, can_sell: {can_sell}")
-                option_contract = prepare_contract(symbol, right='P')
-                if option_contract != None: # TODO check to see what happens if we isgnore this case
-                    bid, ask = get_quote_for_option_bid_ask(symbol=symbol, strike=option_contract.strike, right=option_contract.right, expiry=option_contract.lastTradeDateOrContractMonth)
-                    if bid ==0 or ask ==0:
-                        logger.warning("@@@@ ...bid ==0 or ask ==0")
-                    else:
-                        total_quantity = calculate_number_of_contracts(ask)
-                        send_order(option_contract, total_quantity=total_quantity)
-                        data = {
-                            'symbol': symbol,
-                            'side': 'long',
-                            'right': 'P',
-                            'starting_quantity': total_quantity,
-                            'available_quantity': total_quantity,
-                            'underlying_open_price': df['close'].iloc[-1],
-                            'u_run_number': unique_run_number,
-                            'level_used_to_open': short_level,
-                            'expiry': option_contract.lastTradeDateOrContractMonth,
-                            'strike': option_contract.strike,
-                            'open_bid': bid,
-                            'open_ask': ask
-                        }
-                        application_state.setdefault('open_trades_dic', {})[symbol] = data
-                        add_to_signlas('LONG_PUT_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f'{data}')
-                        add_to_order_history_df(data)
-                        send_email(event='order_sent')
+            logger.info(f"{symbol}, in check_buy_sell_result_to_send_order, can_sell: {can_sell}")
+            if application_state.get('open_trades_dic', {}).get(symbol,{}).get('available_quantity', 0) != 0:
+                continue
+            option_contract = prepare_contract(symbol, right='P')
+            if option_contract == None: # TODO check to see what happens if we isgnore this case
+                continue
+            bid, ask = get_quote_for_option_bid_ask(symbol=symbol, strike=option_contract.strike, right=option_contract.right, expiry=option_contract.lastTradeDateOrContractMonth)
+            if bid ==0 or ask ==0:
+                logger.warning("@@@@ ...bid ==0 or ask ==0")
+                continue
+            total_quantity = calculate_number_of_contracts(ask)
+            if total_quantity == 0: # we dont have enough capital
+                logger.warning("@@ ....TBD")
+                continue
+            if number_of_trades_today(symbol) >= app_config['live']['max_num_of_trade_per_symbol_per_day']:
+                logger.warning("@@ ....TBD")
+                continue
+            send_order(option_contract, total_quantity=total_quantity)
+            data = {
+                'symbol': symbol,
+                'side': 'long',
+                'right': 'P',
+                'starting_quantity': total_quantity,
+                'available_quantity': total_quantity,
+                'underlying_open_price': df['close'].iloc[-1],
+                'u_run_number': unique_run_number,
+                'level_used_to_open': short_level,
+                'expiry': option_contract.lastTradeDateOrContractMonth,
+                'strike': option_contract.strike,
+                'open_bid': bid,
+                'open_ask': ask
+            }
+            application_state.setdefault('open_trades_dic', {})[symbol] = data
+            add_to_signlas('LONG_PUT_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f'{data}')
+            add_to_order_history_df(data)
+            add_to_number_of_trades_today(symbol)
+            send_email(event='order_sent')
 
     return
 
@@ -1942,7 +1970,7 @@ def find_positions_to_monitor():
     return ps
 
 
-def close_option_positions(positions, symbol='', close_qty=0):
+def close_option_positions(positions, symbol='', close_qty=0, alias_for_ref=''):
 
     for pos in positions:
         contract = pos.contract
@@ -1966,7 +1994,11 @@ def close_option_positions(positions, symbol='', close_qty=0):
             qty = abs(qty)
 
             order = MarketOrder(action, qty)
-            order_ref = f"CLOSE-{unique_run_number}"
+            if alias_for_ref  == '':
+                order_ref = f"CLOSE-{unique_run_number}"
+            else:
+                order_ref = f"CLOSE-{alias_for_ref}-{unique_run_number}"
+
             order.orderRef = order_ref
 
             # --- Step 4: Place the order ---
@@ -2084,10 +2116,7 @@ def check_for_stop_loss_and_take_profit():
 
         if stop_loss_condition_evaluated:
             logger.warning("SL condition met ...")
-            close_option_positions(positions_to_monitor, symbol)
-            data = {}
-            application_state.setdefault('open_trades_dic', {})[symbol] = data
-            add_to_signlas('STOP_LOSS_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f'{data}')
+            close_option_positions(positions_to_monitor, symbol, alias_for_ref='SL')
             send_email(event='stop_loss_sent')
             data = {
                 'symbol': symbol,
@@ -2103,6 +2132,10 @@ def check_for_stop_loss_and_take_profit():
                 'open_order_ref': ''
                 }
             add_to_stop_loss_history_df(data)
+            add_to_signlas('STOP_LOSS_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f'{data}')
+            data = {}
+            application_state.setdefault('open_trades_dic', {})[symbol] = data  # This need to be ahppened after we get required inf from dic...
+
         # ###
         # Take profit
         # ###
@@ -2121,14 +2154,18 @@ def check_for_stop_loss_and_take_profit():
             start_quantity = application_state.get('open_trades_dic', {}).get(symbol, {}).get('starting_quantity', 0)
             available_quantity = application_state.get('open_trades_dic', {}).get(symbol, {}).get('available_quantity', 0)
 
-            close_quantity = round(start_quantity * close_quantity_percentage )
+            if close_quantity_percentage == -1: # calse all
+                close_quantity = available_quantity
+            else:
+                close_quantity = round(start_quantity * close_quantity_percentage )
+                close_quantity = 1 if close_quantity == 0 else close_quantity  # we want to make sure 0.4 * 1 will return 1.
 
             logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, take_profit: {take_profit}")
             logger.info(f"available_quantity: {available_quantity}, close_quantity_percentage: {close_quantity_percentage}, close_quantity: {close_quantity}, start_quantity:{start_quantity}")
             logger.info(f"take_profit_condition: {take_profit_condition}, take_profit_condition_evaluated: {take_profit_condition_evaluated}")
             if take_profit_condition_evaluated and available_quantity > 0 and close_quantity != 0 and close_quantity <= available_quantity :
                 logger.info(f"Sending TP ...{take_profit}")
-                close_option_positions(positions_to_monitor, symbol, close_quantity)  # for close send negative
+                close_option_positions(positions_to_monitor, symbol, close_quantity, alias_for_ref=take_profit)  # for close send negative
                 application_state['open_trades_dic'][symbol]['available_quantity'] = available_quantity - close_quantity
 
                 data = {
@@ -2151,7 +2188,7 @@ def check_for_stop_loss_and_take_profit():
                     'take_profit_condition': take_profit_condition,
                     'close_quantity': close_quantity,
                     'u_run_number': unique_run_number,
-                    'take_profit': {app_config['take_profits'][take_profit]}
+                    #'take_profit': {app_config['take_profits'][take_profit]}
                 }
                 add_to_take_profit_history_df(data)
                 send_email(event='take_profit_sent')
@@ -2191,13 +2228,6 @@ def send_email(event='order_sent'):
 
     return
 
-def preppare_qqq_df(qqq_df):
-    qqq_df = qqq_df[qqq_df['date'].isin(df['date'])]
-    qqq_df.reset_index(drop=True, inplace=True)  # reset index start from 0
-
-    return qqq_df
-
-
 def compute_relative_strength(stock_df: pd.DataFrame, qqq_df: pd.DataFrame, period: int = 20):
     # Ensure aligned timeframes
     merged = pd.merge(stock_df[['date', 'close']], qqq_df[['date', 'close']], on='date', suffixes=('_stock', '_qqq'))
@@ -2208,6 +2238,12 @@ def compute_relative_strength(stock_df: pd.DataFrame, qqq_df: pd.DataFrame, peri
 
     merged = merged.fillna(0)
     return merged[['date', 'rs_ratio', 'rs_ema', 'rs_roc']]
+
+def preppare_qqq_df(qqq_df):
+    qqq_df = qqq_df[qqq_df['date'].isin(df['date'])]
+    qqq_df.reset_index(drop=True, inplace=True)  # reset index start from 0
+
+    return qqq_df
 
 
 def compute_intraday_rs(stock_df: pd.DataFrame, qqq_df: pd.DataFrame):
@@ -2276,11 +2312,11 @@ def compute_intraday_rs(stock_df: pd.DataFrame, qqq_df: pd.DataFrame):
     merged['rs_delta'] = merged['stock_pct'] - merged['qqq_pct']
 
     # Directional filter
-    merged['same_direction'] = np.where("YES",  (
-                                       (merged['stock_pct'] > 0) & (merged['qqq_pct'] > 0)
-                               ) | (
-                                       (merged['stock_pct'] < 0) & (merged['qqq_pct'] < 0)
-                               ), "NO")
+    # merged['same_direction'] = np.where("YES",  (
+    #                                    (merged['stock_pct'] > 0) & (merged['qqq_pct'] > 0)
+    #                            ) | (
+    #                                    (merged['stock_pct'] < 0) & (merged['qqq_pct'] < 0)
+    #                            ), "NO")
     # , 'same_direction',
     return merged[['date', 'close_stock', 'close_qqq', 'stock_pct', 'qqq_pct', 'rs_rel', 'rs_delta', 'qqq_930', 'stock_930', 'rs_rel_ema', 'rs_delta_ema']]
 
@@ -2305,18 +2341,21 @@ def call_api_top_step(symbol, side):
 # End of IB sending order - only for live
 # ###########
 
-def on_commission_report(*args):
+def on_commission_report(trade, fill, commissionReport):
     global ib_commission_df
-    logger.info(f"Number of args: {len(args)}")
-    for i, arg in enumerate(args):
-        logger.info(f"Arg {i}: {arg}")
+    global ib_commission_trade_df
+    global ib_commission_fill_df
 
-    report = args[-1]   # last argument is the CommissionReport
-    flatten_dic = flatten(report)
+    flatten_dic = flatten(commissionReport)
     ib_commission_df = pd.concat([ib_commission_df, pd.DataFrame([flatten_dic])], ignore_index=True)
 
+    flatten_dic = flatten(trade)
+    ib_commission_trade_df = pd.concat([ib_commission_trade_df, pd.DataFrame([flatten_dic])], ignore_index=True)
 
-    logger.info(f"@@@ on_commission_report, report: {report}")
+    flatten_dic = flatten(fill)
+    ib_commission_fill_df = pd.concat([ib_commission_fill_df, pd.DataFrame([flatten_dic])], ignore_index=True)
+
+    logger.debug(f"@ on_commission_report, report: {commissionReport}")
     return
 
 def cancel_open_orders(symbol = ''):
@@ -2417,6 +2456,11 @@ def get_executed_orders_from_ib_and_save_ver2():
     return df
 
 
+def is_executed_take_profits(symbol, take_profit_list=[]): # used in config
+    for tp in take_profit_list:
+        if application_state.get('open_trades_dic',{}).get(symbol,{}).get('take_profits',{}).get(tp, {}) != {}: # it is there
+            return True
+    return False
 
 
 if __name__ == "__main__":
