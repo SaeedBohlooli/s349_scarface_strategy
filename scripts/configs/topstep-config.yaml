@@ -1,0 +1,54 @@
+# Required
+token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1laWRlbnRpZmllciI6IjE1MDk2MiIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL3NpZCI6IjNlNGFhMDUyLWIzNjMtNDM3My1hOTEzLTU3OTk4YjhhODM5MiIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL25hbWUiOiJ2aWthc2thbGVyIiwiaHR0cDovL3NjaGVtYXMubWljcm9zb2Z0LmNvbS93cy8yMDA4LzA2L2lkZW50aXR5L2NsYWltcy9yb2xlIjoidXNlciIsIm1zZCI6IkNNRUdST1VQX1RPQiIsIm1mYSI6InZlcmlmaWVkIiwiZXhwIjoxNzYyMzQ3NTYzfQ.k7ouMG9bneckg2OBz1lmdLBKWJ43m2pG-E90PGDiHl8
+user_id: 150962
+#active combine account:
+#account_id:
+#  - 13419160 #100K
+#  - 13229940 #150 K
+
+# Active Express Account Be very careful with this
+#account_ids:
+#  - 13049527
+#  - 13344218
+account_ids:
+  - 12977613
+  - 12999614
+  - 12848024
+  - 11407562
+  - 12979411
+  - 9263215
+  - 12979818
+  - 12979091
+number_of_cons: 10
+symbol_id: "F.US.MNQ"     # if your direct API needs month codes, set e.g. F.US.MGCZ25
+"F.US.MNQ":
+  stop_loss: 30
+  take_profit: 50
+  order_type: "market" #"limit", 'join_bid', 'join_ask', "market
+#  tp_scaling: false
+#  tp_scales:
+#    tp1:
+#      point: 30
+#      stop_loss: 'entryPrice'
+#      conns: .60
+#    tp2:
+#      point: 50
+#      stop_loss: 'tp1'
+#      conns: .50
+#    tp3:
+#      point: 70
+#      stop_loss: 'tp2'
+#      conns: 1
+
+notifications:
+  email_to: "vikaskaler.bnr@gmail.com"   # default overrideable
+  poll_interval: 20                      # seconds (your ask)
+  send_on_open: false                    # no email on “just opened”
+  send_on_sltp_set: true                 # email when SL & TP both present
+  send_on_close: true                    # email when position disappears
+
+positions: https://userapi.topstepx.com/Position/all/user/150962
+
+# Optional (only if your session needs these)
+x_app_type: "px-desktop"
+x_app_version: "1.22.19"
