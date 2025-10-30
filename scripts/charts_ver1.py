@@ -123,7 +123,7 @@ def draw_w_plotly_w_subplot_oirg_no_slidebar(df, chart_title='title'):
 
     fig.update_layout(
         title=f'{chart_title}',
-        width=1700,
+        width=1900,
         height=1200,
         xaxis=dict(
             range=[start_time_slider, end_time],  # 👈 sets visible window
@@ -156,12 +156,44 @@ def draw_w_plotly_w_subplot_oirg_no_slidebar(df, chart_title='title'):
     fig.update_xaxes(showticklabels=True, row=1, col=1)  # showing X lables in the chart ...
 
     return fig
+
+def cut_df_until_hour_x_on_last_day(df, cutoff_time="13:00"):
+    """
+    Cut the DataFrame up to (and including) a specific time on the last day in df['date'].
+
+    Parameters:
+        df : pd.DataFrame
+            Must contain a 'date' column of datetime type.
+        cutoff_time : str
+            Time in HH:MM (24-hour) format. Default is '13:00'.
+
+    Returns:
+        pd.DataFrame : sliced DataFrame up to cutoff_time of the last day.
+    """
+    df = df.copy()
+    df['date'] = pd.to_datetime(df['date'])
+
+    # Find the last trading day in the DataFrame
+    last_day = df['date'].dt.normalize().max()
+
+    # Create masks
+    mask_day = df['date'].dt.normalize() == last_day
+    mask_time = df['date'].dt.time <= pd.to_datetime(cutoff_time).time()
+
+    # Keep everything before that cutoff on the last day, and all prior days
+    cut_df = df[(df['date'].dt.normalize() < last_day) | (mask_day & mask_time)]
+    return cut_df
+
+
 def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
     global df
     global extra_features_df
     logger.info(f"in draw_w_plotly_w_subplot:\n {df[-20:].to_markdown()}")
 
     df['date'] = pd.to_datetime(df['date'])
+    if app_config['chart']['source'] == 'live':
+        df = cut_df_until_hour_x_on_last_day(df,cutoff_time="11:15" )
+
     end_time = df['date'].max() + pd.Timedelta(minutes=10)
 
     extra_features_df['date'] = pd.to_datetime(extra_features_df['date'])
@@ -179,7 +211,16 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
     fig = make_subplots(rows=8, cols=1, shared_xaxes=True,
                         vertical_spacing=0.04,
                         row_heights=[0.65, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05],
-                        subplot_titles=(f'{symbol}', f'ATR-{symbol}', f'Volume-{symbol}', f'RS-ratio-and-ema-{symbol}', f'RS-roc-{symbol}', f'RS-Rel-{symbol}', f'Vol Ratio-{symbol}'))
+                        subplot_titles=(f'{symbol}',
+                                        f'Vol Ratio-{symbol}',
+                                        f'RS-Rel-{symbol}',
+                                        f'ATR-{symbol}',
+                                        f'Volume-{symbol}',
+                                        f'RS-ratio-and-ema-{symbol}',
+                                        f'RS-roc-{symbol}',
+
+                                        )
+                        )
 
     row_in_chart = 0
     row_in_chart += 1
@@ -195,8 +236,50 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
 
     fig.update_xaxes(showticklabels=True, row=1, col=1)
 
+
+    # vol ratio
     row_in_chart += 1
+    df['volume_sma10'] = df['volume'].rolling(window=10).mean()
+    df['VR'] = df['volume'] / df['volume_sma10']
+    cap = df['VR'].quantile(0.95)  # 95th percentile
+    df['VR_clipped'] = df['VR'].clip(upper=cap)
+
+    fig.add_trace(go.Scatter(
+        x=df['date'],
+        y=df['VR_clipped'],
+        line=dict(color='blue', width=2),
+        name='VR = volume/ vol_sma10 '
+    ), row=row_in_chart, col=1)
+
+    fig.add_trace(go.Scatter( # line on 1
+        x=df['date'],
+        y=[1] * len(df),
+        mode='lines',
+        name='1 Line',
+        line=dict(color='red', dash='dot', width=1),
+        showlegend=False
+    ), row=row_in_chart, col=1)
+
+    #rs_rel
+    row_in_chart += 1
+    fig.add_trace(go.Scatter(
+        x=extra_features_df['date'],
+        y=extra_features_df['rs_rel'],
+        line=dict(color='blue', width=2),
+        name='rs_rel'
+    ), row=row_in_chart, col=1)
+
+    fig.add_trace(go.Scatter( # line on 0
+        x=extra_features_df['date'],
+        y=[0] * len(extra_features_df),
+        mode='lines',
+        name='Zero Line',
+        line=dict(color='black', dash='dot', width=1),
+        showlegend=False
+    ), row=row_in_chart, col=1)
+
     # ATR line chart
+    row_in_chart += 1
     fig.add_trace(go.Scatter(
         x=df['date'],
         y=df['atr_14'],
@@ -263,51 +346,14 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
         showlegend=False
     ), row=row_in_chart, col=1)
 
-    #rs_rel
-    row_in_chart += 1
-    fig.add_trace(go.Scatter(
-        x=extra_features_df['date'],
-        y=extra_features_df['rs_rel'],
-        line=dict(color='blue', width=2),
-        name='rs_rel'
-    ), row=row_in_chart, col=1)
-
-    fig.add_trace(go.Scatter( # line on 0
-        x=extra_features_df['date'],
-        y=[0] * len(extra_features_df),
-        mode='lines',
-        name='Zero Line',
-        line=dict(color='black', dash='dot', width=1),
-        showlegend=False
-    ), row=row_in_chart, col=1)
 
 
-    # vol ratio
-    row_in_chart += 1
-    df['volume_sma10'] = df['volume'].rolling(window=10).mean()
-    df['VR'] = df['volume'] / df['volume_sma10']
-    cap = df['VR'].quantile(0.95)  # 95th percentile
-    df['VR_clipped'] = df['VR'].clip(upper=cap)
 
-    fig.add_trace(go.Scatter(
-        x=df['date'],
-        y=df['VR_clipped'],
-        line=dict(color='blue', width=2),
-        name='VR = volume/ vol_sma10 '
-    ), row=row_in_chart, col=1)
 
-    fig.add_trace(go.Scatter( # line on 1
-        x=df['date'],
-        y=[1] * len(df),
-        mode='lines',
-        name='1 Line',
-        line=dict(color='red', dash='dot', width=1),
-        showlegend=False
-    ), row=row_in_chart, col=1)
 
     fig.update_layout(
         title=f'{chart_title}',
-        width=1800,
+        width=1900,
         height=1400,
         xaxis=dict(
             range=[start_time, end_time],  # limit slider to last 4 hours
@@ -344,6 +390,7 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
         )
     )
 
+    x = 0
 
     fig.update_yaxes(title_text="Price", row=1, col=1, title_standoff=20, automargin=True)
     fig.update_yaxes(title_text="ATR", row=2, col=1, title_standoff=20, automargin=True)
@@ -357,99 +404,99 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
 
     return fig
 
-def draw_w_plotly_w_subplot(df, chart_title='title'):
-
-    logger.info(f"in draw_w_plotly_w_subplot:\n {df[-20:].to_markdown()}")
-
-    df['date'] = pd.to_datetime(df['date'])
-    end_time = df['date'].max() + pd.Timedelta(minutes=20)  # leave some space in the right ....
-    hours_in_focus = int(app_config['chart']['hours_in_focus'])
-    start_time = end_time - pd.Timedelta(hours=hours_in_focus)
-
-    # Set 'date' as the index
-    df.set_index('date', inplace=True)
-
-    # Create a subplot: (2 rows, shared x-axis)
-    fig = make_subplots(rows=1, cols=1, shared_xaxes=True,
-                        vertical_spacing=0.05,
-                        #row_heights=[0.8, 0.2],
-                        subplot_titles=(f'OHLC Chart {chart_title}', f'Volume {chart_title}'))
-
-    # Candlestick chart
-    fig.add_trace(go.Candlestick(
-        x=df['date'],
-        open=df['open'],
-        high=df['high'],
-        low=df['low'],
-        close=df['close'],
-        name='Candles'
-    ), row=1, col=1)
-
-
-    #
-    # fig.add_trace(go.Bar(
-    #     x=df['date'],
-    #     y=df["volume"],
-    #     name="Volume",
-    #     marker_color="orange"
-    # ), row=2, col=1)
-    #
-
-
-    # # add volume ...
-    # fig.add_trace(go.Scatter(
-    #     x=df['date'],
-    #     y=df['volume'],
-    #     line=dict(color='orange', width=2),
-    #     name='Volume'
-    # ), row=2, col=1)
-
-
-    #
-    # fig.update_layout(
-    #     title=f'{chart_title}',
-    #     width=1700,
-    #     height=1200)
-    #
-
-    fig.update_layout(
-        title=f'{chart_title}',
-        width=1800,
-        height=1300,
-        xaxis=dict(
-            range=[start_time, end_time],  # 👈 focus last 4 hours
-            rangeslider=dict(visible=True, thickness=0.05),
-            type="date",
-            rangebreaks=[
-                dict(bounds=["sat", "mon"]),  # skip weekends
-                dict(bounds=[0, 3.5], pattern="hour"),  # skip 00:00–09:30
-                dict(bounds=[20, 24], pattern="hour"),  # skip 16:00–24:00
-            ]
-        ),
-
-    )
-    # sometimes slidebar overlaps ... this is the fix.
-    # fig.update_layout(
-    #     xaxis=dict(rangeslider=dict(visible=True)),
-    #     xaxis2=dict(rangeslider=dict(visible=False)),  # Prevent overlapping in ATR subplot
-    # )
-
-    # # fix for slide bar range ..
-    # fig.update_layout(
-    #     xaxis=dict(
-    #         rangeslider=dict(
-    #             visible=True,
-    #             range=[start_time_slider, end_time],  # limit slider to last 4 hours
-    #             thickness=0.05  # Smaller value = thinner slider (default is ~0.1)
-    #         )
-    #     )
-    # )
-    # chart is based on UTC, so we cut the chart ...
-    # fig.update_xaxes(range=[start_time, end_time], row=1, col=1)
-    # fig.update_xaxes(range=[start_time, end_time], row=2, col=1)
-    # fig.update_xaxes(showticklabels=True, row=1, col=1)  # showing X lables in the chart ...
-
-    return fig
+# def draw_w_plotly_w_subplot(df, chart_title='title'):
+#
+#     logger.info(f"in draw_w_plotly_w_subplot:\n {df[-20:].to_markdown()}")
+#
+#     df['date'] = pd.to_datetime(df['date'])
+#     end_time = df['date'].max() + pd.Timedelta(minutes=20)  # leave some space in the right ....
+#     hours_in_focus = int(app_config['chart']['hours_in_focus'])
+#     start_time = end_time - pd.Timedelta(hours=hours_in_focus)
+#
+#     # Set 'date' as the index
+#     df.set_index('date', inplace=True)
+#
+#     # Create a subplot: (2 rows, shared x-axis)
+#     fig = make_subplots(rows=1, cols=1, shared_xaxes=True,
+#                         vertical_spacing=0.05,
+#                         #row_heights=[0.8, 0.2],
+#                         subplot_titles=(f'OHLC Chart {chart_title}', f'Volume {chart_title}'))
+#
+#     # Candlestick chart
+#     fig.add_trace(go.Candlestick(
+#         x=df['date'],
+#         open=df['open'],
+#         high=df['high'],
+#         low=df['low'],
+#         close=df['close'],
+#         name='Candles'
+#     ), row=1, col=1)
+#
+#
+#     #
+#     # fig.add_trace(go.Bar(
+#     #     x=df['date'],
+#     #     y=df["volume"],
+#     #     name="Volume",
+#     #     marker_color="orange"
+#     # ), row=2, col=1)
+#     #
+#
+#
+#     # # add volume ...
+#     # fig.add_trace(go.Scatter(
+#     #     x=df['date'],
+#     #     y=df['volume'],
+#     #     line=dict(color='orange', width=2),
+#     #     name='Volume'
+#     # ), row=2, col=1)
+#
+#
+#     #
+#     # fig.update_layout(
+#     #     title=f'{chart_title}',
+#     #     width=1700,
+#     #     height=1200)
+#     #
+#
+#     fig.update_layout(
+#         title=f'{chart_title}',
+#         width=1800,
+#         height=1300,
+#         xaxis=dict(
+#             range=[start_time, end_time],  # 👈 focus last 4 hours
+#             rangeslider=dict(visible=True, thickness=0.05),
+#             type="date",
+#             rangebreaks=[
+#                 dict(bounds=["sat", "mon"]),  # skip weekends
+#                 dict(bounds=[0, 3.5], pattern="hour"),  # skip 00:00–09:30
+#                 dict(bounds=[20, 24], pattern="hour"),  # skip 16:00–24:00
+#             ]
+#         ),
+#
+#     )
+#     # sometimes slidebar overlaps ... this is the fix.
+#     # fig.update_layout(
+#     #     xaxis=dict(rangeslider=dict(visible=True)),
+#     #     xaxis2=dict(rangeslider=dict(visible=False)),  # Prevent overlapping in ATR subplot
+#     # )
+#
+#     # # fix for slide bar range ..
+#     # fig.update_layout(
+#     #     xaxis=dict(
+#     #         rangeslider=dict(
+#     #             visible=True,
+#     #             range=[start_time_slider, end_time],  # limit slider to last 4 hours
+#     #             thickness=0.05  # Smaller value = thinner slider (default is ~0.1)
+#     #         )
+#     #     )
+#     # )
+#     # chart is based on UTC, so we cut the chart ...
+#     # fig.update_xaxes(range=[start_time, end_time], row=1, col=1)
+#     # fig.update_xaxes(range=[start_time, end_time], row=2, col=1)
+#     # fig.update_xaxes(showticklabels=True, row=1, col=1)  # showing X lables in the chart ...
+#
+#     return fig
 
 def draw_w_plotly_w_subplot_test(df, chart_title='title'):
     import pandas as pd
@@ -604,19 +651,19 @@ def load_file_to_hover_df():
         return pd.DataFrame()
 
 
-def chart_orch(df, portfolio_id='p700', symbol='TSLA', time_frame='1min'):
-    logger.info(df[-12:].to_markdown())
-
-    first_order_date = df.iloc[0]['date']
-    last_order_date = df.iloc[-1]['date']
-    logger.info(f"first_order_date: {first_order_date}, last_order_date: {last_order_date} , len(df): {len(df)} chart_1m_candles: {app_config['chart']['1m_candles']}")
-
-    # draw plots
-    # fig = draw_w_plotly_w_subplot(df, chart_title=f'{symbol}-{time_frame}')
-    fig = draw_w_plotly_w_subplot_1(chart_title=f'{symbol}-{time_frame}')
-    logger.info(f"\n{df[-10:].to_markdown()}")
-
-    return fig
+# def chart_orch(df, portfolio_id='p700', symbol='TSLA', time_frame='1min'):
+#     logger.info(df[-12:].to_markdown())
+#
+#     first_order_date = df.iloc[0]['date']
+#     last_order_date = df.iloc[-1]['date']
+#     logger.info(f"first_order_date: {first_order_date}, last_order_date: {last_order_date} , len(df): {len(df)} chart_1m_candles: {app_config['chart']['1m_candles']}")
+#
+#     # draw plots
+#     # fig = draw_w_plotly_w_subplot(df, chart_title=f'{symbol}-{time_frame}')
+#     fig = draw_w_plotly_w_subplot_1(chart_title=f'{symbol}-{time_frame}')
+#     logger.info(f"\n{df[-10:].to_markdown()}")
+#
+#     return fig
 
 def mark_market_time_only_last_one(fig,df):
     logger.info(f"in mark_market_time_only_last_one")

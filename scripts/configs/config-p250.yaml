@@ -5,7 +5,7 @@ symbols: ['QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR', 'TSLL', 'AMZN', 'MNQ', '
 
 symbols_meta:
   QQQ:
-    can_trade: true
+    can_trade: false
     contract_type: Equity
     retest_tolerance_percentage: 0.0001
     retest_tolerance_amount: 0.5
@@ -85,7 +85,7 @@ symbols_meta:
     chart_entry_offset: 1
     retest_tolerance_multiplier: 1
   MNQ:
-    can_trade: true
+    can_trade: False
     contract_type: Future
     contract_month: 202512
     retest_tolerance_percentage: 0.003
@@ -132,7 +132,6 @@ cases:
       condition_07: abs(levels['PDL'] - levels['PML']) < levels_closeness_limit and abs(levels['5ML'] - levels['PDL']) < levels_closeness_limit
       condition_08: 1 == 1
 
-
       master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07
 
   case_2:
@@ -148,7 +147,7 @@ cases:
       condition_08: 1 == 1
 
       # Use the below for test
-#      condition_01: symbol == 'AAPL' and 1 == 1
+#      condition_01: symbol == 'AMD' and 1 == 1
 #      condition_02: 1 == 1
 #      condition_03: 1 == 1
 #      condition_04: 1 == 1
@@ -170,7 +169,7 @@ cases:
       condition_07: 1 == 1
       condition_08: 1 == 1
 
-#      condition_01: symbol == 'PLTR' and 1 == 1
+#      condition_01: symbol == 'TSLA' and 1 == 1
 #      condition_02: 1 == 1
 #      condition_03: 1 == 1
 #      condition_04: 1 == 1
@@ -181,16 +180,44 @@ cases:
 
       master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07
 
+rights:
+  C:
+    stop_loss_condition: underlying_previous_candle_close < level_used_to_open and ( level_used_to_open != -1)
+#    stop_loss_condition:  symbol == 'TSLA' or 1 == 2
+
+  P:
+    stop_loss_condition: underlying_previous_candle_close > level_used_to_open and ( level_used_to_open != -1)
+#    stop_loss_condition:  symbol == 'XTSLA' or 1 == 2
+
+
+take_profits:
+  t1:
+    condition: current_ask > avg_cost_for_1_contract * 1.4 and ( avg_cost_for_1_contract != -1 and current_ask != -1)
+    close_quantity_percentage: 0.5
+    reset_stop_loss: true
+    reset_stop_loss_price: underlying_open_price
+
+  t2:
+    condition: current_ask > avg_cost_for_1_contract * 1.5  and ( avg_cost_for_1_contract != -1 and current_ask != -1)
+    close_quantity_percentage: 0.25
+
+  t3:
+    condition: current_ask > avg_cost_for_1_contract * 1.6  and ( avg_cost_for_1_contract != -1 and current_ask != -1)
+    close_quantity_percentage: 0.25
+
+#  t4:
+#    condition: symbol == 'PLTR'
+#    close_quantity_percentage: 0.50
 
 
 live:
   historical_days: 4 D
+  capital: 4000
+  capital_per_trade_percentage: 0.20
+  max_num_open_trades: 4
+  num_of_contracts: calculate_number_of_contracts()
 
-close_all_open_option_positions: false
-cancel_open_orders_on_start: false
 
-load_application_state_from_file: true
-run_should_take_seconds: 15
 
 back_test:
   get_data_from_ib: True
@@ -203,41 +230,19 @@ back_test:
   back_test_date_end: 2025-10-30
 
 chart:
-  source: live
-#  source: back_test
+#  source: live
+  source: back_test
   1m_candles: 2000
   cutoff_in_hours: 0
-  hours_in_focus: 2
+  hours_in_focus: 2.5
 
 # stop_loss_condition: 1 == 2 and symbol == 'AMD'
-exit: false
-rights:
-  C:
-    stop_loss_condition: underlying_previous_candle_close < level_used_to_open and ( level_used_to_open != -1)
-  P:
-    stop_loss_condition: underlying_previous_candle_close > level_used_to_open and ( level_used_to_open != -1)
+close_all_open_option_positions: false
+cancel_open_orders_on_start: false
 
+load_application_state_from_file: true
+run_should_take_seconds: 20
 
-take_profits:
-  t1:
-    condition: current_ask > avg_cost_for_1_contract * 1.4 and ( avg_cost_for_1_contract != -1 and current_ask != -1)
-#    condition: current_ask > avg_cost_for_1_contract * 0.2 and ( avg_cost_for_1_contract != -1 and current_ask != -1)
-    close_quantity_percentage: 0.5
-    reset_stop_loss: true
-    reset_stop_loss_price: underlying_open_price
-
-  t2:
-
-    condition: current_ask > avg_cost_for_1_contract * 1.6  and ( avg_cost_for_1_contract != -1 and current_ask != -1)
-    close_quantity_percentage: 0.25
-
-  t3:
-    condition: current_ask > avg_cost_for_1_contract * 1.7  and ( avg_cost_for_1_contract != -1 and current_ask != -1)
-    close_quantity_percentage: 0.25
-##
-#  t4:
-#    condition: 1 == 2
-#    close_quantity_percentage: 0.3
 
 email:
   send_email: true
@@ -247,3 +252,4 @@ email:
 
 
 test_yaml: false
+exit: false
