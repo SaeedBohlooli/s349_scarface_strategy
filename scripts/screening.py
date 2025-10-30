@@ -2085,9 +2085,6 @@ def check_for_stop_loss_and_take_profit():
         if stop_loss_condition_evaluated:
             logger.warning("SL condition met ...")
             close_option_positions(positions_to_monitor, symbol)
-            data = {}
-            application_state.setdefault('open_trades_dic', {})[symbol] = data
-            add_to_signlas('STOP_LOSS_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f'{data}')
             send_email(event='stop_loss_sent')
             data = {
                 'symbol': symbol,
@@ -2103,6 +2100,10 @@ def check_for_stop_loss_and_take_profit():
                 'open_order_ref': ''
                 }
             add_to_stop_loss_history_df(data)
+            add_to_signlas('STOP_LOSS_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f'{data}')
+            data = {}
+            application_state.setdefault('open_trades_dic', {})[symbol] = data  # This need to be ahppened after we get required inf from dic...
+
         # ###
         # Take profit
         # ###
@@ -2122,6 +2123,7 @@ def check_for_stop_loss_and_take_profit():
             available_quantity = application_state.get('open_trades_dic', {}).get(symbol, {}).get('available_quantity', 0)
 
             close_quantity = round(start_quantity * close_quantity_percentage )
+            close_quantity = 1 if close_quantity == 0 else close_quantity  # we want to make sure 0.4 * 1 will return 1.
 
             logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, take_profit: {take_profit}")
             logger.info(f"available_quantity: {available_quantity}, close_quantity_percentage: {close_quantity_percentage}, close_quantity: {close_quantity}, start_quantity:{start_quantity}")
@@ -2151,7 +2153,7 @@ def check_for_stop_loss_and_take_profit():
                     'take_profit_condition': take_profit_condition,
                     'close_quantity': close_quantity,
                     'u_run_number': unique_run_number,
-                    'take_profit': {app_config['take_profits'][take_profit]}
+                    #'take_profit': {app_config['take_profits'][take_profit]}
                 }
                 add_to_take_profit_history_df(data)
                 send_email(event='take_profit_sent')
@@ -2304,18 +2306,21 @@ def call_api_top_step(symbol, side):
 # End of IB sending order - only for live
 # ###########
 
-def on_commission_report(*args):
+def on_commission_report(trade, fill, commissionReport):
     global ib_commission_df
-    logger.info(f"Number of args: {len(args)}")
-    for i, arg in enumerate(args):
-        logger.info(f"Arg {i}: {arg}")
+    global ib_commission_trade_df
+    global ib_commission_fill_df
 
-    report = args[-1]   # last argument is the CommissionReport
-    flatten_dic = flatten(report)
+    flatten_dic = flatten(commissionReport)
     ib_commission_df = pd.concat([ib_commission_df, pd.DataFrame([flatten_dic])], ignore_index=True)
 
+    flatten_dic = flatten(trade)
+    ib_commission_trade_df = pd.concat([ib_commission_trade_df, pd.DataFrame([flatten_dic])], ignore_index=True)
 
-    logger.info(f"@@@ on_commission_report, report: {report}")
+    flatten_dic = flatten(fill)
+    ib_commission_fill_df = pd.concat([ib_commission_fill_df, pd.DataFrame([flatten_dic])], ignore_index=True)
+
+    logger.info(f"@ on_commission_report, report: {commissionReport}")
     return
 
 def cancel_open_orders(symbol = ''):
@@ -2462,7 +2467,9 @@ if __name__ == "__main__":
     on_fill_trade_df = pd.DataFrame()
     ib_portfolio_df = pd.DataFrame()
     ib_commission_df = pd.DataFrame()
-
+    ib_commission_df  = pd.DataFrame()
+    ib_commission_trade_df = pd.DataFrame()
+    ib_commission_fill_df = pd.DataFrame()
 
     consequence_exception = 0
     run_number = 0
@@ -2577,14 +2584,15 @@ if __name__ == "__main__":
 
 
             save_df_to_csv_a_tabular(ib_commission_df, dir=portfolio_dir, file_name='89-ib_commission_df.csv', mode='a')
-            #90 is ...
+            save_df_to_csv_a_tabular(ib_commission_trade_df, dir=portfolio_dir, file_name='89-ib_commission_trade_df.csv', mode='a')
+            save_df_to_csv_a_tabular(ib_commission_fill_df, dir=portfolio_dir, file_name='89-ib_commission_fill_df.csv', mode='a')
+            get_executed_orders_from_ib_and_save_ver2()
             save_df_to_csv_a_tabular(ib_portfolio_df, dir=portfolio_dir, file_name='91-ib_portfolio_df.csv', mode='a')
             save_df_to_csv_a_tabular(flatten_on_fill_fill_df, dir=portfolio_dir, file_name='92-flatten_on_fill_fill_df.csv', mode='a')
             save_df_to_csv_a_tabular(flatten_on_fill_trade_df, dir=portfolio_dir, file_name='93-flatten_on_fill_trade_df.csv', mode='a')
             save_df_to_csv_a_tabular(on_fill_fill_df, dir=portfolio_dir, file_name='94-on_fill_fill_df.csv', mode='a')
             save_df_to_csv_a_tabular(on_fill_trade_df, dir=portfolio_dir, file_name='95-on_fill_trade_df.csv', mode='a')
 
-            get_executed_orders_from_ib_and_save_ver2()
             add_atr_to_candle_info()
         end_time = time.time()
 
