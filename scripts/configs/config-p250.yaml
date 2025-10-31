@@ -1,7 +1,7 @@
 logging_level: logging.INFO
 #logging_level: logging.WARNING
 symbols: ['QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR', 'TSLL', 'AMZN', 'MNQ', 'SPY']
-#symbols: ['QQQ', 'PLTR', 'TSLA']
+#symbols: ['QQQ', 'PLTR', 'TSLA', 'TSLL', 'AMZN']
 
 symbols_meta:
   QQQ:
@@ -85,7 +85,7 @@ symbols_meta:
     chart_entry_offset: 1
     retest_tolerance_multiplier: 1
   MNQ:
-    can_trade: False
+    can_trade: false
     contract_type: Future
     contract_month: 202512
     retest_tolerance_percentage: 0.003
@@ -122,8 +122,7 @@ cases:
       condition_10: 1 == 1
 
 
-      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and 
-        eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07
+      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07
 
     short:
       level: min(levels['PDL'], levels['PML'], levels['5ML'])
@@ -138,8 +137,7 @@ cases:
       condition_09: 1 == 1
       condition_10: 1 == 1
 
-      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 
-          and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07
+      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07
 
   case_2:
     long:
@@ -167,8 +165,7 @@ cases:
 #      condition_09: 1 == 1
 #      condition_10: 1 == 1
 
-      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 
-         and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07
+      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07
 
     short:
       level: levels['5ML']
@@ -194,8 +191,7 @@ cases:
 #      condition_09: 1 == 1
 #      condition_10: 1 == 1
 
-      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 
-        and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07
+      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07
 
 rights:
   C:
@@ -220,11 +216,15 @@ take_profits:
     condition: current_ask > avg_cost_for_1_contract * 1.6  and ( avg_cost_for_1_contract != -1 and current_ask != -1)
     close_quantity_percentage: 0.25
 
+#  t3_1:
+#    condition: current_ask > avg_cost_for_1_contract * 1.0  and ( avg_cost_for_1_contract != -1 and current_ask != -1)
+#    close_quantity_percentage: -1
+
   t4:
     condition: >
-      (right == 'C' and is_executed_take_profits(symbol, take_profit_list=['t1']) and current_price < underlying_open_price)
+      (right == 'C' and is_executed_take_profits(symbol, take_profit_list=['t1']) and underlying_current_price < underlying_open_price)
       or
-      (right == 'P' and is_executed_take_profits(symbol, take_profit_list=['t1']) and current_price > underlying_open_price)
+      (right == 'P' and is_executed_take_profits(symbol, take_profit_list=['t1']) and underlying_current_price > underlying_open_price)
     close_quantity_percentage: -1
 
 #  t3_test:
@@ -242,7 +242,7 @@ take_profits:
 #      (right == 'P' and is_executed_take_profits(symbol, take_profit_list=['t5_test']) and 1 == 2)
 #    close_quantity_percentage: -1 # -1 means all positions
 
-levels_closnes_meusrment : df['atr_14'].iloc[-1] * 1
+closeness_distance: df['atr_14'].iloc[-1] * 1
 
 live:
   historical_days: 4 D
@@ -256,18 +256,18 @@ live:
 
 
 back_test:
-  get_data_from_ib: False
+  get_data_from_ib: false
 #  get_data_from_ib: False
 
   historical_days: 5 D
   start_date: 2025-10-27
 
-  back_test_date_start: 2025-10-01
+  back_test_date_start: 2025-10-15
   back_test_date_end: 2025-10-31
 
 chart:
-#  source: live
-  source: back_test
+  source: live
+#  source: back_test
   1m_candles: 2000
   cutoff_in_hours: 0
   hours_in_focus: 2.5

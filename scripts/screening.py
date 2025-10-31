@@ -399,7 +399,7 @@ def write_file_in_tabulate(src_file_path, dest_file_path= None, number_of_rows=0
                 # write all
                 f.write(tabulate(df.astype(str), headers='keys', tablefmt='psql'))
             else:
-                f.write(tabulate(df[-number_of_rows:].astype(str), headers='keys', tablefmt='psql'))
+                f.write(tabulate(df[-number_of_rows:].astype(str), headers='keys', tablefmt='psql')) #, numalign=None, stralign='left'
     return
 
 # 0.001
@@ -2132,7 +2132,7 @@ def check_for_stop_loss_and_take_profit():
                 'open_order_ref': ''
                 }
             add_to_stop_loss_history_df(data)
-            add_to_signlas('STOP_LOSS_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f'{data}')
+            add_to_signlas('STOP_LOSS_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f'STOP_LOSS {unique_run_number}')
             data = {}
             application_state.setdefault('open_trades_dic', {})[symbol] = data  # This need to be ahppened after we get required inf from dic...
 
@@ -2191,6 +2191,7 @@ def check_for_stop_loss_and_take_profit():
                     #'take_profit': {app_config['take_profits'][take_profit]}
                 }
                 add_to_take_profit_history_df(data)
+                add_to_signlas('TAKE_PROFIT_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f'TAKE-PROFIT-{take_profit}')
                 send_email(event='take_profit_sent')
 
             else:
@@ -2411,7 +2412,7 @@ def check_application_state_vs_positions():
                     logger.warning(f"@@@@ open_trade_info: {open_trade_info}")
                     logger.warning(f"@@@@ portfolio_df\n{portfolio_df.to_markdown()}")
 
-    return 
+    return
 
 
 def write_health_status(log_path=f"{log_dir}/health_status.log"):
@@ -2463,6 +2464,30 @@ def is_executed_take_profits(symbol, take_profit_list=[]): # used in config
     return False
 
 
+def save_list_to_csv(close_pairs, file, mode='w'):
+    if len(close_pairs) > 0:
+        df = pd.DataFrame(close_pairs, columns=["symbol", "level1", "level2", "difference", "closeness_distance"])
+        df = df.drop_duplicates(subset=['symbol'], keep='last')
+        df.to_csv(file, mode=mode, index=False)
+    return
+
+
+def mark_close_levels(key_levels_list):
+    global close_pairs
+    closeness_distance = eval(app_config['closeness_distance'])
+
+
+    for i in range(len(key_levels_list)):
+        for j in range(i + 1, len(key_levels_list)):
+            diff = abs(key_levels_list[j] - key_levels_list[i])
+            if diff < closeness_distance:
+                close_pairs.append((symbol, key_levels_list[i], key_levels_list[j], round(diff, 2), round(closeness_distance,2)))
+
+    logger.info(f"mark_close_levels(), {symbol}")
+    # for a, b, c, d, e in close_pairs:
+    #     logger.debug(f"{a} -- {b}:  {d}  closeness_distance: {round(closeness_distance,3)}")
+
+    return close_pairs # it is (l1,l2, diff, atr)
 if __name__ == "__main__":
 
     x_portfolio_df = pd.DataFrame(columns=['symbol', 'right', 'strike', 'expiry', 'position', 'marketPrice', 'averageCost', 'marketValue', 'unrealizedPNL', 'realizedPNL', 'account', 'timestamp' ])
@@ -2510,7 +2535,7 @@ if __name__ == "__main__":
     ib_commission_df  = pd.DataFrame()
     ib_commission_trade_df = pd.DataFrame()
     ib_commission_fill_df = pd.DataFrame()
-
+    close_pairs = []
     consequence_exception = 0
     run_number = 0
     dfs_map = {}
@@ -2556,7 +2581,7 @@ if __name__ == "__main__":
             break_out_indices_by_level_set = {}
             retest_idx = 0
             breakout_idx = 0
-            if run_number == 1:
+            if run_number == 1: # TODO move it uppre
                 historical_days = '' # will come from config ...
             else:
                 historical_days = '1 D'
@@ -2583,31 +2608,32 @@ if __name__ == "__main__":
             find_add_5MH_5ML_levels_to_key_levels_df()
 
             key_levels_list = get_key_levels_list()
-            logger.info(f"key_levels_list: {key_levels_list}")
+            logger.debug(f"key_levels_list: {key_levels_list}")
+            mark_close_levels(key_levels_list)
 
             buy_sell_case_results_list = check_buy_and_sell_cases()
             check_buy_sell_result_to_send_order(buy_sell_case_results_list)
             check_for_stop_loss_and_take_profit()
 
             add_buy_a_sell_entries_to_signals(buy_sell_case_results_list)
-            add_candle_info_df_to_signals()
             add_atr_to_candle_info()
+            add_candle_info_df_to_signals()
             logger.debug(f"{symbol}, signals: {signals}")
             hover_df = convert_signals_to_hover_df(signals)
 
 
-            save_ohlc_for_chart(df)
-            # Extra features ...
-            # move it to a fun ...
-            extra_features_df = df.copy()
-            extra_features_df = extra_features_df.merge(relative_strength_df, on='date', how='left')
-            extra_features_df = extra_features_df.merge(intraday_rs_df, on='date', how='left')
 
-            file = f"{charts_dir}/{symbol}-{time_frame.replace(' ', '')}-extra_features_df.csv"
-            extra_features_df.to_csv(file, index=False)
+            if run_number % 2 ==0:
+                save_ohlc_for_chart(df)
+                # Extra features ...
+                # move it to a fun ...
+                extra_features_df = df.copy()
+                extra_features_df = extra_features_df.merge(relative_strength_df, on='date', how='left')
+                extra_features_df = extra_features_df.merge(intraday_rs_df, on='date', how='left')
 
-            if run_number % 4 == 0:
-                app_config = load_app_config(portfolio_id)
+                file = f"{charts_dir}/{symbol}-{time_frame.replace(' ', '')}-extra_features_df.csv"
+                extra_features_df.to_csv(file, index=False)
+
 
             dump_application_state_to_file()
             print_application_state(application_state, msg='application_state:')
@@ -2617,27 +2643,25 @@ if __name__ == "__main__":
             logger.warning(f'{symbol} run_number: {run_number}, symbol_run_spend_time: {symbol_run_spend_time} seconds')
         # end:  for symbol in app_config['symbols']:
 
-        if run_number % 2 == 0:
+        if run_number % 6 == 0:
             save_df_to_csv_a_tabular(drawing_objects_df, dir=charts_dir, file_name='10-drawing_objects_df.csv', mode='w')
             save_df_to_csv_a_tabular(key_levels_df, dir=portfolio_dir, file_name='11-key_levels_df.csv', mode='w')
             save_df_to_csv_a_tabular(hover_df, dir=charts_dir, file_name='12-hover_df.csv', mode='a')
-
+            save_list_to_csv(close_pairs, file=f'{charts_dir}/13-close_levels_df.csv', mode='w')
             save_df_to_csv_a_tabular(order_history_df, dir=portfolio_dir, file_name='13-order_history_df.csv', mode='a', drop_dupplicates=True)
             save_df_to_csv_a_tabular(stop_loss_history_df, dir=portfolio_dir, file_name='14-stop_loss_history_df.csv', mode='a', drop_dupplicates=True)
             save_df_to_csv_a_tabular(take_profit_history_df, dir=portfolio_dir, file_name='15-take_profit_history_df.csv', mode='a', drop_dupplicates=True)
 
-
             save_df_to_csv_a_tabular(ib_commission_df, dir=portfolio_dir, file_name='89-ib_commission_df.csv', mode='a')
             save_df_to_csv_a_tabular(ib_commission_trade_df, dir=portfolio_dir, file_name='89-ib_commission_trade_df.csv', mode='a')
             save_df_to_csv_a_tabular(ib_commission_fill_df, dir=portfolio_dir, file_name='89-ib_commission_fill_df.csv', mode='a')
-            get_executed_orders_from_ib_and_save_ver2()
+            get_executed_orders_from_ib_and_save_ver2()  #90
             save_df_to_csv_a_tabular(ib_portfolio_df, dir=portfolio_dir, file_name='91-ib_portfolio_df.csv', mode='a')
             save_df_to_csv_a_tabular(flatten_on_fill_fill_df, dir=portfolio_dir, file_name='92-flatten_on_fill_fill_df.csv', mode='a')
             save_df_to_csv_a_tabular(flatten_on_fill_trade_df, dir=portfolio_dir, file_name='93-flatten_on_fill_trade_df.csv', mode='a')
             save_df_to_csv_a_tabular(on_fill_fill_df, dir=portfolio_dir, file_name='94-on_fill_fill_df.csv', mode='a')
             save_df_to_csv_a_tabular(on_fill_trade_df, dir=portfolio_dir, file_name='95-on_fill_trade_df.csv', mode='a')
 
-            add_atr_to_candle_info()
         end_time = time.time()
 
         sleep_enough()
@@ -2650,8 +2674,6 @@ if __name__ == "__main__":
       except Exception as e:
           consequence_exception = consequence_exception + 1
           logger.error(f"@@@@ error: {e}")
-          import traceback
-
           logger.warning(traceback.format_exc())
           time.sleep(60)
 

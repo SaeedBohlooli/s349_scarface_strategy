@@ -2463,6 +2463,30 @@ def is_executed_take_profits(symbol, take_profit_list=[]): # used in config
     return False
 
 
+def save_list_to_csv(close_pairs, file, mode='w'):
+    if len(close_pairs) > 0:
+        df = pd.DataFrame(close_pairs, columns=["symbol", "level1", "level2", "difference", "closeness_distance"])
+        df = df.drop_duplicates(subset=['symbol'], keep='last')
+        df.to_csv(file, mode=mode, index=False)
+    return
+
+
+def mark_close_levels(key_levels_list):
+    global close_pairs
+    closeness_distance = eval(app_config['closeness_distance'])
+
+
+    for i in range(len(key_levels_list)):
+        for j in range(i + 1, len(key_levels_list)):
+            diff = abs(key_levels_list[j] - key_levels_list[i])
+            if diff < closeness_distance:
+                close_pairs.append((symbol, key_levels_list[i], key_levels_list[j], round(diff, 2), round(closeness_distance,2)))
+
+    logger.info(f"mark_close_levels(), {symbol}")
+    for a, b, c, d, e in close_pairs:
+        logger.info(f"{a} -- {b}:  {d}  closeness_distance: {round(closeness_distance,3)}")
+
+    return close_pairs # it is (l1,l2, diff, atr)
 if __name__ == "__main__":
 
 
@@ -2487,6 +2511,7 @@ if __name__ == "__main__":
         drawing_objects_df = pd.DataFrame()
         hover_df = pd.DataFrame(columns=['symbol', 'time_frame', 'object', 'color', 'date_1', 'price_1', 'date_2', 'price_2', 'memo', 'unique_id'])
         key_levels_df = pd.DataFrame(columns=['symbol', 'time_frame', 'key_level', 'price', 'memo', 'unique_id'])
+        close_pairs = []
         back_test_date = d.strftime('%Y-%m-%d')
         logger.info(f"back_test_date: {back_test_date}")
         charts_dir = f'../portfolios/backtest-charts/{unique_run_number}--{back_test_date}/{portfolio_id}'
@@ -2582,6 +2607,7 @@ if __name__ == "__main__":
                 # add_test_key_levels()
 
                 key_levels_list = get_key_levels_list()
+                mark_close_levels(key_levels_list)
 
                 buy_sell_case_results_list = check_buy_and_sell_cases()
 
@@ -2617,5 +2643,6 @@ if __name__ == "__main__":
         save_df_to_csv_a_tabular(drawing_objects_df, '10-drawing_objects_df.csv', mode='w', dir=charts_dir)
         save_df_to_csv_a_tabular(key_levels_df, dir=portfolio_dir, file_name='11-key_levels_df.csv', mode='w')
         save_df_to_csv_a_tabular(hover_df, dir=charts_dir, file_name='12-hover_df.csv', mode='w')
+        save_list_to_csv(close_pairs, file=f'{charts_dir}/13-close_levels_df.csv', mode='w')
 
     logger.info("Done!")

@@ -193,7 +193,6 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
 
     df['date'] = pd.to_datetime(df['date'])
 
-    df = cut_df_for_live(df)
 
     end_time = df['date'].max() + pd.Timedelta(minutes=10)
 
@@ -666,6 +665,16 @@ def load_file_to_hover_df():
     else:
         return pd.DataFrame()
 
+def load_file_to_close_levels_df():
+    file = f'{get_charts_dir(portfolio_id)}/13-close_levels_df.csv'
+    if os.path.exists(file):
+        logger.info(f"reading file: {file}")
+        df = pd.read_csv(file)
+        logger.info(f"load_file_to_hover_df:\n{df[-3:].to_markdown()}")
+        return df
+    else:
+        return pd.DataFrame()
+
 
 # def chart_orch(df, portfolio_id='p700', symbol='TSLA', time_frame='1min'):
 #     logger.info(df[-12:].to_markdown())
@@ -826,6 +835,34 @@ def create_chart_hovered_df(hover_df, symbol):
 
     return df
 
+
+def add_close_levels_anoteation(fig1, df, close_levels_df, symbol):
+    if len(close_levels_df) == 0:
+        return fig1
+
+    close_levels_df = close_levels_df
+    close_levels_df = close_levels_df[close_levels_df["symbol"] == symbol]
+
+    for idx, row in close_levels_df.iterrows():
+        level1 = row["level1"]
+        level2 = row["level2"]
+        diff = row["difference"]
+        closeness_distance = row["closeness_distance"]
+
+        fig1.add_annotation(
+            x=df['date'].iloc[0],
+            y=(level1 + level2) / 2,  # midpoint between the two levels
+            text=f"diff: {diff} {closeness_distance}", # Δ
+            showarrow=False,
+            font=dict(color="red", size=10, family="Arial Black"),
+            bgcolor="white",
+            bordercolor="red",
+            borderwidth=1,
+        )
+        # logger.info(f"add_close_levels_anoteation(), {symbol}, {df['date'].iloc[-1]} , {level1}, {level2}")
+
+    return fig1
+
 app_config = load_app_config(portfolio_id)  # to be accisible form every where ...
 backtest_date = '20250810'
 charts_dir = ''
@@ -837,6 +874,7 @@ def index():
     global charts_dir
     global df
     global extra_features_df
+    global close_levels_df
     portfolio_id = 'p250'
     app_config = load_app_config(portfolio_id)
     backtest_date = ''
@@ -858,6 +896,7 @@ def index():
 
     drawing_objects_df = load_file_to_drawing_objects_df()
     hover_df = load_file_to_hover_df()
+    close_levels_df = load_file_to_close_levels_df()
     plots = []
     logger.info(f"================== call from client run_counter: {run_counter}")
 
@@ -868,14 +907,18 @@ def index():
         df = load_df_from_ohlc_file(portfolio_id='p250', time_frame=time_frame, symbol=symbol)
         if len(df) == 0:
             continue
+        df = cut_df_for_live(df)
 
         extra_features_df = load_extra_features_df(portfolio_id='p250', time_frame=time_frame, symbol=symbol)
+        extra_features_df = cut_df_for_live(extra_features_df)
+
         fig1 = draw_w_plotly_w_subplot_1(symbol, chart_title=f'{symbol}-{time_frame}')
         fig1 = draw_objects(fig1,df, drawing_objects_df, symbol=symbol, time_frame=time_frame )
         fig1 = add_start_finish_day(fig1, df)
         fig1 = mark_market_time_only_last_one(fig1, df)
         chart_hovered_df = create_chart_hovered_df(hover_df, symbol)
         fig1 = add_hover_to_chart(fig1, chart_hovered_df)
+        fig1 = add_close_levels_anoteation(fig1, df, close_levels_df, symbol)
         plot_html = pio.to_html(fig1, full_html=False)
 
         plots.append(plot_html)
