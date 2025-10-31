@@ -209,7 +209,7 @@ rights:
 
 take_profits:
   t1:
-    condition: current_ask > avg_cost_for_1_contract * 1.4 and ( avg_cost_for_1_contract != -1 and current_ask != -1)
+    condition: current_ask > avg_cost_for_1_contract * 1.3 and ( avg_cost_for_1_contract != -1 and current_ask != -1)
     close_quantity_percentage: 0.5
 
   t2:
@@ -225,7 +225,7 @@ take_profits:
       (right == 'C' and is_executed_take_profits(symbol, take_profit_list=['t1']) and current_price < underlying_open_price)
       or
       (right == 'P' and is_executed_take_profits(symbol, take_profit_list=['t1']) and current_price > underlying_open_price)
-    close_quantity_percentage: 1
+    close_quantity_percentage: -1
 
 #  t3_test:
 #    condition: symbol == 'NVDA' and 1 == 1
@@ -242,14 +242,17 @@ take_profits:
 #      (right == 'P' and is_executed_take_profits(symbol, take_profit_list=['t5_test']) and 1 == 2)
 #    close_quantity_percentage: -1 # -1 means all positions
 
+levels_closnes_meusrment : df['atr_14'].iloc[-1] * 1
 
 live:
   historical_days: 4 D
   capital: 4000
   capital_per_trade_percentage: 0.20
-  max_num_open_trades: 4 # it is not in yey
+  max_num_open_trades: 4 # it is not in yet
   num_of_contracts: calculate_number_of_contracts()
   max_num_of_trade_per_symbol_per_day: 2
+  max_profit_per_day: 2000 # it will not get into new trade, it is not in yet
+  max_loss_per_day: 1000 # it will not get into new trade ... it is not in yet
 
 
 back_test:
