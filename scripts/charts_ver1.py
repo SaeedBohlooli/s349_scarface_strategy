@@ -192,8 +192,8 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
     logger.info(f"in draw_w_plotly_w_subplot:\n {df[-20:].to_markdown()}")
 
     df['date'] = pd.to_datetime(df['date'])
-    if app_config['chart']['source'] == 'live':
-        df = cut_df_until_hour_x_on_last_day(df,cutoff_time="11:15" )
+
+    df = cut_df_for_live(df)
 
     end_time = df['date'].max() + pd.Timedelta(minutes=10)
 
@@ -211,7 +211,7 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
     # Create a subplot: (2 rows, shared x-axis)
     fig = make_subplots(rows=8, cols=1, shared_xaxes=True,
                         vertical_spacing=0.04,
-                        row_heights=[0.65, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05],
+                        row_heights=[0.65, 0.05, 0.05, 0.10, 0.04, 0.04, 0.04, 0.04],
                         subplot_titles=(f'{symbol}',
                                         f'Volume Ratio {symbol}',
                                         f'Relative Strength Relative {symbol}',
@@ -295,7 +295,7 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
     fig.add_trace(go.Scatter(
         x=extra_features_df['date'],
         y=extra_features_df['rs_delta'],
-        line=dict(color='blue', width=2),
+        line=dict(color='red', width=1),
         name='rs_delta'
     ), row=row_in_chart, col=1)
 
@@ -303,7 +303,7 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
     fig.add_trace(go.Scatter(
         x=extra_features_df['date'],
         y=extra_features_df['rs_delta_ema'],
-        line=dict(color='red', width=1, dash='dot'),
+        line=dict(color='blue', width=3, dash='dot'),
         name='rs_delta_ema'
     ), row=row_in_chart, col=1)
 
@@ -739,6 +739,13 @@ def add_hover_to_chart(fig1, hover_df):
     return fig1
 
 
+def cut_df_for_live(df):
+    if app_config['chart']['source'] == 'live':
+
+        df = df_utils.cut_df_strating_hour_x_on_last_day(df, cutoff_time=app_config['chart']['live']['start_time'] )
+        df = df_utils.cut_df_until_hour_x_on_last_day(df, cutoff_time=app_config['chart']['live']['end_time'] )
+
+    return df
 def create_chart_hovered_df(hover_df, symbol):
     if len(hover_df) == 0:
         return pd.DataFrame()
@@ -750,8 +757,7 @@ def create_chart_hovered_df(hover_df, symbol):
     df['text'] = df['memo']
 
     df['date'] = pd.to_datetime(df['date'], errors='coerce')
-    if app_config['chart']['source'] == 'live':
-        df = df_utils.cut_df_strating_hour_x_on_last_day(df,cutoff_time='08:00' )
+    df = cut_df_for_live(df)
 
 
 #  ⇗ ↛ ⇧
