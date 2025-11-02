@@ -287,7 +287,8 @@ run_should_take_seconds: 20
 email:
   send_email: true
   #recipients: vikaskaler.bnr@gmail.com,saeed.bx1@yahoo.com
-  recipients: saeed.bx1@yahoo.com
+#  recipients: saeed.bx1@yahoo.com
+  recipients: vikaskaler.bnr@gmail.com
 # To show levels in the price scale, open 'Chart Settings', go to 'Scales', make sure 'Indicators and Financials Value' is checked.
 
 health_check:
