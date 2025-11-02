@@ -54,3 +54,20 @@ def cut_df_until_hour_x_on_last_day(df, cutoff_time="13:00"):
     # Keep everything before that cutoff on the last day, and all prior days
     cut_df = df[(df['date'].dt.normalize() < last_day) | (mask_day & mask_time)]
     return cut_df
+
+
+def capture_df_starting_hour_x_on_last_day(df, date_f='date', cutoff_time="13:00"):
+    # print(f"in capture_df_starting_hour_x_on_last_day: \n{df[-1:].to_markdown()}")
+    df = df.copy()
+    df[date_f] = pd.to_datetime(df[date_f])
+
+    # Find the last trading day in the DataFrame
+    last_day = df[date_f].dt.normalize().max()
+
+    # Create masks
+    mask_time = df[date_f].dt.time >= pd.to_datetime(cutoff_time).time()
+    mask_day = df[date_f].dt.normalize() == last_day
+
+    # Keep everything aftere that cutoff on the last day, and all prior days
+    cut_df = df[(mask_day & mask_time)]
+    return cut_df

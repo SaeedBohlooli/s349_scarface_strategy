@@ -29,7 +29,6 @@ yaml = YAML()
 yaml.preserve_quotes = True  # Optional: preserve quotes if any
 yaml.width = 1000 # so will not wrap lines in the yaml file
 
-print(f"os.path.join('../'): {os.path.join('../')}")
 sys.path.insert(0, f'../')
 for dir_1 in os.listdir(os.path.join('../')):
     if (dir_1.startswith("a") or dir_1.startswith("u") ):
@@ -40,7 +39,7 @@ from utils import atr_tolerance_helper
 
 portfolio_id = 'p250'
 configs_folder = f'../scripts/configs'
-# config_file = f'{configs_folder}/app-config.yaml'
+config_file = f'{configs_folder}/app-config.yaml'
 
 mode = 'live'
 
@@ -352,17 +351,16 @@ def drop_dupplicates_in_file(file_path, unique_column=None, keep='last'):
         df.to_csv(file_path, index=False, mode='w')
     return
 
-def save_df_to_csv_a_tabular(df=None, file_name='', mode='w', dir='', drop_dupplicates=True, unique_column='unique_id'):
+def save_df_to_csv_a_tabular(df=None, file_path='', mode='w', drop_dupplicates=True, unique_column='unique_id'):
     if len(df) > 0:
-        file = f'{dir}/{file_name}'
 
         if mode == 'w':
             header = True
 
         else:
             # moed is a, check columns
-            if os.path.exists(file):
-                existing_cols = pd.read_csv(file, nrows=0).columns.tolist()
+            if os.path.exists(file_path):
+                existing_cols = pd.read_csv(file_path, nrows=0).columns.tolist()
                 # --- Compare with new df columns
                 if list(df.columns) == existing_cols:
                     mode = 'a'
@@ -373,15 +371,15 @@ def save_df_to_csv_a_tabular(df=None, file_name='', mode='w', dir='', drop_duppl
             else:
                 header = True
 
-        df.to_csv(file, mode=mode, index=False, header=header)
+        df.to_csv(file_path, mode=mode, index=False, header=header)
 
         if drop_dupplicates:
             if unique_column != '' and unique_column in df.columns:
-                drop_dupplicates_in_file(file, unique_column=unique_column)  # 'event'
+                drop_dupplicates_in_file(file_path, unique_column=unique_column)  # 'event'
             else:
-                drop_dupplicates_in_file(file)  # 'event'
+                drop_dupplicates_in_file(file_path)  # 'event'
 
-        write_file_in_tabulate(src_file_path=file)
+        write_file_in_tabulate(src_file_path=file_path)
     return
 
 def write_file_in_tabulate(src_file_path, dest_file_path= None, number_of_rows=0):
@@ -1658,85 +1656,46 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
         if not app_config['symbols_meta'][symbol]['can_trade']:
             logger.info(f"We are not trading {symbol}.")
             continue
-       #### TODO TODO merge can_buy with can_selll
-        if can_buy:
-            logger.info(f"{symbol}, in check_buy_sell_result_to_send_order, can_buy: {can_buy}")
+        if can_buy or can_sell:
+            side = 'C' if can_buy else 'P'
+            logger.info(f"in check_buy_sell_result_to_send_order, {symbol}, can_buy: {can_buy}, can_sell:{can_sell}")
             if application_state.get('open_trades_dic', {}).get(symbol,{}).get('available_quantity', 0) != 0:
                 continue
-            option_contract = prepare_contract(symbol, right='C')
+            option_contract = prepare_contract(symbol, right=side)
             if option_contract == None:
-                logger.warning(f"@@@ we didn't send order option_contract: {option_contract}")
+                logger.warning(f"@@@ We are not sending order. option_contract: {option_contract}")
                 continue
             bid, ask = get_quote_for_option_bid_ask(symbol=symbol, strike=option_contract.strike, right=option_contract.right, expiry=option_contract.lastTradeDateOrContractMonth)
             if bid ==0 or ask ==0:
-                logger.warning(f"@@@@ ...bid ==0 or ask ==0")
+                logger.warning(f"@@@@ We are not sending order. bid ==0 or ask ==0")
                 continue
             total_quantity = calculate_number_of_contracts(ask)
-            if total_quantity == 0: # we dont have enough capital
-                logger.warning(f"@@ ....TBD")
+            if total_quantity == 0:  # we dont have enough capital
+                logger.warning(f"@@ We dont have enough capital {symbol} ....")
                 continue
             if number_of_trades_today(symbol) >= app_config['live']['max_num_of_trade_per_symbol_per_day']:
-                logger.warning(f"@@  {symbol} ....number_of_trades_today{number_of_trades_today(symbol)}")
+                logger.warning(f"@@  We already send enough orders ..{symbol} ....number_of_trades_today{number_of_trades_today(symbol)}")
                 continue
             send_order(option_contract, total_quantity=total_quantity)
             data = {
                 'symbol' : symbol,
                 'side': 'long',
-                'right': 'C',
+                'right': side,
                 'starting_quantity':total_quantity,
                 'available_quantity':total_quantity,
                 'underlying_open_price': df['close'].iloc[-1] ,
                 'u_run_number': unique_run_number,
-                'level_used_to_open' : long_level,
+                'level_used_to_open': long_level,
                 'expiry': option_contract.lastTradeDateOrContractMonth,
                 'strike': option_contract.strike,
                 'open_bid': bid,
                 'open_ask': ask
             }
             application_state.setdefault('open_trades_dic', {})[symbol] = data
-            add_to_signlas('LONG_CALL_SENT',df['close'].iloc[-1],df['date'].iloc[-1], f'{data}' )
+            add_to_signlas(f'LONG_{side}_SENT',df['close'].iloc[-1],df['date'].iloc[-1], json.dumps(data).replace(',','<br>') )
             add_to_order_history_df(data)
             add_to_number_of_trades_today(symbol)
-            send_email(event='order_sent')
-
-        if can_sell:
-            logger.info(f"{symbol}, in check_buy_sell_result_to_send_order, can_sell: {can_sell}")
-            if application_state.get('open_trades_dic', {}).get(symbol,{}).get('available_quantity', 0) != 0:
-                continue
-            option_contract = prepare_contract(symbol, right='P')
-            if option_contract == None: # TODO check to see what happens if we isgnore this case
-                continue
-            bid, ask = get_quote_for_option_bid_ask(symbol=symbol, strike=option_contract.strike, right=option_contract.right, expiry=option_contract.lastTradeDateOrContractMonth)
-            if bid ==0 or ask ==0:
-                logger.warning("@@@@ ...bid ==0 or ask ==0")
-                continue
-            total_quantity = calculate_number_of_contracts(ask)
-            if total_quantity == 0: # we dont have enough capital
-                logger.warning("@@ ....TBD")
-                continue
-            if number_of_trades_today(symbol) >= app_config['live']['max_num_of_trade_per_symbol_per_day']:
-                logger.warning("@@ ....TBD")
-                continue
-            send_order(option_contract, total_quantity=total_quantity)
-            data = {
-                'symbol': symbol,
-                'side': 'long',
-                'right': 'P',
-                'starting_quantity': total_quantity,
-                'available_quantity': total_quantity,
-                'underlying_open_price': df['close'].iloc[-1],
-                'u_run_number': unique_run_number,
-                'level_used_to_open': short_level,
-                'expiry': option_contract.lastTradeDateOrContractMonth,
-                'strike': option_contract.strike,
-                'open_bid': bid,
-                'open_ask': ask
-            }
-            application_state.setdefault('open_trades_dic', {})[symbol] = data
-            add_to_signlas('LONG_PUT_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f'{data}')
-            add_to_order_history_df(data)
-            add_to_number_of_trades_today(symbol)
-            send_email(event='order_sent')
+            send_email(event='order_sent', body=json.dumps(data).replace(',','<br>'))
 
     return
 
@@ -2117,7 +2076,6 @@ def check_for_stop_loss_and_take_profit():
         if stop_loss_condition_evaluated:
             logger.warning("SL condition met ...")
             close_option_positions(positions_to_monitor, symbol, alias_for_ref='SL')
-            send_email(event='stop_loss_sent')
             data = {
                 'symbol': symbol,
                 'right': application_state['open_trades_dic'][symbol]['right'],
@@ -2132,7 +2090,9 @@ def check_for_stop_loss_and_take_profit():
                 'open_order_ref': ''
                 }
             add_to_stop_loss_history_df(data)
-            add_to_signlas('STOP_LOSS_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f'STOP_LOSS {unique_run_number}')
+            add_to_signlas('STOP_LOSS_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f"STOP_LOSS  <BR> {json.dumps(data).replace(',','<br>')}")
+            send_email(event='stop_loss_sent', body=json.dumps(data).replace(',','<br>'))
+
             data = {}
             application_state.setdefault('open_trades_dic', {})[symbol] = data  # This need to be ahppened after we get required inf from dic...
 
@@ -2191,8 +2151,8 @@ def check_for_stop_loss_and_take_profit():
                     #'take_profit': {app_config['take_profits'][take_profit]}
                 }
                 add_to_take_profit_history_df(data)
-                add_to_signlas('TAKE_PROFIT_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f'TAKE-PROFIT-{take_profit}')
-                send_email(event='take_profit_sent')
+                add_to_signlas('TAKE_PROFIT_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f"TAKE-PROFIT-{take_profit} <BR>{json.dumps(data).replace(',','<br>')}")
+                send_email(event='take_profit_sent', body=json.dumps(data).replace(',','<br>'))
 
             else:
                 logger.warning(f"{symbol}. {take_profit} TP didn't go ...  ")
@@ -2205,25 +2165,24 @@ def check_for_stop_loss_and_take_profit():
 
     return
 
-def send_email(event='order_sent'):
+def send_email(event='order_sent', subject='', body=''):
     if app_config['email']['send_email']:
         recipients = app_config['email']['recipients']
-        subject = ''
-        body = ''
+
         if event.lower() == 'order_sent':
             subject = f'Order Sent {symbol}'
-            body = (f" Order opened ... <br>"
-                    f"Later more detail will come ...<br>")
+            body = (f" Order opened ... <br> {body}"
+                    f"<br>Later more detail will come ...<br>")
 
         elif event.lower() == 'stop_loss_sent':
             subject = f'Stop Loss {symbol}'
-            body = (f"Stop Loss Sent ... <br>"
-                    f"Later more detail will come ...<br>")
+            body = (f"Stop Loss Sent ... <br> {body}"
+                    f"<br>Later more detail will come ...<br>")
 
         elif event.lower() == 'take_profit_sent':
             subject = f'Take Profit {symbol}'
-            body = (f"Take Profit Sent ... <br>"
-                    f"Later more detail will come ...<br>")
+            body = (f"Take Profit Sent ... <br> {body}"
+                    f"<br>Later more detail will come ...<br>")
 
         email_util_ver_02.send_email(recipients, subject=subject, body=body)
 
@@ -2306,7 +2265,7 @@ def compute_intraday_rs(stock_df: pd.DataFrame, qqq_df: pd.DataFrame):
 
     merged['rs_delta'] = merged['stock_pct'] - merged['qqq_pct']
 
-    smooth_span = 5
+    smooth_span = 3
     merged['rs_rel_ema'] = merged['rs_rel'].ewm(span=smooth_span, adjust=False).mean()
     merged['rs_delta_ema'] = merged['rs_delta'].ewm(span=smooth_span, adjust=False).mean()
 
@@ -2477,17 +2436,30 @@ def mark_close_levels(key_levels_list):
     closeness_distance = eval(app_config['closeness_distance'])
 
 
-    for i in range(len(key_levels_list)):
-        for j in range(i + 1, len(key_levels_list)):
-            diff = abs(key_levels_list[j] - key_levels_list[i])
-            if diff < closeness_distance:
-                close_pairs.append((symbol, key_levels_list[i], key_levels_list[j], round(diff, 2), round(closeness_distance,2)))
+    for i in range(len(key_levels_list) - 1):
+        l1 = key_levels_list[i]
+        l2 = key_levels_list[i + 1]
+        diff = abs(l2 - l1)
+        if diff < closeness_distance:
+            memo = f"X, d: {round(diff, 2)} ,a: {round(closeness_distance, 2)}"
+        else:
+            memo = f"d: {round(diff, 2)} ,a: {round(closeness_distance, 2)}"
+                            # symbol, line 1 , line 2, diff, memo
+        close_pairs.append((symbol, l1, l2, memo ))
 
-    logger.info(f"mark_close_levels(), {symbol}")
-    # for a, b, c, d, e in close_pairs:
-    #     logger.debug(f"{a} -- {b}:  {d}  closeness_distance: {round(closeness_distance,3)}")
+    return close_pairs
 
-    return close_pairs # it is (l1,l2, diff, atr)
+
+def are_levels_close_to_each_other_for_case_1(side):
+    levels = get_levels_dic()
+    closeness_distance = eval(app_config['closeness_distance_for_case_1'])
+    result = False
+    if side == 'up':
+        result = abs(levels['PDH'] - levels['PMH']) < closeness_distance and abs( levels['5MH'] - levels['PDH']) < closeness_distance
+    else: # down
+        result = abs(levels['PDL'] - levels['PML']) < closeness_distance and abs(levels['5ML'] - levels['PDL']) < closeness_distance
+
+
 if __name__ == "__main__":
 
     x_portfolio_df = pd.DataFrame(columns=['symbol', 'right', 'strike', 'expiry', 'position', 'marketPrice', 'averageCost', 'marketValue', 'unrealizedPNL', 'realizedPNL', 'account', 'timestamp' ])
@@ -2540,6 +2512,8 @@ if __name__ == "__main__":
     run_number = 0
     dfs_map = {}
 
+    # calcuatel_pnl()
+    # raise x
     while True:
       try:
         start_time = time.time()
@@ -2644,23 +2618,41 @@ if __name__ == "__main__":
         # end:  for symbol in app_config['symbols']:
 
         if run_number % 6 == 0:
-            save_df_to_csv_a_tabular(drawing_objects_df, dir=charts_dir, file_name='10-drawing_objects_df.csv', mode='w')
-            save_df_to_csv_a_tabular(key_levels_df, dir=portfolio_dir, file_name='11-key_levels_df.csv', mode='w')
-            save_df_to_csv_a_tabular(hover_df, dir=charts_dir, file_name='12-hover_df.csv', mode='a')
-            save_list_to_csv(close_pairs, file=f'{charts_dir}/13-close_levels_df.csv', mode='w')
-            save_df_to_csv_a_tabular(order_history_df, dir=portfolio_dir, file_name='13-order_history_df.csv', mode='a', drop_dupplicates=True)
-            save_df_to_csv_a_tabular(stop_loss_history_df, dir=portfolio_dir, file_name='14-stop_loss_history_df.csv', mode='a', drop_dupplicates=True)
-            save_df_to_csv_a_tabular(take_profit_history_df, dir=portfolio_dir, file_name='15-take_profit_history_df.csv', mode='a', drop_dupplicates=True)
 
-            save_df_to_csv_a_tabular(ib_commission_df, dir=portfolio_dir, file_name='89-ib_commission_df.csv', mode='a')
-            save_df_to_csv_a_tabular(ib_commission_trade_df, dir=portfolio_dir, file_name='89-ib_commission_trade_df.csv', mode='a')
-            save_df_to_csv_a_tabular(ib_commission_fill_df, dir=portfolio_dir, file_name='89-ib_commission_fill_df.csv', mode='a')
+            save_list_to_csv(close_pairs, file=f'{charts_dir}/13-close_levels_df.csv', mode='w')
+
+            drawing_objects_df_file_path = f"{charts_dir}/10-drawing_objects_df.csv"
+            save_df_to_csv_a_tabular(drawing_objects_df, file_path= drawing_objects_df_file_path,  mode='w')
+            key_levels_df_file_path = f"{portfolio_dir}/11-key_levels_df.csv"
+            save_df_to_csv_a_tabular(key_levels_df, file_path=key_levels_df_file_path, mode='w')
+            hover_df_file_path = f"{charts_dir}/12-hover_df.csv"
+            save_df_to_csv_a_tabular(hover_df, file_path=hover_df_file_path, mode='a')
+            order_history_df_file_path = f"{portfolio_dir}/13-order_history_df.csv"
+            save_df_to_csv_a_tabular(order_history_df, file_path=order_history_df_file_path, mode='a', drop_dupplicates=True)
+            stop_loss_history_df_file_path = f"{portfolio_dir}/14-stop_loss_history_df.csv"
+            save_df_to_csv_a_tabular(stop_loss_history_df, file_path=stop_loss_history_df_file_path, mode='a', drop_dupplicates=True)
+            take_profit_history_df_file_path = f"{portfolio_dir}/15-take_profit_history_df.csv"
+            save_df_to_csv_a_tabular(take_profit_history_df, file_path=take_profit_history_df_file_path, mode='a', drop_dupplicates=True)
+            ib_commission_df_file_path = f"{portfolio_dir}/89-ib_commission_df.csv"
+            save_df_to_csv_a_tabular(ib_commission_df, file_path=ib_commission_df_file_path, mode='a')
+            ib_commission_trade_df_file_path = f"{portfolio_dir}/89-ib_commission_trade_df.csv"
+            save_df_to_csv_a_tabular(ib_commission_trade_df, file_path=ib_commission_trade_df_file_path, mode='a')
+            ib_commission_fill_df_file_path = f"{portfolio_dir}/89-ib_commission_fill_df.csv"
+            save_df_to_csv_a_tabular(ib_commission_fill_df, file_path=ib_commission_fill_df_file_path, mode='a')
+            ib_portfolio_df_file_path = f"{portfolio_dir}/91-ib_portfolio_df.csv"
+            save_df_to_csv_a_tabular(ib_portfolio_df, file_path=ib_portfolio_df_file_path, mode='a')
+            flatten_on_fill_fill_df_file_path = f"{portfolio_dir}/92-flatten_on_fill_fill_df.csv"
+            save_df_to_csv_a_tabular(flatten_on_fill_fill_df, file_path=flatten_on_fill_fill_df_file_path, mode='a')
+            flatten_on_fill_trade_df_file_path = f"{portfolio_dir}/93-flatten_on_fill_trade_df.csv"
+            save_df_to_csv_a_tabular(flatten_on_fill_trade_df, file_path=flatten_on_fill_trade_df_file_path, mode='a')
+            on_fill_fill_df_file_path = f"{portfolio_dir}/94-on_fill_fill_df.csv"
+            save_df_to_csv_a_tabular(on_fill_fill_df, file_path=on_fill_fill_df_file_path, mode='a')
+            on_fill_trade_df_file_path = f"{portfolio_dir}/95-on_fill_trade_df.csv"
+            save_df_to_csv_a_tabular(on_fill_trade_df, file_path=on_fill_trade_df_file_path, mode='a')
+
+
             get_executed_orders_from_ib_and_save_ver2()  #90
-            save_df_to_csv_a_tabular(ib_portfolio_df, dir=portfolio_dir, file_name='91-ib_portfolio_df.csv', mode='a')
-            save_df_to_csv_a_tabular(flatten_on_fill_fill_df, dir=portfolio_dir, file_name='92-flatten_on_fill_fill_df.csv', mode='a')
-            save_df_to_csv_a_tabular(flatten_on_fill_trade_df, dir=portfolio_dir, file_name='93-flatten_on_fill_trade_df.csv', mode='a')
-            save_df_to_csv_a_tabular(on_fill_fill_df, dir=portfolio_dir, file_name='94-on_fill_fill_df.csv', mode='a')
-            save_df_to_csv_a_tabular(on_fill_trade_df, dir=portfolio_dir, file_name='95-on_fill_trade_df.csv', mode='a')
+
 
         end_time = time.time()
 

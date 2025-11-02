@@ -76,87 +76,6 @@ def load_support_resistance_map_from_file():
     return  support_resistance_map
 
 
-def draw_w_plotly_w_subplot_oirg_no_slidebar(df, chart_title='title'):
-
-    logger.info(f"in draw_w_plotly_w_subplot:\n {df[-20:].to_markdown()}")
-
-    df['date'] = pd.to_datetime(df['date'])
-    end_time = df['date'].max() + pd.Timedelta(minutes=10)
-
-    start_time = df['date'].min()
-    start_time_slider = end_time - pd.Timedelta(days=1) # this is for slider to show last 4 hrs
-
-    # Set 'date' as the index
-    df.set_index('date', inplace=True)
-
-    # Create a subplot: (2 rows, shared x-axis)
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
-                        vertical_spacing=0.05,
-                        row_heights=[0.8, 0.2],
-                        subplot_titles=(f'OHLC Chart {chart_title}', f'Volume {chart_title}'))
-
-    # Candlestick chart
-    fig.add_trace(go.Candlestick(
-        x=df['date'],
-        open=df['open'],
-        high=df['high'],
-        low=df['low'],
-        close=df['close'],
-        name='Candles'
-    ), row=1, col=1)
-
-    # add volume ...
-    fig.add_trace(go.Scatter(
-        x=df['date'],
-        y=df['volume'],
-        line=dict(color='orange', width=2),
-        name='Volume'
-    ), row=2, col=1)
-
-
-
-    #
-    # fig.update_layout(
-    #     title=f'{chart_title}',
-    #     width=1700,
-    #     height=1200)
-    #
-
-    fig.update_layout(
-        title=f'{chart_title}',
-        width=1900,
-        height=1200,
-        xaxis=dict(
-            range=[start_time_slider, end_time],  # 👈 sets visible window
-            rangeslider=dict(
-                visible=True,
-                thickness=0.05
-            )
-        ),
-        xaxis2=dict(rangeslider=dict(visible=False))  # hide 2nd subplot slider
-    )
-    # sometimes slidebar overlaps ... this is the fix.
-    fig.update_layout(
-        xaxis=dict(rangeslider=dict(visible=True)),
-        xaxis2=dict(rangeslider=dict(visible=False)),  # Prevent overlapping in ATR subplot
-    )
-
-    # fix for slide bar range ..
-    fig.update_layout(
-        xaxis=dict(
-            rangeslider=dict(
-                visible=True,
-                range=[start_time_slider, end_time],  # limit slider to last 4 hours
-                thickness=0.05  # Smaller value = thinner slider (default is ~0.1)
-            )
-        )
-    )
-    # chart is based on UTC, so we cut the chart ...
-    fig.update_xaxes(range=[start_time, end_time], row=1, col=1)
-    fig.update_xaxes(range=[start_time, end_time], row=2, col=1)
-    fig.update_xaxes(showticklabels=True, row=1, col=1)  # showing X lables in the chart ...
-
-    return fig
 
 def cut_df_until_hour_x_on_last_day(df, cutoff_time="13:00"):
     """
@@ -232,6 +151,14 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
         low=df['low'],
         close=df['close'],
         name='Candles'
+    ), row=row_in_chart, col=1)
+
+    df['ema_9'] = df['close'].ewm(span=9, adjust=False).mean()
+    fig.add_trace(go.Scatter( # add email for candle
+        x=df['date'],
+        y=df['ema_9'],
+        line=dict(color='blue', dash='dot', width=1),
+        name='volume ratio '
     ), row=row_in_chart, col=1)
 
     fig.update_xaxes(showticklabels=True, row=1, col=1)
@@ -622,7 +549,6 @@ def load_extra_features_df(portfolio_id='p700', symbol='TSLA', time_frame='1min'
     df = pd.read_csv(file)
     df['date'] = pd.to_datetime(df['date'])
 
-    df = df[-app_config['chart']['1m_candles']:]
 
     logger.info(f"in load_extra_features_df_from_file, df: \n{df[-5:].to_markdown()}")
     return df
@@ -642,8 +568,6 @@ def load_df_from_ohlc_file(portfolio_id='p700', symbol='TSLA', time_frame='1min'
     #     logger.info(f"cutoff: {cutoff}")
     #     # keep only rows older than cutoff
     #     df = df[df['date'] < cutoff]
-
-    df = df[-app_config['chart']['1m_candles']:]
 
     logger.info(f"in load_ohlc_file_to_df, df: \n{df[-5:].to_markdown()}")
     return df
@@ -846,15 +770,14 @@ def add_close_levels_anoteation(fig1, df, close_levels_df, symbol):
     for idx, row in close_levels_df.iterrows():
         level1 = row["level1"]
         level2 = row["level2"]
-        diff = row["difference"]
-        closeness_distance = row["closeness_distance"]
-
+        memo = row["memo"]
+        clr = "red" if "X" in memo else "blue"
         fig1.add_annotation(
             x=df['date'].iloc[0],
             y=(level1 + level2) / 2,  # midpoint between the two levels
-            text=f"diff: {diff} {closeness_distance}", # Δ
+            text=f"{memo}", # Δ
             showarrow=False,
-            font=dict(color="red", size=10, family="Arial Black"),
+            font=dict(color=clr, size=10, family="Arial"),
             bgcolor="white",
             bordercolor="red",
             borderwidth=1,
