@@ -630,6 +630,32 @@ def check_buy_and_sell_cases():
 
     return buy_sell_case_results
 
+def get_next_level(side, level):
+    if side == 'up':
+        next_level = get_levels_dic.get('PDH', -1)
+    else:
+        next_level = get_levels_dic.get('PDL', -1)
+
+    return next_level
+
+
+def replace_level_if_needed(side, can_replace_level, level):
+    # If two levels are close, we replace with next one ... 
+    
+    if not can_replace_level:
+        return level
+    closeness_distance = eval(app_config['closeness_distance'])
+    next_level = get_next_level(side, level)
+    
+    if side == 'up':
+        if next_level > level and abs(next_level - level) < closeness_distance:
+            logger.info(f"replace_level_if_needed, level is replaced, {side}, level: {level}, next_level: {next_level}")
+            return next_level
+    else: 
+        if next_level < level and abs(next_level - level) < closeness_distance:
+            logger.info(f"replace_level_if_needed, level is replaced, {side}, level: {level}, next_level: {next_level}")
+            return next_level
+    return level
 
 def check_buy_sell_condition(case):
 
@@ -642,8 +668,12 @@ def check_buy_sell_condition(case):
     try:
         levels = get_levels_dic()  # used in config
 
+        can_replace_level = eval(app_config['cases'][case]['can_replace_level'])
         long_level = eval(app_config['cases'][case]['long']['level'])
         short_level = eval(app_config['cases'][case]['short']['level'])
+
+        long_level = replace_level_if_needed('up', can_replace_level, long_level)
+        short_level = replace_level_if_needed('down', can_replace_level, short_level)
 
         levels_closeness_limit = app_config['symbols_meta'][symbol]['levels_closeness_limit']  # used in config
         min_required_move_from_level = app_config['symbols_meta'][symbol]['min_required_move_from_level']  # used in config
@@ -668,6 +698,10 @@ def check_buy_sell_condition(case):
         sell_condition_07 = app_config['cases'][case]['short']['condition_07']
         buy_condition_08 = app_config['cases'][case]['long']['condition_08']
         sell_condition_08 = app_config['cases'][case]['short']['condition_08']
+        buy_condition_09 = app_config['cases'][case]['long']['condition_09']
+        sell_condition_09 = app_config['cases'][case]['short']['condition_09']
+        buy_condition_10 = app_config['cases'][case]['long']['condition_10']
+        sell_condition_10 = app_config['cases'][case]['short']['condition_10']
 
         eval_buy_condition_01 = eval(buy_condition_01)
         eval_buy_condition_02 = eval(buy_condition_02)
@@ -677,6 +711,8 @@ def check_buy_sell_condition(case):
         eval_buy_condition_06 = eval(buy_condition_06)
         eval_buy_condition_07 = eval(buy_condition_07)
         eval_buy_condition_08 = eval(buy_condition_08)
+        eval_buy_condition_09 = eval(buy_condition_09)
+        eval_buy_condition_10 = eval(buy_condition_10)
 
         eval_sell_condition_01 = eval(sell_condition_01)
         eval_sell_condition_02 = eval(sell_condition_02)
@@ -686,6 +722,8 @@ def check_buy_sell_condition(case):
         eval_sell_condition_06 = eval(sell_condition_06)
         eval_sell_condition_07 = eval(sell_condition_07)
         eval_sell_condition_08 = eval(sell_condition_08)
+        eval_sell_condition_09 = eval(sell_condition_09)
+        eval_sell_condition_10 = eval(sell_condition_10)
 
         logger.info(
             f"\n{symbol}, case: {case} "
@@ -696,8 +734,9 @@ def check_buy_sell_condition(case):
             f"\nbuy_condition_05: {buy_condition_05} "
             f"\nbuy_condition_06: {buy_condition_06} "
             f"\nbuy_condition_07: {buy_condition_07} "
-            
-            f"\n{symbol}, {case} ,{eval_buy_condition_01}.{eval_buy_condition_02}.{eval_buy_condition_03}.{eval_buy_condition_04}.{eval_buy_condition_05}.{eval_buy_condition_06}.{eval_buy_condition_07}"
+            f"\nbuy_condition_08: {buy_condition_08} "
+            f"\nbuy_condition_09: {buy_condition_09} "
+            f"\nbuy_condition_10: {buy_condition_10} "
             f"\n"
             f"\n{symbol}, case: {case} "
             f"\nsell_condition_01: {sell_condition_01}"
@@ -707,7 +746,9 @@ def check_buy_sell_condition(case):
             f"\nsell_condition_05: {sell_condition_05}"
             f"\nsell_condition_06: {sell_condition_06}"
             f"\nsell_condition_07: {sell_condition_07}"
-            f"\n{symbol}, {case}, {eval_sell_condition_01}.{eval_sell_condition_02}.{eval_sell_condition_03}.{eval_sell_condition_04}.{eval_sell_condition_05}.{eval_sell_condition_06}.{eval_sell_condition_07}"
+            f"\nsell_condition_08: {sell_condition_08}"
+            f"\nsell_condition_09: {sell_condition_09}"
+            f"\nsell_condition_10: {sell_condition_10}"
             f"\n"
         )
 
@@ -729,15 +770,18 @@ def check_buy_sell_condition(case):
 
         # This is shown in the chart ..
         res_str = (f"res_{case}:<br>"
-                   f"{eval_buy_condition_01}.{eval_buy_condition_02}.{eval_buy_condition_03}|{eval_buy_condition_04}.{eval_buy_condition_05}.{eval_buy_condition_06}|{eval_buy_condition_07} .. {long_breakup_idxs}.{long_retest_idxs} <br>"
-                   f"{eval_sell_condition_01}.{eval_sell_condition_02}.{eval_sell_condition_03}|{eval_sell_condition_04}.{eval_sell_condition_05}.{eval_sell_condition_06}|{eval_sell_condition_07} .. {short_breakup_idxs}.{short_retest_idxs} <br>"
+                   f"{eval_buy_condition_01}.{eval_buy_condition_02}.{eval_buy_condition_03}|{eval_buy_condition_04}.{eval_buy_condition_05}.{eval_buy_condition_06}|{eval_buy_condition_07}.{eval_buy_condition_08}.{eval_buy_condition_09}|{eval_buy_condition_10} .. {long_breakup_idxs}.{long_retest_idxs} <br>"
+                   f"{eval_sell_condition_01}.{eval_sell_condition_02}.{eval_sell_condition_03}|{eval_sell_condition_04}.{eval_sell_condition_05}.{eval_sell_condition_06}|{eval_sell_condition_07}.{eval_sell_condition_08}.{eval_sell_condition_09}.{eval_sell_condition_10} .. {short_breakup_idxs}.{short_retest_idxs} <br>"
                    f"{df['date'].iloc[-1].strftime('%H:%M')}, breakout: {breakout_idx} , retest: {retest_idx}")
         res_str = res_str.replace('True', 'T')
         res_str = res_str.replace('False', 'F')
+
+        res_str_log = res_str.replace('<br>', '\n')
+        logger.info(f"{case}, res_str: {res_str_log}")
     except Exception as e:
         logger.error(f"in check_buy_sell_condition: error {e}")
         logger.error(traceback.format_exc())
-        res_str = {case}
+        res_str = f'res_{case}'
     return case, can_buy, can_sell, res_str, long_level, short_level
 
 def is_retest_after_breakout(side='up', level=1):
@@ -1644,7 +1688,7 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
         case_result = buy_sell_case_result[3]
         long_level = buy_sell_case_result[4]
         short_level = buy_sell_case_result[5]
-
+        level_used = long_level if can_buy else short_level
 
         logger.info(f"case: {case}, can_buy: {can_buy}, can_sell: {can_sell}")
         if symbol == 'MNQ' and (can_buy or can_sell):
@@ -1685,7 +1729,8 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
                 'available_quantity':total_quantity,
                 'underlying_open_price': df['close'].iloc[-1] ,
                 'u_run_number': unique_run_number,
-                'level_used_to_open': long_level,
+                'level_used_to_open': level_used,
+                'level_name': '',
                 'expiry': option_contract.lastTradeDateOrContractMonth,
                 'strike': option_contract.strike,
                 'open_bid': bid,
@@ -2026,6 +2071,22 @@ def update_for_avg_cost(positions):
 
     return
 
+
+
+def is_next_level_close(side='up',level=-1, price=-1):
+    # If price touches next level, we are in 5MH, next lelve is PDH,
+    closeness_distance = eval(app_config['closeness_distance'])
+    if side == 'up':
+        next_level = get_next_level(side, level)
+        # next level is > level AND levels are close AND price above the level
+        if next_level > level and abs(next_level - level) < closeness_distance and price > next_level:
+            return True
+    else:
+        next_level = get_next_level(side, level)
+        if next_level < level and abs(next_level - level) < closeness_distance and price < next_level:
+            return True
+
+    return False
 def check_for_stop_loss_and_take_profit():
     global application_state
 
@@ -2044,8 +2105,11 @@ def check_for_stop_loss_and_take_profit():
         underlying_open_price = float(open_trade_info.get('underlying_open_price', -1))  # used in config ...
         level_used_to_open = float(open_trade_info.get('level_used_to_open', -1)) # used in config ...
         avg_cost_for_1_contract = open_trade_info.get('avg_cost_for_1_contract', -1) # used in config
-        underlying_current_price = get_current_price_from_ib(symbol) # used in config
+        right = application_state['open_trades_dic'][symbol]['right'] # used in config
+        side = application_state['open_trades_dic'][symbol]['side'] # used in config
+        level_used_to_open = application_state['open_trades_dic'][symbol]['level_used_to_open'] # used in config
 
+        underlying_current_price = get_current_price_from_ib(symbol) # used in config
         if len(symbol_df) == 0:
             # it maybe first run and we dont have it yet in the dic ...
             underlying_previous_candle_close = underlying_current_price
@@ -2053,8 +2117,6 @@ def check_for_stop_loss_and_take_profit():
             underlying_previous_candle_close = symbol_df['close'].iloc[-2] # used in config
 
 
-        right = application_state['open_trades_dic'][symbol]['right']
-        side = application_state['open_trades_dic'][symbol]['side']
         current_bid, current_ask = get_bid_and_ask(portfolio_df, symbol) #used in config
 
         # update app status ...
@@ -2070,7 +2132,6 @@ def check_for_stop_loss_and_take_profit():
 
         stop_loss_condition = app_config['rights'][right]['stop_loss_condition']
         stop_loss_condition_evaluated = eval(stop_loss_condition)
-
         logger.info(f"symbol {symbol}, stop_loss_condition: {stop_loss_condition}, stop_loss_condition_evaluated: {stop_loss_condition_evaluated}")
 
         if stop_loss_condition_evaluated:
@@ -2100,11 +2161,12 @@ def check_for_stop_loss_and_take_profit():
         # Take profit
         # ###
         for take_profit in app_config['take_profits']:
+            logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, take_profit: {take_profit}")
             if application_state['open_trades_dic'][symbol].get('available_quantity',0) == 0:
-                logger.info(f"{symbol}, check_for_stop_loss_and_take_profit(), available_quantity is 0 ")
+                logger.info(f"{symbol}, {take_profit}, check_for_stop_loss_and_take_profit(), available_quantity is 0 ")
                 continue
             if application_state['open_trades_dic'][symbol].get('take_profits',{}).get(take_profit,None ) != None:
-                logger.info(f"{symbol}, TP already is executed. {take_profit}")
+                logger.info(f"{symbol}, TP already is executed ... {take_profit}")
                 continue
             take_profit_condition = app_config['take_profits'][take_profit].get('condition', '1 == 2')
             close_quantity_percentage = app_config['take_profits'][take_profit].get('close_quantity_percentage', 0)
@@ -2114,18 +2176,18 @@ def check_for_stop_loss_and_take_profit():
             start_quantity = application_state.get('open_trades_dic', {}).get(symbol, {}).get('starting_quantity', 0)
             available_quantity = application_state.get('open_trades_dic', {}).get(symbol, {}).get('available_quantity', 0)
 
-            if close_quantity_percentage == -1: # calse all
+            if close_quantity_percentage == -1: # close all
                 close_quantity = available_quantity
             else:
                 close_quantity = round(start_quantity * close_quantity_percentage )
                 close_quantity = 1 if close_quantity == 0 else close_quantity  # we want to make sure 0.4 * 1 will return 1.
 
-            logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, take_profit: {take_profit}")
             logger.info(f"available_quantity: {available_quantity}, close_quantity_percentage: {close_quantity_percentage}, close_quantity: {close_quantity}, start_quantity:{start_quantity}")
             logger.info(f"take_profit_condition: {take_profit_condition}, take_profit_condition_evaluated: {take_profit_condition_evaluated}")
+
             if take_profit_condition_evaluated and available_quantity > 0 and close_quantity != 0 and close_quantity <= available_quantity :
                 logger.info(f"Sending TP ...{take_profit}")
-                close_option_positions(positions_to_monitor, symbol, close_quantity, alias_for_ref=take_profit)  # for close send negative
+                close_option_positions(positions_to_monitor, symbol, close_quantity, alias_for_ref=take_profit)
                 application_state['open_trades_dic'][symbol]['available_quantity'] = available_quantity - close_quantity
 
                 data = {
@@ -2148,14 +2210,13 @@ def check_for_stop_loss_and_take_profit():
                     'take_profit_condition': take_profit_condition,
                     'close_quantity': close_quantity,
                     'u_run_number': unique_run_number,
-                    #'take_profit': {app_config['take_profits'][take_profit]}
                 }
                 add_to_take_profit_history_df(data)
                 add_to_signlas('TAKE_PROFIT_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f"TAKE-PROFIT-{take_profit} <BR>{json.dumps(data).replace(',','<br>')}")
                 send_email(event='take_profit_sent', body=json.dumps(data).replace(',','<br>'))
 
             else:
-                logger.warning(f"{symbol}. {take_profit} TP didn't go ...  ")
+                logger.warning(f"{symbol}. {take_profit} TP condition didn't meet ...  ")
 
 
         # check to clean up
