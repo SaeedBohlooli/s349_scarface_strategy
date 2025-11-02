@@ -215,42 +215,38 @@ class LevelsDetector:
 
     def intraday_levels(self, df: pd.DataFrame, asof: pd.Timestamp) -> Dict[str, float]:
         """
-        Compute intraday levels (5M/15M highs/lows since RTH open)
-
-        Args:
-            df: 1-minute OHLCV data
-            asof: Reference timestamp
-
-        Returns:
-            Dictionary with intraday levels
+        Compute intraday levels:
+          - 5MH/5ML: Opening 5-minute range (09:30–09:34) ONLY
+          - 15MH/15ML: First 15-minute range (09:30–09:44) ONLY, emitted once as soon as the window completes
         """
         levels = {}
+        tz = df.index.tz
         current_date = asof.date()
 
-        # Get current day RTH data
-        current_day = df[df.index.date == current_date]
-        rth_data = self._filter_session(current_day, 'rth')
-
-        if rth_data.empty:
+        # Current day RTH slice
+        day_df = df[df.index.date == current_date]
+        rth_df = self._filter_session(day_df, 'rth')
+        if rth_df.empty:
             return levels
 
-        # Slice to asof
-        rth_to_asof = self.slice_to_asof(rth_data, asof)
+        # Define fixed windows
+        rth_open = pd.Timestamp.combine(current_date, self.rth_start).tz_localize(tz)
+        w5_end = rth_open + pd.Timedelta(minutes=5)  # 09:35 exclusive upper bound for 09:30–09:34 data
+        w15_end = rth_open + pd.Timedelta(minutes=15)  # 09:45 exclusive upper bound for 09:30–09:44 data
 
-        if rth_to_asof.empty:
-            return levels
+        # Opening 5-minute window (emit as soon as we cross 09:35)
+        if asof >= w5_end:
+            w5 = rth_df[(rth_df.index >= rth_open) & (rth_df.index < w5_end)]
+            if not w5.empty:
+                levels['5MH'] = float(w5['high'].max())
+                levels['5ML'] = float(w5['low'].min())
 
-        # 5-minute levels
-        df_5m = self.resample_bars(rth_to_asof, '5M')
-        if not df_5m.empty:
-            levels['5MH'] = df_5m['high'].max()
-            levels['5ML'] = df_5m['low'].min()
-
-        # 15-minute levels
-        df_15m = self.resample_bars(rth_to_asof, '15M')
-        if not df_15m.empty:
-            levels['15MH'] = df_15m['high'].max()
-            levels['15ML'] = df_15m['low'].min()
+        # First 15-minute window (emit as soon as we cross 09:45)
+        if asof >= w15_end:
+            w15 = rth_df[(rth_df.index >= rth_open) & (rth_df.index < w15_end)]
+            if not w15.empty:
+                levels['15MH'] = float(w15['high'].max())
+                levels['15ML'] = float(w15['low'].min())
 
         return levels
 
@@ -1171,3 +1167,4 @@ def detect_levels_from_file(file_path: str, asof_str: str,
         print(f"✅ Levels analysis saved to: {output_file}")
 
     return result
+
