@@ -2,14 +2,13 @@ logging_level: logging.INFO
 #logging_level: logging.WARNING
 symbols: ['QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR', 'TSLL', 'AMZN', 'MNQ', 'SPY']
 #symbols: ['QQQ', 'PLTR', 'TSLA', 'TSLL', 'AMZN']
+#symbols: ['QQQ', 'SPY' ]
+#symbols: ['QQQ']
 
 symbols_meta:
   QQQ:
     can_trade: false
     contract_type: Equity
-    retest_tolerance_percentage: 0.0001
-    retest_tolerance_amount: 0.5
-    levels_closeness_limit: 2
     min_required_move_from_level: 0.5
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
@@ -17,9 +16,6 @@ symbols_meta:
   TSLA:
     can_trade: true
     contract_type: Equity
-    retest_tolerance_percentage: 0.003
-    retest_tolerance_amount: 0.5
-    levels_closeness_limit: 2
     min_required_move_from_level: 0.5
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
@@ -27,9 +23,6 @@ symbols_meta:
   AAPL:
     can_trade: true
     contract_type: Equity
-    retest_tolerance_percentage: 0.003
-    retest_tolerance_amount: 0.5
-    levels_closeness_limit: 2
     min_required_move_from_level: 0.5
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
@@ -37,9 +30,6 @@ symbols_meta:
   NVDA:
     can_trade: true
     contract_type: Equity
-    retest_tolerance_percentage: 0.003
-    retest_tolerance_amount: 0.5
-    levels_closeness_limit: 2
     min_required_move_from_level: 0.5
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
@@ -47,9 +37,6 @@ symbols_meta:
   AMD:
     can_trade: true
     contract_type: Equity
-    retest_tolerance_percentage: 0.003
-    retest_tolerance_amount: 0.5
-    levels_closeness_limit: 2
     min_required_move_from_level: 0.5
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
@@ -57,9 +44,6 @@ symbols_meta:
   PLTR:
     can_trade: true
     contract_type: Equity
-    retest_tolerance_percentage: 0.003
-    retest_tolerance_amount: 0.5
-    levels_closeness_limit: 2
     min_required_move_from_level: 0.5
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
@@ -67,19 +51,13 @@ symbols_meta:
   TSLL:
     can_trade: true
     contract_type: Equity
-    retest_tolerance_percentage: 0.003
-    retest_tolerance_amount: 0.5
-    levels_closeness_limit: 2
     min_required_move_from_level: 0.04
     breakout_confirmation_distance: 0.15
-    chart_entry_offset: 1
+    chart_entry_offset: 0.5
     retest_tolerance_multiplier: 1.5
   SPY:
     can_trade: false
     contract_type: Equity
-    retest_tolerance_percentage: 0.003
-    retest_tolerance_amount: 0.5
-    levels_closeness_limit: 2
     min_required_move_from_level: 0.5
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
@@ -87,20 +65,14 @@ symbols_meta:
   MNQ:
     can_trade: false
     contract_type: Future
-    contract_month: 202512
-    retest_tolerance_percentage: 0.003
-    retest_tolerance_amount: 5
-    levels_closeness_limit: 10
     min_required_move_from_level: 10
     breakout_confirmation_distance: 2
     chart_entry_offset: 20
     retest_tolerance_multiplier: 1
+    contract_month: 202512
   AMZN:
     can_trade: true
     contract_type: Equity
-    retest_tolerance_percentage: 0.003
-    retest_tolerance_amount: 0.5
-    levels_closeness_limit: 2
     min_required_move_from_level: 0.5
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
@@ -108,6 +80,7 @@ symbols_meta:
 
 cases:
   case_1:
+    can_replace_level: False
     long:
       level: max(levels['PDH'], levels['PMH'], levels['5MH'])
       condition_01: breakout_in_last_x_candles(side='up', idx_list=[-5], level=long_level)
@@ -116,13 +89,12 @@ cases:
       condition_04: check_entry_vs_retest(side='up', level=long_level)
       condition_05: no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
       condition_06: check_price_vs_level(side='up', price=price, level=long_level )
-      condition_07: abs(levels['PDH'] - levels['PMH']) < levels_closeness_limit and abs(levels['5MH'] - levels['PDH']) < levels_closeness_limit
+      condition_07: are_levels_close_to_each_other_for_case_1(side='up')
       condition_08: 1 == 1
       condition_09: 1 == 1
       condition_10: 1 == 1
-
-
-      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07
+      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 
+        and eval_buy_condition_06 and eval_buy_condition_07 and eval_buy_condition_07 and eval_buy_condition_08  and eval_buy_condition_09
 
     short:
       level: min(levels['PDL'], levels['PML'], levels['5ML'])
@@ -132,14 +104,15 @@ cases:
       condition_04: check_entry_vs_retest(side='down', level=short_level)
       condition_05: no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
       condition_06: check_price_vs_level(side='down', price=price, level=short_level )
-      condition_07: abs(levels['PDL'] - levels['PML']) < levels_closeness_limit and abs(levels['5ML'] - levels['PDL']) < levels_closeness_limit
+      condition_07: are_levels_close_to_each_other_for_case_1(side='down')
       condition_08: 1 == 1
       condition_09: 1 == 1
       condition_10: 1 == 1
-
-      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07
+      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 
+        and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09
 
   case_2:
+    can_replace_level: True
     long:
       level: levels['5MH']
       condition_01: breakout_in_last_x_candles(side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level)
@@ -152,20 +125,8 @@ cases:
       condition_08: 1 == 1
       condition_09: 1 == 1
       condition_10: 1 == 1
-
-      # Use the below for test
-#      condition_01: symbol == 'AMD' and 1 == 1
-#      condition_02: 1 == 1
-#      condition_03: 1 == 1
-#      condition_04: 1 == 1
-#      condition_05: 1 == 1
-#      condition_06: 1 == 1
-#      condition_07: 1 == 1
-#      condition_08: 1 == 1
-#      condition_09: 1 == 1
-#      condition_10: 1 == 1
-
-      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07
+      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 
+        and eval_buy_condition_06 and eval_buy_condition_07 and eval_buy_condition_07 and eval_buy_condition_08  and eval_buy_condition_09
 
     short:
       level: levels['5ML']
@@ -179,9 +140,15 @@ cases:
       condition_08: 1 == 1
       condition_09: 1 == 1
       condition_10: 1 == 1
+      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 
+        and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09
 
-#      condition_01: symbol == 'TSLA' and 1 == 1
-#      condition_02: 1 == 1
+#  case_3:
+#    can_replace_level: True
+#    long:
+#      level: levels['5MH']
+#      condition_01: symbol == 'AMD' and 1 == 2
+#      condition_02: mode == 'live'
 #      condition_03: 1 == 1
 #      condition_04: 1 == 1
 #      condition_05: 1 == 1
@@ -190,16 +157,31 @@ cases:
 #      condition_08: 1 == 1
 #      condition_09: 1 == 1
 #      condition_10: 1 == 1
+#      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05
+#        and eval_buy_condition_06 and eval_buy_condition_07 and eval_buy_condition_07 and eval_buy_condition_08 and eval_buy_condition_09
+#
+#    short:
+#      level: levels['5ML']
+#      condition_01: symbol == 'TSLA' and 1 == 2
+#      condition_02: mode == 'live'
+#      condition_03: 1 == 1
+#      condition_04: 1 == 1
+#      condition_05: 1 == 1
+#      condition_06: 1 == 1
+#      condition_07: 1 == 1
+#      condition_08: 1 == 1
+#      condition_09: 1 == 1
+#      condition_10: 1 == 1
+#      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05
+#        and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09
 
-      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07
-
-rights:
+stop_losses:
   C:
-    stop_loss_condition: underlying_previous_candle_close < level_used_to_open and ( level_used_to_open != -1)
+    stop_loss_condition: underlying_previous_candle_close < level_used_to_open - tolerance_amount and ( level_used_to_open != -1)
 #    stop_loss_condition:  symbol == 'TSLA' or 1 == 2
 
   P:
-    stop_loss_condition: underlying_previous_candle_close > level_used_to_open and ( level_used_to_open != -1)
+    stop_loss_condition: underlying_previous_candle_close > level_used_to_open + tolerance_amount and ( level_used_to_open != -1)
 #    stop_loss_condition:  symbol == 'XTSLA' or 1 == 2
 
 
@@ -216,16 +198,19 @@ take_profits:
     condition: current_ask > avg_cost_for_1_contract * 1.6  and ( avg_cost_for_1_contract != -1 and current_ask != -1)
     close_quantity_percentage: 0.25
 
-#  t3_1:
-#    condition: current_ask > avg_cost_for_1_contract * 1.0  and ( avg_cost_for_1_contract != -1 and current_ask != -1)
-#    close_quantity_percentage: -1
+#  t4_close_levels: # when lines are close ...
+#    condition: >
+#        (right == 'C' and is_next_level_close(side='up', level=level_used_to_open, price=underlying_current_price)  and ( avg_cost_for_1_contract != -1 and current_ask != -1)
+#        or
+#        (right == 'P' and is_next_level_close(side='down', level=level_used_to_open, price=underlying_current_price)  and ( avg_cost_for_1_contract != -1 and current_ask != -1)
+#    close_quantity_percentage: 0.5
 
-  t4:
-    condition: >
-      (right == 'C' and is_executed_take_profits(symbol, take_profit_list=['t1']) and underlying_current_price < underlying_open_price)
-      or
-      (right == 'P' and is_executed_take_profits(symbol, take_profit_list=['t1']) and underlying_current_price > underlying_open_price)
-    close_quantity_percentage: -1
+#  t_even:
+#    condition: >
+#      (right == 'C' and is_executed_take_profits(symbol, take_profit_list=['t1']) and underlying_current_price < underlying_open_price)
+#      or
+#      (right == 'P' and is_executed_take_profits(symbol, take_profit_list=['t1']) and underlying_current_price > underlying_open_price)
+#    close_quantity_percentage: -1
 
 #  t3_test:
 #    condition: symbol == 'NVDA' and 1 == 1
@@ -242,7 +227,13 @@ take_profits:
 #      (right == 'P' and is_executed_take_profits(symbol, take_profit_list=['t5_test']) and 1 == 2)
 #    close_quantity_percentage: -1 # -1 means all positions
 
-closeness_distance: df['atr_14'].iloc[-1] * 1
+closeness_distance: df['atr_14'].iloc[-1]
+
+closeness_distance_for_chart:
+  live: df['atr_14'].iloc[-1]
+  back_test: df.loc[ (df['date'].dt.time == pd.to_datetime('10:00').time()), 'atr_14' ].mean()  # for BT, we need to get for 10:00 as for BT we don't go candle base...
+
+closeness_distance_for_case_1: df['atr_14'].iloc[-1] * 4
 
 live:
   historical_days: 4 D
@@ -257,23 +248,22 @@ live:
 
 back_test:
   get_data_from_ib: false
-#  get_data_from_ib: False
+#  get_data_from_ib: True
 
   historical_days: 5 D
   start_date: 2025-10-27
 
-  back_test_date_start: 2025-10-15
-  back_test_date_end: 2025-10-31
+  back_test_date_start: 2025-10-27
+  back_test_date_end: 2025-10-30
 
 chart:
-  source: live
-#  source: back_test
-  1m_candles: 2000
+#  source: live
+  source: back_test
   cutoff_in_hours: 0
   hours_in_focus: 2.5
   live:
-    start_time: '09:15'
-    end_time: '11:15'
+    start_time: '13:15'
+    end_time: '15:30'
 
 # before_start:
 close_all_open_option_positions: false
@@ -287,9 +277,8 @@ run_should_take_seconds: 20
 email:
   send_email: true
   #recipients: vikaskaler.bnr@gmail.com,saeed.bx1@yahoo.com
-#  recipients: saeed.bx1@yahoo.com
+ # recipients: saeed.bx1@yahoo.com
   recipients: vikaskaler.bnr@gmail.com
-# To show levels in the price scale, open 'Chart Settings', go to 'Scales', make sure 'Indicators and Financials Value' is checked.
 
 health_check:
   email: saeed.bx1@yahoo.com
