@@ -697,6 +697,13 @@ def create_chart_hovered_df(hover_df, symbol):
     # http://xahlee.info/comp/unicode_geometric_shapes.html
 # ◒
     mapping = {
+
+        'LEVEL_REPLACED': '○',
+
+        # 'BREAKOUT': '●',
+        'BREAKOUT': '↑',
+        'BREAKOUT': 'B',
+
         # Up / Positive
         'FLASH_UP': '▲',
         'UP': '▲',
@@ -729,27 +736,41 @@ def create_chart_hovered_df(hover_df, symbol):
         'VOLUME_SPIKE': '◆',
 
         # Highlight / Special
+        # 'RETEST': '●',
+        'RETEST': 'R',
         'RETEST_UP': '★',
         'RETEST_DOWN': '★',
 
         'bullish_reversal' : '◆',
         'bearish_reversal' : '◆',
 
-        'Candle Type': '○',
+        'CANDLE_TYPE': '○',
 
         # BUY and sell Entry
-        'BUY_ENTRY-case_1': '■',
-        'SELL_ENTRY-case_1': '■',
+        'BUY_ENTRY_case_1': '■',
+        'SELL_ENTRY_case_1': '■',
         # BUY and sell Entry
-        'BUY_ENTRY-case_2': '■',
-        'SELL_ENTRY-case_2': '■',
+        'BUY_ENTRY_case_2': '■',
+        'SELL_ENTRY_case_2': '■',
 
-        'Screening_case_1': '○',
-        'Screening_case_2': '○',
-        'Screening_case_3': '○',
+        'SCREENING_case_1': '○',
+        'SCREENING_case_2': '○',
+        'SCREENING_case_3': '○',
+
+        'ORDER_SENT': '◆',
+        'STOP_LOSS_SENT': '◆',
+        'TAKE_PROFIT_SENT': '◆',
+
+
 
         'CANDLE_INFO': '○',
 
+        'ORDER_SENT': '◆',
+        'TAKE_PROFIT_SENT': '✖',
+        'STOP_LOSS_SENT': '✖',
+        'x': '↑',
+        'b': '↓',
+        'b': '→',
     }
 
     # Apply mapping to a new column
