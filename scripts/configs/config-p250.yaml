@@ -196,21 +196,22 @@ take_profits:
 
   t3:
     condition: current_ask > avg_cost_for_1_contract * 1.6  and ( avg_cost_for_1_contract != -1 and current_ask != -1)
-    close_quantity_percentage: 0.25
+    close_quantity_percentage: -1
+    # -1 closes all the rest
 
-#  t4_close_levels: # when lines are close ...
-#    condition: >
-#        (right == 'C' and is_next_level_close(side='up', level=level_used_to_open, price=underlying_current_price)  and ( avg_cost_for_1_contract != -1 and current_ask != -1)
-#        or
-#        (right == 'P' and is_next_level_close(side='down', level=level_used_to_open, price=underlying_current_price)  and ( avg_cost_for_1_contract != -1 and current_ask != -1)
-#    close_quantity_percentage: 0.5
+  t4_close_levels: # when lines are close ...
+    condition: >
+        (right == 'C' and is_next_level_close(side='up', level=level_used_to_open, current_price=underlying_current_price, underlying_open_price=underlying_open_price ))  
+        or
+        (right == 'P' and is_next_level_close(side='down', level=level_used_to_open, current_price=underlying_current_price, underlying_open_price=underlying_open_price ))
+    close_quantity_percentage: 0.5
 
-#  t_even:
-#    condition: >
-#      (right == 'C' and is_executed_take_profits(symbol, take_profit_list=['t1']) and underlying_current_price < underlying_open_price)
-#      or
-#      (right == 'P' and is_executed_take_profits(symbol, take_profit_list=['t1']) and underlying_current_price > underlying_open_price)
-#    close_quantity_percentage: -1
+  t_even:
+    condition: >
+      (right == 'C' and is_executed_take_profits(symbol, take_profit_list=['t1']) and underlying_current_price < underlying_open_price)
+      or
+      (right == 'P' and is_executed_take_profits(symbol, take_profit_list=['t1']) and underlying_current_price > underlying_open_price)
+    close_quantity_percentage: -1
 
 #  t3_test:
 #    condition: symbol == 'NVDA' and 1 == 1
@@ -230,7 +231,7 @@ take_profits:
 closeness_distance: df['atr_14'].iloc[-1]
 
 closeness_distance_for_chart:
-  live: df['atr_14'].iloc[-1]
+  live: df['atr_14'].tail(10).mean()
   back_test: df.loc[ (df['date'].dt.time == pd.to_datetime('10:00').time()), 'atr_14' ].mean()  # for BT, we need to get for 10:00 as for BT we don't go candle base...
 
 closeness_distance_for_case_1: df['atr_14'].iloc[-1] * 4
@@ -253,8 +254,8 @@ back_test:
   historical_days: 5 D
   start_date: 2025-10-27
 
-  back_test_date_start: 2025-10-27
-  back_test_date_end: 2025-10-30
+  back_test_date_start: 2025-10-01
+  back_test_date_end: 2025-11-02
 
 chart:
 #  source: live
@@ -270,9 +271,7 @@ close_all_open_option_positions: false
 cancel_open_orders_on_start: false
 load_application_state_from_file: true
 
-
 run_should_take_seconds: 20
-
 
 email:
   send_email: true
@@ -284,5 +283,4 @@ health_check:
   email: saeed.bx1@yahoo.com
   running_hours: 920 < current_hh_mm_ny < 1100
 
-test_yaml: false
 exit: false

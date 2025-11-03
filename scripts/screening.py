@@ -652,13 +652,13 @@ def replace_level_if_needed(side, can_replace_level, level):
 
     if side == 'up':
         if next_level > level and abs(next_level - level) < closeness_distance:
-            logger.info(f"replace_level_if_needed, level is replaced, {side}, level: {level}, next_level: {next_level}")
+            logger.info(f"replace_level_if_needed, level is replaced,{symbol}, {side}, level: {level}, next_level: {next_level}, {df['date'].iloc[-1]}")
             price = get_offseted_price('up', df['high'].iloc[-1])
             add_to_signlas('LEVEL_REPLACED', price, df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}')
             return next_level
     else:
         if next_level < level and abs(next_level - level) < closeness_distance:
-            logger.info(f"replace_level_if_needed, level is replaced, {side}, level: {level}, next_level: {next_level}")
+            logger.info(f"replace_level_if_needed, level is replaced, {symbol}, {side}, level: {level}, next_level: {next_level}, {df['date'].iloc[-1]}")
             price = get_offseted_price('up', df['high'].iloc[-1])
             add_to_signlas('LEVEL_REPLACED', price,  df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}')
             return next_level
@@ -855,43 +855,21 @@ def add_atr_to_candle_info(dynamic_tolerance):
 def dummy_call(level):
     return True
 
-def breakout_in_last_x_candles_old(side='up', idx_list=[-2], level=0):
+def archive_open_trade_dic(symbol, open_trade_dic_4_symbol):
+    global open_trade_dic_arcive
+    open_trade_dic_arcive[unique_run_number] = open_trade_dic_4_symbol
+    file_path = f'{intermediate_dir}/84-{unique_run_number}-{symbol}.csv'
 
-    logger.debug(f"in breakout_in_last_x_candles, symbol: {symbol}, idx_list: {idx_list}, level:{level}")
+    file_path = file_path
+    with open(file_path, 'w') as f:
+        try:
+            logger.info(f"saving at file_path: {file_path}")
+            json.dump(application_state, f, indent=4)
+            logger.info(f"saving done. ")
+        except Exception as e:
+            # TODO add
+            logger.error(e)
 
-    if level == 0:
-        return False
-    gap = app_config['symbols_meta'][symbol]['breakout_confirmation_distance']
-    breakout_happened = False
-    breakout_idx = 0
-    for idx in idx_list:
-        row = df.iloc[idx]
-        previous = df.iloc[idx-1]
-        # --- Breakout detection ---
-        if side == 'up':
-            if row["low"] < level and row["close"] > level + gap:
-                logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
-                add_to_break_out_indices_by_level_set(level, idx)
-                breakout_happened = True
-            # if previous['open'] < level and row["close"] > level: # the -2 opened below level and -1 closed above gap.
-            if previous['open'] < level and row["close"] > level and row["close"] > row["open"]: # the -2 opened below level and -1 closed above gap and -1 is up trned candle
-                logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
-                add_to_break_out_indices_by_level_set(level, idx)
-                breakout_happened = True
-        else:
-            if row["high"] > level and row["close"] < level  - gap:
-                logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
-                add_to_break_out_indices_by_level_set(level, idx)
-                breakout_happened = True
-
-            if previous['open'] > level and row["close"] < level and row["close"] < row["open"]: # the -2 opened above level and -1 closed below ga and -1 is down trend candle.
-                logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
-                add_to_break_out_indices_by_level_set(level, idx)
-                breakout_happened = True
-
-
-
-    return breakout_happened
 
 
 
@@ -1588,7 +1566,7 @@ def on_fill(trade, fill):
 
 def send_order(contract, total_quantity=1):
     order = MarketOrder('BUY', totalQuantity=total_quantity)
-    order_ref = f"OPEN-{unique_run_number}"
+    order_ref = f"OPEN-{symbol}-{unique_run_number}"
     order.orderRef = order_ref
     trade = ib.placeOrder(contract, order)
     # TODO convert to ib df
@@ -1788,7 +1766,7 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
             add_to_signlas(f'ORDER_SENT',df['close'].iloc[-1],df['date'].iloc[-1], json.dumps(data).replace(',','<br>') )
             add_to_order_history_df(data)
             add_to_number_of_trades_today(symbol)
-            send_email(event='order_sent', body=json.dumps(data).replace(',','<br>'))
+            send_email(event='order_sent', symbol=symbol, body=json.dumps(data).replace(',','<br>'))
 
     return
 
@@ -2047,9 +2025,9 @@ def close_option_positions(positions, symbol='', close_qty=0, alias_for_ref=''):
 
             order = MarketOrder(action, qty)
             if alias_for_ref  == '':
-                order_ref = f"CLOSE-{unique_run_number}"
+                order_ref = f"CLOSE-{symbol}-{unique_run_number}"
             else:
-                order_ref = f"CLOSE-{alias_for_ref}-{unique_run_number}"
+                order_ref = f"CLOSE-{symbol}-{alias_for_ref}-{unique_run_number}"
 
             order.orderRef = order_ref
 
@@ -2121,17 +2099,19 @@ def update_for_avg_cost(positions):
 
 
 
-def is_next_level_close(side='up',level=-1, price=-1):
+def is_next_level_close_a_price_crossed(side='up', level=-1, current_price=-1, underlying_open_price=-1):
     # If price touches next level, we are in 5MH, next lelve is PDH,
     closeness_distance = eval(app_config['closeness_distance'])
     if side == 'up':
         next_level = get_next_level(side, level)
         # next level is > level AND levels are close AND price above the level
-        if next_level > level and abs(next_level - level) < closeness_distance and price > next_level:
+        if (next_level > level and  abs(next_level - level) < closeness_distance and # next_level is close
+                current_price > next_level and next_level > underlying_open_price) : # price is crossed AND we opened below the next level ...
             return True
     else:
         next_level = get_next_level(side, level)
-        if next_level < level and abs(next_level - level) < closeness_distance and price < next_level:
+        if (next_level < level and abs(next_level - level) < closeness_distance and current_price < next_level and
+                current_price < next_level and next_level < underlying_open_price):  # price is crossed AND we opened above the next level ...
             return True
 
     return False
@@ -2202,8 +2182,8 @@ def check_for_stop_loss_and_take_profit():
                 }
             add_to_stop_loss_history_df(data)
             add_to_signlas('STOP_LOSS_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f"STOP_LOSS  <BR> {json.dumps(data).replace(',','<br>')}")
-            send_email(event='stop_loss_sent', body=json.dumps(data).replace(',','<br>'))
-
+            send_email(event='stop_loss_sent', symbol=symbol, body=json.dumps(data).replace(',','<br>'))
+            archive_open_trade_dic(symbol, open_trade_info)
             data = {}
             application_state.setdefault('open_trades_dic', {})[symbol] = data  # This need to be ahppened after we get required inf from dic...
 
@@ -2263,7 +2243,7 @@ def check_for_stop_loss_and_take_profit():
                 }
                 add_to_take_profit_history_df(data)
                 add_to_signlas('TAKE_PROFIT_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f"TAKE-PROFIT-{take_profit} <BR>{json.dumps(data).replace(',','<br>')}")
-                send_email(event='take_profit_sent', body=json.dumps(data).replace(',','<br>'))
+                send_email(event='take_profit_sent', symbol=symbol, body=json.dumps(data).replace(',','<br>'))
 
             else:
                 logger.warning(f"{symbol}. {take_profit} TP condition didn't meet ...  ")
@@ -2272,17 +2252,18 @@ def check_for_stop_loss_and_take_profit():
         # check to clean up
         if application_state['open_trades_dic'].get(symbol, {}) != {} and application_state['open_trades_dic'][symbol].get('available_quantity', 0) == 0:
             logger.info(f"{symbol}, the available_quantity is zero, so we set empty dic for it")
+            archive_open_trade_dic(symbol, open_trade_info)
             application_state['open_trades_dic'][symbol] = {}
 
     return
 
-def send_email(event='order_sent', subject='', body=''):
+def send_email(event='order_sent', symbol='', subject='', body=''):
     if app_config['email']['send_email']:
         recipients = app_config['email']['recipients']
 
         if event.lower() == 'order_sent':
             subject = f'Order Sent {symbol}'
-            body = (f" Order opened ... <br> {body}"
+            body = (f"Order Sent ... <br> {body}"
                     f"<br>Later more detail will come ...<br>")
 
         elif event.lower() == 'stop_loss_sent':
