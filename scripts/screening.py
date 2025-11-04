@@ -21,7 +21,7 @@ import os
 from pandas.tseries.offsets import BDay
 import logging
 from finta import TA
-
+import math
 from ruamel.yaml import YAML
 import traceback
 
@@ -45,7 +45,7 @@ mode = 'live'
 
 portfolio_dir = f'../portfolios/results/{portfolio_id}'
 reports_dir = f'../portfolios/reports/{portfolio_id}'
-log_dir = f'../../portfolios/logs/{portfolio_id}-{mode}'
+log_dir = f'../../portfolios/logs/{portfolio_id}-{mode}/{datetime.datetime.now().strftime("%Y-%m-%d")}/'
 detailed_log_dir = f'../../portfolios/detailed-logs/{portfolio_id}-{mode}'
 intermediate_dir = f'../portfolios/intermediate/{portfolio_id}'
 
@@ -856,7 +856,7 @@ def dummy_call(level):
     return True
 
 def archive_open_trade_dic(symbol, open_trade_dic_4_symbol):
-    global open_trade_dic_arcive
+    open_trade_dic_arcive = {}
     open_trade_dic_arcive[unique_run_number] = open_trade_dic_4_symbol
     file_path = f'{intermediate_dir}/84-{unique_run_number}-{symbol}.csv'
 
@@ -939,7 +939,7 @@ def add_to_break_out_indices_by_level_set(level, idx):
         break_out_indices_by_level_set[level] = set()
 
     break_out_indices_by_level_set[level].add(idx)
-    add_to_candle_info_df(date=df['date'].iloc[idx], price=df['low'].iloc[idx], memo=f'breakout @ {level}')
+    # add_to_candle_info_df(date=df['date'].iloc[idx], price=df['low'].iloc[idx], memo=f'breakout @ {level}')
     offseted_price = get_offseted_price('up', df['close'].iloc[idx])
     add_to_signlas('BREAKOUT', offseted_price, df['date'].iloc[idx], f"BREAKOUT ... {df['date'].iloc[idx]}... " )
     return
@@ -952,7 +952,7 @@ def add_to_retest_indices_by_level_set(level, idx):
         retest_indices_by_level_set[level] = set()
 
     retest_indices_by_level_set[level].add(idx)
-    add_to_candle_info_df(date=df['date'].iloc[idx], price=df['high'].iloc[idx], memo=f'reset @ {level}')
+    # add_to_candle_info_df(date=df['date'].iloc[idx], price=df['high'].iloc[idx], memo=f'retest @ {level}')
     offseted_price = get_offseted_price('up', df['low'].iloc[idx])
     add_to_signlas('RETEST', offseted_price, df['date'].iloc[idx], f"RETEST ... {df['date'].iloc[idx]}")
     return
@@ -1112,15 +1112,21 @@ def load_application_state_from_file():
 # ###########
 # START BACK TEST
 # ############
-def get_current_price_from_ib(symbol):
+def get_current_price_from_ib(symbol, max_retries=3, retry_delay=0.5):
 
     underlying = Stock(symbol, 'SMART', 'USD')
-    ib.qualifyContracts(underlying)
-    ticker = ib.reqMktData(underlying)
-    ib.sleep(0.2)
-    underlying_price = ticker.last or ticker.close
+    for attempt in range(1, max_retries + 1):
 
-    return underlying_price
+        ib.qualifyContracts(underlying)
+        ticker = ib.reqMktData(underlying)
+        ib.sleep(0.2)
+        price = ticker.last or ticker.close
+        if price is not None and not (pd.isna(price) or math.isnan(price)):
+            return price
+        else:
+            logger.warning(f"@@@ get_current_price_from_ib,{symbol}, price is nan, try again ...")
+            time.sleep(retry_delay)
+    return price
 
 # def detect_reversal_near_keylevel(df, key_levels, tolerance=0.001, wick_ratio=2.0):
 #     """
@@ -1650,7 +1656,7 @@ def calculate_number_of_contracts(ask):
         logger.warning(f"@@@@ we dont have enough capital ...")
 
     return num_of_contracts
-def prepare_contract(symbol, right='C'):
+def prepare_contract(symbol, right='C', max_retries=3, wait_between=1.0):
 
     underlying_price = get_current_price_from_ib(symbol)
     strikes = options_meta_date_dic.get(symbol, {}).get('strikes')
@@ -1674,7 +1680,7 @@ def prepare_contract(symbol, right='C'):
         return contract
 
     else:
-        logger.error (f"@@@@ {symbol}, in prepare_contract, we have issue  strikes: {strikes}, expiry: {expiry}")
+        logger.error (f"@@@@ prepare_contract(), we have issue, {symbol}, underlying_price: {underlying_price}, expiry: {expiry}, strikes: {strikes}")
 
         # TODO log the error
         #   File "C:\Users\saeed\Documents\13-code-git\s349_scarface_strategy\scripts\screening.py", line 2202, in <module>
@@ -1832,10 +1838,8 @@ def get_quote_for_option_bid_ask(symbol, strike, right, expiry, exchange='SMART'
         exchange=exchange
     )
     bid = ask = 0
-    attempt = 0
 
-    while attempt < max_retries and ( bid == 0 or ask == 0 ):
-        attempt += 1
+    for attempt in range(1, max_retries + 1):
         ticker = ib.reqMktData(option, snapshot=True)
         ib.sleep(0.2)  # Give IB a moment to return data
 
@@ -1843,6 +1847,11 @@ def get_quote_for_option_bid_ask(symbol, strike, right, expiry, exchange='SMART'
         ask = ticker.ask  if ticker.ask > 0 else 0
         last = ticker.last if ticker.last > 0 else 0
         logger.info(f"get_quote_for_option_bid_ask, bid: {bid}, ask:{ask}")
+        if bid == 0 or ask == 0:
+            logger.warning(f"@@@ get_quote_for_option_bid_ask(), {symbol}, bid: {bid}, ask:{ask}, option: {option}")
+            time.sleep(wait_between)
+        else:
+            return bid, ask
 
     return bid, ask
 
@@ -2156,7 +2165,7 @@ def check_for_stop_loss_and_take_profit():
 
 
         logger.info(f"level_used_to_open: {level_used_to_open}, underlying_open_price: {underlying_open_price}, "
-                    f"underlying_current_price:, {underlying_current_price}, underlying_previous_candle_close: {underlying_previous_candle_close}")
+                    f"underlying_current_price:, {underlying_current_price}, underlying_previous_candle_close: {underlying_previous_candle_close} ,tolerance_amount: {tolerance_amount}")
         logger.info(f"current_bid: {current_bid}, current_ask: {current_ask}, avg_cost_for_1_contract: {avg_cost_for_1_contract}")
 
         stop_loss_condition = app_config['stop_losses'][right]['stop_loss_condition']
@@ -2647,7 +2656,7 @@ if __name__ == "__main__":
             symbol_number += 1
             unique_run_number = f"{date_run_number}--{symbol_number}"
 
-            logger.warning(f"------------------- {symbol}, unique_run_number: {unique_run_number}")
+            logger.warning(f"------------------- {symbol}, {unique_run_number}")
             symbol_start_time = time.time()
 
             # These are for each symbol ...
@@ -2662,7 +2671,7 @@ if __name__ == "__main__":
             if run_number == 1: # TODO move it uppre
                 historical_days = '' # will come from config ...
             else:
-                historical_days = '1 D'
+                historical_days = '3 D'  #TODO for mondays ...
 
             df = get_market_data(symbol, '1 min', historical_days=historical_days)
             df = popualate_features(df)
@@ -2719,7 +2728,7 @@ if __name__ == "__main__":
 
             symbol_end_time = time.time()
             symbol_run_spend_time = round(symbol_end_time - symbol_start_time, 2)
-            logger.warning(f'{symbol} run_number: {run_number}, symbol_run_spend_time: {symbol_run_spend_time} seconds')
+            logger.warning(f'--- {symbol}, {run_number}, symbol_run_spend_time: {symbol_run_spend_time} seconds')
 
         # end:  for symbol in app_config['symbols']:
 
