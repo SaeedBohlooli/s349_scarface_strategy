@@ -38,7 +38,7 @@ from utils import email_util_ver_02
 from utils import atr_tolerance_helper
 
 portfolio_id = 'p250'
-configs_folder = f'../scripts/configs'
+configs_folder = f'../configs'
 config_file = f'{configs_folder}/app-config.yaml'
 
 mode = 'back_test'
@@ -1657,7 +1657,7 @@ def calculate_number_of_contracts(ask):
         logger.warning(f"@@@@ we dont have enough capital ...")
 
     return num_of_contracts
-def prepare_contract(symbol, right='C'):
+def prepare_contract(symbol, right='C', max_retries=3, wait_between=1.0):
 
     underlying_price = get_current_price_from_ib(symbol)
     strikes = options_meta_date_dic.get(symbol, {}).get('strikes')
