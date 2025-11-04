@@ -83,7 +83,7 @@ file_r_handler = logging.handlers.RotatingFileHandler(filename=f"{log_dir}/{port
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 file_r_handler.setFormatter(formatter)
 logging.basicConfig(
-    level=logging_level,
+    level=eval(logging_level),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         file_r_handler,
@@ -1136,122 +1136,6 @@ def get_current_price_from_ib(symbol, max_retries=3, retry_delay=0.5):
             time.sleep(retry_delay)
     return price
 
-# def detect_reversal_near_keylevel(df, key_levels, tolerance=0.001, wick_ratio=2.0):
-#     """
-#     Detect if the latest candle is a reversal near any key level.
-#
-#     df: DataFrame with columns ['open','high','low','close']
-#     key_levels: list of floats (support/resistance levels)
-#     tolerance: percentage distance from level to count as "touch" (default 0.1%)
-#     wick_ratio: wick must be at least this multiple of body to count as rejection
-#
-#     Returns:
-#         list of tuples: (signal_type, level)
-#         where signal_type ∈ {"bullish_reversal", "bearish_reversal"}
-#     """
-#     signals = []
-#     if df.empty:
-#         return signals
-#
-#     c = df.iloc[-1]  # latest candle
-#     body = abs(c["close"] - c["open"])
-#     if body == 0:
-#         return signals
-#
-#     upper_wick = c["high"] - max(c["close"], c["open"])
-#     lower_wick = min(c["close"], c["open"]) - c["low"]
-#     idx = df.iloc[-1]['date']
-#
-#     for level in key_levels:
-#         # --- Bullish reversal near support ---
-#         if (
-#             abs(c["low"] - level) <= level * tolerance
-#             and c["close"] > c["open"]  # green candle
-#             and lower_wick >= wick_ratio * body
-#         ):
-#             add_to_signlas(symbol, "bullish_reversal", level, idx)
-#
-#         # --- Bearish reversal near resistance ---
-#         elif (
-#             abs(c["high"] - level) <= level * tolerance
-#             and c["close"] < c["open"]  # red candle
-#             and upper_wick >= wick_ratio * body
-#         ):
-#             add_to_signlas(symbol, "bearish_reversal", level, idx)
-#
-#     return signals
-
-# def detect_reversal_near_keylevel_ver2(df, key_levels, tolerance=0.003, wick_ratio=1.0):
-#     """
-#     Detects reversal candles near key levels using only the last candle.
-#     Works in forward/live mode.
-#
-#     Parameters
-#     ----------
-#     df : pd.DataFrame
-#         Must contain columns: ['date', 'open', 'high', 'low', 'close']
-#     key_levels : list[float]
-#         List of important support/resistance levels
-#     tolerance : float, optional
-#         Distance allowed from key level (default 0.3%)
-#     wick_ratio : float, optional
-#         Minimum wick-to-body ratio to qualify as a reversal (default 1.0)
-#
-#     Returns
-#     -------
-#     list[dict]
-#         Example:
-#         [
-#             {'type': 'bullish_reversal', 'level': 258.0, 'time': '2025-10-05 09:32'},
-#             {'type': 'bearish_reversal', 'level': 261.5, 'time': '2025-10-05 10:00'}
-#         ]
-#     """
-#     if df.empty:
-#         return []
-#
-#     c = df.iloc[-1]
-#     candle_time = c["date"]  # <-- using 'date' column explicitly
-#
-#     body = abs(c["close"] - c["open"])
-#     if body == 0:
-#         return []
-#
-#     upper_wick = c["high"] - max(c["close"], c["open"])
-#     lower_wick = min(c["close"], c["open"]) - c["low"]
-#
-#     signals = []
-#     for level in key_levels:
-#         # Check if candle touched or is within tolerance of the level
-#         touched = (abs(c["low"] - level) <= level * tolerance) or (c["low"] <= level <= c["high"])
-#
-#         # --- Bullish reversal near support ---
-#         if (
-#             touched
-#             and c["close"] >= c["open"]
-#             and lower_wick >= wick_ratio * body
-#         ):
-#             add_to_signlas(symbol, {
-#                 "type": "bullish_reversal",
-#                 "level": level,
-#                 "time": candle_time
-#             })
-#
-#         # --- Bearish reversal near resistance ---
-#         elif (
-#             touched
-#             and c["close"] <= c["open"]
-#             and upper_wick >= wick_ratio * body
-#         ):
-#             add_to_signlas(symbol, {
-#                 "type": "bearish_reversal",
-#                 "level": level,
-#                 "time": candle_time
-#             })
-#
-#     return signals
-
-
-
 def get_historical_data_from_start_date(contract, historical_days, time_frame, start_date):
     # calculate end date (20 days ago)
     # end_date = datetime.datetime.now() - datetime.timedelta(days=10)
@@ -1279,52 +1163,6 @@ def get_historical_data_from_start_date(contract, historical_days, time_frame, s
     logger.info(f"get_historical_data_from_start_date, {contract.symbol} ,df['date'].min(): {df['date'].min()}, df['date'].max(): {df['date'].max()}")
     return df
 
-# def detect_breakout_retest_ver_2(df, key_levels, tolerance=0.0005, check_breakout=True):
-#     """
-#     Detect breakout or retest on the latest candle only.
-#
-#     df: DataFrame with at least ['open','high','low','close']
-#     key_levels: list of floats (support/resistance levels)
-#     tolerance: allowable distance to treat as "touch" (default 0.1%)
-#
-#     Returns: list of signals for the latest candle
-#              Each signal is a tuple: (event_type, level, candle_index)
-#              event_type ∈ {"breakout_up", "breakout_down", "retest_up", "retest_down"}
-#     """
-#     global signals
-#
-#     tolerance_percentage = app_config['symbols_meta'][symbol]['retest_tolerance_percentage'] # used in config
-#     telorance_amount = app_config['symbols_meta'][symbol]['retest_tolerance_amount'] # used in config
-#
-#     if len(df) < 2:
-#         return signals  # need at least 2 candles to compare breakout
-#
-#     latest = df.iloc[-1]
-#     prev = df.iloc[-2]
-#     idx = df.iloc[-1]['date']
-#
-#     for level in key_levels:
-#         if check_breakout:
-#             # --- Breakout detection ---
-#             if prev["close"] < level and latest["close"] > level:
-#                 add_to_signlas(symbol, "breakout_up", level, idx)
-#             elif prev["close"] > level and latest["close"] < level:
-#                 add_to_signlas(symbol, "breakout_down", level, idx)
-#
-#         if telorance_amount == -1:
-#             telorance_amount = level * tolerance_percentage
-#
-#         # --- Retest detection ---
-#         if level > prev["low"] and level - prev["low"] <= telorance_amount and latest["close"] > level:
-#             add_to_signlas(symbol, "retest_up", level, idx)
-#         elif prev["high"] > level and prev["high"] - level <= telorance_amount and latest["close"] < level:
-#             add_to_signlas(symbol, "retest_down", level, idx)
-#
-#     return signals
-
-# #####
-# Starting the always needed ....
-# ###########
 
 def get_historical_data_back_test(contract, start_date='2025-09-01', historical_days='', time_frame='1 min'):
     """
@@ -1879,86 +1717,6 @@ def get_bid_and_ask(df, symbol):
     ask = row['ask'] if pd.notna(row['ask']) else -1
 
     return bid, ask
-# def get_live_portfolio_df(positions):
-#     """
-#     Calculate and print PnL for all positions grouped by underlying + expiry.
-#     Uses live market prices for unrealized PnL.
-#     """
-#     portfolio_df = pd.DataFrame()
-#
-#     option_groups = defaultdict(list)
-#     # Group options by underlying + expiry
-#     for pos in positions:
-#         c = pos.contract
-#         if c.secType == 'OPT':
-#             key = (c.symbol, c.lastTradeDateOrContractMonth)
-#             option_groups[key].append(pos)
-#         else:
-#             # Stock or other positions
-#             # print(f"{c.secType}: {c.symbol} qty={pos.position} avgPrice={pos.avgCost}")
-#             pass
-#
-#     # Compute PnL per group
-#     for key, legs in option_groups.items():
-#         symbol, expiry = key
-#         open_positions_expiry = expiry
-#         total_unrealized = 0.0
-#         total_realized = 0.0
-#         logger.info(f"in get_live_portfolio_df, Strategy: {symbol} {expiry}")
-#
-#         for leg in legs:
-#             logger.info('--- -')
-#             c = leg.contract
-#             qty = leg.position
-#             open_avg_cost = leg.avgCost
-#             logger.info(f"in get_live_portfolio_df(), contract: { c}")
-#             c.exchange = 'CBOE'
-#             # Fetch live market price (use mid-price if bid/ask available)
-#             ticker = ib.reqMktData(c,
-#                                    )
-#             logger.info(f"get_live_portfolio_df(), ticker: {ticker}")
-#
-#             ib.sleep(0.2)  # give it a moment to update
-#             bid = ticker.bid if ticker.bid > 0 else None
-#             ask = ticker.ask if ticker.ask > 0 else None
-#             last = ticker.last if ticker.last > 0 else None
-#
-#             current_price = last or ((bid + ask)/2 if bid and ask else open_avg_cost)
-#
-#             # Calculate unrealized PnL
-#             CONTRACT_MULTIPLIER = 100
-#             unrealized = (current_price - open_avg_cost) * qty * CONTRACT_MULTIPLIER
-#             unrealized_1 = (current_price * qty - open_avg_cost)  * 1
-#
-#             # Realized PnL from IB positions (if available)
-#             realized = getattr(leg, 'realizedPNL', 0.0)
-#
-#             total_unrealized += unrealized
-#             total_realized += realized
-#
-#             logger.info(f"right: {c.right}  strike: {c.strike}, qty={qty}, avg={open_avg_cost:.2f}, price={current_price:.2f}, "
-#                         f"bid: {ticker.bid}, ask: {ticker.ask}, unrealized={unrealized:.2f}, realized={realized:.2f}, unrealized_1: {unrealized_1:.2f}")
-#
-#             data = {
-#                 'conId': c.conId,
-#                 'symbol': c.localSymbol,
-#                 'expiry': c.lastTradeDateOrContractMonth,
-#                 'right': c.right,
-#                 'open_qty': abs(qty),
-#                 'strike': c.strike,
-#                 'side': 'long' if qty > 0 else 'short',
-#                 'open_avg_cost': leg.avgCost,
-#                 'bid': ticker.bid if ticker.bid > 0 else 0,
-#                 'ask': ticker.ask if ticker.ask > 0 else 0,
-#                 'last': ticker.last,
-#                 'open_execution_price': 0,
-#                 'open_execution_orderRef': '',
-#                 'open_execution_execId': ''
-#             }
-#             portfolio_df = pd.concat([portfolio_df, pd.DataFrame([data])], ignore_index=True)
-#             logger.info(f"portfolio_df:\n {portfolio_df.to_markdown()}")
-#
-#     return portfolio_df
 
 
 def get_all_open_positions():
@@ -2526,6 +2284,40 @@ def are_levels_close_to_each_other_for_case_1(side):
 
     return result
 
+def save_all_csv_files():
+    logger.info(f"save_all_csv_files, start ...")
+    save_list_to_csv(close_pairs, file=f'{charts_dir}/13-close_levels_df.csv', mode='w')
+    drawing_objects_df_file_path = f"{charts_dir}/10-drawing_objects_df.csv"
+    save_df_to_csv_a_tabular(drawing_objects_df, file_path=drawing_objects_df_file_path, mode='w')
+    key_levels_df_file_path = f"{portfolio_dir}/11-key_levels_df.csv"
+    save_df_to_csv_a_tabular(key_levels_df, file_path=key_levels_df_file_path, mode='w')
+    hover_df_file_path = f"{charts_dir}/12-hover_df.csv"
+    save_df_to_csv_a_tabular(hover_df, file_path=hover_df_file_path, mode='a')
+    order_history_df_file_path = f"{portfolio_dir}/13-order_history_df.csv"
+    save_df_to_csv_a_tabular(order_history_df, file_path=order_history_df_file_path, mode='a', drop_dupplicates=True)
+    stop_loss_history_df_file_path = f"{portfolio_dir}/14-stop_loss_history_df.csv"
+    save_df_to_csv_a_tabular(stop_loss_history_df, file_path=stop_loss_history_df_file_path, mode='a', drop_dupplicates=True)
+    take_profit_history_df_file_path = f"{portfolio_dir}/15-take_profit_history_df.csv"
+    save_df_to_csv_a_tabular(take_profit_history_df, file_path=take_profit_history_df_file_path, mode='a', drop_dupplicates=True)
+    ib_commission_df_file_path = f"{portfolio_dir}/89-ib_commission_df.csv"
+    save_df_to_csv_a_tabular(ib_commission_df, file_path=ib_commission_df_file_path, mode='a')
+    ib_commission_trade_df_file_path = f"{portfolio_dir}/89-ib_commission_trade_df.csv"
+    save_df_to_csv_a_tabular(ib_commission_trade_df, file_path=ib_commission_trade_df_file_path, mode='a')
+    ib_commission_fill_df_file_path = f"{portfolio_dir}/89-ib_commission_fill_df.csv"
+    save_df_to_csv_a_tabular(ib_commission_fill_df, file_path=ib_commission_fill_df_file_path, mode='a')
+    get_executed_orders_from_ib_and_save_ver2()  # 90
+    ib_portfolio_df_file_path = f"{portfolio_dir}/91-ib_portfolio_df.csv"
+    save_df_to_csv_a_tabular(ib_portfolio_df, file_path=ib_portfolio_df_file_path, mode='a')
+    flatten_on_fill_fill_df_file_path = f"{portfolio_dir}/92-flatten_on_fill_fill_df.csv"
+    save_df_to_csv_a_tabular(flatten_on_fill_fill_df, file_path=flatten_on_fill_fill_df_file_path, mode='a')
+    flatten_on_fill_trade_df_file_path = f"{portfolio_dir}/93-flatten_on_fill_trade_df.csv"
+    save_df_to_csv_a_tabular(flatten_on_fill_trade_df, file_path=flatten_on_fill_trade_df_file_path, mode='a')
+    on_fill_fill_df_file_path = f"{portfolio_dir}/94-on_fill_fill_df.csv"
+    save_df_to_csv_a_tabular(on_fill_fill_df, file_path=on_fill_fill_df_file_path, mode='a')
+    on_fill_trade_df_file_path = f"{portfolio_dir}/95-on_fill_trade_df.csv"
+    save_df_to_csv_a_tabular(on_fill_trade_df, file_path=on_fill_trade_df_file_path, mode='a')
+    logger.info(f"save_all_csv_files, finished ...")
+
 if __name__ == "__main__":
 
     x_portfolio_df = pd.DataFrame(columns=['symbol', 'right', 'strike', 'expiry', 'position', 'marketPrice', 'averageCost', 'marketValue', 'unrealizedPNL', 'realizedPNL', 'account', 'timestamp' ])
@@ -2541,6 +2333,7 @@ if __name__ == "__main__":
     application_state = {}
     options_meta_date_dic = {}
     unique_run_number = ''
+
 
     if app_config['load_application_state_from_file']:
         load_application_state_from_file()
@@ -2582,7 +2375,6 @@ if __name__ == "__main__":
     # raise x
     while True:
       try:
-        ib_utils.test_log()
         start_time = time.time()
         run_number += 1
         now = datetime.datetime.now()
@@ -2590,25 +2382,35 @@ if __name__ == "__main__":
         date_yyyymmdd = now.strftime("%Y-%m-%d")
         date_run_number = f"{now.strftime('%Y%m%d-%H%M%S')}--{run_number}"
 
-        logger.info(f"==================== run_number: {run_number},  date_run_number: {date_run_number}")
-        if run_number == 1:
-            find_expiration_and_strikes_for_all()   # TODO expiration and striked need to be updated
+        current_hh_mm_ny = int(now.strftime("%H%M")) # checks trade time ...
+        is_trade_time = eval(app_config['live']['is_trade_time'])
 
-        # get_live_portfolio_df(find_positions_to_monitor()) # TODO why we need in every run...
+        logger.info(f"==================== run_number: {run_number},  date_run_number: {date_run_number}")
+
+        if app_config['exit']:
+            update_config_and_save(app_config, 'exit', False)
+            save_all_csv_files()
+            exit(1)
+
+        if run_number == 1:
+            find_expiration_and_strikes_for_all()   # TODO expiration and strikes need to be updated
 
         if run_number % 1 == 0:
             app_config = load_app_config(portfolio_id)
 
-        qqq_df = pd.DataFrame()
-        symbol_number = 0
+        qqq_df = pd.DataFrame()  # need to reset once we iterate throught all symbols ...
 
         positions_to_monitor = find_positions_to_monitor()
         update_for_avg_cost(positions_to_monitor)
         portfolio_df = get_live_quote_for_option_positions(positions_to_monitor)
+
         check_application_state_vs_positions()
+
+        symbol_number = 0
         for symbol in app_config['symbols']:
             if symbol == 'MNQ':
                 logger.info("Here is for debug")
+
             symbol_number += 1
             unique_run_number = f"{date_run_number}--{symbol_number}"
 
@@ -2616,7 +2418,7 @@ if __name__ == "__main__":
             symbol_start_time = time.time()
 
             # These are for each symbol ...
-            up_offset_counter = 0  # this is for hovers on the candles ... need to be renamed ..
+            up_offset_counter = 0  # this is for hovers on the candles ... need to be renamed ...
             down_offset_counter = 0
             signals = []
             candle_info_df = pd.DataFrame(columns=['date', 'price', 'memo'])
@@ -2624,6 +2426,7 @@ if __name__ == "__main__":
             break_out_indices_by_level_set = {}
             retest_idx = 0
             breakout_idx = 0
+
             if run_number == 1: # TODO move it uppre
                 historical_days = '' # will come from config ...
             else:
@@ -2631,7 +2434,7 @@ if __name__ == "__main__":
 
             df = get_market_data(symbol, '1 min', historical_days=historical_days)
             df = popualate_features(df)
-            dfs_map[symbol] = df.copy()
+            dfs_map[symbol] = df.copy()  # we need for open trades ...
             if symbol == 'QQQ':
                 qqq_df = df.copy()
 
@@ -2665,9 +2468,7 @@ if __name__ == "__main__":
             logger.debug(f"{symbol}, signals: {signals}")
             hover_df = convert_signals_to_hover_df(signals)
 
-
-
-            if run_number % 2 ==0:
+            if (is_trade_time and run_number % 5 ==0) or (not is_trade_time and run_number % 1 ==0 ):
                 save_ohlc_for_chart(df)
                 # Extra features ...
                 # move it to a fun ...
@@ -2688,49 +2489,15 @@ if __name__ == "__main__":
 
         # end:  for symbol in app_config['symbols']:
 
-        if run_number % 10 == 0:
+        if (is_trade_time and run_number % 12 == 0) or (not is_trade_time and run_number % 1 == 0)  :
+            save_all_csv_files()
 
-            save_list_to_csv(close_pairs, file=f'{charts_dir}/13-close_levels_df.csv', mode='w')
-
-            drawing_objects_df_file_path = f"{charts_dir}/10-drawing_objects_df.csv"
-            save_df_to_csv_a_tabular(drawing_objects_df, file_path= drawing_objects_df_file_path,  mode='w')
-            key_levels_df_file_path = f"{portfolio_dir}/11-key_levels_df.csv"
-            save_df_to_csv_a_tabular(key_levels_df, file_path=key_levels_df_file_path, mode='w')
-            hover_df_file_path = f"{charts_dir}/12-hover_df.csv"
-            save_df_to_csv_a_tabular(hover_df, file_path=hover_df_file_path, mode='a')
-            order_history_df_file_path = f"{portfolio_dir}/13-order_history_df.csv"
-            save_df_to_csv_a_tabular(order_history_df, file_path=order_history_df_file_path, mode='a', drop_dupplicates=True)
-            stop_loss_history_df_file_path = f"{portfolio_dir}/14-stop_loss_history_df.csv"
-            save_df_to_csv_a_tabular(stop_loss_history_df, file_path=stop_loss_history_df_file_path, mode='a', drop_dupplicates=True)
-            take_profit_history_df_file_path = f"{portfolio_dir}/15-take_profit_history_df.csv"
-            save_df_to_csv_a_tabular(take_profit_history_df, file_path=take_profit_history_df_file_path, mode='a', drop_dupplicates=True)
-            ib_commission_df_file_path = f"{portfolio_dir}/89-ib_commission_df.csv"
-            save_df_to_csv_a_tabular(ib_commission_df, file_path=ib_commission_df_file_path, mode='a')
-            ib_commission_trade_df_file_path = f"{portfolio_dir}/89-ib_commission_trade_df.csv"
-            save_df_to_csv_a_tabular(ib_commission_trade_df, file_path=ib_commission_trade_df_file_path, mode='a')
-            ib_commission_fill_df_file_path = f"{portfolio_dir}/89-ib_commission_fill_df.csv"
-            save_df_to_csv_a_tabular(ib_commission_fill_df, file_path=ib_commission_fill_df_file_path, mode='a')
-            ib_portfolio_df_file_path = f"{portfolio_dir}/91-ib_portfolio_df.csv"
-            save_df_to_csv_a_tabular(ib_portfolio_df, file_path=ib_portfolio_df_file_path, mode='a')
-            flatten_on_fill_fill_df_file_path = f"{portfolio_dir}/92-flatten_on_fill_fill_df.csv"
-            save_df_to_csv_a_tabular(flatten_on_fill_fill_df, file_path=flatten_on_fill_fill_df_file_path, mode='a')
-            flatten_on_fill_trade_df_file_path = f"{portfolio_dir}/93-flatten_on_fill_trade_df.csv"
-            save_df_to_csv_a_tabular(flatten_on_fill_trade_df, file_path=flatten_on_fill_trade_df_file_path, mode='a')
-            on_fill_fill_df_file_path = f"{portfolio_dir}/94-on_fill_fill_df.csv"
-            save_df_to_csv_a_tabular(on_fill_fill_df, file_path=on_fill_fill_df_file_path, mode='a')
-            on_fill_trade_df_file_path = f"{portfolio_dir}/95-on_fill_trade_df.csv"
-            save_df_to_csv_a_tabular(on_fill_trade_df, file_path=on_fill_trade_df_file_path, mode='a')
-
-
-            get_executed_orders_from_ib_and_save_ver2()  #90
 
         # End While T
         end_time = time.time()
 
         sleep_enough()
-        if app_config['exit']:
-            update_config_and_save(app_config, 'exit', False)
-            exit(1)
+
         consequence_exception = 0
         write_health_status()
 

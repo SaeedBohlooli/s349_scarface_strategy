@@ -245,7 +245,7 @@ live:
   max_num_of_trade_per_symbol_per_day: 2
   max_profit_per_day: 2000 # it will not get into new trade, it is not in yet
   max_loss_per_day: 1000 # it will not get into new trade ... it is not in yet
-
+  is_trade_time: 930 < current_hh_mm_ny  < 1030
 
 back_test:
   get_data_from_ib: False
@@ -258,8 +258,8 @@ back_test:
   back_test_date_end: 2025-11-05
 
 chart:
-  source: live
-#  source: back_test
+#  source: live
+  source: back_test
   cutoff_in_hours: 0
   hours_in_focus: 3
   live:

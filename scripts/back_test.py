@@ -36,6 +36,8 @@ for dir_1 in os.listdir(os.path.join('../')):
 from utils import miscutils
 from utils import email_util_ver_02
 from utils import atr_tolerance_helper
+from trading_utils import df_utils
+from trading_utils import ib_utils
 
 portfolio_id = 'p250'
 configs_folder = f'../configs'
@@ -45,7 +47,8 @@ mode = 'back_test'
 
 portfolio_dir = f'../../portfolios/results/{portfolio_id}'
 reports_dir = f'../../portfolios/reports/{portfolio_id}'
-log_dir = f'../../portfolios/logs/{portfolio_id}-{mode}/{datetime.datetime.now().strftime("%Y-%m-%d")}/'
+log_dir = f'../../portfolios/logs/{portfolio_id}-{mode}/{datetime.datetime.now().strftime("%Y-%m-%d")}'
+health_status_dir = f'../../portfolios/logs/{portfolio_id}-{mode}'
 detailed_log_dir = f'../../portfolios/detailed-logs/{portfolio_id}-{mode}'
 intermediate_dir = f'../../portfolios/intermediate/{portfolio_id}'
 
@@ -71,19 +74,23 @@ def load_app_config(portfolio_id):
 
 app_config = load_app_config(portfolio_id)
 logging_level = app_config['logging_level']
+# ###
+# Logging setup ..
+# ###
 
-# Create a custom logger
-file_name = __file__.split(os.sep)[-1]
+log_filename = f"{log_dir}/{portfolio_id}.log"
+file_r_handler = logging.handlers.RotatingFileHandler(filename=f"{log_dir}/{portfolio_id}.log", maxBytes= 5 * 1024 * 1024, backupCount=150)
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+file_r_handler.setFormatter(formatter)
+logging.basicConfig(
+    level=eval(logging_level),
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        file_r_handler,
+        logging.StreamHandler()
+    ]
+)
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=eval(logging_level), format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-#  Create handlers
-#  maxBytes=1024*10,
-
-r_handler = logging.handlers.RotatingFileHandler(filename=f"{log_dir}/{portfolio_id}.log", maxBytes= 5 * 1024 * 1024, backupCount=150)
-f_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-r_handler.setFormatter(f_format)
-logger.addHandler(r_handler)
 
 
 os.makedirs(portfolio_dir, exist_ok=True)
@@ -139,8 +146,8 @@ def create_ib_connection():
             disconnect_ib(ib)
             # ib.disconnectedEvent += on_disconnect
             ib.connect(ib_config['ip'], ib_config['port'], clientId=ib_config['client_id'], timeout=0)
-            ib.commissionReportEvent += on_commission_report
-            ib.updatePortfolioEvent += on_portfolio_update
+            ib.commissionReportEvent += ib_utils.on_commission_report
+            ib.updatePortfolioEvent += ib_utils.on_portfolio_update
 
             connected = True
             logger.info(f"IB connected.")
@@ -1129,122 +1136,6 @@ def get_current_price_from_ib(symbol, max_retries=3, retry_delay=0.5):
             time.sleep(retry_delay)
     return price
 
-# def detect_reversal_near_keylevel(df, key_levels, tolerance=0.001, wick_ratio=2.0):
-#     """
-#     Detect if the latest candle is a reversal near any key level.
-#
-#     df: DataFrame with columns ['open','high','low','close']
-#     key_levels: list of floats (support/resistance levels)
-#     tolerance: percentage distance from level to count as "touch" (default 0.1%)
-#     wick_ratio: wick must be at least this multiple of body to count as rejection
-#
-#     Returns:
-#         list of tuples: (signal_type, level)
-#         where signal_type ∈ {"bullish_reversal", "bearish_reversal"}
-#     """
-#     signals = []
-#     if df.empty:
-#         return signals
-#
-#     c = df.iloc[-1]  # latest candle
-#     body = abs(c["close"] - c["open"])
-#     if body == 0:
-#         return signals
-#
-#     upper_wick = c["high"] - max(c["close"], c["open"])
-#     lower_wick = min(c["close"], c["open"]) - c["low"]
-#     idx = df.iloc[-1]['date']
-#
-#     for level in key_levels:
-#         # --- Bullish reversal near support ---
-#         if (
-#             abs(c["low"] - level) <= level * tolerance
-#             and c["close"] > c["open"]  # green candle
-#             and lower_wick >= wick_ratio * body
-#         ):
-#             add_to_signlas(symbol, "bullish_reversal", level, idx)
-#
-#         # --- Bearish reversal near resistance ---
-#         elif (
-#             abs(c["high"] - level) <= level * tolerance
-#             and c["close"] < c["open"]  # red candle
-#             and upper_wick >= wick_ratio * body
-#         ):
-#             add_to_signlas(symbol, "bearish_reversal", level, idx)
-#
-#     return signals
-
-# def detect_reversal_near_keylevel_ver2(df, key_levels, tolerance=0.003, wick_ratio=1.0):
-#     """
-#     Detects reversal candles near key levels using only the last candle.
-#     Works in forward/live mode.
-#
-#     Parameters
-#     ----------
-#     df : pd.DataFrame
-#         Must contain columns: ['date', 'open', 'high', 'low', 'close']
-#     key_levels : list[float]
-#         List of important support/resistance levels
-#     tolerance : float, optional
-#         Distance allowed from key level (default 0.3%)
-#     wick_ratio : float, optional
-#         Minimum wick-to-body ratio to qualify as a reversal (default 1.0)
-#
-#     Returns
-#     -------
-#     list[dict]
-#         Example:
-#         [
-#             {'type': 'bullish_reversal', 'level': 258.0, 'time': '2025-10-05 09:32'},
-#             {'type': 'bearish_reversal', 'level': 261.5, 'time': '2025-10-05 10:00'}
-#         ]
-#     """
-#     if df.empty:
-#         return []
-#
-#     c = df.iloc[-1]
-#     candle_time = c["date"]  # <-- using 'date' column explicitly
-#
-#     body = abs(c["close"] - c["open"])
-#     if body == 0:
-#         return []
-#
-#     upper_wick = c["high"] - max(c["close"], c["open"])
-#     lower_wick = min(c["close"], c["open"]) - c["low"]
-#
-#     signals = []
-#     for level in key_levels:
-#         # Check if candle touched or is within tolerance of the level
-#         touched = (abs(c["low"] - level) <= level * tolerance) or (c["low"] <= level <= c["high"])
-#
-#         # --- Bullish reversal near support ---
-#         if (
-#             touched
-#             and c["close"] >= c["open"]
-#             and lower_wick >= wick_ratio * body
-#         ):
-#             add_to_signlas(symbol, {
-#                 "type": "bullish_reversal",
-#                 "level": level,
-#                 "time": candle_time
-#             })
-#
-#         # --- Bearish reversal near resistance ---
-#         elif (
-#             touched
-#             and c["close"] <= c["open"]
-#             and upper_wick >= wick_ratio * body
-#         ):
-#             add_to_signlas(symbol, {
-#                 "type": "bearish_reversal",
-#                 "level": level,
-#                 "time": candle_time
-#             })
-#
-#     return signals
-
-
-
 def get_historical_data_from_start_date(contract, historical_days, time_frame, start_date):
     # calculate end date (20 days ago)
     # end_date = datetime.datetime.now() - datetime.timedelta(days=10)
@@ -1272,52 +1163,6 @@ def get_historical_data_from_start_date(contract, historical_days, time_frame, s
     logger.info(f"get_historical_data_from_start_date, {contract.symbol} ,df['date'].min(): {df['date'].min()}, df['date'].max(): {df['date'].max()}")
     return df
 
-# def detect_breakout_retest_ver_2(df, key_levels, tolerance=0.0005, check_breakout=True):
-#     """
-#     Detect breakout or retest on the latest candle only.
-#
-#     df: DataFrame with at least ['open','high','low','close']
-#     key_levels: list of floats (support/resistance levels)
-#     tolerance: allowable distance to treat as "touch" (default 0.1%)
-#
-#     Returns: list of signals for the latest candle
-#              Each signal is a tuple: (event_type, level, candle_index)
-#              event_type ∈ {"breakout_up", "breakout_down", "retest_up", "retest_down"}
-#     """
-#     global signals
-#
-#     tolerance_percentage = app_config['symbols_meta'][symbol]['retest_tolerance_percentage'] # used in config
-#     telorance_amount = app_config['symbols_meta'][symbol]['retest_tolerance_amount'] # used in config
-#
-#     if len(df) < 2:
-#         return signals  # need at least 2 candles to compare breakout
-#
-#     latest = df.iloc[-1]
-#     prev = df.iloc[-2]
-#     idx = df.iloc[-1]['date']
-#
-#     for level in key_levels:
-#         if check_breakout:
-#             # --- Breakout detection ---
-#             if prev["close"] < level and latest["close"] > level:
-#                 add_to_signlas(symbol, "breakout_up", level, idx)
-#             elif prev["close"] > level and latest["close"] < level:
-#                 add_to_signlas(symbol, "breakout_down", level, idx)
-#
-#         if telorance_amount == -1:
-#             telorance_amount = level * tolerance_percentage
-#
-#         # --- Retest detection ---
-#         if level > prev["low"] and level - prev["low"] <= telorance_amount and latest["close"] > level:
-#             add_to_signlas(symbol, "retest_up", level, idx)
-#         elif prev["high"] > level and prev["high"] - level <= telorance_amount and latest["close"] < level:
-#             add_to_signlas(symbol, "retest_down", level, idx)
-#
-#     return signals
-
-# #####
-# Starting the always needed ....
-# ###########
 
 def get_historical_data_back_test(contract, start_date='2025-09-01', historical_days='', time_frame='1 min'):
     """
@@ -1542,34 +1387,7 @@ def flatten(obj, prefix=''):
             result[f'{prefix}{attr}'] = value
     return result
 
-def on_fill(trade, fill):
-    global flatten_on_fill_fill_df
-    global flatten_on_fill_trade_df
-    global on_fill_fill_df
-    global on_fill_trade_df
 
-
-    logger.warning(f'in on_fill, trade: {trade}')
-    logger.warning(f'in on_fill, fill: {fill}')
-    logger.warning(f'in on_fill, fill.execution.order_id: {fill.execution.orderId}, fill.contract.symbol: {fill.contract.symbol}')
-
-    flatten_dic = flatten(fill)
-    logger.info(f":flatten :{flatten_dic}")
-    flatten_on_fill_fill_df = pd.concat([flatten_on_fill_fill_df, pd.DataFrame([flatten_dic])], ignore_index=True)
-
-    flatten_dic = flatten(trade)
-    logger.info(f":flatten :{flatten_dic}")
-    flatten_on_fill_trade_df = pd.concat([flatten_on_fill_trade_df, pd.DataFrame([flatten_dic])], ignore_index=True)
-
-    df = ib_util.df([trade])
-    logger.warning(f"on_fill, trade:\n{df.to_markdown()}")
-    on_fill_trade_df = pd.concat([on_fill_trade_df, df])
-
-    df = ib_util.df([fill])
-    logger.warning(f"on_fill, fill:\n{df.to_markdown()}")
-    on_fill_fill_df = pd.concat([on_fill_fill_df, df])
-
-    return
 
 def send_order(contract, total_quantity=1):
     order = MarketOrder('BUY', totalQuantity=total_quantity)
@@ -1899,86 +1717,6 @@ def get_bid_and_ask(df, symbol):
     ask = row['ask'] if pd.notna(row['ask']) else -1
 
     return bid, ask
-# def get_live_portfolio_df(positions):
-#     """
-#     Calculate and print PnL for all positions grouped by underlying + expiry.
-#     Uses live market prices for unrealized PnL.
-#     """
-#     portfolio_df = pd.DataFrame()
-#
-#     option_groups = defaultdict(list)
-#     # Group options by underlying + expiry
-#     for pos in positions:
-#         c = pos.contract
-#         if c.secType == 'OPT':
-#             key = (c.symbol, c.lastTradeDateOrContractMonth)
-#             option_groups[key].append(pos)
-#         else:
-#             # Stock or other positions
-#             # print(f"{c.secType}: {c.symbol} qty={pos.position} avgPrice={pos.avgCost}")
-#             pass
-#
-#     # Compute PnL per group
-#     for key, legs in option_groups.items():
-#         symbol, expiry = key
-#         open_positions_expiry = expiry
-#         total_unrealized = 0.0
-#         total_realized = 0.0
-#         logger.info(f"in get_live_portfolio_df, Strategy: {symbol} {expiry}")
-#
-#         for leg in legs:
-#             logger.info('--- -')
-#             c = leg.contract
-#             qty = leg.position
-#             open_avg_cost = leg.avgCost
-#             logger.info(f"in get_live_portfolio_df(), contract: { c}")
-#             c.exchange = 'CBOE'
-#             # Fetch live market price (use mid-price if bid/ask available)
-#             ticker = ib.reqMktData(c,
-#                                    )
-#             logger.info(f"get_live_portfolio_df(), ticker: {ticker}")
-#
-#             ib.sleep(0.2)  # give it a moment to update
-#             bid = ticker.bid if ticker.bid > 0 else None
-#             ask = ticker.ask if ticker.ask > 0 else None
-#             last = ticker.last if ticker.last > 0 else None
-#
-#             current_price = last or ((bid + ask)/2 if bid and ask else open_avg_cost)
-#
-#             # Calculate unrealized PnL
-#             CONTRACT_MULTIPLIER = 100
-#             unrealized = (current_price - open_avg_cost) * qty * CONTRACT_MULTIPLIER
-#             unrealized_1 = (current_price * qty - open_avg_cost)  * 1
-#
-#             # Realized PnL from IB positions (if available)
-#             realized = getattr(leg, 'realizedPNL', 0.0)
-#
-#             total_unrealized += unrealized
-#             total_realized += realized
-#
-#             logger.info(f"right: {c.right}  strike: {c.strike}, qty={qty}, avg={open_avg_cost:.2f}, price={current_price:.2f}, "
-#                         f"bid: {ticker.bid}, ask: {ticker.ask}, unrealized={unrealized:.2f}, realized={realized:.2f}, unrealized_1: {unrealized_1:.2f}")
-#
-#             data = {
-#                 'conId': c.conId,
-#                 'symbol': c.localSymbol,
-#                 'expiry': c.lastTradeDateOrContractMonth,
-#                 'right': c.right,
-#                 'open_qty': abs(qty),
-#                 'strike': c.strike,
-#                 'side': 'long' if qty > 0 else 'short',
-#                 'open_avg_cost': leg.avgCost,
-#                 'bid': ticker.bid if ticker.bid > 0 else 0,
-#                 'ask': ticker.ask if ticker.ask > 0 else 0,
-#                 'last': ticker.last,
-#                 'open_execution_price': 0,
-#                 'open_execution_orderRef': '',
-#                 'open_execution_execId': ''
-#             }
-#             portfolio_df = pd.concat([portfolio_df, pd.DataFrame([data])], ignore_index=True)
-#             logger.info(f"portfolio_df:\n {portfolio_df.to_markdown()}")
-#
-#     return portfolio_df
 
 
 def get_all_open_positions():
@@ -2411,22 +2149,6 @@ def call_api_top_step(symbol, side):
 # End of IB sending order - only for live
 # ###########
 
-def on_commission_report(trade, fill, commissionReport):
-    global ib_commission_df
-    global ib_commission_trade_df
-    global ib_commission_fill_df
-
-    flatten_dic = flatten(commissionReport)
-    ib_commission_df = pd.concat([ib_commission_df, pd.DataFrame([flatten_dic])], ignore_index=True)
-
-    flatten_dic = flatten(trade)
-    ib_commission_trade_df = pd.concat([ib_commission_trade_df, pd.DataFrame([flatten_dic])], ignore_index=True)
-
-    flatten_dic = flatten(fill)
-    ib_commission_fill_df = pd.concat([ib_commission_fill_df, pd.DataFrame([flatten_dic])], ignore_index=True)
-
-    logger.debug(f"@ on_commission_report, report: {commissionReport}")
-    return
 
 def cancel_open_orders(symbol = ''):
     if not app_config['cancel_open_orders_on_start']:
@@ -2458,17 +2180,7 @@ def cancel_open_orders(symbol = ''):
     return
 
 
-def on_portfolio_update(item):
-    """Update or insert portfolio position."""
-    global ib_portfolio_df
-    flatten_dic = flatten(item)
-    logger.info(f"on_portfolio_update(), flatten :{flatten_dic}")
-    ib_portfolio_df = pd.concat([ib_portfolio_df, pd.DataFrame([flatten_dic])], ignore_index=True)
 
-    # TODO this should be index for thid
-    #     key = f"{contract.symbol}_{contract.right}_{contract.strike}_{contract.lastTradeDateOrContractMonth}"
-
-    return
 
 def check_application_state_vs_positions():
     global application_state
@@ -2484,7 +2196,7 @@ def check_application_state_vs_positions():
     return
 
 
-def write_health_status(log_path=f"{log_dir}/health_status.log"):
+def write_health_status(log_path=f"{health_status_dir}/health_status.log"):
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     message = f"{now} - APPLICATION IS HEALTHY\n"
 
@@ -2571,6 +2283,40 @@ def are_levels_close_to_each_other_for_case_1(side):
         result = abs(levels['PDL'] - levels['PML']) < closeness_distance and abs(levels['5ML'] - levels['PDL']) < closeness_distance
 
     return result
+
+def save_all_csv_files():
+    logger.info(f"save_all_csv_files, start ...")
+    save_list_to_csv(close_pairs, file=f'{charts_dir}/13-close_levels_df.csv', mode='w')
+    drawing_objects_df_file_path = f"{charts_dir}/10-drawing_objects_df.csv"
+    save_df_to_csv_a_tabular(drawing_objects_df, file_path=drawing_objects_df_file_path, mode='w')
+    key_levels_df_file_path = f"{portfolio_dir}/11-key_levels_df.csv"
+    save_df_to_csv_a_tabular(key_levels_df, file_path=key_levels_df_file_path, mode='w')
+    hover_df_file_path = f"{charts_dir}/12-hover_df.csv"
+    save_df_to_csv_a_tabular(hover_df, file_path=hover_df_file_path, mode='a')
+    order_history_df_file_path = f"{portfolio_dir}/13-order_history_df.csv"
+    save_df_to_csv_a_tabular(order_history_df, file_path=order_history_df_file_path, mode='a', drop_dupplicates=True)
+    stop_loss_history_df_file_path = f"{portfolio_dir}/14-stop_loss_history_df.csv"
+    save_df_to_csv_a_tabular(stop_loss_history_df, file_path=stop_loss_history_df_file_path, mode='a', drop_dupplicates=True)
+    take_profit_history_df_file_path = f"{portfolio_dir}/15-take_profit_history_df.csv"
+    save_df_to_csv_a_tabular(take_profit_history_df, file_path=take_profit_history_df_file_path, mode='a', drop_dupplicates=True)
+    ib_commission_df_file_path = f"{portfolio_dir}/89-ib_commission_df.csv"
+    save_df_to_csv_a_tabular(ib_commission_df, file_path=ib_commission_df_file_path, mode='a')
+    ib_commission_trade_df_file_path = f"{portfolio_dir}/89-ib_commission_trade_df.csv"
+    save_df_to_csv_a_tabular(ib_commission_trade_df, file_path=ib_commission_trade_df_file_path, mode='a')
+    ib_commission_fill_df_file_path = f"{portfolio_dir}/89-ib_commission_fill_df.csv"
+    save_df_to_csv_a_tabular(ib_commission_fill_df, file_path=ib_commission_fill_df_file_path, mode='a')
+    get_executed_orders_from_ib_and_save_ver2()  # 90
+    ib_portfolio_df_file_path = f"{portfolio_dir}/91-ib_portfolio_df.csv"
+    save_df_to_csv_a_tabular(ib_portfolio_df, file_path=ib_portfolio_df_file_path, mode='a')
+    flatten_on_fill_fill_df_file_path = f"{portfolio_dir}/92-flatten_on_fill_fill_df.csv"
+    save_df_to_csv_a_tabular(flatten_on_fill_fill_df, file_path=flatten_on_fill_fill_df_file_path, mode='a')
+    flatten_on_fill_trade_df_file_path = f"{portfolio_dir}/93-flatten_on_fill_trade_df.csv"
+    save_df_to_csv_a_tabular(flatten_on_fill_trade_df, file_path=flatten_on_fill_trade_df_file_path, mode='a')
+    on_fill_fill_df_file_path = f"{portfolio_dir}/94-on_fill_fill_df.csv"
+    save_df_to_csv_a_tabular(on_fill_fill_df, file_path=on_fill_fill_df_file_path, mode='a')
+    on_fill_trade_df_file_path = f"{portfolio_dir}/95-on_fill_trade_df.csv"
+    save_df_to_csv_a_tabular(on_fill_trade_df, file_path=on_fill_trade_df_file_path, mode='a')
+    logger.info(f"save_all_csv_files, finished ...")
 
 if __name__ == "__main__":
 

@@ -1,13 +1,14 @@
 
+# X Project 
 
+### Checkout code
+TBD
 
-### Trading Engine
-
-options_meta_date_dic 
-
-### Adding submodule   
+## Adding submodule
+go to the project root and run below command  
 git submodule add https://github.com/SaeedBohlooli/trading_utils.git
 
-
+## Run
+TBD
 
 
