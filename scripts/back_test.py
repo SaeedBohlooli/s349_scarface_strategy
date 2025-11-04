@@ -43,15 +43,15 @@ config_file = f'{configs_folder}/app-config.yaml'
 
 mode = 'back_test'
 
-portfolio_dir = f'../portfolios/results/{portfolio_id}'
-reports_dir = f'../portfolios/reports/{portfolio_id}'
+portfolio_dir = f'../../portfolios/results/{portfolio_id}'
+reports_dir = f'../../portfolios/reports/{portfolio_id}'
 log_dir = f'../../portfolios/logs/{portfolio_id}-{mode}/{datetime.datetime.now().strftime("%Y-%m-%d")}/'
 detailed_log_dir = f'../../portfolios/detailed-logs/{portfolio_id}-{mode}'
-intermediate_dir = f'../portfolios/intermediate/{portfolio_id}'
+intermediate_dir = f'../../portfolios/intermediate/{portfolio_id}'
 
-ohlc_dir = f'../portfolios/backtest-ohlc/{portfolio_id}'
-charts_dir = f'../portfolios/charts/{portfolio_id}'
-backtest_ohlc_dir = f'../portfolios/backtest-ohlc/{portfolio_id}'
+ohlc_dir = f'../../portfolios/backtest-ohlc/{portfolio_id}'
+charts_dir = f'../../portfolios/charts/{portfolio_id}'
+backtest_ohlc_dir = f'../../portfolios/backtest-ohlc/{portfolio_id}'
 
 os.makedirs(portfolio_dir, exist_ok=True)
 os.makedirs(reports_dir, exist_ok=True)
@@ -2599,7 +2599,7 @@ if __name__ == "__main__":
         close_pairs = []
         back_test_date = d.strftime('%Y-%m-%d')
         logger.info(f"back_test_date: {back_test_date}")
-        charts_dir = f'../portfolios/backtest-charts/{unique_run_number}--{back_test_date}/{portfolio_id}'
+        charts_dir = f'../../portfolios/backtest-charts/{unique_run_number}--{back_test_date}/{portfolio_id}'
         for symbol in app_config['symbols']:
             time_frame = '1min'
 

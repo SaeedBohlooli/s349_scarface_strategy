@@ -207,7 +207,7 @@ def summarize_trades(df):
 if __name__ == "__main__":
 
     portfolio_id = 'p250'
-    portfolio_dir = f'../portfolios/results/{portfolio_id}'
+    portfolio_dir = f'../../portfolios/results/{portfolio_id}'
 
     flatten_on_fill_trade_df_file_path = f"{portfolio_dir}/92-flatten_on_fill_fill_df.csv"
     ib_commission_df_file_path = f"{portfolio_dir}/89-ib_commission_df.csv"

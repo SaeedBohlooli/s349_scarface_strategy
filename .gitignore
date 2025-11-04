@@ -27,3 +27,4 @@
 /bin/*.lock
 /.venv
 /portfolios/
+test/

@@ -33,10 +33,10 @@ app = Flask(__name__)
 portfolio_id = 'p250'
 configs_folder = f'../scripts/configs'
 config_file = f'{configs_folder}/app-config.yaml'
-portfolio_dir = f'../portfolios/results/{portfolio_id}'
-reports_dir = f'../portfolios/reports/{portfolio_id}'
-log_dir = f'../portfolios/logs/{portfolio_id}'
-detailed_log_dir = f'../portfolios/detailed-logs/{portfolio_id}'
+portfolio_dir = f'../../portfolios/results/{portfolio_id}'
+reports_dir = f'../../portfolios/reports/{portfolio_id}'
+log_dir = f'../../portfolios/logs/{portfolio_id}'
+detailed_log_dir = f'../../portfolios/detailed-logs/{portfolio_id}'
 run_counter = 0
 
 
@@ -823,9 +823,9 @@ def index():
     app_config = load_app_config(portfolio_id)
     backtest_date = ''
     if app_config['chart']['source'] == 'live':
-        charts_dir = f'../portfolios/charts/{portfolio_id}'
+        charts_dir = f'../../portfolios/charts/{portfolio_id}'
     else:
-        backtest_base_dir = '../portfolios/backtest-charts'
+        backtest_base_dir = '../../portfolios/backtest-charts'
         available_dates = sorted([
             d for d in os.listdir(backtest_base_dir)
             if os.path.isdir(os.path.join(backtest_base_dir, d))
@@ -835,7 +835,7 @@ def index():
         if backtest_date is None:
             backtest_date = available_dates[0]
         logger.info(f"backtest_date: {backtest_date}")
-        charts_dir = f'../portfolios/backtest-charts/{backtest_date}/{portfolio_id}'
+        charts_dir = f'../../portfolios/backtest-charts/{backtest_date}/{portfolio_id}'
         time.sleep(5)
 
     drawing_objects_df = load_file_to_drawing_objects_df()

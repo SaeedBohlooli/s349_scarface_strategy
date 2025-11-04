@@ -43,15 +43,15 @@ config_file = f'{configs_folder}/app-config.yaml'
 
 mode = 'live'
 
-portfolio_dir = f'../portfolios/results/{portfolio_id}'
-reports_dir = f'../portfolios/reports/{portfolio_id}'
+portfolio_dir = f'../../portfolios/results/{portfolio_id}'
+reports_dir = f'../../portfolios/reports/{portfolio_id}'
 log_dir = f'../../portfolios/logs/{portfolio_id}-{mode}/{datetime.datetime.now().strftime("%Y-%m-%d")}/'
 detailed_log_dir = f'../../portfolios/detailed-logs/{portfolio_id}-{mode}'
-intermediate_dir = f'../portfolios/intermediate/{portfolio_id}'
+intermediate_dir = f'../../portfolios/intermediate/{portfolio_id}'
 
-ohlc_dir = f'../portfolios/ohlc/{portfolio_id}'
-charts_dir = f'../portfolios/charts/{portfolio_id}'
-backtest_ohlc_dir = f'../portfolios/backtest-ohlc/{portfolio_id}'
+ohlc_dir = f'../../portfolios/ohlc/{portfolio_id}'
+charts_dir = f'../../portfolios/charts/{portfolio_id}'
+backtest_ohlc_dir = f'../../portfolios/backtest-ohlc/{portfolio_id}'
 
 os.makedirs(portfolio_dir, exist_ok=True)
 os.makedirs(reports_dir, exist_ok=True)
