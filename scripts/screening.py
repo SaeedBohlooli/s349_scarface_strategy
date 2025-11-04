@@ -38,6 +38,9 @@ from utils import email_util_ver_02
 from utils import atr_tolerance_helper
 from trading_utils import df_utils
 from trading_utils import ib_utils
+from trading_utils import global_state
+
+
 
 portfolio_id = 'p250'
 configs_folder = f'../configs'
@@ -92,7 +95,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+global_state.application_state = "set in the screening"
 
+ib_utils.test_me()
+logger.info(f"global_state.application_state: {global_state.application_state}")
 os.makedirs(portfolio_dir, exist_ok=True)
 os.makedirs(reports_dir, exist_ok=True)
 os.makedirs(log_dir, exist_ok=True)
@@ -1132,7 +1138,7 @@ def get_current_price_from_ib(symbol, max_retries=3, retry_delay=0.5):
         if price is not None and not (pd.isna(price) or math.isnan(price)):
             return price
         else:
-            logger.warning(f"@@@ get_current_price_from_ib,{symbol}, price is nan, try again ...")
+            logger.warning(f"@@@ get_current_price_from_ib,{symbol}, price is nan, try again ... attempt: {attempt}")
             time.sleep(retry_delay)
     return price
 
@@ -2210,7 +2216,7 @@ def write_health_status(log_path=f"{health_status_dir}/health_status.log"):
 
 def get_executed_orders_from_ib_and_save_ver2():
     # IB has only for 24 hrours ... so we need to save it ofter ...
-    executed_orders_from_ib_ver_2_file_path = f'{portfolio_dir}/90-executed_orders_from_ib_ver_2.csv'
+    executed_orders_from_ib_ver_2_file_path = f'{portfolio_dir}/91-ib_executed_orders_df.csv'
     file = executed_orders_from_ib_ver_2_file_path
     df = pd.DataFrame()
 
@@ -2299,23 +2305,19 @@ def save_all_csv_files():
     save_df_to_csv_a_tabular(stop_loss_history_df, file_path=stop_loss_history_df_file_path, mode='a', drop_dupplicates=True)
     take_profit_history_df_file_path = f"{portfolio_dir}/15-take_profit_history_df.csv"
     save_df_to_csv_a_tabular(take_profit_history_df, file_path=take_profit_history_df_file_path, mode='a', drop_dupplicates=True)
-    ib_commission_df_file_path = f"{portfolio_dir}/89-ib_commission_df.csv"
-    save_df_to_csv_a_tabular(ib_commission_df, file_path=ib_commission_df_file_path, mode='a')
-    ib_commission_trade_df_file_path = f"{portfolio_dir}/89-ib_commission_trade_df.csv"
-    save_df_to_csv_a_tabular(ib_commission_trade_df, file_path=ib_commission_trade_df_file_path, mode='a')
+    flatten_on_fill_fill_df_file_path = f"{portfolio_dir}/85-ib_on_fill_fill_df.csv"
+    save_df_to_csv_a_tabular(global_state.ib_on_fill_fill_df, file_path=flatten_on_fill_fill_df_file_path, mode='a')
+    flatten_on_fill_trade_df_file_path = f"{portfolio_dir}/86-ib_on_fill_trade_df.csv"
+    save_df_to_csv_a_tabular(global_state.ib_on_fill_trade_df, file_path=flatten_on_fill_trade_df_file_path, mode='a')
+    ib_portfolio_df_file_path = f"{portfolio_dir}/87-ib_portfolio_df.csv"
+    save_df_to_csv_a_tabular(global_state.ib_portfolio_df, file_path=ib_portfolio_df_file_path, mode='a')
+    ib_commission_df_file_path = f"{portfolio_dir}/88-ib_commission_df.csv"
+    save_df_to_csv_a_tabular(global_state.ib_commission_df, file_path=ib_commission_df_file_path, mode='a')
     ib_commission_fill_df_file_path = f"{portfolio_dir}/89-ib_commission_fill_df.csv"
-    save_df_to_csv_a_tabular(ib_commission_fill_df, file_path=ib_commission_fill_df_file_path, mode='a')
-    get_executed_orders_from_ib_and_save_ver2()  # 90
-    ib_portfolio_df_file_path = f"{portfolio_dir}/91-ib_portfolio_df.csv"
-    save_df_to_csv_a_tabular(ib_portfolio_df, file_path=ib_portfolio_df_file_path, mode='a')
-    flatten_on_fill_fill_df_file_path = f"{portfolio_dir}/92-flatten_on_fill_fill_df.csv"
-    save_df_to_csv_a_tabular(flatten_on_fill_fill_df, file_path=flatten_on_fill_fill_df_file_path, mode='a')
-    flatten_on_fill_trade_df_file_path = f"{portfolio_dir}/93-flatten_on_fill_trade_df.csv"
-    save_df_to_csv_a_tabular(flatten_on_fill_trade_df, file_path=flatten_on_fill_trade_df_file_path, mode='a')
-    on_fill_fill_df_file_path = f"{portfolio_dir}/94-on_fill_fill_df.csv"
-    save_df_to_csv_a_tabular(on_fill_fill_df, file_path=on_fill_fill_df_file_path, mode='a')
-    on_fill_trade_df_file_path = f"{portfolio_dir}/95-on_fill_trade_df.csv"
-    save_df_to_csv_a_tabular(on_fill_trade_df, file_path=on_fill_trade_df_file_path, mode='a')
+    save_df_to_csv_a_tabular(global_state.ib_commission_fill_df, file_path=ib_commission_fill_df_file_path, mode='a')
+    ib_commission_trade_df_file_path = f"{portfolio_dir}/90-ib_commission_trade_df.csv"
+    save_df_to_csv_a_tabular(global_state.ib_commission_trade_df, file_path=ib_commission_trade_df_file_path, mode='a')
+    get_executed_orders_from_ib_and_save_ver2()  # 91
     logger.info(f"save_all_csv_files, finished ...")
 
 if __name__ == "__main__":
@@ -2357,15 +2359,6 @@ if __name__ == "__main__":
     order_history_df = pd.DataFrame()
     stop_loss_history_df = pd.DataFrame()
     take_profit_history_df = pd.DataFrame()
-    flatten_on_fill_fill_df = pd.DataFrame()
-    flatten_on_fill_trade_df = pd.DataFrame()
-    on_fill_fill_df = pd.DataFrame()
-    on_fill_trade_df = pd.DataFrame()
-    ib_portfolio_df = pd.DataFrame()
-    ib_commission_df = pd.DataFrame()
-    ib_commission_df  = pd.DataFrame()
-    ib_commission_trade_df = pd.DataFrame()
-    ib_commission_fill_df = pd.DataFrame()
     close_pairs = []
     consequence_exception = 0
     run_number = 0

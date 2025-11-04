@@ -209,9 +209,9 @@ take_profits:
       (right == 'P' and is_executed_take_profits(symbol, take_profit_list=['t1']) and underlying_current_price > underlying_open_price)
     close_quantity_percentage: -1
 
-#  t3_test:
-#    condition: symbol == 'NVDA' and 1 == 1
-#    close_quantity_percentage: 0.1
+  t6_close_all:
+    condition: 1 == 1
+    close_quantity_percentage: -1
 #
 #  t5_test:
 #    condition: symbol == 'AMD' and 1 == 2
@@ -244,11 +244,11 @@ live:
   is_trade_time: 930 < current_hh_mm_ny  < 1030
 
 back_test:
-  get_data_from_ib: false
-#  get_data_from_ib: True
+#  get_data_from_ib: false
+  get_data_from_ib: True
 
   historical_days: 5 D
-  start_date: 2025-11-01
+  start_date: 2025-10-01
 
   back_test_date_start: 2025-11-03
   back_test_date_end: 2025-11-05
@@ -257,10 +257,10 @@ chart:
   source: live
 #  source: back_test
   cutoff_in_hours: 0
-  hours_in_focus: 5
+  hours_in_focus: 3
   live:
-    start_time: '00:00'
-    end_time: '15:30'
+    start_time: '08:30'
+    end_time: '11:30'
 
 # before_start:
 close_all_open_option_positions: false
