@@ -6,8 +6,7 @@ sys.path.insert(0, f'../')
 from utils import miscutils
 from utils import email_util_ver_02
 from utils import atr_tolerance_helper
-from utils import ib_offline_miscs
-from utils import df_utils
+from trading_utils import df_utils
 
 
 def prepate_on_fill_df(on_fill_file_path=''):

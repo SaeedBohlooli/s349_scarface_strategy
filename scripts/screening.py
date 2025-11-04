@@ -36,6 +36,8 @@ for dir_1 in os.listdir(os.path.join('../')):
 from utils import miscutils
 from utils import email_util_ver_02
 from utils import atr_tolerance_helper
+from trading_utils import df_utils
+from trading_utils import ib_utils
 
 portfolio_id = 'p250'
 configs_folder = f'../configs'
@@ -45,7 +47,8 @@ mode = 'live'
 
 portfolio_dir = f'../../portfolios/results/{portfolio_id}'
 reports_dir = f'../../portfolios/reports/{portfolio_id}'
-log_dir = f'../../portfolios/logs/{portfolio_id}-{mode}/{datetime.datetime.now().strftime("%Y-%m-%d")}/'
+log_dir = f'../../portfolios/logs/{portfolio_id}-{mode}/{datetime.datetime.now().strftime("%Y-%m-%d")}'
+health_status_dir = f'../../portfolios/logs/{portfolio_id}-{mode}'
 detailed_log_dir = f'../../portfolios/detailed-logs/{portfolio_id}-{mode}'
 intermediate_dir = f'../../portfolios/intermediate/{portfolio_id}'
 
@@ -71,19 +74,23 @@ def load_app_config(portfolio_id):
 
 app_config = load_app_config(portfolio_id)
 logging_level = app_config['logging_level']
+# ###
+# Logging setup ..
+# ###
 
-# Create a custom logger
-file_name = __file__.split(os.sep)[-1]
+log_filename = f"{log_dir}/{portfolio_id}.log"
+file_r_handler = logging.handlers.RotatingFileHandler(filename=f"{log_dir}/{portfolio_id}.log", maxBytes= 5 * 1024 * 1024, backupCount=150)
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+file_r_handler.setFormatter(formatter)
+logging.basicConfig(
+    level=logging_level,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        file_r_handler,
+        logging.StreamHandler()
+    ]
+)
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=eval(logging_level), format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-#  Create handlers
-#  maxBytes=1024*10,
-
-r_handler = logging.handlers.RotatingFileHandler(filename=f"{log_dir}/{portfolio_id}.log", maxBytes= 5 * 1024 * 1024, backupCount=150)
-f_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-r_handler.setFormatter(f_format)
-logger.addHandler(r_handler)
 
 
 os.makedirs(portfolio_dir, exist_ok=True)
@@ -139,8 +146,8 @@ def create_ib_connection():
             disconnect_ib(ib)
             # ib.disconnectedEvent += on_disconnect
             ib.connect(ib_config['ip'], ib_config['port'], clientId=ib_config['client_id'], timeout=0)
-            ib.commissionReportEvent += on_commission_report
-            ib.updatePortfolioEvent += on_portfolio_update
+            ib.commissionReportEvent += ib_utils.on_commission_report
+            ib.updatePortfolioEvent += ib_utils.on_portfolio_update
 
             connected = True
             logger.info(f"IB connected.")
@@ -1542,34 +1549,7 @@ def flatten(obj, prefix=''):
             result[f'{prefix}{attr}'] = value
     return result
 
-def on_fill(trade, fill):
-    global flatten_on_fill_fill_df
-    global flatten_on_fill_trade_df
-    global on_fill_fill_df
-    global on_fill_trade_df
 
-
-    logger.warning(f'in on_fill, trade: {trade}')
-    logger.warning(f'in on_fill, fill: {fill}')
-    logger.warning(f'in on_fill, fill.execution.order_id: {fill.execution.orderId}, fill.contract.symbol: {fill.contract.symbol}')
-
-    flatten_dic = flatten(fill)
-    logger.info(f":flatten :{flatten_dic}")
-    flatten_on_fill_fill_df = pd.concat([flatten_on_fill_fill_df, pd.DataFrame([flatten_dic])], ignore_index=True)
-
-    flatten_dic = flatten(trade)
-    logger.info(f":flatten :{flatten_dic}")
-    flatten_on_fill_trade_df = pd.concat([flatten_on_fill_trade_df, pd.DataFrame([flatten_dic])], ignore_index=True)
-
-    df = ib_util.df([trade])
-    logger.warning(f"on_fill, trade:\n{df.to_markdown()}")
-    on_fill_trade_df = pd.concat([on_fill_trade_df, df])
-
-    df = ib_util.df([fill])
-    logger.warning(f"on_fill, fill:\n{df.to_markdown()}")
-    on_fill_fill_df = pd.concat([on_fill_fill_df, df])
-
-    return
 
 def send_order(contract, total_quantity=1):
     order = MarketOrder('BUY', totalQuantity=total_quantity)
@@ -2411,22 +2391,6 @@ def call_api_top_step(symbol, side):
 # End of IB sending order - only for live
 # ###########
 
-def on_commission_report(trade, fill, commissionReport):
-    global ib_commission_df
-    global ib_commission_trade_df
-    global ib_commission_fill_df
-
-    flatten_dic = flatten(commissionReport)
-    ib_commission_df = pd.concat([ib_commission_df, pd.DataFrame([flatten_dic])], ignore_index=True)
-
-    flatten_dic = flatten(trade)
-    ib_commission_trade_df = pd.concat([ib_commission_trade_df, pd.DataFrame([flatten_dic])], ignore_index=True)
-
-    flatten_dic = flatten(fill)
-    ib_commission_fill_df = pd.concat([ib_commission_fill_df, pd.DataFrame([flatten_dic])], ignore_index=True)
-
-    logger.debug(f"@ on_commission_report, report: {commissionReport}")
-    return
 
 def cancel_open_orders(symbol = ''):
     if not app_config['cancel_open_orders_on_start']:
@@ -2458,17 +2422,7 @@ def cancel_open_orders(symbol = ''):
     return
 
 
-def on_portfolio_update(item):
-    """Update or insert portfolio position."""
-    global ib_portfolio_df
-    flatten_dic = flatten(item)
-    logger.info(f"on_portfolio_update(), flatten :{flatten_dic}")
-    ib_portfolio_df = pd.concat([ib_portfolio_df, pd.DataFrame([flatten_dic])], ignore_index=True)
 
-    # TODO this should be index for thid
-    #     key = f"{contract.symbol}_{contract.right}_{contract.strike}_{contract.lastTradeDateOrContractMonth}"
-
-    return
 
 def check_application_state_vs_positions():
     global application_state
@@ -2484,7 +2438,7 @@ def check_application_state_vs_positions():
     return
 
 
-def write_health_status(log_path=f"{log_dir}/health_status.log"):
+def write_health_status(log_path=f"{health_status_dir}/health_status.log"):
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     message = f"{now} - APPLICATION IS HEALTHY\n"
 
@@ -2581,8 +2535,8 @@ if __name__ == "__main__":
     ib_config = load_ib_config()
     ib = create_ib_connection()
 
-    ib.commissionReportEvent += on_commission_report
-    ib.updatePortfolioEvent += on_portfolio_update
+    ib.commissionReportEvent += ib_utils.on_commission_report
+    ib.updatePortfolioEvent += ib_utils.on_portfolio_update
 
     application_state = {}
     options_meta_date_dic = {}
@@ -2628,6 +2582,7 @@ if __name__ == "__main__":
     # raise x
     while True:
       try:
+        ib_utils.test_log()
         start_time = time.time()
         run_number += 1
         now = datetime.datetime.now()

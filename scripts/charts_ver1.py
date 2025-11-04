@@ -16,7 +16,7 @@ from plotly.subplots import make_subplots
 import datetime
 from utils import Constants
 from utils import miscutils
-from utils import df_utils
+from trading_utils import df_utils
 
 # logger = logging.getLogger(__name__)
 logger = miscutils.setup_logger(__name__, logging.INFO)
@@ -31,7 +31,7 @@ import plotly.io as pio
 app = Flask(__name__)
 
 portfolio_id = 'p250'
-configs_folder = f'../scripts/configs'
+configs_folder = f'../configs'
 config_file = f'{configs_folder}/app-config.yaml'
 portfolio_dir = f'../../portfolios/results/{portfolio_id}'
 reports_dir = f'../../portfolios/reports/{portfolio_id}'
