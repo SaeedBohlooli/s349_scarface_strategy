@@ -1395,7 +1395,7 @@ def send_order(contract, total_quantity=1):
     order.orderRef = order_ref
     trade = ib.placeOrder(contract, order)
     # TODO convert to ib df
-    trade.fillEvent += on_fill
+    trade.fillEvent += ib_utils.on_fill
     ib.sleep(1)
     logger.warning(f"Order sent ....")
     logger.warning(f"@@ trade: {trade}")
@@ -1782,7 +1782,7 @@ def close_option_positions(positions, symbol='', close_qty=0, alias_for_ref=''):
             # --- Step 4: Place the order ---
             contract.exchange = 'SMART'  # or 'CBOE' if your account requires it
             trade = ib.placeOrder(contract, order)
-            trade.fillEvent += on_fill
+            trade.fillEvent += ib_utils.on_fill
             ib.sleep(0.5)  # small delay to avoid pacing violations
 
             logger.info(f"close_option_positions(), trade: {trade}")
@@ -2171,7 +2171,7 @@ def cancel_open_orders(symbol = ''):
                 continue
             else:
                 trade = ib.cancelOrder(order.order)
-                trade.fillEvent += on_fill
+                trade.fillEvent += ib_utils.on_fill
 
                 logger.warning(f"open order canceled, trade: {trade}")
                 while not trade.isDone():
@@ -2493,7 +2493,7 @@ if __name__ == "__main__":
 
         # end:  for symbol in app_config['symbols']:
 
-        if (is_trade_time and run_number % 12 == 0) or (not is_trade_time and run_number % 1 == 0)  :
+        if (is_trade_time and run_number % 20 == 0) or (not is_trade_time and run_number % 1 == 0)  :
             save_all_csv_files()
 
 
