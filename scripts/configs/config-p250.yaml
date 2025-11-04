@@ -19,7 +19,7 @@ symbols_meta:
     min_required_move_from_level: 0.5
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
-    retest_tolerance_multiplier: 1.5
+    retest_tolerance_multiplier: 1.8
   AAPL:
     can_trade: true
     contract_type: Equity
@@ -54,14 +54,14 @@ symbols_meta:
     min_required_move_from_level: 0.04
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 0.5
-    retest_tolerance_multiplier: 1.5
+    retest_tolerance_multiplier: 1.8
   SPY:
     can_trade: false
     contract_type: Equity
     min_required_move_from_level: 0.5
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
-    retest_tolerance_multiplier: 1
+    retest_tolerance_multiplier: 2
   MNQ:
     can_trade: false
     contract_type: Future
@@ -178,11 +178,11 @@ cases:
 stop_losses:
   C:
     stop_loss_condition: underlying_previous_candle_close < level_used_to_open - tolerance_amount and ( level_used_to_open != -1)
-#    stop_loss_condition:  symbol == 'TSLA' or 1 == 2
+#    stop_loss_condition:  symbol == 'AMD' or 1 == 2
 
   P:
     stop_loss_condition: underlying_previous_candle_close > level_used_to_open + tolerance_amount and ( level_used_to_open != -1)
-#    stop_loss_condition:  symbol == 'XTSLA' or 1 == 2
+#    stop_loss_condition:  symbol == 'AMD' or 1 == 1
 
 
 take_profits:
@@ -199,14 +199,14 @@ take_profits:
     close_quantity_percentage: -1
     # -1 closes all the rest
 
-  t4_close_levels: # when lines are close ...
-    condition: >
-        (right == 'C' and is_next_level_close(side='up', level=level_used_to_open, current_price=underlying_current_price, underlying_open_price=underlying_open_price ))  
-        or
-        (right == 'P' and is_next_level_close(side='down', level=level_used_to_open, current_price=underlying_current_price, underlying_open_price=underlying_open_price ))
-    close_quantity_percentage: 0.5
+#  t4_close_levels: # when lines are close ...
+#    condition: >
+#        (right == 'C' and is_next_level_close_a_price_crossed(side='up', level=level_used_to_open, current_price=underlying_current_price, underlying_open_price=underlying_open_price ))
+#        or
+#        (right == 'P' and is_next_level_close_a_price_crossed(side='down', level=level_used_to_open, current_price=underlying_current_price, underlying_open_price=underlying_open_price ))
+#    close_quantity_percentage: 0.5
 
-  t_even:
+  t5_even:
     condition: >
       (right == 'C' and is_executed_take_profits(symbol, take_profit_list=['t1']) and underlying_current_price < underlying_open_price)
       or
@@ -234,7 +234,7 @@ closeness_distance_for_chart:
   live: df['atr_14'].tail(10).mean()
   back_test: df.loc[ (df['date'].dt.time == pd.to_datetime('10:00').time()), 'atr_14' ].mean()  # for BT, we need to get for 10:00 as for BT we don't go candle base...
 
-closeness_distance_for_case_1: df['atr_14'].iloc[-1] * 4
+closeness_distance_for_case_1: df['atr_14'].iloc[-1] * 2
 
 live:
   historical_days: 4 D
@@ -248,22 +248,22 @@ live:
 
 
 back_test:
-  get_data_from_ib: false
+  get_data_from_ib: False
 #  get_data_from_ib: True
 
   historical_days: 5 D
-  start_date: 2025-10-27
+  start_date: 2025-11-01
 
-  back_test_date_start: 2025-10-01
-  back_test_date_end: 2025-11-02
+  back_test_date_start: 2025-11-03
+  back_test_date_end: 2025-11-05
 
 chart:
-#  source: live
-  source: back_test
+  source: live
+#  source: back_test
   cutoff_in_hours: 0
-  hours_in_focus: 2.5
+  hours_in_focus: 3
   live:
-    start_time: '13:15'
+    start_time: '09:00'
     end_time: '15:30'
 
 # before_start:
@@ -275,9 +275,9 @@ run_should_take_seconds: 20
 
 email:
   send_email: true
-  #recipients: vikaskaler.bnr@gmail.com,saeed.bx1@yahoo.com
+  recipients: vikaskaler.bnr@gmail.com,saeed.bx1@yahoo.com
  # recipients: saeed.bx1@yahoo.com
-  recipients: vikaskaler.bnr@gmail.com
+#  recipients: vikaskaler.bnr@gmail.com
 
 health_check:
   email: saeed.bx1@yahoo.com

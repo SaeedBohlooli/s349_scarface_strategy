@@ -427,10 +427,11 @@ def convert_signals_to_hover_df(signals):
     hovers_list = []
     for s in signals:
         logger.debug(f"convert_signals_to_hover_df, signal:{s}")
-        event = s[0]
-        price_1 = s[1]
-        date_1 = s[2]
-        memo = s[3]
+        symbol = s[0]
+        event = s[1]
+        price_1 = s[2]
+        date_1 = s[3]
+        memo = s[4]
         if memo == '':
             memo = event
         if 'breakout' in event.lower():
@@ -542,26 +543,26 @@ def detect_candle_patterns(df):
 
     # --- Doji ---
     if body_ratio < 0.1:
-        add_to_signlas("CANDLE_TYPE", mark_price, date, f"Doji ... {df['date'].iloc[-1]}")
+        add_to_signlas(symbol, "CANDLE_TYPE", mark_price, date, f"Doji ... {df['date'].iloc[-1]}")
 
     # --- Hammer ---
     elif lower_ratio > 0.6 and upper_ratio < 0.2 and close > o:
-        add_to_signlas("CANDLE_TYPE", mark_price, date, f"Hammer {df['date'].iloc[-1]}")
+        add_to_signlas(symbol, "CANDLE_TYPE", mark_price, date, f"Hammer {df['date'].iloc[-1]}")
 
     # --- Inverted Hammer ---
     elif upper_ratio > 0.6 and lower_ratio < 0.2 and close > o:
-        add_to_signlas("CANDLE_TYPE", mark_price, date, f"Inverted Hammer ... {df['date'].iloc[-1]}")
+        add_to_signlas(symbol, "CANDLE_TYPE", mark_price, date, f"Inverted Hammer ... {df['date'].iloc[-1]}")
 
     # --- Shooting Star ---
     elif upper_ratio > 0.6 and lower_ratio < 0.2 and close < o:
-        add_to_signlas("CANDLE_TYPE", mark_price, date, f"Shooting Star ... {df['date'].iloc[-1]}")
+        add_to_signlas(symbol, "CANDLE_TYPE", mark_price, date, f"Shooting Star ... {df['date'].iloc[-1]}")
 
     # --- Engulfing Patterns ---
     prev = df.iloc[-2]
     if (prev["close"] < prev["open"]) and (close > o) and (close > prev["open"]) and (o < prev["close"]):
-        add_to_signlas("CANDLE_TYPE", mark_price, date, f"Bullish Engulfing ... {df['date'].iloc[-1]}")
+        add_to_signlas(symbol, "CANDLE_TYPE", mark_price, date, f"Bullish Engulfing ... {df['date'].iloc[-1]}")
     elif (prev["close"] > prev["open"]) and (close < o) and (close < prev["open"]) and (o > prev["close"]):
-        add_to_signlas("CANDLE_TYPE", mark_price, date, f"Bearish Engulfing ... {df['date'].iloc[-1]}")
+        add_to_signlas(symbol, "CANDLE_TYPE", mark_price, date, f"Bearish Engulfing ... {df['date'].iloc[-1]}")
 
     return signals
 
@@ -613,12 +614,12 @@ def add_buy_a_sell_entries_to_signals(buy_sell_case_results_list):
 
 
         if can_buy:
-            add_to_signlas(f"BUY_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}")
+            add_to_signlas(symbol, f"BUY_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}")
 
         if can_sell:
-            add_to_signlas(f"SELL_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}")
+            add_to_signlas(symbol, f"SELL_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}")
 
-        # add_to_signlas( f"SCREENING_{case}", offseted_price, df['date'].iloc[-1], f'{case} - {res_str}')  #
+        # add_to_signlas(symbol,  f"SCREENING_{case}", offseted_price, df['date'].iloc[-1], f'{case} - {res_str}')  #
         price = get_latest_offseted_price('down', df['low'].iloc[-1])
         add_to_candle_info_df(date=df['date'].iloc[-1], price=price, memo=f'{case} - {res_str}')
 
@@ -654,13 +655,13 @@ def replace_level_if_needed(side, can_replace_level, level):
         if next_level > level and abs(next_level - level) < closeness_distance:
             logger.info(f"replace_level_if_needed, level is replaced,{symbol}, {side}, level: {level}, next_level: {next_level}, {df['date'].iloc[-1]}")
             price = get_offseted_price('up', df['high'].iloc[-1])
-            add_to_signlas('LEVEL_REPLACED', price, df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}')
+            add_to_signlas(symbol, 'LEVEL_REPLACED', price, df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}')
             return next_level
     else:
         if next_level < level and abs(next_level - level) < closeness_distance:
             logger.info(f"replace_level_if_needed, level is replaced, {symbol}, {side}, level: {level}, next_level: {next_level}, {df['date'].iloc[-1]}")
             price = get_offseted_price('up', df['high'].iloc[-1])
-            add_to_signlas('LEVEL_REPLACED', price,  df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}')
+            add_to_signlas(symbol, 'LEVEL_REPLACED', price,  df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}')
             return next_level
     return level
 
@@ -941,7 +942,7 @@ def add_to_break_out_indices_by_level_set(level, idx):
     break_out_indices_by_level_set[level].add(idx)
     # add_to_candle_info_df(date=df['date'].iloc[idx], price=df['low'].iloc[idx], memo=f'breakout @ {level}')
     offseted_price = get_offseted_price('up', df['close'].iloc[idx])
-    add_to_signlas('BREAKOUT', offseted_price, df['date'].iloc[idx], f"BREAKOUT ... {df['date'].iloc[idx]}... " )
+    add_to_signlas(symbol, 'BREAKOUT', offseted_price, df['date'].iloc[idx], f"BREAKOUT ... {df['date'].iloc[idx]}... " )
     return
 
 def add_to_retest_indices_by_level_set(level, idx):
@@ -954,7 +955,7 @@ def add_to_retest_indices_by_level_set(level, idx):
     retest_indices_by_level_set[level].add(idx)
     # add_to_candle_info_df(date=df['date'].iloc[idx], price=df['high'].iloc[idx], memo=f'retest @ {level}')
     offseted_price = get_offseted_price('up', df['low'].iloc[idx])
-    add_to_signlas('RETEST', offseted_price, df['date'].iloc[idx], f"RETEST ... {df['date'].iloc[idx]}")
+    add_to_signlas(symbol, 'RETEST', offseted_price, df['date'].iloc[idx], f"RETEST ... {df['date'].iloc[idx]}")
     return
 
 def get_levels_dic():
@@ -969,10 +970,10 @@ def get_levels_dic():
 
 
 
-def add_to_signlas(event, price, date, memo=''):
+def add_to_signlas(symbol, event, price, date, memo=''):
 
     global signals
-    signals.append((event, price, date, memo))
+    signals.append((symbol, event, price, date, memo))
 
     return
 
@@ -1050,7 +1051,7 @@ def add_candle_info_df_to_signals():
         price = row['price']
         memo = f"{row['memo']} <br> {date.strftime('%H:%M')}"  # adding date to the memo ...
 
-        add_to_signlas("CANDLE_INFO", price, date, memo)  #
+        add_to_signlas(symbol, "CANDLE_INFO", price, date, memo)  #
 
     return
 
@@ -1161,7 +1162,7 @@ def get_current_price_from_ib(symbol, max_retries=3, retry_delay=0.5):
 #             and c["close"] > c["open"]  # green candle
 #             and lower_wick >= wick_ratio * body
 #         ):
-#             add_to_signlas("bullish_reversal", level, idx)
+#             add_to_signlas(symbol, "bullish_reversal", level, idx)
 #
 #         # --- Bearish reversal near resistance ---
 #         elif (
@@ -1169,7 +1170,7 @@ def get_current_price_from_ib(symbol, max_retries=3, retry_delay=0.5):
 #             and c["close"] < c["open"]  # red candle
 #             and upper_wick >= wick_ratio * body
 #         ):
-#             add_to_signlas("bearish_reversal", level, idx)
+#             add_to_signlas(symbol, "bearish_reversal", level, idx)
 #
 #     return signals
 
@@ -1222,7 +1223,7 @@ def get_current_price_from_ib(symbol, max_retries=3, retry_delay=0.5):
 #             and c["close"] >= c["open"]
 #             and lower_wick >= wick_ratio * body
 #         ):
-#             add_to_signlas({
+#             add_to_signlas(symbol, {
 #                 "type": "bullish_reversal",
 #                 "level": level,
 #                 "time": candle_time
@@ -1234,7 +1235,7 @@ def get_current_price_from_ib(symbol, max_retries=3, retry_delay=0.5):
 #             and c["close"] <= c["open"]
 #             and upper_wick >= wick_ratio * body
 #         ):
-#             add_to_signlas({
+#             add_to_signlas(symbol, {
 #                 "type": "bearish_reversal",
 #                 "level": level,
 #                 "time": candle_time
@@ -1299,18 +1300,18 @@ def get_historical_data_from_start_date(contract, historical_days, time_frame, s
 #         if check_breakout:
 #             # --- Breakout detection ---
 #             if prev["close"] < level and latest["close"] > level:
-#                 add_to_signlas("breakout_up", level, idx)
+#                 add_to_signlas(symbol, "breakout_up", level, idx)
 #             elif prev["close"] > level and latest["close"] < level:
-#                 add_to_signlas("breakout_down", level, idx)
+#                 add_to_signlas(symbol, "breakout_down", level, idx)
 #
 #         if telorance_amount == -1:
 #             telorance_amount = level * tolerance_percentage
 #
 #         # --- Retest detection ---
 #         if level > prev["low"] and level - prev["low"] <= telorance_amount and latest["close"] > level:
-#             add_to_signlas("retest_up", level, idx)
+#             add_to_signlas(symbol, "retest_up", level, idx)
 #         elif prev["high"] > level and prev["high"] - level <= telorance_amount and latest["close"] < level:
-#             add_to_signlas("retest_down", level, idx)
+#             add_to_signlas(symbol, "retest_down", level, idx)
 #
 #     return signals
 
@@ -1769,7 +1770,7 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
                 'open_ask': ask
             }
             application_state.setdefault('open_trades_dic', {})[symbol] = data
-            add_to_signlas(f'ORDER_SENT',df['close'].iloc[-1],df['date'].iloc[-1], json.dumps(data).replace(',','<br>') )
+            add_to_signlas(symbol, f'ORDER_SENT',df['close'].iloc[-1],df['date'].iloc[-1], json.dumps(data).replace(',','<br>') )
             add_to_order_history_df(data)
             add_to_number_of_trades_today(symbol)
             send_email(event='order_sent', symbol=symbol, body=json.dumps(data).replace(',','<br>'))
@@ -2190,7 +2191,7 @@ def check_for_stop_loss_and_take_profit():
                 'open_order_ref': ''
                 }
             add_to_stop_loss_history_df(data)
-            add_to_signlas('STOP_LOSS_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f"STOP_LOSS  <BR> {json.dumps(data).replace(',','<br>')}")
+            add_to_signlas(symbol, 'STOP_LOSS_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f"STOP_LOSS  <BR> {json.dumps(data).replace(',','<br>')}")
             send_email(event='stop_loss_sent', symbol=symbol, body=json.dumps(data).replace(',','<br>'))
             archive_open_trade_dic(symbol, open_trade_info)
             data = {}
@@ -2251,7 +2252,7 @@ def check_for_stop_loss_and_take_profit():
                     'u_run_number': unique_run_number,
                 }
                 add_to_take_profit_history_df(data)
-                add_to_signlas('TAKE_PROFIT_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f"TAKE-PROFIT-{take_profit} <BR>{json.dumps(data).replace(',','<br>')}")
+                add_to_signlas(symbol, 'TAKE_PROFIT_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f"TAKE-PROFIT-{take_profit} <BR>{json.dumps(data).replace(',','<br>')}")
                 send_email(event='take_profit_sent', symbol=symbol, body=json.dumps(data).replace(',','<br>'))
 
             else:

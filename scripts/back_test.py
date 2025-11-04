@@ -21,7 +21,7 @@ import os
 from pandas.tseries.offsets import BDay
 import logging
 from finta import TA
-
+import math
 from ruamel.yaml import YAML
 import traceback
 
@@ -45,7 +45,7 @@ mode = 'back_test'
 
 portfolio_dir = f'../portfolios/results/{portfolio_id}'
 reports_dir = f'../portfolios/reports/{portfolio_id}'
-log_dir = f'../../portfolios/logs/{portfolio_id}-{mode}'
+log_dir = f'../../portfolios/logs/{portfolio_id}-{mode}/{datetime.datetime.now().strftime("%Y-%m-%d")}/'
 detailed_log_dir = f'../../portfolios/detailed-logs/{portfolio_id}-{mode}'
 intermediate_dir = f'../portfolios/intermediate/{portfolio_id}'
 
@@ -427,10 +427,11 @@ def convert_signals_to_hover_df(signals):
     hovers_list = []
     for s in signals:
         logger.debug(f"convert_signals_to_hover_df, signal:{s}")
-        event = s[0]
-        price_1 = s[1]
-        date_1 = s[2]
-        memo = s[3]
+        symbol = s[0]
+        event = s[1]
+        price_1 = s[2]
+        date_1 = s[3]
+        memo = s[4]
         if memo == '':
             memo = event
         if 'breakout' in event.lower():
@@ -542,26 +543,26 @@ def detect_candle_patterns(df):
 
     # --- Doji ---
     if body_ratio < 0.1:
-        add_to_signlas("CANDLE_TYPE", mark_price, date, f"Doji ... {df['date'].iloc[-1]}")
+        add_to_signlas(symbol, "CANDLE_TYPE", mark_price, date, f"Doji ... {df['date'].iloc[-1]}")
 
     # --- Hammer ---
     elif lower_ratio > 0.6 and upper_ratio < 0.2 and close > o:
-        add_to_signlas("CANDLE_TYPE", mark_price, date, f"Hammer {df['date'].iloc[-1]}")
+        add_to_signlas(symbol, "CANDLE_TYPE", mark_price, date, f"Hammer {df['date'].iloc[-1]}")
 
     # --- Inverted Hammer ---
     elif upper_ratio > 0.6 and lower_ratio < 0.2 and close > o:
-        add_to_signlas("CANDLE_TYPE", mark_price, date, f"Inverted Hammer ... {df['date'].iloc[-1]}")
+        add_to_signlas(symbol, "CANDLE_TYPE", mark_price, date, f"Inverted Hammer ... {df['date'].iloc[-1]}")
 
     # --- Shooting Star ---
     elif upper_ratio > 0.6 and lower_ratio < 0.2 and close < o:
-        add_to_signlas("CANDLE_TYPE", mark_price, date, f"Shooting Star ... {df['date'].iloc[-1]}")
+        add_to_signlas(symbol, "CANDLE_TYPE", mark_price, date, f"Shooting Star ... {df['date'].iloc[-1]}")
 
     # --- Engulfing Patterns ---
     prev = df.iloc[-2]
     if (prev["close"] < prev["open"]) and (close > o) and (close > prev["open"]) and (o < prev["close"]):
-        add_to_signlas("CANDLE_TYPE", mark_price, date, f"Bullish Engulfing ... {df['date'].iloc[-1]}")
+        add_to_signlas(symbol, "CANDLE_TYPE", mark_price, date, f"Bullish Engulfing ... {df['date'].iloc[-1]}")
     elif (prev["close"] > prev["open"]) and (close < o) and (close < prev["open"]) and (o > prev["close"]):
-        add_to_signlas("CANDLE_TYPE", mark_price, date, f"Bearish Engulfing ... {df['date'].iloc[-1]}")
+        add_to_signlas(symbol, "CANDLE_TYPE", mark_price, date, f"Bearish Engulfing ... {df['date'].iloc[-1]}")
 
     return signals
 
@@ -613,12 +614,12 @@ def add_buy_a_sell_entries_to_signals(buy_sell_case_results_list):
 
 
         if can_buy:
-            add_to_signlas(f"BUY_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}")
+            add_to_signlas(symbol, f"BUY_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}")
 
         if can_sell:
-            add_to_signlas(f"SELL_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}")
+            add_to_signlas(symbol, f"SELL_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}")
 
-        # add_to_signlas( f"SCREENING_{case}", offseted_price, df['date'].iloc[-1], f'{case} - {res_str}')  #
+        # add_to_signlas(symbol,  f"SCREENING_{case}", offseted_price, df['date'].iloc[-1], f'{case} - {res_str}')  #
         price = get_latest_offseted_price('down', df['low'].iloc[-1])
         add_to_candle_info_df(date=df['date'].iloc[-1], price=price, memo=f'{case} - {res_str}')
 
@@ -654,13 +655,13 @@ def replace_level_if_needed(side, can_replace_level, level):
         if next_level > level and abs(next_level - level) < closeness_distance:
             logger.info(f"replace_level_if_needed, level is replaced,{symbol}, {side}, level: {level}, next_level: {next_level}, {df['date'].iloc[-1]}")
             price = get_offseted_price('up', df['high'].iloc[-1])
-            add_to_signlas('LEVEL_REPLACED', price, df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}')
+            add_to_signlas(symbol, 'LEVEL_REPLACED', price, df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}')
             return next_level
     else:
         if next_level < level and abs(next_level - level) < closeness_distance:
             logger.info(f"replace_level_if_needed, level is replaced, {symbol}, {side}, level: {level}, next_level: {next_level}, {df['date'].iloc[-1]}")
             price = get_offseted_price('up', df['high'].iloc[-1])
-            add_to_signlas('LEVEL_REPLACED', price,  df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}')
+            add_to_signlas(symbol, 'LEVEL_REPLACED', price,  df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}')
             return next_level
     return level
 
@@ -856,7 +857,7 @@ def dummy_call(level):
     return True
 
 def archive_open_trade_dic(symbol, open_trade_dic_4_symbol):
-    global open_trade_dic_arcive
+    open_trade_dic_arcive = {}
     open_trade_dic_arcive[unique_run_number] = open_trade_dic_4_symbol
     file_path = f'{intermediate_dir}/84-{unique_run_number}-{symbol}.csv'
 
@@ -939,9 +940,9 @@ def add_to_break_out_indices_by_level_set(level, idx):
         break_out_indices_by_level_set[level] = set()
 
     break_out_indices_by_level_set[level].add(idx)
-    add_to_candle_info_df(date=df['date'].iloc[idx], price=df['low'].iloc[idx], memo=f'breakout @ {level}')
+    # add_to_candle_info_df(date=df['date'].iloc[idx], price=df['low'].iloc[idx], memo=f'breakout @ {level}')
     offseted_price = get_offseted_price('up', df['close'].iloc[idx])
-    add_to_signlas('BREAKOUT', offseted_price, df['date'].iloc[idx], f"BREAKOUT ... {df['date'].iloc[idx]}... " )
+    add_to_signlas(symbol, 'BREAKOUT', offseted_price, df['date'].iloc[idx], f"BREAKOUT ... {df['date'].iloc[idx]}... " )
     return
 
 def add_to_retest_indices_by_level_set(level, idx):
@@ -952,9 +953,9 @@ def add_to_retest_indices_by_level_set(level, idx):
         retest_indices_by_level_set[level] = set()
 
     retest_indices_by_level_set[level].add(idx)
-    add_to_candle_info_df(date=df['date'].iloc[idx], price=df['high'].iloc[idx], memo=f'reset @ {level}')
+    # add_to_candle_info_df(date=df['date'].iloc[idx], price=df['high'].iloc[idx], memo=f'retest @ {level}')
     offseted_price = get_offseted_price('up', df['low'].iloc[idx])
-    add_to_signlas('RETEST', offseted_price, df['date'].iloc[idx], f"RETEST ... {df['date'].iloc[idx]}")
+    add_to_signlas(symbol, 'RETEST', offseted_price, df['date'].iloc[idx], f"RETEST ... {df['date'].iloc[idx]}")
     return
 
 def get_levels_dic():
@@ -969,10 +970,10 @@ def get_levels_dic():
 
 
 
-def add_to_signlas(event, price, date, memo=''):
+def add_to_signlas(symbol, event, price, date, memo=''):
 
     global signals
-    signals.append((event, price, date, memo))
+    signals.append((symbol, event, price, date, memo))
 
     return
 
@@ -1050,7 +1051,7 @@ def add_candle_info_df_to_signals():
         price = row['price']
         memo = f"{row['memo']} <br> {date.strftime('%H:%M')}"  # adding date to the memo ...
 
-        add_to_signlas("CANDLE_INFO", price, date, memo)  #
+        add_to_signlas(symbol, "CANDLE_INFO", price, date, memo)  #
 
     return
 
@@ -1112,15 +1113,21 @@ def load_application_state_from_file():
 # ###########
 # START BACK TEST
 # ############
-def get_current_price_from_ib(symbol):
+def get_current_price_from_ib(symbol, max_retries=3, retry_delay=0.5):
 
     underlying = Stock(symbol, 'SMART', 'USD')
-    ib.qualifyContracts(underlying)
-    ticker = ib.reqMktData(underlying)
-    ib.sleep(0.2)
-    underlying_price = ticker.last or ticker.close
+    for attempt in range(1, max_retries + 1):
 
-    return underlying_price
+        ib.qualifyContracts(underlying)
+        ticker = ib.reqMktData(underlying)
+        ib.sleep(0.2)
+        price = ticker.last or ticker.close
+        if price is not None and not (pd.isna(price) or math.isnan(price)):
+            return price
+        else:
+            logger.warning(f"@@@ get_current_price_from_ib,{symbol}, price is nan, try again ...")
+            time.sleep(retry_delay)
+    return price
 
 # def detect_reversal_near_keylevel(df, key_levels, tolerance=0.001, wick_ratio=2.0):
 #     """
@@ -1155,7 +1162,7 @@ def get_current_price_from_ib(symbol):
 #             and c["close"] > c["open"]  # green candle
 #             and lower_wick >= wick_ratio * body
 #         ):
-#             add_to_signlas("bullish_reversal", level, idx)
+#             add_to_signlas(symbol, "bullish_reversal", level, idx)
 #
 #         # --- Bearish reversal near resistance ---
 #         elif (
@@ -1163,7 +1170,7 @@ def get_current_price_from_ib(symbol):
 #             and c["close"] < c["open"]  # red candle
 #             and upper_wick >= wick_ratio * body
 #         ):
-#             add_to_signlas("bearish_reversal", level, idx)
+#             add_to_signlas(symbol, "bearish_reversal", level, idx)
 #
 #     return signals
 
@@ -1216,7 +1223,7 @@ def get_current_price_from_ib(symbol):
 #             and c["close"] >= c["open"]
 #             and lower_wick >= wick_ratio * body
 #         ):
-#             add_to_signlas({
+#             add_to_signlas(symbol, {
 #                 "type": "bullish_reversal",
 #                 "level": level,
 #                 "time": candle_time
@@ -1228,7 +1235,7 @@ def get_current_price_from_ib(symbol):
 #             and c["close"] <= c["open"]
 #             and upper_wick >= wick_ratio * body
 #         ):
-#             add_to_signlas({
+#             add_to_signlas(symbol, {
 #                 "type": "bearish_reversal",
 #                 "level": level,
 #                 "time": candle_time
@@ -1293,18 +1300,18 @@ def get_historical_data_from_start_date(contract, historical_days, time_frame, s
 #         if check_breakout:
 #             # --- Breakout detection ---
 #             if prev["close"] < level and latest["close"] > level:
-#                 add_to_signlas("breakout_up", level, idx)
+#                 add_to_signlas(symbol, "breakout_up", level, idx)
 #             elif prev["close"] > level and latest["close"] < level:
-#                 add_to_signlas("breakout_down", level, idx)
+#                 add_to_signlas(symbol, "breakout_down", level, idx)
 #
 #         if telorance_amount == -1:
 #             telorance_amount = level * tolerance_percentage
 #
 #         # --- Retest detection ---
 #         if level > prev["low"] and level - prev["low"] <= telorance_amount and latest["close"] > level:
-#             add_to_signlas("retest_up", level, idx)
+#             add_to_signlas(symbol, "retest_up", level, idx)
 #         elif prev["high"] > level and prev["high"] - level <= telorance_amount and latest["close"] < level:
-#             add_to_signlas("retest_down", level, idx)
+#             add_to_signlas(symbol, "retest_down", level, idx)
 #
 #     return signals
 
@@ -1674,7 +1681,7 @@ def prepare_contract(symbol, right='C'):
         return contract
 
     else:
-        logger.error (f"@@@@ {symbol}, in prepare_contract, we have issue  strikes: {strikes}, expiry: {expiry}")
+        logger.error (f"@@@@ prepare_contract(), we have issue, {symbol}, underlying_price: {underlying_price}, expiry: {expiry}, strikes: {strikes}")
 
         # TODO log the error
         #   File "C:\Users\saeed\Documents\13-code-git\s349_scarface_strategy\scripts\screening.py", line 2202, in <module>
@@ -1763,7 +1770,7 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
                 'open_ask': ask
             }
             application_state.setdefault('open_trades_dic', {})[symbol] = data
-            add_to_signlas(f'ORDER_SENT',df['close'].iloc[-1],df['date'].iloc[-1], json.dumps(data).replace(',','<br>') )
+            add_to_signlas(symbol, f'ORDER_SENT',df['close'].iloc[-1],df['date'].iloc[-1], json.dumps(data).replace(',','<br>') )
             add_to_order_history_df(data)
             add_to_number_of_trades_today(symbol)
             send_email(event='order_sent', symbol=symbol, body=json.dumps(data).replace(',','<br>'))
@@ -1832,10 +1839,8 @@ def get_quote_for_option_bid_ask(symbol, strike, right, expiry, exchange='SMART'
         exchange=exchange
     )
     bid = ask = 0
-    attempt = 0
 
-    while attempt < max_retries and ( bid == 0 or ask == 0 ):
-        attempt += 1
+    for attempt in range(1, max_retries + 1):
         ticker = ib.reqMktData(option, snapshot=True)
         ib.sleep(0.2)  # Give IB a moment to return data
 
@@ -1843,6 +1848,11 @@ def get_quote_for_option_bid_ask(symbol, strike, right, expiry, exchange='SMART'
         ask = ticker.ask  if ticker.ask > 0 else 0
         last = ticker.last if ticker.last > 0 else 0
         logger.info(f"get_quote_for_option_bid_ask, bid: {bid}, ask:{ask}")
+        if bid == 0 or ask == 0:
+            logger.warning(f"@@@ get_quote_for_option_bid_ask(), {symbol}, bid: {bid}, ask:{ask}, option: {option}")
+            time.sleep(wait_between)
+        else:
+            return bid, ask
 
     return bid, ask
 
@@ -2156,7 +2166,7 @@ def check_for_stop_loss_and_take_profit():
 
 
         logger.info(f"level_used_to_open: {level_used_to_open}, underlying_open_price: {underlying_open_price}, "
-                    f"underlying_current_price:, {underlying_current_price}, underlying_previous_candle_close: {underlying_previous_candle_close}")
+                    f"underlying_current_price:, {underlying_current_price}, underlying_previous_candle_close: {underlying_previous_candle_close} ,tolerance_amount: {tolerance_amount}")
         logger.info(f"current_bid: {current_bid}, current_ask: {current_ask}, avg_cost_for_1_contract: {avg_cost_for_1_contract}")
 
         stop_loss_condition = app_config['stop_losses'][right]['stop_loss_condition']
@@ -2181,7 +2191,7 @@ def check_for_stop_loss_and_take_profit():
                 'open_order_ref': ''
                 }
             add_to_stop_loss_history_df(data)
-            add_to_signlas('STOP_LOSS_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f"STOP_LOSS  <BR> {json.dumps(data).replace(',','<br>')}")
+            add_to_signlas(symbol, 'STOP_LOSS_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f"STOP_LOSS  <BR> {json.dumps(data).replace(',','<br>')}")
             send_email(event='stop_loss_sent', symbol=symbol, body=json.dumps(data).replace(',','<br>'))
             archive_open_trade_dic(symbol, open_trade_info)
             data = {}
@@ -2242,7 +2252,7 @@ def check_for_stop_loss_and_take_profit():
                     'u_run_number': unique_run_number,
                 }
                 add_to_take_profit_history_df(data)
-                add_to_signlas('TAKE_PROFIT_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f"TAKE-PROFIT-{take_profit} <BR>{json.dumps(data).replace(',','<br>')}")
+                add_to_signlas(symbol, 'TAKE_PROFIT_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f"TAKE-PROFIT-{take_profit} <BR>{json.dumps(data).replace(',','<br>')}")
                 send_email(event='take_profit_sent', symbol=symbol, body=json.dumps(data).replace(',','<br>'))
 
             else:
@@ -2564,7 +2574,7 @@ def are_levels_close_to_each_other_for_case_1(side):
 
 if __name__ == "__main__":
 
-
+    ib_portfolio_df = pd.DataFrame()
     app_config = load_app_config(portfolio_id)
 
     ib_config = load_ib_config()
@@ -2595,7 +2605,9 @@ if __name__ == "__main__":
 
             df = pd.read_csv(f'{backtest_ohlc_dir}/{symbol}-{time_frame}.csv')
             df = df.drop_duplicates(subset=[f'date'], keep=f'last') # KEEP IT
-            df['date'] = pd.to_datetime(df['date'])
+
+            df['date'] = pd.to_datetime(df['date'], utc=True) # bcs of carsh when they change summer time ...
+            df['date'] = df['date'].dt.tz_convert('America/New_York')
 
             if back_test_date == '2025-10-xx':
                 logger.info('Stop for debug')
@@ -2636,6 +2648,8 @@ if __name__ == "__main__":
             relative_strength_df = pd.DataFrame()
 
             orig_qqq_df = pd.read_csv(f'{backtest_ohlc_dir}/QQQ-1min.csv')
+            orig_qqq_df['date'] = pd.to_datetime(orig_qqq_df['date'], utc=True) # bcs of carsh when they change summmer time ...
+            orig_qqq_df['date'] = orig_qqq_df['date'].dt.tz_convert('America/New_York')
             while my_index < last_index:
                 run_id += 1
                 start_time = time.time()

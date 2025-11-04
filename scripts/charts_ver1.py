@@ -108,13 +108,11 @@ def cut_df_until_hour_x_on_last_day(df, cutoff_time="13:00"):
 def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
     global df
     global extra_features_df
-    logger.info(f"in draw_w_plotly_w_subplot:\n {df[-20:].to_markdown()}")
-
+    logger.info(f"in draw_w_plotly_w_subplot:\n {df[-5:].to_markdown()}")
     df['date'] = pd.to_datetime(df['date'])
 
 
     end_time = df['date'].max() + pd.Timedelta(minutes=10)
-
     extra_features_df['date'] = pd.to_datetime(extra_features_df['date'])
 
 
@@ -547,6 +545,7 @@ def load_extra_features_df(portfolio_id='p700', symbol='TSLA', time_frame='1min'
     logger.info(f"load_extra_features_df_from_file, reading file: {file}")
 
     df = pd.read_csv(file)
+    df  = df [-420:]
     df['date'] = pd.to_datetime(df['date'])
 
 
@@ -559,6 +558,7 @@ def load_df_from_ohlc_file(portfolio_id='p700', symbol='TSLA', time_frame='1min'
     if not os.path.exists(file):
         return pd.DataFrame()
     df = pd.read_csv(file)
+    df = df [-420:]
     df['date'] = pd.to_datetime(df['date'])
 
     # if app_config['chart']['cutoff_in_hours'] !=0 :  # cut off hours ...
@@ -576,7 +576,7 @@ def load_file_to_drawing_objects_df():
     file = f'{get_charts_dir(portfolio_id)}/10-drawing_objects_df.csv'
     logger.info(f"reading file: {file}")
     df = pd.read_csv(file)
-    logger.info(f"drawing_objects_df:\n{df[1:].to_markdown()}")
+    logger.info(f"drawing_objects_df:\n{df[-3:].to_markdown()}")
     return df
 
 def load_file_to_hover_df():
@@ -584,7 +584,7 @@ def load_file_to_hover_df():
     if os.path.exists(file):
         logger.info(f"reading file: {file}")
         df = pd.read_csv(file)
-        logger.info(f"load_file_to_hover_df:\n{df[1:].to_markdown()}")
+        logger.info(f"load_file_to_hover_df:\n{df[-3:].to_markdown()}")
         return df
     else:
         return pd.DataFrame()
@@ -646,7 +646,7 @@ def mark_before_after_hours(fig, df):  # IS VERY SLOOW ... so we marke only last
             layer="below",
             line_width=0,
         )
-    logger.info(f"in add_start_finish_day, Done!")
+    logger.info(f"in mark_before_after_hours, Done!")
 
     return fig
 
@@ -673,6 +673,7 @@ def add_hover_to_chart(fig1, hover_df):
 
 
 def cut_df_for_live(df):
+    return df
     if app_config['chart']['source'] == 'live':
 
         df = df_utils.cut_df_strating_hour_x_on_last_day(df, cutoff_time=app_config['chart']['live']['start_time'] )
@@ -688,8 +689,7 @@ def create_chart_hovered_df(hover_df, symbol):
     df['date'] = df['date_1']
     df['price'] = df['price_1']
     df['text'] = df['memo']
-
-    df['date'] = pd.to_datetime(df['date'], errors='coerce')
+    df['date'] = pd.to_datetime(df['date'])
     df = cut_df_for_live(df)
 
 
@@ -851,6 +851,7 @@ def index():
         df = load_df_from_ohlc_file(portfolio_id='p250', time_frame=time_frame, symbol=symbol)
         if len(df) == 0:
             continue
+
         df = cut_df_for_live(df)
 
         extra_features_df = load_extra_features_df(portfolio_id='p250', time_frame=time_frame, symbol=symbol)
@@ -858,8 +859,8 @@ def index():
 
         fig1 = draw_w_plotly_w_subplot_1(symbol, chart_title=f'{symbol}-{time_frame}')
         fig1 = draw_objects(fig1,df, drawing_objects_df, symbol=symbol, time_frame=time_frame )
-        fig1 = add_start_finish_day(fig1, df)
-        fig1 = mark_market_time_only_last_one(fig1, df)
+        # fig1 = add_start_finish_day(fig1, df)
+        #fig1 = mark_market_time_only_last_one(fig1, df)
         chart_hovered_df = create_chart_hovered_df(hover_df, symbol)
         fig1 = add_hover_to_chart(fig1, chart_hovered_df)
         fig1 = add_close_levels_anoteation(fig1, df, close_levels_df, symbol)
