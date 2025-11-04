@@ -2376,11 +2376,11 @@ if __name__ == "__main__":
 
             file = f"{charts_dir}/{symbol}-{time_frame.replace(' ', '')}-extra_features_df.csv"
             extra_features_df.to_csv(file, index=False)
-            write_file_in_tabulate(src_file_path=file, number_of_rows=230)
+            df_utils.write_file_in_tabulate(src_file_path=file, number_of_rows=230)
         # for each date ..
-        save_df_to_csv_a_tabular(drawing_objects_df, file_path=f'{charts_dir}/10-drawing_objects_df.csv', mode='w')
-        save_df_to_csv_a_tabular(key_levels_df, file_path=f'{portfolio_dir}/11-key_levels_df.csv', mode='w')
-        save_df_to_csv_a_tabular(hover_df, file_path=f'{charts_dir}/12-hover_df.csv', mode='w')
+        df_utils.save_df_to_csv_a_tabular(drawing_objects_df, file_path=f'{charts_dir}/10-drawing_objects_df.csv', mode='w')
+        df_utils.save_df_to_csv_a_tabular(key_levels_df, file_path=f'{portfolio_dir}/11-key_levels_df.csv', mode='w')
+        df_utils.save_df_to_csv_a_tabular(hover_df, file_path=f'{charts_dir}/12-hover_df.csv', mode='w')
         save_list_to_csv(close_pairs, file=f'{charts_dir}/13-close_levels_df.csv', mode='w')
 
     logger.info("Done!")

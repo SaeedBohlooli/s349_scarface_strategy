@@ -245,12 +245,12 @@ live:
 
 back_test:
 #  get_data_from_ib: false
-  get_data_from_ib: True
+  get_data_from_ib: true
 
   historical_days: 5 D
   start_date: 2025-10-01
 
-  back_test_date_start: 2025-11-03
+  back_test_date_start: 2025-11-04
   back_test_date_end: 2025-11-05
 
 chart:

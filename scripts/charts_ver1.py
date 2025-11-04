@@ -673,7 +673,7 @@ def add_hover_to_chart(fig1, hover_df):
 
 
 def cut_df_for_live(df):
-    return df
+    # return df
     if app_config['chart']['source'] == 'live':
 
         df = df_utils.cut_df_strating_hour_x_on_last_day(df, cutoff_time=app_config['chart']['live']['start_time'] )
@@ -819,9 +819,12 @@ def index():
     global df
     global extra_features_df
     global close_levels_df
+    start_time = time.time()
+
     portfolio_id = 'p250'
     app_config = load_app_config(portfolio_id)
     backtest_date = ''
+    mode = app_config['chart']['source']
     if app_config['chart']['source'] == 'live':
         charts_dir = f'../../portfolios/charts/{portfolio_id}'
     else:
@@ -859,14 +862,19 @@ def index():
 
         fig1 = draw_w_plotly_w_subplot_1(symbol, chart_title=f'{symbol}-{time_frame}')
         fig1 = draw_objects(fig1,df, drawing_objects_df, symbol=symbol, time_frame=time_frame )
-        # fig1 = add_start_finish_day(fig1, df)
-        #fig1 = mark_market_time_only_last_one(fig1, df)
+        if mode == 'back_test':
+            fig1 = add_start_finish_day(fig1, df)
+            fig1 = mark_market_time_only_last_one(fig1, df)
         chart_hovered_df = create_chart_hovered_df(hover_df, symbol)
         fig1 = add_hover_to_chart(fig1, chart_hovered_df)
         fig1 = add_close_levels_anoteation(fig1, df, close_levels_df, symbol)
         plot_html = pio.to_html(fig1, full_html=False)
 
         plots.append(plot_html)
+
+    end_time = time.time()
+    run_spend_time = round(end_time - start_time, 2)
+    logger.warning(f'run_spend_time: {run_spend_time} seconds')
 
     logger.info(f"Done! {run_counter}")
     if backtest_date != '':
