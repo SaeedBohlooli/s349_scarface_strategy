@@ -1,29 +1,22 @@
-import threading
-import time
-import requests
-import traceback
-from collections import defaultdict
-from tabulate import tabulate
-from ib_insync import *
-import ib_insync.util as ib_util
-import pprint
-import logging
+import datetime
+import json
 import logging.handlers
+import math
+import os
+import pprint
 import sys
 import time
-import argparse
-import datetime
-import numpy as np
-import json
-import pandas as pd
-from pytz import timezone
-import os
-from pandas.tseries.offsets import BDay
-import logging
-from finta import TA
-import math
-from ruamel.yaml import YAML
 import traceback
+
+import ib_insync.util as ib_util
+import numpy as np
+import pandas as pd
+import requests
+from finta import TA
+from ib_insync import *
+from pandas.tseries.offsets import BDay
+from ruamel.yaml import YAML
+from tabulate import tabulate
 
 yaml = YAML()
 yaml.preserve_quotes = True  # Optional: preserve quotes if any
@@ -38,6 +31,9 @@ from utils import email_util_ver_02
 from utils import atr_tolerance_helper
 from trading_utils import df_utils
 from trading_utils import ib_utils
+from trading_utils import global_state
+
+
 
 portfolio_id = 'p250'
 configs_folder = f'../configs'
@@ -91,7 +87,6 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
-
 
 os.makedirs(portfolio_dir, exist_ok=True)
 os.makedirs(reports_dir, exist_ok=True)
@@ -347,65 +342,11 @@ def find_session_high_and_low(df, start="09:30", end="09:35", wait_until_end_of_
 
 
 
-def drop_dupplicates_in_file(file_path, unique_column=None, keep='last'):
-    # Drop dupplicaes
-    if os.path.exists(file_path):
-        df = pd.read_csv(file_path)
-        if unique_column is None:
-            df = df.drop_duplicates(keep=f'{keep}')
-        else: # has fields ...
-            df = df.drop_duplicates(subset=[f'{unique_column}'], keep=f'{keep}')
-        df.to_csv(file_path, index=False, mode='w')
-    return
 
-def save_df_to_csv_a_tabular(df=None, file_path='', mode='w', drop_dupplicates=True, unique_column='unique_id'):
-    if len(df) > 0:
 
-        if mode == 'w':
-            header = True
 
-        else:
-            # moed is a, check columns
-            if os.path.exists(file_path):
-                existing_cols = pd.read_csv(file_path, nrows=0).columns.tolist()
-                # --- Compare with new df columns
-                if list(df.columns) == existing_cols:
-                    mode = 'a'
-                    header = False
-                else:
-                    mode = 'w'
-                    header = True
-            else:
-                header = True
 
-        df.to_csv(file_path, mode=mode, index=False, header=header)
 
-        if drop_dupplicates:
-            if unique_column != '' and unique_column in df.columns:
-                drop_dupplicates_in_file(file_path, unique_column=unique_column)  # 'event'
-            else:
-                drop_dupplicates_in_file(file_path)  # 'event'
-
-        write_file_in_tabulate(src_file_path=file_path)
-    return
-
-def write_file_in_tabulate(src_file_path, dest_file_path= None, number_of_rows=0):
-
-    df = pd.read_csv(src_file_path)
-    if len(df) > 0:
-        if dest_file_path is None:
-            dest_file_path = f"{src_file_path}-txt.csv"
-        # Convert only object and bool columns to string (vectorized)
-        # FIXME not happy to do that as may affect performance ...
-        # for col in df.select_dtypes(include=['object', 'bool']):
-        #     df[col] = df[col].astype(str)
-        with open(dest_file_path, 'w') as f:
-            if number_of_rows == 0:
-                # write all
-                f.write(tabulate(df.astype(str), headers='keys', tablefmt='psql'))
-            else:
-                f.write(tabulate(df[-number_of_rows:].astype(str), headers='keys', tablefmt='psql')) #, numalign=None, stralign='left'
-    return
 
 # 0.001
 
@@ -1132,7 +1073,7 @@ def get_current_price_from_ib(symbol, max_retries=3, retry_delay=0.5):
         if price is not None and not (pd.isna(price) or math.isnan(price)):
             return price
         else:
-            logger.warning(f"@@@ get_current_price_from_ib,{symbol}, price is nan, try again ...")
+            logger.warning(f"@@@ get_current_price_from_ib,{symbol}, price is nan, try again ... attempt: {attempt}")
             time.sleep(retry_delay)
     return price
 
@@ -1395,7 +1336,7 @@ def send_order(contract, total_quantity=1):
     order.orderRef = order_ref
     trade = ib.placeOrder(contract, order)
     # TODO convert to ib df
-    trade.fillEvent += on_fill
+    trade.fillEvent += ib_utils.on_fill
     ib.sleep(1)
     logger.warning(f"Order sent ....")
     logger.warning(f"@@ trade: {trade}")
@@ -1782,7 +1723,7 @@ def close_option_positions(positions, symbol='', close_qty=0, alias_for_ref=''):
             # --- Step 4: Place the order ---
             contract.exchange = 'SMART'  # or 'CBOE' if your account requires it
             trade = ib.placeOrder(contract, order)
-            trade.fillEvent += on_fill
+            trade.fillEvent += ib_utils.on_fill
             ib.sleep(0.5)  # small delay to avoid pacing violations
 
             logger.info(f"close_option_positions(), trade: {trade}")
@@ -2171,7 +2112,7 @@ def cancel_open_orders(symbol = ''):
                 continue
             else:
                 trade = ib.cancelOrder(order.order)
-                trade.fillEvent += on_fill
+                trade.fillEvent += ib_utils.on_fill
 
                 logger.warning(f"open order canceled, trade: {trade}")
                 while not trade.isDone():
@@ -2208,34 +2149,6 @@ def write_health_status(log_path=f"{health_status_dir}/health_status.log"):
     return
 
 
-def get_executed_orders_from_ib_and_save_ver2():
-    # IB has only for 24 hrours ... so we need to save it ofter ...
-    executed_orders_from_ib_ver_2_file_path = f'{portfolio_dir}/90-executed_orders_from_ib_ver_2.csv'
-    file = executed_orders_from_ib_ver_2_file_path
-    df = pd.DataFrame()
-
-    now = datetime.datetime.now()
-    yesterday = now - datetime.timedelta(days=3)
-
-    exec_filter = ExecutionFilter(
-        time=yesterday.strftime('%Y%m%d %H:%M:%S')  # format: YYYYMMDD HH:MM:SS
-    )
-    execs = ib.reqExecutions(exec_filter)
-    i = 0
-
-    for trade in execs:
-        i = i + 1
-        if i < 2:
-            logger.info(f"get_executed_orders_from_ib_and_save(), trade: {trade}")
-
-        flatten_dic = flatten(trade)
-        logger.debug(f"in get_executed_orders_from_ib_and_save_ver2, :flatten :{flatten_dic}")
-        df = pd.concat([df, pd.DataFrame([flatten_dic])], ignore_index=True)
-
-    df.to_csv(file, index=False, header=not os.path.exists(file), mode='a')
-    drop_dupplicates_in_file(file)
-    write_file_in_tabulate(file)
-    return df
 
 
 def is_executed_take_profits(symbol, take_profit_list=[]): # used in config
@@ -2288,34 +2201,19 @@ def save_all_csv_files():
     logger.info(f"save_all_csv_files, start ...")
     save_list_to_csv(close_pairs, file=f'{charts_dir}/13-close_levels_df.csv', mode='w')
     drawing_objects_df_file_path = f"{charts_dir}/10-drawing_objects_df.csv"
-    save_df_to_csv_a_tabular(drawing_objects_df, file_path=drawing_objects_df_file_path, mode='w')
+    df_utils.save_df_to_csv_a_tabular(drawing_objects_df, file_path=drawing_objects_df_file_path, mode='w')
     key_levels_df_file_path = f"{portfolio_dir}/11-key_levels_df.csv"
-    save_df_to_csv_a_tabular(key_levels_df, file_path=key_levels_df_file_path, mode='w')
+    df_utils.save_df_to_csv_a_tabular(key_levels_df, file_path=key_levels_df_file_path, mode='w')
     hover_df_file_path = f"{charts_dir}/12-hover_df.csv"
-    save_df_to_csv_a_tabular(hover_df, file_path=hover_df_file_path, mode='a')
+    df_utils.save_df_to_csv_a_tabular(hover_df, file_path=hover_df_file_path, mode='a')
     order_history_df_file_path = f"{portfolio_dir}/13-order_history_df.csv"
-    save_df_to_csv_a_tabular(order_history_df, file_path=order_history_df_file_path, mode='a', drop_dupplicates=True)
+    df_utils.save_df_to_csv_a_tabular(order_history_df, file_path=order_history_df_file_path, mode='a', drop_dupplicates=True)
     stop_loss_history_df_file_path = f"{portfolio_dir}/14-stop_loss_history_df.csv"
-    save_df_to_csv_a_tabular(stop_loss_history_df, file_path=stop_loss_history_df_file_path, mode='a', drop_dupplicates=True)
+    df_utils.save_df_to_csv_a_tabular(stop_loss_history_df, file_path=stop_loss_history_df_file_path, mode='a', drop_dupplicates=True)
     take_profit_history_df_file_path = f"{portfolio_dir}/15-take_profit_history_df.csv"
-    save_df_to_csv_a_tabular(take_profit_history_df, file_path=take_profit_history_df_file_path, mode='a', drop_dupplicates=True)
-    ib_commission_df_file_path = f"{portfolio_dir}/89-ib_commission_df.csv"
-    save_df_to_csv_a_tabular(ib_commission_df, file_path=ib_commission_df_file_path, mode='a')
-    ib_commission_trade_df_file_path = f"{portfolio_dir}/89-ib_commission_trade_df.csv"
-    save_df_to_csv_a_tabular(ib_commission_trade_df, file_path=ib_commission_trade_df_file_path, mode='a')
-    ib_commission_fill_df_file_path = f"{portfolio_dir}/89-ib_commission_fill_df.csv"
-    save_df_to_csv_a_tabular(ib_commission_fill_df, file_path=ib_commission_fill_df_file_path, mode='a')
-    get_executed_orders_from_ib_and_save_ver2()  # 90
-    ib_portfolio_df_file_path = f"{portfolio_dir}/91-ib_portfolio_df.csv"
-    save_df_to_csv_a_tabular(ib_portfolio_df, file_path=ib_portfolio_df_file_path, mode='a')
-    flatten_on_fill_fill_df_file_path = f"{portfolio_dir}/92-flatten_on_fill_fill_df.csv"
-    save_df_to_csv_a_tabular(flatten_on_fill_fill_df, file_path=flatten_on_fill_fill_df_file_path, mode='a')
-    flatten_on_fill_trade_df_file_path = f"{portfolio_dir}/93-flatten_on_fill_trade_df.csv"
-    save_df_to_csv_a_tabular(flatten_on_fill_trade_df, file_path=flatten_on_fill_trade_df_file_path, mode='a')
-    on_fill_fill_df_file_path = f"{portfolio_dir}/94-on_fill_fill_df.csv"
-    save_df_to_csv_a_tabular(on_fill_fill_df, file_path=on_fill_fill_df_file_path, mode='a')
-    on_fill_trade_df_file_path = f"{portfolio_dir}/95-on_fill_trade_df.csv"
-    save_df_to_csv_a_tabular(on_fill_trade_df, file_path=on_fill_trade_df_file_path, mode='a')
+    df_utils.save_df_to_csv_a_tabular(take_profit_history_df, file_path=take_profit_history_df_file_path, mode='a', drop_dupplicates=True)
+
+    ib_utils.save_ib_dfs(portfolio_dir,ib)
     logger.info(f"save_all_csv_files, finished ...")
 
 if __name__ == "__main__":
