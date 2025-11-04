@@ -2231,10 +2231,10 @@ def get_executed_orders_from_ib_and_save_ver2():
         flatten_dic = flatten(trade)
         logger.debug(f"in get_executed_orders_from_ib_and_save_ver2, :flatten :{flatten_dic}")
         df = pd.concat([df, pd.DataFrame([flatten_dic])], ignore_index=True)
-
-    df.to_csv(file, index=False, header=not os.path.exists(file), mode='a')
-    drop_dupplicates_in_file(file)
-    write_file_in_tabulate(file)
+    if len(df) > 0 :
+        df.to_csv(file, index=False, header=not os.path.exists(file), mode='a')
+        drop_dupplicates_in_file(file)
+        write_file_in_tabulate(file)
     return df
 
 
