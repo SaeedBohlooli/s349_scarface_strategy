@@ -223,8 +223,8 @@ if __name__ == "__main__":
     # TODO debug ,,,
     merged_df = df_utils.capture_df_starting_hour_x_on_last_day(merged_df, 'execution_time', '00:00')
 
-    trads_w_prices_df = extract_trades_with_prices(merged_df)
-    print(f"trads_w_prices_df \n{trads_w_prices_df[0:].to_markdown()}")
+    trades_w_prices_df = extract_trades_with_prices(merged_df)
+    print(f"trades_w_prices_df \n{trades_w_prices_df[0:].to_markdown()}")
 
     summarize_trades_df = summarize_trades(merged_df)
     print(f"summarize_trades_df:\n{df_utils.capture_df_starting_hour_x_on_last_day(summarize_trades_df, 'open_time', '00:00').to_markdown()}")

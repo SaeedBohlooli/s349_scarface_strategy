@@ -305,7 +305,7 @@ def is_between(now=None, start_str="9:25", end_str="11:00"):
 
 def sleep_enough():
     run_spend_time = round(end_time - start_time, 2)
-    if is_between(start_str="9:25", end_str="11:00"):
+    if is_trade_time:
         logger.warning(f'{run_number}) run_spend_time: {run_spend_time} seconds, no sleep ...')
     else:
         run_should_take = app_config['run_should_take_seconds']
@@ -2482,6 +2482,10 @@ if __name__ == "__main__":
 
             dump_application_state_to_file()
             print_application_state(application_state, msg='application_state:')
+
+            if not is_trade_time:
+                logger.info(f"key_levels_df\n{key_levels_df[key_levels_df['symbol']== symbol].to_markdown()}")
+
 
             symbol_end_time = time.time()
             symbol_run_spend_time = round(symbol_end_time - symbol_start_time, 2)
