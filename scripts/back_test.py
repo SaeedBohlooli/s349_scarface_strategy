@@ -28,13 +28,15 @@ for dir_1 in os.listdir(os.path.join('../')):
     if (dir_1.startswith("a") or dir_1.startswith("u") ):
         sys.path.insert(0, f'../{dir_1}')
 from utils import miscutils
-from utils import email_util_ver_02
+
 from utils import atr_tolerance_helper
 from trading_utils import df_utils
 from trading_utils import ib_utils
 from trading_utils import global_state
 from trading_utils import config_utils
 from trading_utils import ruamel_confg_util
+from trading_utils import email_utils
+from trading_utils import check_health_status
 
 
 portfolio_id = 'p250'
@@ -46,7 +48,6 @@ mode = 'back_test'
 portfolio_dir = f'../../portfolios/results/{portfolio_id}'
 reports_dir = f'../../portfolios/reports/{portfolio_id}'
 log_dir = f'../../portfolios/logs/{portfolio_id}-{mode}/{datetime.datetime.now().strftime("%Y-%m-%d")}'
-health_status_dir = f'../../portfolios/logs/{portfolio_id}-{mode}'
 detailed_log_dir = f'../../portfolios/detailed-logs/{portfolio_id}-{mode}'
 intermediate_dir = f'../../portfolios/intermediate/{portfolio_id}'
 
@@ -63,27 +64,13 @@ os.makedirs(intermediate_dir, exist_ok=True)
 os.makedirs(charts_dir, exist_ok=True)
 os.makedirs(backtest_ohlc_dir, exist_ok=True)
 
-def load_app_config(portfolio_id):
-    global app_config
-    print(f"loading app_config ....")
-    app_config = config_utils.load_config(f'{configs_folder}/config-{portfolio_id}.yaml')
-    print(f"loaded.")
-    return app_config
-
-def reload_app_config():
-    global app_config
-    logger.info('loading config file ....')
-    config = ruamel_confg_util.load_config(f'{configs_folder}/config-{portfolio_id}.yaml')#['default']
-    logger.info('loading config file is done ....')
-    app_config = config
-    return app_config
 
 def update_config_and_save(config, key, value):
     global app_config
     existing_value = app_config[key]
     if value != existing_value:
         logger.info(f"in update_config_and_save, key: {key}, existing value: {existing_value}, new value: {value} ")
-        app_config = reload_app_config()
+        app_config = ruamel_confg_util(portfolio_id)
         app_config[key] = value
         file = f'{configs_folder}/config-{portfolio_id}.yaml'
         with open(file, 'w') as f:  #TODO fix it
@@ -98,7 +85,7 @@ def load_ib_config():
     return app_config
 
 
-app_config = load_app_config(portfolio_id)
+app_config = config_utils.load_app_config(portfolio_id)
 logging_level = app_config['logging_level']
 # ###
 # Logging setup ..
@@ -1885,6 +1872,8 @@ def check_for_stop_loss_and_take_profit():
         side = application_state['open_trades_dic'][symbol]['side'] # used in config
         level_used_to_open = application_state['open_trades_dic'][symbol]['level_used_to_open'] # used in config
         tolerance_amount = dynamic_tolerance.get('tolerance', 0)  # used in config
+        start_quantity = application_state.get('open_trades_dic', {}).get(symbol, {}).get('starting_quantity', 0)
+        available_quantity = application_state.get('open_trades_dic', {}).get(symbol, {}).get('available_quantity', 0)
 
         underlying_current_price = get_current_price_from_ib(symbol) # used in config
         if len(symbol_df) == 0:
@@ -1923,7 +1912,7 @@ def check_for_stop_loss_and_take_profit():
                 'current_bid': current_bid,
                 'current_ask': current_ask,
                 'underlying_current_price': underlying_current_price,
-                'candle_date': df['date'].iloc[-1],
+                'candle_date': str(df['date'].iloc[-1]),
                 'available_quantity_b4': available_quantity,
                 'sl_u_run_number': unique_run_number,
                 'stop_loss_condition': stop_loss_condition,
@@ -1931,14 +1920,16 @@ def check_for_stop_loss_and_take_profit():
                 'sl_order_ref': '',
                 'open_order_ref': ''
                 }
+            application_state['open_trades_dic'][symbol].setdefault('stop_loss', {})['s1'] = data # save it in the
+            archive_open_trade_dic(symbol, open_trade_info)
+            application_state.setdefault('open_trades_dic', {})[symbol] = {}  # This need to be happened after we get required inf from dic...
+
             add_to_stop_loss_history_df(data)
             add_to_signlas(symbol, 'STOP_LOSS_SENT', underlying_current_price, df['date'].iloc[-1], f"STOP_LOSS  <BR> {json.dumps(data).replace(',','<br>')}")
             send_email(event='stop_loss_sent', symbol=symbol, body=json.dumps(data).replace(',','<br>'))
 
-            application_state['open_trades_dic'][symbol].setdefault('stop_loss', {})['s1'] = data # save it in the
-            archive_open_trade_dic(symbol, open_trade_info)
-            data = {}
-            application_state.setdefault('open_trades_dic', {})[symbol] = data  # This need to be happened after we get required inf from dic...
+
+
 
         # ###
         # Take profit
@@ -1960,8 +1951,6 @@ def check_for_stop_loss_and_take_profit():
 
             take_profit_condition_evaluated = eval(take_profit_condition)
 
-            start_quantity = application_state.get('open_trades_dic', {}).get(symbol, {}).get('starting_quantity', 0)
-            available_quantity = application_state.get('open_trades_dic', {}).get(symbol, {}).get('available_quantity', 0)
 
             if close_quantity_percentage == -1: # close all
                 close_quantity = available_quantity
@@ -1993,7 +1982,7 @@ def check_for_stop_loss_and_take_profit():
                     'current_bid': current_bid,
                     'current_ask': current_ask,
                     'underlying_current_price': underlying_current_price,
-                    'candle_date': df['date'].iloc[-1],
+                    'candle_date': str(df['date'].iloc[-1]),
                     'available_quantity_b4': available_quantity,
                     'tp_u_run_number': unique_run_number,
                     'take_profit_case': take_profit,
@@ -2035,7 +2024,8 @@ def send_email(event='order_sent', symbol='', subject='', body=''):
             body = (f"Take Profit Sent ... <br> {body}"
                     f"<br>Later more detail will come ...<br>")
 
-        email_util_ver_02.send_email(recipients, subject=subject, body=body)
+        logger.info(f"send_email, recipientse {recipients}, subject: {subject}")
+        email_utils.send_email(recipients, subject=subject, body=body)
 
     return
 
@@ -2207,16 +2197,6 @@ def check_application_state_vs_positions():
     return
 
 
-def write_health_status(log_path=f"{health_status_dir}/health_status.log"):
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    message = f"{now} - APPLICATION IS HEALTHY\n"
-
-    with open(log_path, "w", encoding="utf-8") as f:
-        f.write(message)
-
-    print(f"✅ Health status written: {message.strip()}")
-
-    return
 
 
 
@@ -2297,7 +2277,7 @@ def save_all_csv_files():
 if __name__ == "__main__":
 
     ib_portfolio_df = pd.DataFrame()
-    app_config = load_app_config(portfolio_id)
+    app_config = config_utils.load_app_config(portfolio_id)
 
     ib_config = load_ib_config()
     ib = None

@@ -64,27 +64,13 @@ os.makedirs(intermediate_dir, exist_ok=True)
 os.makedirs(charts_dir, exist_ok=True)
 os.makedirs(backtest_ohlc_dir, exist_ok=True)
 
-def load_app_config(portfolio_id):
-    global app_config
-    print(f"loading app_config ....")
-    app_config = config_utils.load_config(f'{configs_folder}/config-{portfolio_id}.yaml')
-    print(f"loaded.")
-    return app_config
-
-def reload_app_config():
-    global app_config
-    logger.info('loading config file ....')
-    config = ruamel_confg_util.load_config(f'{configs_folder}/config-{portfolio_id}.yaml')#['default']
-    logger.info('loading config file is done ....')
-    app_config = config
-    return app_config
 
 def update_config_and_save(config, key, value):
     global app_config
     existing_value = app_config[key]
     if value != existing_value:
         logger.info(f"in update_config_and_save, key: {key}, existing value: {existing_value}, new value: {value} ")
-        app_config = reload_app_config()
+        app_config = ruamel_confg_util(portfolio_id)
         app_config[key] = value
         file = f'{configs_folder}/config-{portfolio_id}.yaml'
         with open(file, 'w') as f:  #TODO fix it
@@ -99,7 +85,7 @@ def load_ib_config():
     return app_config
 
 
-app_config = load_app_config(portfolio_id)
+app_config = config_utils.load_app_config(portfolio_id)
 logging_level = app_config['logging_level']
 # ###
 # Logging setup ..
@@ -2293,7 +2279,7 @@ if __name__ == "__main__":
     x_portfolio_df = pd.DataFrame(columns=['symbol', 'right', 'strike', 'expiry', 'position', 'marketPrice', 'averageCost', 'marketValue', 'unrealizedPNL', 'realizedPNL', 'account', 'timestamp' ])
 
 
-    app_config = load_app_config(portfolio_id)
+    app_config = config_utils.load_app_config(portfolio_id)
     ib_config = load_ib_config()
     ib = create_ib_connection()
 
@@ -2349,7 +2335,7 @@ if __name__ == "__main__":
         logger.info(f"==================== run_number: {run_number},  date_run_number: {date_run_number}")
 
         if run_number % 1 == 0:
-            app_config = load_app_config(portfolio_id)
+            app_config = config_utils.load_app_config(portfolio_id)
 
         if app_config['exit']:
             update_config_and_save(app_config, 'exit', False)

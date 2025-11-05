@@ -178,14 +178,14 @@ live:
 #  is_trade_time: 930 < current_hh_mm_ny  < 1130
 
 back_test:
-  get_data_from_ib: false
+  get_data_from_ib: True
 #  get_data_from_ib: true
 
   historical_days: 5 D
   start_date: 2025-10-01
 
-  back_test_date_start: 2025-11-04
-  back_test_date_end: 2025-11-05
+  back_test_date_start: 2025-11-05
+  back_test_date_end: 2025-11-06
 
 chart:
   source: live
@@ -210,7 +210,7 @@ email:
 
 health_check:
   send_email: true
-  email_hours: 920 < current_hh_mm_ny < 1100 or 1 == 1
+  email_hours: 920 < current_hh_mm_ny < 1130
   email_recipients: saeed.bx1@yahoo.com
   email_interval_minutes: 10
 
