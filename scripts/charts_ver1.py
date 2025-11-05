@@ -17,6 +17,7 @@ import datetime
 from utils import Constants
 from utils import miscutils
 from trading_utils import df_utils
+from trading_utils import config_utils
 
 # logger = logging.getLogger(__name__)
 logger = miscutils.setup_logger(__name__, logging.INFO)
@@ -43,7 +44,7 @@ run_counter = 0
 def load_app_config(portfolio_id):
     global app_config
     logger.warning(f"loading app_config ....")
-    app_config = miscutils.load_config(f'{configs_folder}/config-{portfolio_id}.yaml')
+    app_config = config_utils.load_config(f'{configs_folder}/config-{portfolio_id}.yaml')
     logger.info(f"loaded.")
     return app_config
 
@@ -543,14 +544,16 @@ def add_start_finish_day(fig, df):
 def load_extra_features_df(portfolio_id='p700', symbol='TSLA', time_frame='1min'):
     file = f'{charts_dir}/{symbol}-{time_frame}-extra_features_df.csv'
     logger.info(f"load_extra_features_df_from_file, reading file: {file}")
+    if os.path.exists(file):
+        df = pd.read_csv(file)
+        df  = df [-1200:]
+        df['date'] = pd.to_datetime(df['date'])
 
-    df = pd.read_csv(file)
-    df  = df [-1200:]
-    df['date'] = pd.to_datetime(df['date'])
 
-
-    logger.info(f"in load_extra_features_df_from_file, df: \n{df[-5:].to_markdown()}")
-    return df
+        logger.info(f"in load_extra_features_df_from_file, df: \n{df[-5:].to_markdown()}")
+        return df
+    else:
+        return pd.DataFrame()
 
 def load_df_from_ohlc_file(portfolio_id='p700', symbol='TSLA', time_frame='1min'):
     file = f'{charts_dir}/{symbol}-{time_frame}.csv'

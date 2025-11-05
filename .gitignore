@@ -28,3 +28,4 @@
 /.venv
 /portfolios/
 test/
+**/*.local.yaml

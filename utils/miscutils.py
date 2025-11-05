@@ -5,6 +5,7 @@ import pandas as pd
 import configparser
 from datetime import datetime
 import yaml
+import sys
 
 def setup_logger(name, level=logging.INFO, fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s'):
     logger = logging.getLogger(name)
@@ -22,10 +23,7 @@ def setup_logger(name, level=logging.INFO, fmt='%(asctime)s - %(name)s - %(level
 
 logger = setup_logger(__name__, level=logging.WARNING)
 
-def load_config(path = 'config.yaml') -> dict:
-    with open(path, 'r') as file:
-        config = yaml.safe_load(file)
-    return config
+
 
 def convert_column_timezone(df, from_column='date', to_column='date_est', from_zone='UTC', to_zone='America/New_York'):
     from_column_tmp = from_column + '_tmp'

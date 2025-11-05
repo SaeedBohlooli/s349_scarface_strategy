@@ -15,8 +15,9 @@ import requests
 from finta import TA
 from ib_insync import *
 from pandas.tseries.offsets import BDay
-from ruamel.yaml import YAML
 from tabulate import tabulate
+from ruamel.yaml import YAML
+
 
 yaml = YAML()
 yaml.preserve_quotes = True  # Optional: preserve quotes if any
@@ -32,7 +33,8 @@ from utils import atr_tolerance_helper
 from trading_utils import df_utils
 from trading_utils import ib_utils
 from trading_utils import global_state
-
+from trading_utils import config_utils
+from trading_utils import ruamel_confg_util
 
 
 portfolio_id = 'p250'
@@ -64,9 +66,37 @@ os.makedirs(backtest_ohlc_dir, exist_ok=True)
 def load_app_config(portfolio_id):
     global app_config
     print(f"loading app_config ....")
-    app_config = miscutils.load_config(f'{configs_folder}/config-{portfolio_id}.yaml')
+    app_config = config_utils.load_config(f'{configs_folder}/config-{portfolio_id}.yaml')
     print(f"loaded.")
     return app_config
+
+def reload_app_config():
+    global app_config
+    logger.info('loading config file ....')
+    config = ruamel_confg_util.load_config(f'{configs_folder}/config-{portfolio_id}.yaml')#['default']
+    logger.info('loading config file is done ....')
+    app_config = config
+    return app_config
+
+def update_config_and_save(config, key, value):
+    global app_config
+    existing_value = app_config[key]
+    if value != existing_value:
+        logger.info(f"in update_config_and_save, key: {key}, existing value: {existing_value}, new value: {value} ")
+        app_config = reload_app_config()
+        app_config[key] = value
+        file = f'{configs_folder}/config-{portfolio_id}.yaml'
+        with open(file, 'w') as f:  #TODO fix it
+            yaml.dump(app_config, f)
+    return
+
+def load_ib_config():
+    file = 'ib-config.yaml'
+    logger.warning(f"loading ... {file}")
+    app_config = config_utils.load_config(f'{configs_folder}/{file}')
+    logger.info(f"loaded ... file")
+    return app_config
+
 
 app_config = load_app_config(portfolio_id)
 logging_level = app_config['logging_level']
@@ -99,12 +129,7 @@ os.makedirs(backtest_ohlc_dir, exist_ok=True)
 
 application_state_file_path = f'{intermediate_dir}/84-application_state.csv'
 
-def load_ib_config():
-    file = 'ib-config.yaml'
-    logger.warning(f"loading ... {file}")
-    app_config = miscutils.load_config(f'{configs_folder}/{file}')
-    logger.info(f"loaded ... file")
-    return app_config
+
 
 
 def get_previous_bday():
@@ -1740,31 +1765,11 @@ def close_option_positions(positions, symbol='', close_qty=0, alias_for_ref=''):
     return
 
 
-def load_config(path = 'config.yaml') -> dict:
-    with open(path, 'r') as file:
-        config = yaml.load(file)
-    return config
 
-def reload_app_config():
-    global app_config
-    logger.info('loading config file ....')
-    config = load_config(f'{configs_folder}/config-{portfolio_id}.yaml')#['default']
-    logger.info('loading config file is done ....')
-    app_config = config
-    return app_config
 
-def update_config_and_save(config, key, value):
-    global app_config
-    existing_value = app_config[key]
-    if value != existing_value:
-        logger.info(f"in update_config_and_save, key: {key}, existing value: {existing_value}, new value: {value} ")
-        app_config = reload_app_config()
-        app_config[key] = value
-        file = f'{configs_folder}/config-{portfolio_id}.yaml'
-        with open(file, 'w') as f:  #TODO fix it
-            yaml.dump(app_config, f)
 
-    return
+
+
 
 def close_all_open_option_positions():
     update_config_and_save(app_config, 'close_all_open_option_positions', False)
@@ -1808,6 +1813,56 @@ def is_next_level_close_a_price_crossed(side='up', level=-1, current_price=-1, u
             return True
 
     return False
+
+def check_mark_revers_candles(symbol):
+    # TODO remove try later ...
+    try:
+        result = False
+        t1_candle_date = application_state['open_trades_dic'].get(symbol,{}).get('take_profits',{}).get('t1',{}).get('candle_date',None)
+        if t1_candle_date == None:
+           return False
+        side = application_state['open_trades_dic'].get(symbol,{}).get('side', '')
+
+        df = dfs_map.get(symbol, pd.DataFrame())
+        if len(df) == 0:
+            return False
+
+        check_date = df['date'].iloc[-1]
+        prev_close = df["close"].iloc[-2]
+
+        target_date = pd.Timestamp(t1_candle_date)
+
+        df = df[df["date"] >= target_date]
+        df = df[:-2]                           # cut the latest row and the prev one as we comparing against it ...
+
+        if side == 'long':
+
+            df["is_bearish"] = df["close"] < df["open"]
+            lowest_bearish_low = df.loc[df["is_bearish"], "low"].min()
+
+            result = prev_close < lowest_bearish_low
+            if result:
+                logger.info(f"The break happened. lowest_bearish_low: {lowest_bearish_low}, prev_close: {prev_close}")
+                add_to_signlas(symbol, 'LEVEL_REPLACED', df['close'].iloc[-1], check_date, f'Level is break out {check_date}<br> t_date: {target_date} <br>  lowest_bearish_low: {lowest_bearish_low} <br> prev_close: {prev_close}' )
+
+        else:
+
+            df["is_bulish"] = df["close"] > df["open"]
+            highest_bulish_high = df.loc[df["is_bulish"], "high"].max()
+
+            result = prev_close > highest_bulish_high
+            if result:
+                logger.info(f"The break happened. highest_bulish_high: {highest_bulish_high}, prev_close: {prev_close}")
+                add_to_signlas(symbol, 'LEVEL_REPLACED', df['close'].iloc[-1], check_date, f'Level is break out {check_date}<br> t_date: {target_date} <br>  highest_bulish_high: {highest_bulish_high} <br> prev_close: {prev_close}' )
+
+        if result:
+            logger.info(f"The break happened. ")
+
+        return result
+    except Exception as e:
+        print(f"@@@ error: {e}")
+        print(traceback.format_exc())
+    return result
 def check_for_stop_loss_and_take_profit():
     global application_state
 
@@ -1830,6 +1885,8 @@ def check_for_stop_loss_and_take_profit():
         side = application_state['open_trades_dic'][symbol]['side'] # used in config
         level_used_to_open = application_state['open_trades_dic'][symbol]['level_used_to_open'] # used in config
         tolerance_amount = dynamic_tolerance.get('tolerance', 0)  # used in config
+        start_quantity = application_state.get('open_trades_dic', {}).get(symbol, {}).get('starting_quantity', 0)
+        available_quantity = application_state.get('open_trades_dic', {}).get(symbol, {}).get('available_quantity', 0)
 
         underlying_current_price = get_current_price_from_ib(symbol) # used in config
         if len(symbol_df) == 0:
@@ -1868,21 +1925,24 @@ def check_for_stop_loss_and_take_profit():
                 'current_bid': current_bid,
                 'current_ask': current_ask,
                 'underlying_current_price': underlying_current_price,
+                'candle_date': str(df['date'].iloc[-1]),
                 'available_quantity_b4': available_quantity,
-                'stop_loss_condition': stop_loss_condition,
                 'sl_u_run_number': unique_run_number,
+                'stop_loss_condition': stop_loss_condition,
                 'open_u_run_number': '',
                 'sl_order_ref': '',
                 'open_order_ref': ''
                 }
+            application_state['open_trades_dic'][symbol].setdefault('stop_loss', {})['s1'] = data # save it in the
+            archive_open_trade_dic(symbol, open_trade_info)
+            application_state.setdefault('open_trades_dic', {})[symbol] = {}  # This need to be happened after we get required inf from dic...
+
             add_to_stop_loss_history_df(data)
             add_to_signlas(symbol, 'STOP_LOSS_SENT', underlying_current_price, df['date'].iloc[-1], f"STOP_LOSS  <BR> {json.dumps(data).replace(',','<br>')}")
             send_email(event='stop_loss_sent', symbol=symbol, body=json.dumps(data).replace(',','<br>'))
 
-            application_state['open_trades_dic'][symbol].setdefault('stop_loss', {})['s1'] = data # save it in the
-            archive_open_trade_dic(symbol, open_trade_info)
-            data = {}
-            application_state.setdefault('open_trades_dic', {})[symbol] = data  # This need to be happened after we get required inf from dic...
+
+
 
         # ###
         # Take profit
@@ -1892,6 +1952,10 @@ def check_for_stop_loss_and_take_profit():
             if application_state['open_trades_dic'][symbol].get('available_quantity',0) == 0:
                 logger.info(f"{symbol}, {take_profit}, check_for_stop_loss_and_take_profit(), available_quantity is 0 ")
                 continue
+
+            breaking_reverse_candle_af_tp = check_mark_revers_candles(symbol)
+            logger.info(f"breaking_reverse_candle_af_tp: {breaking_reverse_candle_af_tp}")
+
             if application_state['open_trades_dic'][symbol].get('take_profits',{}).get(take_profit,None ) != None:
                 logger.info(f"{symbol}, TP already is executed ... {take_profit}")
                 continue
@@ -1900,8 +1964,6 @@ def check_for_stop_loss_and_take_profit():
 
             take_profit_condition_evaluated = eval(take_profit_condition)
 
-            start_quantity = application_state.get('open_trades_dic', {}).get(symbol, {}).get('starting_quantity', 0)
-            available_quantity = application_state.get('open_trades_dic', {}).get(symbol, {}).get('available_quantity', 0)
 
             if close_quantity_percentage == -1: # close all
                 close_quantity = available_quantity
@@ -1933,11 +1995,12 @@ def check_for_stop_loss_and_take_profit():
                     'current_bid': current_bid,
                     'current_ask': current_ask,
                     'underlying_current_price': underlying_current_price,
+                    'candle_date': str(df['date'].iloc[-1]),
                     'available_quantity_b4': available_quantity,
+                    'tp_u_run_number': unique_run_number,
                     'take_profit_case': take_profit,
                     'take_profit_condition': take_profit_condition,
                     'close_quantity': close_quantity,
-                    'tp_u_run_number': unique_run_number,
                 }
                 add_to_take_profit_history_df(data)
                 add_to_signlas(symbol, 'TAKE_PROFIT_SENT', underlying_current_price, df['date'].iloc[-1], f"TAKE-PROFIT-{take_profit} <BR>{json.dumps(data).replace(',','<br>')}")
@@ -1960,20 +2023,21 @@ def send_email(event='order_sent', symbol='', subject='', body=''):
         recipients = app_config['email']['recipients']
 
         if event.lower() == 'order_sent':
-            subject = f'Order Sent {symbol}'
+            subject = f"Order Sent {symbol} - {app_config['user_name']}"
             body = (f"Order Sent ... <br> {body}"
                     f"<br>Later more detail will come ...<br>")
 
         elif event.lower() == 'stop_loss_sent':
-            subject = f'Stop Loss {symbol}'
+            subject = f"Stop Loss {symbol} - {app_config['user_name']}"
             body = (f"Stop Loss Sent ... <br> {body}"
                     f"<br>Later more detail will come ...<br>")
 
         elif event.lower() == 'take_profit_sent':
-            subject = f'Take Profit {symbol}'
+            subject = f"Take Profit {symbol} - {app_config['user_name']}"
             body = (f"Take Profit Sent ... <br> {body}"
                     f"<br>Later more detail will come ...<br>")
 
+        logger.info(f"send_email, recipientse {recipients}, subject: {subject}")
         email_util_ver_02.send_email(recipients, subject=subject, body=body)
 
     return
@@ -2337,7 +2401,7 @@ if __name__ == "__main__":
             if run_number == 1: # TODO move it uppre
                 historical_days = '' # will come from config ...
             else:
-                historical_days = '3 D'  #TODO for mondays ...
+                historical_days = '1 D'  #TODO for mondays ...
 
             df = get_market_data(symbol, '1 min', historical_days=historical_days)
             df = popualate_features(df)
@@ -2413,8 +2477,8 @@ if __name__ == "__main__":
           time.sleep(60)
 
           if consequence_exception == 3:
-              email_util_ver_02.send_email('saeed.bx1@yahoo.com', f'error in {portfolio_id}',
-                                           body=f"{e}<br\><br\><br\>{traceback.format_exc()}")
+              email_util_ver_02.send_email('saeed.bx1@yahoo.com', f"error in {portfolio_id} - {app_config['user_name']}",
+                                           body=f"Error in {app_config['user_name']} <br>{e}<br\><br\><br\>{traceback.format_exc()}")
 
           if isinstance(e, ConnectionError):
               # set a flag and set connection in loop .. exists if riase exceptin
