@@ -1496,6 +1496,7 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
             side = 'C' if can_buy else 'P'
             logger.info(f"in check_buy_sell_result_to_send_order, {symbol}, can_buy: {can_buy}, can_sell:{can_sell}")
             if application_state.get('open_trades_dic', {}).get(symbol,{}).get('available_quantity', 0) != 0:
+                logger.warning(f"@@@ We already sent order. Don't be gready!!!  symbol: {symbol}")
                 continue
             option_contract = prepare_contract(symbol, right=side)
             if option_contract == None:
@@ -1506,11 +1507,14 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
                 logger.warning(f"@@@@ We are not sending order. bid ==0 or ask ==0")
                 continue
             total_quantity = calculate_number_of_contracts(ask)
-            if total_quantity == 0:  # we dont have enough capital
+            if total_quantity == 0:  # we don't have enough capital
                 logger.warning(f"@@ We dont have enough capital {symbol} ....")
                 continue
             if number_of_trades_today(symbol) >= app_config['live']['max_num_of_trade_per_symbol_per_day']:
-                logger.warning(f"@@  We already send enough orders ..{symbol} ....number_of_trades_today{number_of_trades_today(symbol)}")
+                logger.warning(f"@@  We already send enough orders for {symbol} ....number_of_trades_today{number_of_trades_today(symbol)}")
+                continue
+            if not is_trade_time:
+                logger.warning(f"@@ is_trade_time:{is_trade_time}, {symbol}, {app_config['live']['is_trade_time']}")
                 continue
             send_order(option_contract, total_quantity=total_quantity)
             data = {
@@ -1861,20 +1865,24 @@ def check_for_stop_loss_and_take_profit():
                 'right': application_state['open_trades_dic'][symbol]['right'],
                 'strike':  application_state['open_trades_dic'][symbol]['strike'],
                 'expiry': application_state['open_trades_dic'][symbol]['expiry'],
-                'stop_loss_condition': stop_loss_condition,
                 'current_bid': current_bid,
                 'current_ask': current_ask,
+                'underlying_current_price': underlying_current_price,
+                'available_quantity_b4': available_quantity,
+                'stop_loss_condition': stop_loss_condition,
                 'sl_u_run_number': unique_run_number,
                 'open_u_run_number': '',
                 'sl_order_ref': '',
                 'open_order_ref': ''
                 }
             add_to_stop_loss_history_df(data)
-            add_to_signlas(symbol, 'STOP_LOSS_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f"STOP_LOSS  <BR> {json.dumps(data).replace(',','<br>')}")
+            add_to_signlas(symbol, 'STOP_LOSS_SENT', underlying_current_price, df['date'].iloc[-1], f"STOP_LOSS  <BR> {json.dumps(data).replace(',','<br>')}")
             send_email(event='stop_loss_sent', symbol=symbol, body=json.dumps(data).replace(',','<br>'))
+
+            application_state['open_trades_dic'][symbol].setdefault('stop_loss', {})['s1'] = data # save it in the
             archive_open_trade_dic(symbol, open_trade_info)
             data = {}
-            application_state.setdefault('open_trades_dic', {})[symbol] = data  # This need to be ahppened after we get required inf from dic...
+            application_state.setdefault('open_trades_dic', {})[symbol] = data  # This need to be happened after we get required inf from dic...
 
         # ###
         # Take profit
@@ -1911,7 +1919,7 @@ def check_for_stop_loss_and_take_profit():
 
                 data = {
                     'status': 'SENT',
-                    'available_quantity_b4_tp' : available_quantity,
+                    'available_quantity_b4' : available_quantity,
                     'close_quantity': close_quantity,
                     'u_run_number': unique_run_number
                 }
@@ -1924,14 +1932,15 @@ def check_for_stop_loss_and_take_profit():
                     'expiry': application_state['open_trades_dic'][symbol]['expiry'],
                     'current_bid': current_bid,
                     'current_ask': current_ask,
-                    'available_quantity_b4_tp': available_quantity,
+                    'underlying_current_price': underlying_current_price,
+                    'available_quantity_b4': available_quantity,
                     'take_profit_case': take_profit,
                     'take_profit_condition': take_profit_condition,
                     'close_quantity': close_quantity,
-                    'u_run_number': unique_run_number,
+                    'tp_u_run_number': unique_run_number,
                 }
                 add_to_take_profit_history_df(data)
-                add_to_signlas(symbol, 'TAKE_PROFIT_SENT', df['close'].iloc[-1], df['date'].iloc[-1], f"TAKE-PROFIT-{take_profit} <BR>{json.dumps(data).replace(',','<br>')}")
+                add_to_signlas(symbol, 'TAKE_PROFIT_SENT', underlying_current_price, df['date'].iloc[-1], f"TAKE-PROFIT-{take_profit} <BR>{json.dumps(data).replace(',','<br>')}")
                 send_email(event='take_profit_sent', symbol=symbol, body=json.dumps(data).replace(',','<br>'))
 
             else:
@@ -2197,6 +2206,14 @@ def are_levels_close_to_each_other_for_case_1(side):
 
     return result
 
+def save_extra_features_df():
+    extra_features_df = df.copy()
+    extra_features_df = extra_features_df.merge(relative_strength_df, on='date', how='left')
+    extra_features_df = extra_features_df.merge(intraday_rs_df, on='date', how='left')
+
+    file = f"{charts_dir}/{symbol}-{time_frame.replace(' ', '')}-extra_features_df.csv"
+    extra_features_df.to_csv(file, index=False)
+
 def save_all_csv_files():
     logger.info(f"save_all_csv_files, start ...")
     save_list_to_csv(close_pairs, file=f'{charts_dir}/13-close_levels_df.csv', mode='w')
@@ -2359,15 +2376,9 @@ if __name__ == "__main__":
             hover_df = convert_signals_to_hover_df(signals)
 
             if (is_trade_time and run_number % 5 ==0) or (not is_trade_time and run_number % 1 ==0 ):
+                # These are for each symbol ...
                 save_ohlc_for_chart(df)
-                # Extra features ...
-                # move it to a fun ...
-                extra_features_df = df.copy()
-                extra_features_df = extra_features_df.merge(relative_strength_df, on='date', how='left')
-                extra_features_df = extra_features_df.merge(intraday_rs_df, on='date', how='left')
-
-                file = f"{charts_dir}/{symbol}-{time_frame.replace(' ', '')}-extra_features_df.csv"
-                extra_features_df.to_csv(file, index=False)
+                save_extra_features_df()
 
 
             dump_application_state_to_file()
@@ -2383,7 +2394,7 @@ if __name__ == "__main__":
 
         # end:  for symbol in app_config['symbols']:
 
-        if (is_trade_time and run_number % 20 == 0) or (not is_trade_time and run_number % 1 == 0)  :
+        if (is_trade_time and run_number % 20 == 0) or (not is_trade_time and run_number % 1 == 0):
             save_all_csv_files()
 
 

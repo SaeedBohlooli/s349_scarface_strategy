@@ -183,11 +183,11 @@ stop_losses:
 
 take_profits:
   t1:
-    condition: current_ask > avg_cost_for_1_contract * 1.3 and ( avg_cost_for_1_contract != -1 and current_ask != -1)
+    condition: current_ask > avg_cost_for_1_contract * 1.20 and ( avg_cost_for_1_contract != -1 and current_ask != -1)
     close_quantity_percentage: 0.5
 
   t2:
-    condition: current_ask > avg_cost_for_1_contract * 1.5  and ( avg_cost_for_1_contract != -1 and current_ask != -1)
+    condition: current_ask > avg_cost_for_1_contract * 1.4  and ( avg_cost_for_1_contract != -1 and current_ask != -1)
     close_quantity_percentage: 0.25
 
   t3:
@@ -209,8 +209,8 @@ take_profits:
       (right == 'P' and is_executed_take_profits(symbol, take_profit_list=['t1']) and underlying_current_price > underlying_open_price)
     close_quantity_percentage: -1
 
-  t6_close_all:
-    condition: 1 == 1
+  t6_close_all:  # This is for closing everything just NVDA:   1 == 1 and symbol == 'NVDA'
+    condition: 1 == 2
     close_quantity_percentage: -1
 #
 #  t5_test:
@@ -241,26 +241,26 @@ live:
   max_num_of_trade_per_symbol_per_day: 2
   max_profit_per_day: 2000 # it will not get into new trade, it is not in yet
   max_loss_per_day: 1000 # it will not get into new trade ... it is not in yet
-  is_trade_time: 930 < current_hh_mm_ny  < 1030
+  is_trade_time: 930 < current_hh_mm_ny  < 1015
 
 back_test:
-#  get_data_from_ib: false
-  get_data_from_ib: true
+  get_data_from_ib: false
+#  get_data_from_ib: true
 
   historical_days: 5 D
   start_date: 2025-10-01
 
-  back_test_date_start: 2025-11-04
+  back_test_date_start: 2025-10-20
   back_test_date_end: 2025-11-05
 
 chart:
-#  source: live
-  source: back_test
+  source: live
+#  source: back_test
   cutoff_in_hours: 0
   hours_in_focus: 3
   live:
-    start_time: '08:30'
-    end_time: '11:30'
+    start_time: '08:45'
+    end_time: '10:45'
 
 # before_start:
 close_all_open_option_positions: false

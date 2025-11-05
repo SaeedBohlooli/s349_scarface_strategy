@@ -545,7 +545,7 @@ def load_extra_features_df(portfolio_id='p700', symbol='TSLA', time_frame='1min'
     logger.info(f"load_extra_features_df_from_file, reading file: {file}")
 
     df = pd.read_csv(file)
-    df  = df [-420:]
+    df  = df [-1200:]
     df['date'] = pd.to_datetime(df['date'])
 
 
@@ -558,7 +558,7 @@ def load_df_from_ohlc_file(portfolio_id='p700', symbol='TSLA', time_frame='1min'
     if not os.path.exists(file):
         return pd.DataFrame()
     df = pd.read_csv(file)
-    df = df [-420:]
+    df = df [-1200:]
     df['date'] = pd.to_datetime(df['date'])
 
     # if app_config['chart']['cutoff_in_hours'] !=0 :  # cut off hours ...
@@ -867,7 +867,7 @@ def index():
             fig1 = mark_market_time_only_last_one(fig1, df)
         chart_hovered_df = create_chart_hovered_df(hover_df, symbol)
         fig1 = add_hover_to_chart(fig1, chart_hovered_df)
-        fig1 = add_close_levels_anoteation(fig1, df, close_levels_df, symbol)
+        # fig1 = add_close_levels_anoteation(fig1, df, close_levels_df, symbol)
         plot_html = pio.to_html(fig1, full_html=False)
 
         plots.append(plot_html)
