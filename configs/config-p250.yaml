@@ -254,8 +254,8 @@ back_test:
   back_test_date_end: 2025-11-05
 
 chart:
-  source: live
-#  source: back_test
+#  source: live
+  source: back_test
   cutoff_in_hours: 0
   hours_in_focus: 3
   live:

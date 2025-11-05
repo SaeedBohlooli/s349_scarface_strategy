@@ -1456,16 +1456,16 @@ def prepare_contract(symbol, right='C', max_retries=3, wait_between=1.0):
 
 
 def number_of_trades_today(symbol):
-    number_of_trades_today = application_state.get('number_of_trades', {}).get(date_yyyymmdd,{}).get(symbol,0)
+    number_of_trades_today = application_state.get('number_of_trades', {}).get(date_yyyy_mm_dd, {}).get(symbol, 0)
     return number_of_trades_today
 
 def add_to_number_of_trades_today(symbol):
     global application_state
     current_number = number_of_trades_today(symbol)
     if current_number == 0:
-        application_state.setdefault('number_of_trades', {}).setdefault(date_yyyymmdd, {})[symbol] = 1
+        application_state.setdefault('number_of_trades', {}).setdefault(date_yyyy_mm_dd, {})[symbol] = 1
     else:
-        application_state.setdefault('number_of_trades', {})[date_yyyymmdd][symbol] += 1
+        application_state.setdefault('number_of_trades', {})[date_yyyy_mm_dd][symbol] += 1
     return
 
 def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
@@ -2268,13 +2268,16 @@ if __name__ == "__main__":
         run_number += 1
         now = datetime.datetime.now()
         date_yyyy_mm_dd_hh_mm = now.strftime("%Y-%m-%d__%H-%M")
-        date_yyyymmdd = now.strftime("%Y-%m-%d")
+        date_yyyy_mm_dd = now.strftime("%Y-%m-%d")
         date_run_number = f"{now.strftime('%Y%m%d-%H%M%S')}--{run_number}"
 
         current_hh_mm_ny = int(now.strftime("%H%M")) # checks trade time ...
         is_trade_time = eval(app_config['live']['is_trade_time'])
 
         logger.info(f"==================== run_number: {run_number},  date_run_number: {date_run_number}")
+
+        if run_number % 1 == 0:
+            app_config = load_app_config(portfolio_id)
 
         if app_config['exit']:
             update_config_and_save(app_config, 'exit', False)
@@ -2284,8 +2287,6 @@ if __name__ == "__main__":
         if run_number == 1:
             find_expiration_and_strikes_for_all()   # TODO expiration and strikes need to be updated
 
-        if run_number % 1 == 0:
-            app_config = load_app_config(portfolio_id)
 
         qqq_df = pd.DataFrame()  # need to reset once we iterate throught all symbols ...
 
