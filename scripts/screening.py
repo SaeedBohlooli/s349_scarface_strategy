@@ -28,13 +28,15 @@ for dir_1 in os.listdir(os.path.join('../')):
     if (dir_1.startswith("a") or dir_1.startswith("u") ):
         sys.path.insert(0, f'../{dir_1}')
 from utils import miscutils
-from utils import email_util_ver_02
+
 from utils import atr_tolerance_helper
 from trading_utils import df_utils
 from trading_utils import ib_utils
 from trading_utils import global_state
 from trading_utils import config_utils
 from trading_utils import ruamel_confg_util
+from trading_utils import email_utils
+from trading_utils import check_health_status
 
 
 portfolio_id = 'p250'
@@ -46,7 +48,6 @@ mode = 'live'
 portfolio_dir = f'../../portfolios/results/{portfolio_id}'
 reports_dir = f'../../portfolios/reports/{portfolio_id}'
 log_dir = f'../../portfolios/logs/{portfolio_id}-{mode}/{datetime.datetime.now().strftime("%Y-%m-%d")}'
-health_status_dir = f'../../portfolios/logs/{portfolio_id}-{mode}'
 detailed_log_dir = f'../../portfolios/detailed-logs/{portfolio_id}-{mode}'
 intermediate_dir = f'../../portfolios/intermediate/{portfolio_id}'
 
@@ -2038,7 +2039,7 @@ def send_email(event='order_sent', symbol='', subject='', body=''):
                     f"<br>Later more detail will come ...<br>")
 
         logger.info(f"send_email, recipientse {recipients}, subject: {subject}")
-        email_util_ver_02.send_email(recipients, subject=subject, body=body)
+        email_utils.send_email(recipients, subject=subject, body=body)
 
     return
 
@@ -2210,16 +2211,6 @@ def check_application_state_vs_positions():
     return
 
 
-def write_health_status(log_path=f"{health_status_dir}/health_status.log"):
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    message = f"{now} - APPLICATION IS HEALTHY\n"
-
-    with open(log_path, "w", encoding="utf-8") as f:
-        f.write(message)
-
-    print(f"✅ Health status written: {message.strip()}")
-
-    return
 
 
 
@@ -2348,11 +2339,11 @@ if __name__ == "__main__":
         start_time = time.time()
         run_number += 1
         now = datetime.datetime.now()
+        current_hh_mm_ny = int(now.strftime("%H%M")) # checks trade time ...
         date_yyyy_mm_dd_hh_mm = now.strftime("%Y-%m-%d__%H-%M")
         date_yyyy_mm_dd = now.strftime("%Y-%m-%d")
         date_run_number = f"{now.strftime('%Y%m%d-%H%M%S')}--{run_number}"
 
-        current_hh_mm_ny = int(now.strftime("%H%M")) # checks trade time ...
         is_trade_time = eval(app_config['live']['is_trade_time'])
 
         logger.info(f"==================== run_number: {run_number},  date_run_number: {date_run_number}")
@@ -2468,7 +2459,7 @@ if __name__ == "__main__":
         sleep_enough()
 
         consequence_exception = 0
-        write_health_status()
+        check_health_status.write_health_status(portfolio_id)
 
       except Exception as e:
           consequence_exception = consequence_exception + 1
@@ -2477,7 +2468,7 @@ if __name__ == "__main__":
           time.sleep(60)
 
           if consequence_exception == 3:
-              email_util_ver_02.send_email('saeed.bx1@yahoo.com', f"error in {portfolio_id} - {app_config['user_name']}",
+              email_utils.send_email('saeed.bx1@yahoo.com', f"error in {portfolio_id} - {app_config['user_name']}",
                                            body=f"Error in {app_config['user_name']} <br>{e}<br\><br\><br\>{traceback.format_exc()}")
 
           if isinstance(e, ConnectionError):

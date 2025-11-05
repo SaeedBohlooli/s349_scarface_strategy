@@ -207,11 +207,12 @@ user_name: Saeed
 email:
   send_email: true
   recipients: vikaskaler.bnr@gmail.com , saeed.bx1@yahoo.com
-#  recipients: saeed.bx1@yahoo.com
-#  recipients: vikaskaler.bnr@gmail.com
 
 health_check:
-  email: saeed.bx1@yahoo.com
-  running_hours: 920 < current_hh_mm_ny < 1100
+  send_email: true
+  email_hours: 920 < current_hh_mm_ny < 1100 or 1 == 1
+  email_recipients: saeed.bx1@yahoo.com
+  email_interval_minutes: 10
+  email_subject:
 
 exit: false
