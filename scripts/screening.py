@@ -70,7 +70,7 @@ def update_config_and_save(config, key, value):
     existing_value = app_config[key]
     if value != existing_value:
         logger.info(f"in update_config_and_save, key: {key}, existing value: {existing_value}, new value: {value} ")
-        app_config = ruamel_confg_util.load_config(portfolio_id)
+        app_config = ruamel_confg_util.load_app_config(portfolio_id)
         app_config[key] = value
         file = f'{configs_folder}/config-{portfolio_id}.yaml'
         with open(file, 'w') as f:  #TODO fix it
