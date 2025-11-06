@@ -1802,6 +1802,7 @@ def is_next_level_close_a_price_crossed(side='up', level=-1, current_price=-1, u
     return False
 
 def check_mark_revers_candles(symbol):
+    global application_state
     # TODO remove try later ...
     try:
         result = False
@@ -2368,7 +2369,7 @@ if __name__ == "__main__":
                 if df['date'].iloc[-1].strftime('%Y-%m-%d %H:%M') == '2025-10-01 10:04':
                     logger.info('Stop for debug')
 
-                check_mark_revers_candles(symbol, df)
+                # check_mark_revers_candles(symbol)
 
                 qqq_df = orig_qqq_df.copy()
                 # cit it exactly like df
