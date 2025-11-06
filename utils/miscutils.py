@@ -7,6 +7,8 @@ from datetime import datetime
 import yaml
 import sys
 
+logger = logging.getLogger(__name__)
+
 def setup_logger(name, level=logging.INFO, fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s'):
     logger = logging.getLogger(name)
     # logger.setLevel(level)
@@ -21,7 +23,6 @@ def setup_logger(name, level=logging.INFO, fmt='%(asctime)s - %(name)s - %(level
     logger.propagate = False
     return logger
 
-logger = setup_logger(__name__, level=logging.WARNING)
 
 
 

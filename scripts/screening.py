@@ -217,7 +217,7 @@ def create_equity_contract(symbol):
     return contract
 
 def save_ohlc_for_chart(df):
-    logger.info(f"in generate_for_chart, symbol: {symbol}, len(df): {len(df)}")
+    logger.info(f"in save_ohlc_for_chart, symbol: {symbol}, len(df): {len(df)}")
     df = df[['date','open', 'high', 'low', 'close', 'volume', 'atr_14']]
     file = f"{charts_dir}/{symbol}-{time_frame.replace(' ', '')}.csv"
     df.to_csv(file, index=False, mode='w')
@@ -724,7 +724,7 @@ def check_buy_sell_condition(case):
         if eval(app_config['cases'][case]['short']['master_condition']):
             can_sell = True
 
-        logger.info(f"check_buy_sell_condition(), {case}, can_buy: {can_buy}, can_sell: {can_sell}")
+        logger.info(f"check_buy_sell_condition(), {symbol}, {case}, can_buy: {can_buy}, can_sell: {can_sell}")
 
         long_breakup_idxs = break_out_indices_by_level_set.get(long_level, set())
         long_retest_idxs = retest_indices_by_level_set.get(long_level, set())
@@ -744,7 +744,7 @@ def check_buy_sell_condition(case):
         res_str = res_str.replace('False', 'F')
 
         res_str_log = res_str.replace('<br>', '\n')
-        logger.info(f"\n{case}, res_str: {res_str_log}")
+        logger.info(f"\nres_str: {res_str_log}")
     except Exception as e:
         logger.error(f"in check_buy_sell_condition: {symbol} {case} error {e}")
         logger.error(traceback.format_exc())
@@ -1494,7 +1494,7 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
         short_level = buy_sell_case_result[5]
         level_used = long_level if can_buy else short_level
 
-        logger.info(f"case: {case}, can_buy: {can_buy}, can_sell: {can_sell}")
+        logger.info(f"{symbol}, case: {case}, can_buy: {can_buy}, can_sell: {can_sell}")
         if symbol == 'MNQ' and (can_buy or can_sell):
             # create a new Thread for calling TopStep
             # side = 'BUY' if can_buy else 'SELL'
@@ -2390,7 +2390,7 @@ if __name__ == "__main__":
             if True:
                 missing_rows_in_qqq_df = df.loc[~df['date'].isin(qqq_df['date'])]
                 if len(missing_rows_in_qqq_df) > 0:
-                    logger.warning(f"missing_rows_in_qqq_df: \n{missing_rows_in_qqq_df[-10:].to_markdown()}")
+                    logger.warning(f"missing_rows_in_qqq_df: \n{missing_rows_in_qqq_df[-3:].to_markdown()}")
 
             relative_strength_df = compute_relative_strength(df, qqq_df, period=20)
             intraday_rs_df = compute_intraday_rs(df, qqq_df)
@@ -2416,26 +2416,26 @@ if __name__ == "__main__":
             logger.debug(f"{symbol}, signals: {signals}")
             hover_df = convert_signals_to_hover_df(signals)
 
-            if (is_trade_time and run_number % 5 ==0) or (not is_trade_time and run_number % 1 ==0 ):
+            if (is_trade_time and run_number % 10 ==0) or (not is_trade_time and run_number % 5 ==0 ):
                 # These are for each symbol ...
                 save_ohlc_for_chart(df)
                 save_extra_features_df()
 
 
             dump_application_state_to_file()
-            print_application_state(application_state, msg='application_state:')
 
             if not is_trade_time:
                 logger.info(f"key_levels_df\n{key_levels_df[key_levels_df['symbol']== symbol].to_markdown()}")
 
+            print_application_state(application_state, msg='application_state:')
 
             symbol_end_time = time.time()
             symbol_run_spend_time = round(symbol_end_time - symbol_start_time, 2)
-            logger.warning(f'--- {symbol}, {run_number}, symbol_run_spend_time: {symbol_run_spend_time} seconds')
+            logger.warning(f'--- {symbol}, {unique_run_number}, symbol_run_spend_time: {symbol_run_spend_time} seconds')
 
         # end:  for symbol in app_config['symbols']:
-
-        if (is_trade_time and run_number % 20 == 0) or (not is_trade_time and run_number % 1 == 0):
+        # for whole ...
+        if (is_trade_time and run_number % 20 == 0) or (not is_trade_time and run_number % 10 == 0):
             save_all_csv_files()
 
 
