@@ -41,7 +41,7 @@ from trading_utils import check_health_status
 
 portfolio_id = 'p250'
 configs_folder = f'../configs'
-config_file = f'{configs_folder}/app-config.yaml'
+# config_file = f'{configs_folder}/app-config.yaml'
 
 mode = 'live'
 
@@ -2369,6 +2369,7 @@ if __name__ == "__main__":
             up_offset_counter = 0  # this is for hovers on the candles ... need to be renamed ...
             down_offset_counter = 0
             signals = []
+            close_pairs = []
             candle_info_df = pd.DataFrame(columns=['date', 'price', 'memo'])
             retest_indices_by_level_set = {}
             break_out_indices_by_level_set = {}
