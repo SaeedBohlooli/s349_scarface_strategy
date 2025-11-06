@@ -76,43 +76,107 @@ symbols_meta:
     retest_tolerance_multiplier: 1
 
 cases:
-  case_3:
+  case_1:
+    can_replace_level: false
+    long:
+      level: max(levels['PDH'], levels['PMH'], levels['5MH'])
+      condition_01: breakout_in_last_x_candles(side='up', idx_list=[-5], level=long_level)
+      condition_02: price_retest(side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
+      condition_03: is_retest_after_breakout(side='up', level=long_level)
+      condition_04: check_entry_vs_retest(side='up', level=long_level)
+      condition_05: no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
+      condition_06: check_price_vs_level(side='up', price=price, level=long_level )
+      condition_07: are_levels_close_to_each_other_for_case_1(side='up')
+      condition_08: 1 == 1
+      condition_09: 1 == 1
+      condition_10: 1 == 1
+      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07 and eval_buy_condition_07 and eval_buy_condition_08  and eval_buy_condition_09
+
+    short:
+      level: min(levels['PDL'], levels['PML'], levels['5ML'])
+      condition_01: breakout_in_last_x_candles(side='down', idx_list=[-5], level=short_level)
+      condition_02: price_retest(side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True )
+      condition_03: is_retest_after_breakout(side='down', level=short_level)
+      condition_04: check_entry_vs_retest(side='down', level=short_level)
+      condition_05: no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
+      condition_06: check_price_vs_level(side='down', price=price, level=short_level )
+      condition_07: are_levels_close_to_each_other_for_case_1(side='down')
+      condition_08: 1 == 1
+      condition_09: 1 == 1
+      condition_10: 1 == 1
+      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09
+
+  case_2:
     can_replace_level: true
     long:
       level: levels['5MH']
-      condition_01: symbol == 'AMD' and 1 == 1
-      condition_02: mode == 'live'
-      condition_03: 1 == 1
-      condition_04: 1 == 1
-      condition_05: 1 == 1
-      condition_06: 1 == 1
+      condition_01: breakout_in_last_x_candles(side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level)
+      condition_02: price_retest(side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
+      condition_03: is_retest_after_breakout(side='up', level=long_level)
+      condition_04: check_entry_vs_retest(side='up', level=long_level)
+      condition_05: no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
+      condition_06: check_price_vs_level(side='up', price=price, level=long_level )
       condition_07: 1 == 1
       condition_08: 1 == 1
       condition_09: 1 == 1
       condition_10: 1 == 1
-      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07 and eval_buy_condition_07 and eval_buy_condition_08 and eval_buy_condition_09
-
+      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07 and eval_buy_condition_07 and eval_buy_condition_08  and eval_buy_condition_09
     short:
       level: levels['5ML']
-      condition_01: symbol == 'TSLA' and 1 == 2
-      condition_02: mode == 'live'
-      condition_03: 1 == 1
-      condition_04: 1 == 1
-      condition_05: 1 == 1
-      condition_06: 1 == 1
+      condition_01: breakout_in_last_x_candles(side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level)
+      condition_02: price_retest(side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True )
+      condition_03: is_retest_after_breakout(side='down', level=short_level)
+      condition_04: check_entry_vs_retest(side='down', level=short_level)
+      condition_05: no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
+      condition_06: check_price_vs_level(side='down', price=price, level=short_level )
       condition_07: 1 == 1
       condition_08: 1 == 1
       condition_09: 1 == 1
       condition_10: 1 == 1
       master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09
 
+#  case_3:
+#    can_replace_level: true
+#    long:
+#      level: levels['5MH']
+#      condition_01: symbol == 'AMD' and 1 == 1
+#      condition_02: mode == 'live'
+#      condition_03: 1 == 1
+#      condition_04: 1 == 1
+#      condition_05: 1 == 1
+#      condition_06: 1 == 1
+#      condition_07: 1 == 1
+#      condition_08: 1 == 1
+#      condition_09: 1 == 1
+#      condition_10: 1 == 1
+#      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07 and eval_buy_condition_07 and eval_buy_condition_08 and eval_buy_condition_09
+#
+#    short:
+#      level: levels['5ML']
+#      condition_01: symbol == 'TSLA' and 1 == 2
+#      condition_02: mode == 'live'
+#      condition_03: 1 == 1
+#      condition_04: 1 == 1
+#      condition_05: 1 == 1
+#      condition_06: 1 == 1
+#      condition_07: 1 == 1
+#      condition_08: 1 == 1
+#      condition_09: 1 == 1
+#      condition_10: 1 == 1
+#      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09
+
 
 stop_losses:
   C:
-    stop_loss_condition: symbol == 'AMD' and 1 == 2
+    stop_loss_condition: underlying_previous_candle_close < level_used_to_open - tolerance_amount and ( level_used_to_open != -1)
+#    stop_loss_condition:  symbol == 'AMD' or 1 == 2
+#    stop_loss_condition: symbol == 'AMD' and 1 == 2
 
   P:
-    stop_loss_condition: symbol == 'TSLA' and available_quantity != 0 and  1 == 2
+    stop_loss_condition: underlying_previous_candle_close > level_used_to_open + tolerance_amount and ( level_used_to_open != -1)
+#    stop_loss_condition:  symbol == 'AMD' or 1 == 1
+#    stop_loss_condition: symbol == 'TSLA' and available_quantity != 0 and  1 == 2
+
 
 
 take_profits:
@@ -201,6 +265,7 @@ close_all_open_option_positions: false
 cancel_open_orders_on_start: false
 load_application_state_from_file: true
 run_should_take_seconds: 20
+
 user_name: Saeed
 
 
