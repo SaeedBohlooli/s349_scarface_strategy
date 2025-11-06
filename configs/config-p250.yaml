@@ -242,7 +242,7 @@ live:
 #  is_trade_time: 930 < current_hh_mm_ny  < 1130
 
 back_test:
-  get_data_from_ib: False
+  get_data_from_ib: false
 #  get_data_from_ib: true
 
   historical_days: 5 D
