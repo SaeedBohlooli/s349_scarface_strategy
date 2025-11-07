@@ -41,7 +41,6 @@ from trading_utils import check_health_status
 
 portfolio_id = 'p250'
 configs_folder = f'../configs'
-# config_file = f'{configs_folder}/app-config.yaml'
 
 mode = 'live'
 
@@ -1804,6 +1803,7 @@ def is_next_level_close_a_price_crossed(side='up', level=-1, current_price=-1, u
 def check_mark_revers_candles(symbol):
     # TODO remove try later ...
     try:
+        logger.info("check_mark_revers_candles ...")
         result = False
         t1_candle_date = application_state['open_trades_dic'].get(symbol,{}).get('take_profits',{}).get('t1',{}).get('candle_date',None)
         if t1_candle_date == None:
@@ -1812,6 +1812,7 @@ def check_mark_revers_candles(symbol):
 
         df = dfs_map.get(symbol, pd.DataFrame())
         if len(df) == 0:
+            logger.warning(f"@@ len(df) is zero")
             return False
 
         check_date = df['date'].iloc[-1]
@@ -1821,7 +1822,7 @@ def check_mark_revers_candles(symbol):
 
         df = df[df["date"] >= target_date]
         df = df[:-2]                           # cut the latest row and the prev one as we comparing against it ...
-
+        logger.info(f"check_mark_revers_candles, {df.to_markdown()}")
         if side == 'long':
 
             df["is_bearish"] = df["close"] < df["open"]
@@ -1829,7 +1830,7 @@ def check_mark_revers_candles(symbol):
 
             result = prev_close < lowest_bearish_low
             if result:
-                logger.info(f"The break happened. lowest_bearish_low: {lowest_bearish_low}, prev_close: {prev_close}")
+                logger.info(f"check_mark_revers_candles, The break happened. lowest_bearish_low: {lowest_bearish_low}, prev_close: {prev_close}")
                 add_to_signlas(symbol, 'LEVEL_REPLACED', df['close'].iloc[-1], check_date, f'Level is break out {check_date}<br> t_date: {target_date} <br>  lowest_bearish_low: {lowest_bearish_low} <br> prev_close: {prev_close}' )
 
         else:
@@ -1839,7 +1840,7 @@ def check_mark_revers_candles(symbol):
 
             result = prev_close > highest_bulish_high
             if result:
-                logger.info(f"The break happened. highest_bulish_high: {highest_bulish_high}, prev_close: {prev_close}")
+                logger.info(f"check_mark_revers_candles, The break happened. highest_bulish_high: {highest_bulish_high}, prev_close: {prev_close}")
                 add_to_signlas(symbol, 'LEVEL_REPLACED', df['close'].iloc[-1], check_date, f'Level is break out {check_date}<br> t_date: {target_date} <br>  highest_bulish_high: {highest_bulish_high} <br> prev_close: {prev_close}' )
 
         if result:

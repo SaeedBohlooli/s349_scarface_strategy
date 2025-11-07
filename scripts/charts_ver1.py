@@ -767,6 +767,10 @@ def create_chart_hovered_df(hover_df, symbol):
 
 
         'CANDLE_INFO': '○',
+        '5MH_SMALL_DOT': '.',
+        '5MH_SMALL_DOT_1': '.',
+        '5ML_SMALL_DOT': '.',
+        '5ML_SMALL_DOT_1': '.',
 
         'ORDER_SENT': '◆',
         'TAKE_PROFIT_SENT': '✖',

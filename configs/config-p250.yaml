@@ -1,6 +1,7 @@
 logging_level: logging.INFO
 
 symbols: ['QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR', 'TSLL', 'AMZN', 'MNQ', 'SPY']
+#symbols: ['QQQ', 'TSLA']
 
 symbols_meta:
   QQQ:
@@ -65,7 +66,7 @@ symbols_meta:
     min_required_move_from_level: 10
     breakout_confirmation_distance: 2
     chart_entry_offset: 20
-    retest_tolerance_multiplier: 1.8
+    retest_tolerance_multiplier: 2.25
     contract_month: 202512
   AMZN:
     can_trade: true
@@ -181,15 +182,15 @@ stop_losses:
 
 take_profits:
   t1:
-    condition: current_ask > avg_cost_for_1_contract * 1.20 and ( avg_cost_for_1_contract != -1 and current_ask != -1)
+    condition: current_bid > avg_cost_for_1_contract * 1.20 and ( avg_cost_for_1_contract != -1 and current_bid != -1)
     close_quantity_percentage: 0.5
 
   t2:
-    condition: current_ask > avg_cost_for_1_contract * 1.4  and ( avg_cost_for_1_contract != -1 and current_ask != -1)
+    condition: current_bid > avg_cost_for_1_contract * 1.4  and ( avg_cost_for_1_contract != -1 and current_bid != -1)
     close_quantity_percentage: 0.25
 
   t3:
-    condition: current_ask > avg_cost_for_1_contract * 1.6  and ( avg_cost_for_1_contract != -1 and current_ask != -1)
+    condition: current_bid > avg_cost_for_1_contract * 1.6  and ( avg_cost_for_1_contract != -1 and current_bid != -1)
     close_quantity_percentage: -1    # -1 closes all the rest
 
   t4_close_levels: # when lines are close ...
@@ -201,9 +202,9 @@ take_profits:
 
   t5_even:
     condition: >
-      (right == 'C' and is_executed_take_profits(symbol, take_profit_list=['t1']) and underlying_current_price < underlying_open_price)
+      (right == 'C' and is_executed_take_profits(symbol, take_profit_list=['t1']) and underlying_previous_candle_close < underlying_open_price)
       or
-      (right == 'P' and is_executed_take_profits(symbol, take_profit_list=['t1']) and underlying_current_price > underlying_open_price)
+      (right == 'P' and is_executed_take_profits(symbol, take_profit_list=['t1']) and underlying_previous_candle_close > underlying_open_price)
     close_quantity_percentage: -1
 
   t6_close_all:  # This is for closing everything just NVDA:   1 == 1 and symbol == 'NVDA'
@@ -242,23 +243,23 @@ live:
 #  is_trade_time: 930 < current_hh_mm_ny  < 1130
 
 back_test:
-  get_data_from_ib: false
+  get_data_from_ib: False
 #  get_data_from_ib: true
 
   historical_days: 5 D
-  start_date: 2025-10-01
+  start_date: 2025-11-05
 
-  back_test_date_start: 2025-11-05
+  back_test_date_start: 2025-11-03
   back_test_date_end: 2025-11-06
 
 chart:
-  source: live
-#  source: back_test
+#  source: live
+  source: back_test
   cutoff_in_hours: 0
   hours_in_focus: 3
   live:
-    start_time: '08:45'
-    end_time: '10:45'
+    start_time: '09:00'
+    end_time: '12:30'
 
 # before_start:
 close_all_open_option_positions: false
