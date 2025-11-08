@@ -5,46 +5,49 @@ symbols: ['QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR', 'TSLL', 'AMZN', 'MNQ', '
 
 symbols_meta:
   QQQ:
-    can_trade: false
+    can_trade: true
     contract_type: Equity
     min_required_move_from_level: 0.5
     breakout_confirmation_distance: 0.15
-    chart_entry_offset: 1
+    chart_entry_offset: 0.5
     retest_tolerance_multiplier: 1
+    exchange: CBOE
+    expiry_offset: 1
+
   TSLA:
     can_trade: true
     contract_type: Equity
     min_required_move_from_level: 0.5
     breakout_confirmation_distance: 0.15
-    chart_entry_offset: 1
+    chart_entry_offset: 0.5
     retest_tolerance_multiplier: 1.8
   AAPL:
     can_trade: true
     contract_type: Equity
     min_required_move_from_level: 0.5
     breakout_confirmation_distance: 0.15
-    chart_entry_offset: 1
+    chart_entry_offset: 0.5
     retest_tolerance_multiplier: 1
   NVDA:
     can_trade: true
     contract_type: Equity
     min_required_move_from_level: 0.5
     breakout_confirmation_distance: 0.15
-    chart_entry_offset: 1
+    chart_entry_offset: 0.5
     retest_tolerance_multiplier: 1
   AMD:
     can_trade: true
     contract_type: Equity
     min_required_move_from_level: 0.5
     breakout_confirmation_distance: 0.15
-    chart_entry_offset: 1
+    chart_entry_offset: 0.5
     retest_tolerance_multiplier: 1
   PLTR:
     can_trade: true
     contract_type: Equity
     min_required_move_from_level: 0.5
     breakout_confirmation_distance: 0.15
-    chart_entry_offset: 1
+    chart_entry_offset: 0.5
     retest_tolerance_multiplier: 1
   TSLL:
     can_trade: true
@@ -54,26 +57,36 @@ symbols_meta:
     chart_entry_offset: 0.5
     retest_tolerance_multiplier: 1.8
   SPY:
-    can_trade: false
+    can_trade: true
     contract_type: Equity
     min_required_move_from_level: 0.5
     breakout_confirmation_distance: 0.15
-    chart_entry_offset: 1
+    chart_entry_offset: 0.5
     retest_tolerance_multiplier: 2
+    exchange: CBOE
+    expiry_offset: 1
   MNQ:
-    can_trade: false
+    can_trade: true
     contract_type: Future
     min_required_move_from_level: 10
     breakout_confirmation_distance: 2
     chart_entry_offset: 20
-    retest_tolerance_multiplier: 2.25
+    retest_tolerance_multiplier: 3
     contract_month: 202512
+    buy:
+      stop_loss: df['close'].iloc[-1] - (df['atr_14'].iloc[-2] * 2)
+      take_profit: df['close'].iloc[-1] + (df['atr_14'].iloc[-2] * 2 )
+    sell:
+      stop_loss: df['close'].iloc[-1]  +  (df['atr_14'].iloc[-2] * 2)
+      take_profit: df['close'].iloc[-1] - (df['atr_14'].iloc[-2] * 2 )
+
+
   AMZN:
     can_trade: true
     contract_type: Equity
     min_required_move_from_level: 0.5
     breakout_confirmation_distance: 0.15
-    chart_entry_offset: 1
+    chart_entry_offset: 0.5
     retest_tolerance_multiplier: 1
 
 cases:
@@ -137,10 +150,10 @@ cases:
       master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09
 
 #  case_3:
-#    can_replace_level: true
+#    can_replace_level: false
 #    long:
 #      level: levels['5MH']
-#      condition_01: symbol == 'AMD' and 1 == 1
+#      condition_01: symbol == 'SPY' and 1 == 2
 #      condition_02: mode == 'live'
 #      condition_03: 1 == 1
 #      condition_04: 1 == 1
@@ -154,7 +167,7 @@ cases:
 #
 #    short:
 #      level: levels['5ML']
-#      condition_01: symbol == 'TSLA' and 1 == 2
+#      condition_01: symbol == 'SPY' and 2 == 1
 #      condition_02: mode == 'live'
 #      condition_03: 1 == 1
 #      condition_04: 1 == 1
@@ -208,7 +221,7 @@ take_profits:
     close_quantity_percentage: -1
 
   t6_close_all:  # This is for closing everything just NVDA:   1 == 1 and symbol == 'NVDA'
-    condition: 1 == 2 and symbol == 'AMZN'
+    condition: 1 == 1 and symbol == 'SPY'
     close_quantity_percentage: -1
 
 #
@@ -249,8 +262,8 @@ back_test:
   historical_days: 5 D
   start_date: 2025-11-05
 
-  back_test_date_start: 2025-11-03
-  back_test_date_end: 2025-11-06
+  back_test_date_start: 2025-10-01
+  back_test_date_end: 2025-11-07
 
 chart:
 #  source: live
@@ -258,8 +271,8 @@ chart:
   cutoff_in_hours: 0
   hours_in_focus: 3
   live:
-    start_time: '09:00'
-    end_time: '12:30'
+    start_time: '08:45'
+    end_time: '12:00'
 
 # before_start:
 close_all_open_option_positions: false
@@ -272,7 +285,8 @@ user_name: Saeed
 
 email:
   send_email: true
-  recipients: vikaskaler.bnr@gmail.com , saeed.bx1@yahoo.com
+#  recipients: vikaskaler.bnr@gmail.com , saeed.bx1@yahoo.com
+  recipients: saeed.bx1@yahoo.com
 
 health_check:
   send_email: true
@@ -280,4 +294,4 @@ health_check:
   email_recipients: saeed.bx1@yahoo.com
   email_interval_minutes: 10
 
-exit: False
+exit: false

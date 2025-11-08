@@ -213,6 +213,14 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
         showlegend=False
     ), row=row_in_chart, col=1)
 
+    fig.add_trace(go.Scatter( # ema
+        x=extra_features_df['date'],
+        y=extra_features_df['rs_rel_ema'],
+        mode='lines',
+        name='Zero Line',
+        line=dict(color='blue', dash='dot', width=3),
+        showlegend=False
+    ), row=row_in_chart, col=1)
 
 
     # rs_delta
@@ -756,6 +764,9 @@ def create_chart_hovered_df(hover_df, symbol):
         'BUY_ENTRY_case_2': '■',
         'SELL_ENTRY_case_2': '■',
 
+        'BUY_ENTRY_case_3': '■',
+        'SELL_ENTRY_case_3': '■',
+
         'SCREENING_case_1': '○',
         'SCREENING_case_2': '○',
         'SCREENING_case_3': '○',
@@ -874,7 +885,7 @@ def index():
             fig1 = mark_market_time_only_last_one(fig1, df)
         chart_hovered_df = create_chart_hovered_df(hover_df, symbol)
         fig1 = add_hover_to_chart(fig1, chart_hovered_df)
-        # fig1 = add_close_levels_anoteation(fig1, df, close_levels_df, symbol)
+        fig1 = add_close_levels_anoteation(fig1, df, close_levels_df, symbol)
         plot_html = pio.to_html(fig1, full_html=False)
 
         plots.append(plot_html)

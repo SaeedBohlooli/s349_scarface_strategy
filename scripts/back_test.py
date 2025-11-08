@@ -41,7 +41,6 @@ from trading_utils import check_health_status
 
 portfolio_id = 'p250'
 configs_folder = f'../configs'
-config_file = f'{configs_folder}/app-config.yaml'
 
 mode = 'back_test'
 
@@ -70,7 +69,7 @@ def update_config_and_save(config, key, value):
     existing_value = app_config[key]
     if value != existing_value:
         logger.info(f"in update_config_and_save, key: {key}, existing value: {existing_value}, new value: {value} ")
-        app_config = ruamel_confg_util(portfolio_id)
+        app_config = ruamel_confg_util.load_app_config(portfolio_id)
         app_config[key] = value
         file = f'{configs_folder}/config-{portfolio_id}.yaml'
         with open(file, 'w') as f:  #TODO fix it
@@ -217,7 +216,7 @@ def create_equity_contract(symbol):
     return contract
 
 def save_ohlc_for_chart(df):
-    logger.info(f"in generate_for_chart, symbol: {symbol}, len(df): {len(df)}")
+    logger.info(f"in save_ohlc_for_chart, symbol: {symbol}, len(df): {len(df)}")
     df = df[['date','open', 'high', 'low', 'close', 'volume', 'atr_14']]
     file = f"{charts_dir}/{symbol}-{time_frame.replace(' ', '')}.csv"
     df.to_csv(file, index=False, mode='w')
@@ -392,6 +391,7 @@ def convert_signals_to_hover_df(signals):
         price_1 = s[2]
         date_1 = s[3]
         memo = s[4]
+        color = s[5]
         if memo == '':
             memo = event
         if 'breakout' in event.lower():
@@ -436,6 +436,9 @@ def convert_signals_to_hover_df(signals):
         else:
             obj = event
             clr = 'Orange'
+
+        if color != '': # user wants his own clor
+            clr = color
 
         data = {
             'symbol': symbol,
@@ -556,14 +559,12 @@ def add_buy_a_sell_entries_to_signals(buy_sell_case_results_list):
     for buy_sell_case_result in buy_sell_case_results_list:
 
         logger.debug(f"add_buy_a_sell_entries_to_signals(), buy_sell_case_result: {buy_sell_case_result}")
+
         case = buy_sell_case_result[0]
         can_buy = buy_sell_case_result[1]
         can_sell = buy_sell_case_result[2]
         res_str = f"{buy_sell_case_result[3]}"
 
-
-        # offseted_price = get_offseted_price(df['high'].iloc[-1])
-        # This way we don't overlap entries in the chart ...
 
         if case == 'case_1':
             price = df['low'].iloc[-1]
@@ -578,6 +579,15 @@ def add_buy_a_sell_entries_to_signals(buy_sell_case_results_list):
 
         if can_sell:
             add_to_signlas(symbol, f"SELL_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}")
+
+        if (can_buy or can_sell) and mode == 'back_test': # we want to add SL TP in the chart in BT
+            contract_type = app_config['symbols_meta'][symbol]['contract_type']
+            if contract_type.lower() == 'future':
+                side = 'BUY' if can_buy else 'SELL'
+                stop_loss_price = eval(app_config['symbols_meta'][symbol][side.lower()]['stop_loss'])
+                take_profit_price = eval(app_config['symbols_meta'][symbol][side.lower()]['take_profit'])
+                add_to_signlas(symbol, f'STOP_LOSS_SENT', stop_loss_price, df['date'].iloc[-1], f"SL:{round(stop_loss_price,2)}, sl-to-close: {abs(round(df['close'].iloc[-1]- stop_loss_price, 2))}<br> " )
+                add_to_signlas(symbol, f'TAKE_PROFIT_SENT', take_profit_price, df['date'].iloc[-1], f"TP:{round(take_profit_price,2)},  tp-to-close: {abs(round(take_profit_price - df['close'].iloc[-1] , 2))}")
 
         # add_to_signlas(symbol,  f"SCREENING_{case}", offseted_price, df['date'].iloc[-1], f'{case} - {res_str}')  #
         price = get_latest_offseted_price('down', df['low'].iloc[-1])
@@ -724,7 +734,7 @@ def check_buy_sell_condition(case):
         if eval(app_config['cases'][case]['short']['master_condition']):
             can_sell = True
 
-        logger.info(f"check_buy_sell_condition(), {case}, can_buy: {can_buy}, can_sell: {can_sell}")
+        logger.info(f"check_buy_sell_condition(), {symbol}, {case}, can_buy: {can_buy}, can_sell: {can_sell}")
 
         long_breakup_idxs = break_out_indices_by_level_set.get(long_level, set())
         long_retest_idxs = retest_indices_by_level_set.get(long_level, set())
@@ -744,7 +754,7 @@ def check_buy_sell_condition(case):
         res_str = res_str.replace('False', 'F')
 
         res_str_log = res_str.replace('<br>', '\n')
-        logger.info(f"\n{case}, res_str: {res_str_log}")
+        logger.info(f"\nres_str: {res_str_log}")
     except Exception as e:
         logger.error(f"in check_buy_sell_condition: {symbol} {case} error {e}")
         logger.error(traceback.format_exc())
@@ -930,10 +940,10 @@ def get_levels_dic():
 
 
 
-def add_to_signlas(symbol, event, price, date, memo=''):
+def add_to_signlas(symbol, event, price, date, memo='', color=''):
 
     global signals
-    signals.append((symbol, event, price, date, memo))
+    signals.append((symbol, event, price, date, memo, color))
 
     return
 
@@ -1089,34 +1099,40 @@ def get_current_price_from_ib(symbol, max_retries=3, retry_delay=0.5):
             time.sleep(retry_delay)
     return price
 
-def get_historical_data_from_start_date(contract, historical_days, time_frame, start_date):
+def get_historical_data_from_start_date(contract, historical_days, time_frame, start_date, max_retries=3, retry_delay=1):
     # calculate end date (20 days ago)
     # end_date = datetime.datetime.now() - datetime.timedelta(days=10)
     # end_date_str = end_date.strftime('%Y%m%d %H:%M:%S')
+    for attempt in range(1, max_retries + 1):
+        try:
+            bars = ib.reqHistoricalData(
+                contract,
+                endDateTime=start_date,
+                durationStr=historical_days,
+                barSizeSetting=time_frame,
+                whatToShow='TRADES',  # for BTC  'AGGTRADES',
+                useRTH=False,
+                formatDate=1)
 
-    bars = ib.reqHistoricalData(
-        contract,
-        endDateTime=start_date,
-        durationStr=historical_days,
-        barSizeSetting=time_frame,
-        whatToShow='TRADES',  # for BTC  'AGGTRADES',
-        useRTH=False,
-        formatDate=1)
+            # Create a Pandas dataframe from the historical data
+            df = util.df(bars)
+            logger.info(f"get_historical_data, len(df): {len(df)}")
 
-    # Create a Pandas dataframe from the historical data
-    df = util.df(bars)
-    logger.info(f"get_historical_data, len(df): {len(df)}")
+            if time_frame != '1 day':
+                 # df["date"]=df["date"].dt.tz_convert(None)
+                if df["date"].dt.tz is not None:
+                    df["date"] = df["date"].dt.tz_convert(None)
+                    df = miscutils.convert_column_timezone(df, 'date', 'date', from_zone='UTC', to_zone='America/New_York')
 
-    if time_frame != '1 day':
-         # df["date"]=df["date"].dt.tz_convert(None)
-        if df["date"].dt.tz is not None:
-            df["date"] = df["date"].dt.tz_convert(None)
-            df = miscutils.convert_column_timezone(df, 'date', 'date', from_zone='UTC', to_zone='America/New_York')
-
-    logger.info(f"get_historical_data_from_start_date, {contract.symbol} ,df['date'].min(): {df['date'].min()}, df['date'].max(): {df['date'].max()}")
-    return df
-
-
+            logger.info(f"get_historical_data_from_start_date, {contract.symbol} ,df['date'].min(): {df['date'].min()}, df['date'].max(): {df['date'].max()}")
+            return df
+        except Exception as e:
+            # TODO add
+            logger.error(e)
+            logger.warning("we going try again")
+            time.sleep(retry_delay)
+    # if we are here, means that we could not get data
+    raise Exception
 def get_historical_data_back_test(contract, start_date='2025-09-01', historical_days='', time_frame='1 min'):
     """
     Fetch historical data in chunks (e.g. 10-day periods) until today.
@@ -1494,7 +1510,7 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
         short_level = buy_sell_case_result[5]
         level_used = long_level if can_buy else short_level
 
-        logger.info(f"case: {case}, can_buy: {can_buy}, can_sell: {can_sell}")
+        logger.info(f"{symbol}, case: {case}, can_buy: {can_buy}, can_sell: {can_sell}")
         if symbol == 'MNQ' and (can_buy or can_sell):
             # create a new Thread for calling TopStep
             # side = 'BUY' if can_buy else 'SELL'
@@ -1802,9 +1818,9 @@ def is_next_level_close_a_price_crossed(side='up', level=-1, current_price=-1, u
     return False
 
 def check_mark_revers_candles(symbol):
-    global application_state
     # TODO remove try later ...
     try:
+        logger.info("check_mark_revers_candles ...")
         result = False
         t1_candle_date = application_state['open_trades_dic'].get(symbol,{}).get('take_profits',{}).get('t1',{}).get('candle_date',None)
         if t1_candle_date == None:
@@ -1813,6 +1829,7 @@ def check_mark_revers_candles(symbol):
 
         df = dfs_map.get(symbol, pd.DataFrame())
         if len(df) == 0:
+            logger.warning(f"@@ len(df) is zero")
             return False
 
         check_date = df['date'].iloc[-1]
@@ -1822,7 +1839,7 @@ def check_mark_revers_candles(symbol):
 
         df = df[df["date"] >= target_date]
         df = df[:-2]                           # cut the latest row and the prev one as we comparing against it ...
-
+        logger.info(f"check_mark_revers_candles, {df.to_markdown()}")
         if side == 'long':
 
             df["is_bearish"] = df["close"] < df["open"]
@@ -1830,7 +1847,7 @@ def check_mark_revers_candles(symbol):
 
             result = prev_close < lowest_bearish_low
             if result:
-                logger.info(f"The break happened. lowest_bearish_low: {lowest_bearish_low}, prev_close: {prev_close}")
+                logger.info(f"check_mark_revers_candles, The break happened. lowest_bearish_low: {lowest_bearish_low}, prev_close: {prev_close}")
                 add_to_signlas(symbol, 'LEVEL_REPLACED', df['close'].iloc[-1], check_date, f'Level is break out {check_date}<br> t_date: {target_date} <br>  lowest_bearish_low: {lowest_bearish_low} <br> prev_close: {prev_close}' )
 
         else:
@@ -1840,7 +1857,7 @@ def check_mark_revers_candles(symbol):
 
             result = prev_close > highest_bulish_high
             if result:
-                logger.info(f"The break happened. highest_bulish_high: {highest_bulish_high}, prev_close: {prev_close}")
+                logger.info(f"check_mark_revers_candles, The break happened. highest_bulish_high: {highest_bulish_high}, prev_close: {prev_close}")
                 add_to_signlas(symbol, 'LEVEL_REPLACED', df['close'].iloc[-1], check_date, f'Level is break out {check_date}<br> t_date: {target_date} <br>  highest_bulish_high: {highest_bulish_high} <br> prev_close: {prev_close}' )
 
         if result:
@@ -2275,6 +2292,31 @@ def save_all_csv_files():
     ib_utils.save_ib_dfs(portfolio_dir,ib)
     logger.info(f"save_all_csv_files, finished ...")
 
+def add_rs_relative_to_candle_info(symbol):
+    if symbol == 'QQQ':
+        return
+
+    rs_rel = round(intraday_rs_df['rs_rel'].iloc[-1], 2)
+    rs_rel_ema = round(intraday_rs_df['rs_rel_ema'].iloc[-1], 2)
+    add_to_candle_info_df(df['date'].iloc[-1], df['close'].iloc[-1], f"rs_rel: {rs_rel}, rs_rel_ema: {rs_rel_ema}" )
+    return
+
+def mark_tolerance_to_the_level(level, level_name):
+    if level == 0:
+        return
+
+    tolerance = dynamic_tolerance.get('tolerance', 0)
+    p1 = level - tolerance * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1)
+    p2 = level + tolerance * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1)
+    p1 = round(p1 ,2)
+    p2 = round(p2 ,2)
+    date = df['date'].iloc[-1]
+    add_to_signlas(symbol, f'{level_name}_SMALL_DOT', p1, date, f'{p1}, l: {level} t: {tolerance}', 'yellow' )
+    add_to_signlas(symbol, f'{level_name}_SMALL_DOT_1', p2, date, f'{p2}, l: {level} t: {tolerance}' ,'yellow' )
+
+    return
+
+
 if __name__ == "__main__":
 
     ib_portfolio_df = pd.DataFrame()
@@ -2388,6 +2430,8 @@ if __name__ == "__main__":
                 relative_strength_df = compute_relative_strength(df, qqq_df, period=20)
                 intraday_rs_df = compute_intraday_rs(df, qqq_df)
                 dynamic_tolerance = atr_tolerance_helper.get_dynamic_tolerance(df, level=0, min_tick=0.01)
+                add_rs_relative_to_candle_info(symbol)
+
 
                 logger.info(f"relative_strength_df:\n{relative_strength_df[-2:].to_markdown()} ")
                 if symbol == 'AMD':
@@ -2405,6 +2449,8 @@ if __name__ == "__main__":
                 find_add_PDH_PDL_levels_to_key_levels_df()
                 find_add_5MH_5ML_levels_to_key_levels_df()
 
+                mark_tolerance_to_the_level(get_levels_dic().get('5MH', 0), '5MH')
+                mark_tolerance_to_the_level(get_levels_dic().get('5ML', 0), '5ML')
                 key_levels_list = get_key_levels_list()
 
                 buy_sell_case_results_list = check_buy_and_sell_cases()

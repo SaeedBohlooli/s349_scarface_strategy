@@ -7,7 +7,6 @@ import pprint
 import sys
 import time
 import traceback
-
 import ib_insync.util as ib_util
 import numpy as np
 import pandas as pd
@@ -17,26 +16,28 @@ from ib_insync import *
 from pandas.tseries.offsets import BDay
 from tabulate import tabulate
 from ruamel.yaml import YAML
-
-
-yaml = YAML()
-yaml.preserve_quotes = True  # Optional: preserve quotes if any
-yaml.width = 1000 # so will not wrap lines in the yaml file
-
 sys.path.insert(0, f'../')
-for dir_1 in os.listdir(os.path.join('../')):
-    if (dir_1.startswith("a") or dir_1.startswith("u") ):
-        sys.path.insert(0, f'../{dir_1}')
-from utils import miscutils
 
+from utils import miscutils
 from utils import atr_tolerance_helper
 from trading_utils import df_utils
 from trading_utils import ib_utils
+from trading_utils import ib_orders
+from trading_utils import ib_pricing
+from trading_utils import ib_posttrade
+
+
+
 from trading_utils import global_state
 from trading_utils import config_utils
 from trading_utils import ruamel_confg_util
 from trading_utils import email_utils
 from trading_utils import check_health_status
+from trading_utils import date_utils
+
+yaml = YAML()
+yaml.preserve_quotes = True  # Optional: preserve quotes if any
+yaml.width = 1000 # so will not wrap lines in the yaml file
 
 
 portfolio_id = 'p250'
@@ -116,8 +117,6 @@ os.makedirs(backtest_ohlc_dir, exist_ok=True)
 application_state_file_path = f'{intermediate_dir}/84-application_state.csv'
 
 
-
-
 def get_previous_bday():
     prev_day = (pd.Timestamp.today() - BDay(1)).normalize()
     return prev_day
@@ -143,6 +142,7 @@ def on_disconnect():
     return
 
 
+
 def create_ib_connection():
     connected = False
     ib = None
@@ -152,8 +152,8 @@ def create_ib_connection():
             disconnect_ib(ib)
             # ib.disconnectedEvent += on_disconnect
             ib.connect(ib_config['ip'], ib_config['port'], clientId=ib_config['client_id'], timeout=0)
-            ib.commissionReportEvent += ib_utils.on_commission_report
-            ib.updatePortfolioEvent += ib_utils.on_portfolio_update
+            ib.commissionReportEvent += ib_posttrade.on_commission_report
+            ib.updatePortfolioEvent += ib_posttrade.on_portfolio_update
 
             connected = True
             logger.info(f"IB connected.")
@@ -391,6 +391,7 @@ def convert_signals_to_hover_df(signals):
         price_1 = s[2]
         date_1 = s[3]
         memo = s[4]
+        color = s[5]
         if memo == '':
             memo = event
         if 'breakout' in event.lower():
@@ -413,11 +414,14 @@ def convert_signals_to_hover_df(signals):
             clr = 'Blue'
         elif 'SCREENING_case_3' in event:  # this is for buy sell entry
             obj = event
-            clr = 'Orange'
+            clr = 'Blue'
         elif 'ENTRY_case_1' in event:  # this is for buy sell entry
             obj = event
             clr = 'Green'
         elif 'ENTRY_case_2' in event:  # this is for buy sell entry
+            obj = event
+            clr = 'Blue'
+        elif 'ENTRY_case_3' in event:  # this is for buy sell entry
             obj = event
             clr = 'Blue'
         elif 'CANDLE_INFO' in event:  # this is for buy sell entry
@@ -435,6 +439,9 @@ def convert_signals_to_hover_df(signals):
         else:
             obj = event
             clr = 'Orange'
+
+        if color != '': # user wants his own clor
+            clr = color
 
         data = {
             'symbol': symbol,
@@ -723,7 +730,7 @@ def check_buy_sell_condition(case):
         if eval(app_config['cases'][case]['short']['master_condition']):
             can_sell = True
 
-        logger.info(f"check_buy_sell_condition(), {symbol}, {case}, can_buy: {can_buy}, can_sell: {can_sell}")
+        logger.info(f"check_buy_sell_condition(), {symbol}, {case}, {can_buy}, {can_sell}")
 
         long_breakup_idxs = break_out_indices_by_level_set.get(long_level, set())
         long_retest_idxs = retest_indices_by_level_set.get(long_level, set())
@@ -814,6 +821,13 @@ def add_atr_to_candle_info(dynamic_tolerance):
 
 def dummy_call(level):
     return True
+
+
+def remove_symbol_from_open_trade_dic(symbol):
+    global application_state
+    application_state['open_trades_dic'][symbol] = {}
+    return
+
 
 def archive_open_trade_dic(symbol, open_trade_dic_4_symbol):
     open_trade_dic_arcive = {}
@@ -929,10 +943,10 @@ def get_levels_dic():
 
 
 
-def add_to_signlas(symbol, event, price, date, memo=''):
+def add_to_signlas(symbol, event, price, date, memo='', color=''):
 
     global signals
-    signals.append((symbol, event, price, date, memo))
+    signals.append((symbol, event, price, date, memo, color))
 
     return
 
@@ -1072,50 +1086,55 @@ def load_application_state_from_file():
 # ###########
 # START BACK TEST
 # ############
-def get_current_price_from_ib(symbol, max_retries=3, retry_delay=0.5):
 
-    underlying = Stock(symbol, 'SMART', 'USD')
-    for attempt in range(1, max_retries + 1):
+def get_current_price(symbol):
+    if app_config['symbols_meta'][symbol]['contract_type'] == 'Equity':
+        return ib_orders.get_current_price_from_ib(ib, symbol)
+    elif app_config['symbols_meta'][symbol]['contract_type'] == 'Future':
 
-        ib.qualifyContracts(underlying)
-        ticker = ib.reqMktData(underlying)
-        ib.sleep(0.2)
-        price = ticker.last or ticker.close
-        if price is not None and not (pd.isna(price) or math.isnan(price)):
-            return price
-        else:
-            logger.warning(f"@@@ get_current_price_from_ib,{symbol}, price is nan, try again ... attempt: {attempt}")
-            time.sleep(retry_delay)
-    return price
+        contract_month = app_config['symbols_meta'][symbol]['contract_month']
+        contract = ib_orders.create_future_contract(symbol, contract_month)
 
-def get_historical_data_from_start_date(contract, historical_days, time_frame, start_date):
+        return ib_orders.get_current_price(ib, contract)
+    else:
+        logger.warning(f"@@@@ TODO")
+        return None
+
+
+def get_historical_data_from_start_date(contract, historical_days, time_frame, start_date, max_retries=3, retry_delay=1):
     # calculate end date (20 days ago)
     # end_date = datetime.datetime.now() - datetime.timedelta(days=10)
     # end_date_str = end_date.strftime('%Y%m%d %H:%M:%S')
+    for attempt in range(1, max_retries + 1):
+        try:
+            bars = ib.reqHistoricalData(
+                contract,
+                endDateTime=start_date,
+                durationStr=historical_days,
+                barSizeSetting=time_frame,
+                whatToShow='TRADES',  # for BTC  'AGGTRADES',
+                useRTH=False,
+                formatDate=1)
 
-    bars = ib.reqHistoricalData(
-        contract,
-        endDateTime=start_date,
-        durationStr=historical_days,
-        barSizeSetting=time_frame,
-        whatToShow='TRADES',  # for BTC  'AGGTRADES',
-        useRTH=False,
-        formatDate=1)
+            # Create a Pandas dataframe from the historical data
+            df = util.df(bars)
+            logger.info(f"get_historical_data, len(df): {len(df)}")
 
-    # Create a Pandas dataframe from the historical data
-    df = util.df(bars)
-    logger.info(f"get_historical_data, len(df): {len(df)}")
+            if time_frame != '1 day':
+                 # df["date"]=df["date"].dt.tz_convert(None)
+                if df["date"].dt.tz is not None:
+                    df["date"] = df["date"].dt.tz_convert(None)
+                    df = miscutils.convert_column_timezone(df, 'date', 'date', from_zone='UTC', to_zone='America/New_York')
 
-    if time_frame != '1 day':
-         # df["date"]=df["date"].dt.tz_convert(None)
-        if df["date"].dt.tz is not None:
-            df["date"] = df["date"].dt.tz_convert(None)
-            df = miscutils.convert_column_timezone(df, 'date', 'date', from_zone='UTC', to_zone='America/New_York')
-
-    logger.info(f"get_historical_data_from_start_date, {contract.symbol} ,df['date'].min(): {df['date'].min()}, df['date'].max(): {df['date'].max()}")
-    return df
-
-
+            logger.info(f"get_historical_data_from_start_date, {contract.symbol} ,df['date'].min(): {df['date'].min()}, df['date'].max(): {df['date'].max()}")
+            return df
+        except Exception as e:
+            # TODO add
+            logger.error(e)
+            logger.warning("we going try again")
+            time.sleep(retry_delay)
+    # if we are here, means that we could not get data
+    raise Exception
 def get_historical_data_back_test(contract, start_date='2025-09-01', historical_days='', time_frame='1 min'):
     """
     Fetch historical data in chunks (e.g. 10-day periods) until today.
@@ -1347,16 +1366,31 @@ def send_order(contract, total_quantity=1):
     order.orderRef = order_ref
     trade = ib.placeOrder(contract, order)
     # TODO convert to ib df
-    trade.fillEvent += ib_utils.on_fill
+    trade.fillEvent += ib_posttrade.on_fill
     ib.sleep(1)
     logger.warning(f"Order sent ....")
     logger.warning(f"@@ trade: {trade}")
     return
 
 
-def find_expiration_and_strikes(symbol):
-    global options_meta_date_dic
+def get_best_option_chain(chains):
+    """
+    Selects the option chain with the most expirations,
+    preferring SMART first, then CBOE variants.
+    """
+    # Filter only relevant exchanges
+    # candidates = [c for c in chains if c.exchange.startswith('SMART') or c.exchange.startswith('CBOE')]
+    candidates = [c for c in chains if c.exchange.startswith('SMART')]
+    if not candidates:
+        return None
 
+    # Pick the one with the most expirations
+    best = max(candidates, key=lambda c: len(c.expirations))
+    logger.info(f" Using {best.exchange} ({best.tradingClass}) with {len(best.expirations)} expirations")
+    return best
+
+def find_expiration_and_strikes(symbol, exchange):
+    global options_meta_date_dic
     underlying = Stock(symbol, 'SMART', 'USD')
     ib.qualifyContracts(underlying)
 
@@ -1374,12 +1408,29 @@ def find_expiration_and_strikes(symbol):
     #     logger.info("----------")
 
     #Go through each c in chains and give me the first one whose exchange equals 'SMART'.”
-    chain = next(c for c in chains if c.exchange == 'SMART')
-    expiry = sorted(chain.expirations)[0].replace('-', '')
+    if symbol in ['QQQ', 'SPY']:
+        chain = get_best_option_chain(chains) # we choose the one has more
+    else:
+        chain = next(c for c in chains if c.exchange == 'SMART') # leave it ias is ... go with firsto ne
+
+    expiry = sorted(chain.expirations)[0]
     strikes = sorted(chain.strikes)
     options_meta_date_dic[symbol] = {}
-    options_meta_date_dic.get(symbol)['expiry'] = expiry
+
+    options_meta_date_dic.get(symbol)['first_expiry'] = expiry
     options_meta_date_dic.get(symbol)['strikes'] = strikes
+    options_meta_date_dic.get(symbol)['expirations'] = sorted(chain.expirations)
+
+    if not is_trade_time:
+        for c in chains:
+            if c.exchange == 'SMART':
+                options_meta_date_dic.get(symbol)[f'{c.exchange}-expirations'] = sorted(c.expirations)
+                options_meta_date_dic.get(symbol)[f'{c.exchange}-strikes'] = sorted(c.strikes)
+            if c.exchange == 'CBOE':
+                options_meta_date_dic.get(symbol)[f'{c.exchange}-expirations'] = sorted(c.expirations)
+                options_meta_date_dic.get(symbol)[f'{c.exchange}-strikes'] = sorted(c.strikes)
+                dump_a_map_to_file(options_meta_date_dic[symbol], file_path=f'{intermediate_dir}/{symbol}-strikes-expiry.json')
+
     return
 
 def create_option_contract(strike, expiry, right, exchange="CBOE", symbol='SPX', trading_class='SPXW', max_retries=2, wait_between=1.0):
@@ -1395,16 +1446,18 @@ def create_option_contract(strike, expiry, right, exchange="CBOE", symbol='SPX',
     )
     contracts.append(contract)
 
-    for attempt in range(0, max_retries):
+    for attempt in range(1, max_retries+1):
 
         logger.info(f"calling qualifyContracts : ")
         qualified = ib.qualifyContracts(contract)
         logger.info("qualifyContracts is done.")
 
         if qualified:
+            if attempt > 1:
+                logger.warning(f"@@ Contract is qualified,  {symbol}, qualified: {qualified}, attempt: {attempt} ")
             return contract
         else:
-            logger.warning(f"@@@@ Contract not found, qualified: {qualified}, will retry ...")
+            logger.warning(f"@@@@ Contract not qualified for {symbol}, qualified: {qualified}, attempt: {attempt}")
 
         time.sleep(wait_between)
 
@@ -1429,9 +1482,18 @@ def calculate_number_of_contracts(ask):
     return num_of_contracts
 def prepare_contract(symbol, right='C', max_retries=3, wait_between=1.0):
 
-    underlying_price = get_current_price_from_ib(symbol)
+    underlying_price = get_current_price(symbol)
     strikes = options_meta_date_dic.get(symbol, {}).get('strikes')
-    expiry = options_meta_date_dic.get(symbol, {}).get('expiry')
+
+    # example: "expirations": [
+    #     "20251205",
+    #     "20251209",
+    #     "20251212"
+    # ]
+    expiry_offset = app_config['symbols_meta'][symbol].get('expiry_offset', 0) # 0 means first one ... for QQQ/SPY we get the seond one ...
+
+    expiry_list = options_meta_date_dic.get(symbol, {}).get('expirations',[])
+    expiry = expiry_list[expiry_offset] if expiry_list else None
 
     # --- Categorize ---
     itm_calls = [s for s in strikes if s < underlying_price]
@@ -1453,18 +1515,9 @@ def prepare_contract(symbol, right='C', max_retries=3, wait_between=1.0):
     else:
         logger.error (f"@@@@ prepare_contract(), we have issue, {symbol}, underlying_price: {underlying_price}, expiry: {expiry}, strikes: {strikes}")
 
-        # TODO log the error
-        #   File "C:\Users\saeed\Documents\13-code-git\s349_scarface_strategy\scripts\screening.py", line 2202, in <module>
-        #     check_buy_sell_result_to_send_order(buy_sell_case_results_list)
-        #   File "C:\Users\saeed\Documents\13-code-git\s349_scarface_strategy\scripts\screening.py", line 1525, in check_buy_sell_result_to_send_order
-        #     option_contract = prepare_contract(symbol, right='C')
-        #                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-        #   File "C:\Users\saeed\Documents\13-code-git\s349_scarface_strategy\scripts\screening.py", line 1486, in prepare_contract
-        #     strike = otm_calls[0]
-        #              ~~~~~~~~~^^^
-        # IndexError: list index out of range
         return None
 
+    return None
 
 def number_of_trades_today(symbol):
     number_of_trades_today = application_state.get('number_of_trades', {}).get(date_yyyy_mm_dd, {}).get(symbol, 0)
@@ -1492,43 +1545,49 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
         long_level = buy_sell_case_result[4]
         short_level = buy_sell_case_result[5]
         level_used = long_level if can_buy else short_level
+        contract_type = app_config['symbols_meta'][symbol]['contract_type']
 
         logger.info(f"{symbol}, case: {case}, can_buy: {can_buy}, can_sell: {can_sell}")
-        if symbol == 'MNQ' and (can_buy or can_sell):
-            # create a new Thread for calling TopStep
-            # side = 'BUY' if can_buy else 'SELL'
-            # t = threading.Thread(target=call_api_top_step, args=(symbol, side))
-            # t.start()
+        # if symbol == 'MNQ' and (can_buy or can_sell):
+        #     # create a new Thread for calling TopStep
+        #     # side = 'BUY' if can_buy else 'SELL'
+        #     # t = threading.Thread(target=call_api_top_step, args=(symbol, side))
+        #     # t.start()
+        #     continue
+        if can_buy == False and can_sell == False:
             continue
+        logger.info(f"in check_buy_sell_result_to_send_order, {symbol}, can_buy: {can_buy}, can_sell:{can_sell}")
+
         if not app_config['symbols_meta'][symbol]['can_trade']:
             logger.info(f"We are not trading {symbol}.")
             continue
-        if can_buy or can_sell:
+        if not is_trade_time:
+            logger.warning(f"@@ is_trade_time:{is_trade_time}, {symbol}, {app_config['live']['is_trade_time']}")
+            continue
+        if application_state.get('open_trades_dic', {}).get(symbol,{}).get('available_quantity', 0) != 0:
+            logger.warning(f"@@ We already sent order. Don't be gready!!!  symbol: {symbol}")
+            continue
+        if number_of_trades_today(symbol) >= app_config['live']['max_num_of_trade_per_symbol_per_day']:
+            logger.warning(
+                f"@@  We already send enough orders for {symbol} ....number_of_trades_today{number_of_trades_today(symbol)}")
+            continue
+        if contract_type.lower() == 'equity' and (can_buy or can_sell): # go for buy
             side = 'C' if can_buy else 'P'
-            logger.info(f"in check_buy_sell_result_to_send_order, {symbol}, can_buy: {can_buy}, can_sell:{can_sell}")
-            if application_state.get('open_trades_dic', {}).get(symbol,{}).get('available_quantity', 0) != 0:
-                logger.warning(f"@@@ We already sent order. Don't be gready!!!  symbol: {symbol}")
-                continue
             option_contract = prepare_contract(symbol, right=side)
             if option_contract == None:
-                logger.warning(f"@@@ We are not sending order. option_contract: {option_contract}")
+                logger.warning(f"@@@@ We are not sending order. {symbol}, option_contract: {option_contract}")
                 continue
             bid, ask = get_quote_for_option_bid_ask(symbol=symbol, strike=option_contract.strike, right=option_contract.right, expiry=option_contract.lastTradeDateOrContractMonth)
-            if bid ==0 or ask ==0:
+            if bid == 0 or ask == 0:
                 logger.warning(f"@@@@ We are not sending order. bid ==0 or ask ==0")
                 continue
             total_quantity = calculate_number_of_contracts(ask)
             if total_quantity == 0:  # we don't have enough capital
                 logger.warning(f"@@ We dont have enough capital {symbol} ....")
                 continue
-            if number_of_trades_today(symbol) >= app_config['live']['max_num_of_trade_per_symbol_per_day']:
-                logger.warning(f"@@  We already send enough orders for {symbol} ....number_of_trades_today{number_of_trades_today(symbol)}")
-                continue
-            if not is_trade_time:
-                logger.warning(f"@@ is_trade_time:{is_trade_time}, {symbol}, {app_config['live']['is_trade_time']}")
-                continue
             send_order(option_contract, total_quantity=total_quantity)
             data = {
+                'date': f'{date_utils.time_now()}',
                 'symbol' : symbol,
                 'side': 'long',
                 'right': side,
@@ -1538,6 +1597,7 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
                 'u_run_number': unique_run_number,
                 'level_used_to_open': level_used,
                 'level_name': '',
+                'position_type': 'OPTION',
                 'expiry': option_contract.lastTradeDateOrContractMonth,
                 'strike': option_contract.strike,
                 'open_bid': bid,
@@ -1546,6 +1606,42 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
             application_state.setdefault('open_trades_dic', {})[symbol] = data
             add_to_signlas(symbol, f'ORDER_SENT',df['close'].iloc[-1],df['date'].iloc[-1], json.dumps(data).replace(',','<br>') )
             add_to_order_history_df(data)
+            add_to_number_of_trades_today(symbol)
+            send_email(event='order_sent', symbol=symbol, body=json.dumps(data).replace(',','<br>'))
+
+        elif contract_type.lower() == 'future' and (can_buy or can_sell):
+            side = 'BUY' if can_buy else 'SELL'
+            contract_month =  app_config['symbols_meta'][symbol]['contract_month']
+            contract = ib_orders.create_future_contract(symbol,contract_month)
+            stop_loss_price = eval(app_config['symbols_meta'][symbol][side.lower()]['stop_loss'])
+            take_profit_price = eval(app_config['symbols_meta'][symbol][side.lower()]['take_profit'])
+            total_quantity = 1
+            order_ref = f"OPEN-{symbol}-{unique_run_number}"
+            candle_date = str(df['date'].iloc[-1])
+            result_dic = ib_orders.send_market_order_w_sl_tp(ib, side, contract, stop_loss_price, take_profit_price, total_quantity, order_ref, candle_date)
+
+            print_map_pretty(result_dic, msg='after MNQ order result_dic ')
+
+            data = {
+                'symbol': symbol,
+                'side': side,
+                'position_type': 'FUTURE',
+                'starting_quantity':total_quantity,
+                'available_quantity':total_quantity,
+                'underlying_open_price': df['close'].iloc[-1],
+                'u_run_number': unique_run_number,
+                'level_used_to_open': level_used,
+                'level_name': '',
+            }
+            data.update(result_dic)
+
+            print_map_pretty(data, msg = 'after MNQ order ')
+
+            application_state.setdefault('open_trades_dic', {})[symbol] = data
+            add_to_signlas(symbol, f'ORDER_SENT', df['close'].iloc[-1], df['date'].iloc[-1], json.dumps(data).replace(',','<br>') )
+            add_to_signlas(symbol, f'STOP_LOSS_SENT', stop_loss_price, df['date'].iloc[-1], json.dumps(data).replace(',','<br>') )
+            add_to_signlas(symbol, f'TAKE_PROFIT_SENT', take_profit_price, df['date'].iloc[-1], json.dumps(data).replace(',','<br>') )
+            add_to_futures_order_history_df(data)
             add_to_number_of_trades_today(symbol)
             send_email(event='order_sent', symbol=symbol, body=json.dumps(data).replace(',','<br>'))
 
@@ -1558,6 +1654,10 @@ def add_to_order_history_df(data):
 
     return
 
+def add_to_futures_order_history_df(data):
+    global futures_order_history_df
+    futures_order_history_df = pd.concat([futures_order_history_df, pd.DataFrame([data])])
+    return
 
 def add_to_take_profit_history_df(data):
     global take_profit_history_df
@@ -1585,14 +1685,31 @@ def dump_application_state_to_file():
             logger.error(e)
     return
 
+def dump_a_map_to_file(map, file_path):
+    with open(file_path, 'w') as f:
+        try:
+            logger.info(f"saving at file_path: {file_path}")
+            json.dump(map, f, indent=4)
+            logger.info(f"saving done. ")
+        except Exception as e:
+            # TODO add
+            logger.error(e)
+    return
+
 def print_application_state(application_state, msg = ''):
     logger.warning(f"{msg}\n{pprint.pformat(application_state)}")
     return
 
+def print_map_pretty(map, msg = ''):
+    logger.warning(f"{msg}\n{pprint.pformat(map)}")
+    return
+
 def find_expiration_and_strikes_for_all():
     for symbol in app_config['symbols']:
-        if app_config['symbols_meta'][symbol]['contract_type'] == 'Equity':
-            find_expiration_and_strikes(symbol)
+        if app_config['symbols_meta'][symbol]['contract_type'] in ['Equity']:
+            exchange = app_config['symbols_meta'][symbol].get('exchange', 'SMART')
+            find_expiration_and_strikes(symbol, exchange)
+
     return
 
 def popualate_features(df):
@@ -1621,9 +1738,9 @@ def get_quote_for_option_bid_ask(symbol, strike, right, expiry, exchange='SMART'
         bid = ticker.bid  if ticker.bid > 0 else 0
         ask = ticker.ask  if ticker.ask > 0 else 0
         last = ticker.last if ticker.last > 0 else 0
-        logger.info(f"get_quote_for_option_bid_ask, bid: {bid}, ask:{ask}")
+        logger.info(f"get_quote_for_option_bid_ask, {symbol}, bid: {bid}, ask:{ask}")
         if bid == 0 or ask == 0:
-            logger.warning(f"@@@ get_quote_for_option_bid_ask(), {symbol}, bid: {bid}, ask:{ask}, option: {option}")
+            logger.warning(f"@@@ get_quote_for_option_bid_ask(), retrying ... {symbol}, attempt: {attempt}, bid: {bid}, ask:{ask}, option: {option}")
             time.sleep(wait_between)
         else:
             return bid, ask
@@ -1631,7 +1748,7 @@ def get_quote_for_option_bid_ask(symbol, strike, right, expiry, exchange='SMART'
     return bid, ask
 
 def get_live_quote_for_option_positions(option_positions):
-    portfolio_df = pd.DataFrame()
+    options_portfolio_df = pd.DataFrame()
     for p in option_positions:
         contract = p.contract
         contract.exchange = 'CBOE'  # TODO why not smart!
@@ -1657,10 +1774,37 @@ def get_live_quote_for_option_positions(option_positions):
             'open_execution_orderRef': '',
             'open_execution_execId': ''
         }
-        portfolio_df = pd.concat([portfolio_df, pd.DataFrame([data])], ignore_index=True)
+        options_portfolio_df = pd.concat([options_portfolio_df, pd.DataFrame([data])], ignore_index=True)
 
-    logger.info(f"get_live_quote_for_option_positions(), portfolio_df:\n {portfolio_df.to_markdown()}")
-    return portfolio_df
+    logger.info(f"get_live_quote_for_option_positions(), options_portfolio_df:\n {options_portfolio_df.to_markdown()}")
+    return options_portfolio_df
+
+
+def get_live_quote_for_future_positions(future_positions):
+    future_portfolio_df = pd.DataFrame()
+    for p in future_positions:
+        contract = p.contract
+        qty = p.position
+        data = {
+            'conId': contract.conId,
+            'symbol': contract.symbol,
+            'localSymbol': contract.localSymbol,
+            # 'expiry': contract.lastTradeDateOrContractMonth,
+            # 'right': contract.right,
+            'open_qty': abs(qty),
+            # 'strike': contract.strike,
+            'side': 'long' if qty > 0 else 'short',
+            'bid': 0,
+            'ask': 0,
+            'last': 0,
+            'open_execution_price': 0,
+            'open_execution_orderRef': '',
+            'open_execution_execId': ''
+        }
+        future_portfolio_df = pd.concat([future_portfolio_df, pd.DataFrame([data])], ignore_index=True)
+
+    logger.info(f"get_live_quote_for_future_positions(), future_portfolio_df:\n {future_portfolio_df.to_markdown()}")
+    return future_portfolio_df
 
 def get_bid_and_ask(df, symbol):
     if len(df) == 0:
@@ -1689,9 +1833,8 @@ def my_tabulate(x):
         return "Error in tabular ..."
 
 
-def find_positions_to_monitor():
-    positions = get_all_open_positions()
-    logger.info(f"positions_to_monitor: all open: \n{tabulate(positions, headers='keys', tablefmt='psql')}")
+def find_option_positions_to_monitor(positions):
+    logger.info(f"option_positions_to_monitor: all open: \n{tabulate(positions, headers='keys', tablefmt='psql')}")
     ps = []
     for p in positions:
         logger.debug(f"p: {p}")
@@ -1700,9 +1843,21 @@ def find_positions_to_monitor():
             logger.debug(f"It is an option")
             ps.append(p)
 
-    logger.info(f"find_positions_to_monitor()\n{my_tabulate(ps)}")
+    logger.info(f"find_option_positions_to_monitor()\n{my_tabulate(ps)}")
     return ps
 
+def find_future_positions_to_monitor(positions):
+    logger.info(f"find_future_positions_to_monitor: all open: \n{tabulate(positions, headers='keys', tablefmt='psql')}")
+    ps = []
+    for p in positions:
+        logger.debug(f"p: {p}")
+        c = p.contract
+        if c.secType == 'FUT':
+            logger.info(f"It is a Future")
+            ps.append(p)
+
+    logger.info(f"find_future_positions_to_monitor()\n{my_tabulate(ps)}")
+    return ps
 
 def close_option_positions(positions, symbol='', close_qty=0, alias_for_ref=''):
 
@@ -1738,7 +1893,7 @@ def close_option_positions(positions, symbol='', close_qty=0, alias_for_ref=''):
             # --- Step 4: Place the order ---
             contract.exchange = 'SMART'  # or 'CBOE' if your account requires it
             trade = ib.placeOrder(contract, order)
-            trade.fillEvent += ib_utils.on_fill
+            trade.fillEvent += ib_posttrade.on_fill
             ib.sleep(0.5)  # small delay to avoid pacing violations
 
             logger.info(f"close_option_positions(), trade: {trade}")
@@ -1759,8 +1914,8 @@ def close_option_positions(positions, symbol='', close_qty=0, alias_for_ref=''):
 
 def close_all_open_option_positions():
     update_config_and_save(app_config, 'close_all_open_option_positions', False)
-    positions_to_monitor = find_positions_to_monitor()
-    close_option_positions(positions_to_monitor)
+    option_positions_to_monitor = find_option_positions_to_monitor()
+    close_option_positions(option_positions_to_monitor)
 
 
 
@@ -1855,28 +2010,28 @@ def check_for_stop_loss_and_take_profit():
     global application_state
 
     for symbol, open_trade_info in application_state.get('open_trades_dic', {}).items():
-        logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}" )
+        logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, " )
 
         # ###
         # stop loss
         # ###
+        logger.info(f"in check_for_stop_loss, {symbol} ,\n{pprint.pformat(open_trade_info)}" )
         if open_trade_info.get('available_quantity', 0) == 0:
             logger.info(f"{symbol}, check_for_stop_loss_and_take_profit(), available_quantity: 0")
             continue
-        logger.info(f"in check_for_stop_loss, {symbol} ,\n{pprint.pformat(open_trade_info)}" )
 
         symbol_df = dfs_map.get(symbol, pd.DataFrame())
         underlying_open_price = float(open_trade_info.get('underlying_open_price', -1))  # used in config ...
         level_used_to_open = float(open_trade_info.get('level_used_to_open', -1)) # used in config ...
         avg_cost_for_1_contract = open_trade_info.get('avg_cost_for_1_contract', -1) # used in config
-        right = application_state['open_trades_dic'][symbol]['right'] # used in config
+        right = application_state['open_trades_dic'][symbol].get('right', '') # used in config
         side = application_state['open_trades_dic'][symbol]['side'] # used in config
         level_used_to_open = application_state['open_trades_dic'][symbol]['level_used_to_open'] # used in config
         tolerance_amount = dynamic_tolerance.get('tolerance', 0)  # used in config
         start_quantity = application_state.get('open_trades_dic', {}).get(symbol, {}).get('starting_quantity', 0)
         available_quantity = application_state.get('open_trades_dic', {}).get(symbol, {}).get('available_quantity', 0)
 
-        underlying_current_price = get_current_price_from_ib(symbol) # used in config
+        underlying_current_price = get_current_price(symbol) # used in config
         if len(symbol_df) == 0:
             # it maybe first run and we dont have it yet in the dic ...
             underlying_previous_candle_close = underlying_current_price
@@ -1884,7 +2039,7 @@ def check_for_stop_loss_and_take_profit():
             underlying_previous_candle_close = symbol_df['close'].iloc[-2] # used in config
 
 
-        current_bid, current_ask = get_bid_and_ask(portfolio_df, symbol) #used in config
+        current_bid, current_ask = get_bid_and_ask(options_portfolio_df, symbol) #used in config
 
         # update app status ...
         application_state['open_trades_dic'][symbol]['current_bid'] = current_bid
@@ -1897,14 +2052,14 @@ def check_for_stop_loss_and_take_profit():
                     f"underlying_current_price:, {underlying_current_price}, underlying_previous_candle_close: {underlying_previous_candle_close} ,tolerance_amount: {tolerance_amount}")
         logger.info(f"current_bid: {current_bid}, current_ask: {current_ask}, avg_cost_for_1_contract: {avg_cost_for_1_contract}")
 
-        stop_loss_condition = app_config['stop_losses'][right]['stop_loss_condition']
+        stop_loss_condition = app_config.get('stop_losses').get(right,{}).get('stop_loss_condition', ' 1 == 2')
         stop_loss_condition_evaluated = eval(stop_loss_condition)
 
         logger.info(f"symbol {symbol}, stop_loss_condition: {stop_loss_condition}, stop_loss_condition_evaluated: {stop_loss_condition_evaluated}")
 
         if stop_loss_condition_evaluated:
             logger.warning("SL condition met ...")
-            close_option_positions(positions_to_monitor, symbol, alias_for_ref='SL')
+            close_option_positions(option_positions_to_monitor, symbol, alias_for_ref='SL')
             data = {
                 'symbol': symbol,
                 'right': application_state['open_trades_dic'][symbol]['right'],
@@ -1964,7 +2119,7 @@ def check_for_stop_loss_and_take_profit():
 
             if take_profit_condition_evaluated and available_quantity > 0 and close_quantity != 0 and close_quantity <= available_quantity :
                 logger.info(f"Sending TP ...{take_profit}")
-                close_option_positions(positions_to_monitor, symbol, close_quantity, alias_for_ref=take_profit)
+                close_option_positions(option_positions_to_monitor, symbol, close_quantity, alias_for_ref=take_profit)
                 application_state['open_trades_dic'][symbol]['available_quantity'] = available_quantity - close_quantity
 
                 data = {
@@ -2002,7 +2157,7 @@ def check_for_stop_loss_and_take_profit():
         if application_state['open_trades_dic'].get(symbol, {}) != {} and application_state['open_trades_dic'][symbol].get('available_quantity', 0) == 0:
             logger.info(f"{symbol}, the available_quantity is zero, so we set empty dic for it")
             archive_open_trade_dic(symbol, open_trade_info)
-            application_state['open_trades_dic'][symbol] = {}
+            remove_symbol_from_open_trade_dic(symbol)
 
     return
 
@@ -2173,7 +2328,7 @@ def cancel_open_orders(symbol = ''):
                 continue
             else:
                 trade = ib.cancelOrder(order.order)
-                trade.fillEvent += ib_utils.on_fill
+                trade.fillEvent += ib_posttrade.on_fill
 
                 logger.warning(f"open order canceled, trade: {trade}")
                 while not trade.isDone():
@@ -2184,16 +2339,31 @@ def cancel_open_orders(symbol = ''):
 
 
 
-def check_application_state_vs_positions():
+def check_application_state_vs_ib_positions():
     global application_state
     for symbol, open_trade_info in application_state.get('open_trades_dic', {}).items():
+        found = False
         if open_trade_info.get('available_quantity', 0) != 0:  # There is in the dic
-            if len(portfolio_df) >0:
-                x_df = portfolio_df[portfolio_df['symbol'] == symbol]
-                if len(x_df) == 0:
-                    logger.warning(f"@@@@ This symbol exist in the application_state but not in the portfolio_df. symbol:{symbol}")
-                    logger.warning(f"@@@@ open_trade_info: {open_trade_info}")
-                    logger.warning(f"@@@@ portfolio_df\n{portfolio_df.to_markdown()}")
+            if 'OPTION' == open_trade_info.get('position_type'):
+                if len(options_portfolio_df) > 0:
+                    x_df = options_portfolio_df[options_portfolio_df['symbol'] == symbol]
+                    if len(x_df) > 0:
+                        found = True
+
+            elif 'FUTURE' == open_trade_info.get('position_type'):
+                if len(future_portfolio_df) > 0:
+                    x_df = future_portfolio_df[future_portfolio_df['symbol'] == symbol]
+                    if len(x_df) > 0:
+                        found = True
+
+
+        if not found:
+            logger.warning(f"@@@@ This symbol exist in the application_state but not in the ib. symbol:{symbol}")
+            logger.warning(f"@@@@ open_trade_info: {open_trade_info}")
+            logger.warning(f"@@@@ options_portfolio_df\n{options_portfolio_df.to_markdown()}")
+            logger.warning(f"@@@@ future_portfolio_df\n{future_portfolio_df.to_markdown()}")
+            archive_open_trade_dic(symbol, open_trade_info)
+            remove_symbol_from_open_trade_dic(symbol)
 
     return
 
@@ -2257,23 +2427,54 @@ def save_extra_features_df():
     extra_features_df.to_csv(file, index=False)
 
 def save_all_csv_files():
+    df_file_map = {
+        "close_levels_df": f'{charts_dir}/13-close_levels_df.csv',
+        "drawing_objects_df" :f"{charts_dir}/10-drawing_objects_df.csv",
+        "key_levels_df":  f"{portfolio_dir}/11-key_levels_df.csv",
+        "hover_df": f"{charts_dir}/12-hover_df.csv",
+        "order_history_df": f"{portfolio_dir}/13-order_history_df.csv",
+        "stop_loss_history_df": f"{portfolio_dir}/14-stop_loss_history_df.csv",
+        "take_profit_history_df": f"{portfolio_dir}/15-take_profit_history_df.csv",
+        "futures_order_history_df": f"{portfolio_dir}/16-futures_order_history_df.csv",
+    }
     logger.info(f"save_all_csv_files, start ...")
-    save_list_to_csv(close_pairs, file=f'{charts_dir}/13-close_levels_df.csv', mode='w')
-    drawing_objects_df_file_path = f"{charts_dir}/10-drawing_objects_df.csv"
-    df_utils.save_df_to_csv_a_tabular(drawing_objects_df, file_path=drawing_objects_df_file_path, mode='w')
-    key_levels_df_file_path = f"{portfolio_dir}/11-key_levels_df.csv"
-    df_utils.save_df_to_csv_a_tabular(key_levels_df, file_path=key_levels_df_file_path, mode='w')
-    hover_df_file_path = f"{charts_dir}/12-hover_df.csv"
-    df_utils.save_df_to_csv_a_tabular(hover_df, file_path=hover_df_file_path, mode='a')
-    order_history_df_file_path = f"{portfolio_dir}/13-order_history_df.csv"
-    df_utils.save_df_to_csv_a_tabular(order_history_df, file_path=order_history_df_file_path, mode='a', drop_dupplicates=True)
-    stop_loss_history_df_file_path = f"{portfolio_dir}/14-stop_loss_history_df.csv"
-    df_utils.save_df_to_csv_a_tabular(stop_loss_history_df, file_path=stop_loss_history_df_file_path, mode='a', drop_dupplicates=True)
-    take_profit_history_df_file_path = f"{portfolio_dir}/15-take_profit_history_df.csv"
-    df_utils.save_df_to_csv_a_tabular(take_profit_history_df, file_path=take_profit_history_df_file_path, mode='a', drop_dupplicates=True)
 
-    ib_utils.save_ib_dfs(portfolio_dir,ib)
+    save_list_to_csv(close_pairs, file=df_file_map.get('close_levels_df'), mode='w')
+    df_utils.save_df_to_csv_a_tabular(drawing_objects_df, file_path=df_file_map.get('drawing_objects_df'), mode='w')
+    df_utils.save_df_to_csv_a_tabular(key_levels_df, file_path=df_file_map.get('key_levels_df'), mode='w')
+    df_utils.save_df_to_csv_a_tabular(hover_df, file_path=df_file_map.get('hover_df'), mode='a')
+    df_utils.save_df_to_csv_a_tabular(order_history_df, file_path=df_file_map.get('order_history_df'), mode='a', drop_dupplicates=True)
+    df_utils.save_df_to_csv_a_tabular(stop_loss_history_df, file_path=df_file_map.get('stop_loss_history_df'), mode='a', drop_dupplicates=True)
+    df_utils.save_df_to_csv_a_tabular(take_profit_history_df, file_path=df_file_map.get('take_profit_history_df'), mode='a', drop_dupplicates=True)
+    df_utils.save_df_to_csv_a_tabular(futures_order_history_df, file_path=df_file_map.get('futures_order_history_df'), mode='a', drop_dupplicates=True)
+
+    ib_posttrade.save_ib_dfs(portfolio_dir,ib)
     logger.info(f"save_all_csv_files, finished ...")
+
+def add_rs_relative_to_candle_info(symbol):
+    if symbol == 'QQQ':
+        return
+
+    rs_rel = round(intraday_rs_df['rs_rel'].iloc[-1], 2)
+    rs_rel_ema = round(intraday_rs_df['rs_rel_ema'].iloc[-1], 2)
+    add_to_candle_info_df(df['date'].iloc[-1], df['close'].iloc[-1], f"rs_rel: {rs_rel}, rs_rel_ema: {rs_rel_ema}" )
+    return
+
+def mark_tolerance_to_the_level(level, level_name):
+    if level == 0:
+        return
+
+    tolerance = dynamic_tolerance.get('tolerance', 0)
+    p1 = level - tolerance * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1)
+    p2 = level + tolerance * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1)
+    p1 = round(p1 ,2)
+    p2 = round(p2 ,2)
+    date = df['date'].iloc[-1]
+    add_to_signlas(symbol, f'{level_name}_SMALL_DOT', p1, date, f'{p1}, l: {level} t: {tolerance}', 'yellow' )
+    add_to_signlas(symbol, f'{level_name}_SMALL_DOT_1', p2, date, f'{p2}, l: {level} t: {tolerance}' ,'yellow' )
+
+    return
+
 
 if __name__ == "__main__":
 
@@ -2284,8 +2485,8 @@ if __name__ == "__main__":
     ib_config = load_ib_config()
     ib = create_ib_connection()
 
-    ib.commissionReportEvent += ib_utils.on_commission_report
-    ib.updatePortfolioEvent += ib_utils.on_portfolio_update
+    ib.commissionReportEvent += ib_posttrade.on_commission_report
+    ib.updatePortfolioEvent += ib_posttrade.on_portfolio_update
 
     application_state = {}
     options_meta_date_dic = {}
@@ -2312,6 +2513,7 @@ if __name__ == "__main__":
     event_history_df = pd.DataFrame(columns=event_history_df_columns)
 
     order_history_df = pd.DataFrame()
+    futures_order_history_df = pd.DataFrame()
     stop_loss_history_df = pd.DataFrame()
     take_profit_history_df = pd.DataFrame()
     close_pairs = []
@@ -2321,6 +2523,7 @@ if __name__ == "__main__":
 
     # calcuatel_pnl()
     # raise x
+    logger.info("application started.")
     while True:
       try:
         start_time = time.time()
@@ -2348,12 +2551,13 @@ if __name__ == "__main__":
 
 
         qqq_df = pd.DataFrame()  # need to reset once we iterate throught all symbols ...
-
-        positions_to_monitor = find_positions_to_monitor()
-        update_for_avg_cost(positions_to_monitor)
-        portfolio_df = get_live_quote_for_option_positions(positions_to_monitor)
-
-        check_application_state_vs_positions()
+        all_positions = get_all_open_positions()
+        option_positions_to_monitor = find_option_positions_to_monitor(all_positions)
+        future_positions_to_monitor = find_future_positions_to_monitor(all_positions)
+        update_for_avg_cost(option_positions_to_monitor)
+        options_portfolio_df = get_live_quote_for_option_positions(option_positions_to_monitor)
+        future_portfolio_df = get_live_quote_for_future_positions(future_positions_to_monitor)
+        check_application_state_vs_ib_positions()
 
         symbol_number = 0
         for symbol in app_config['symbols']:
@@ -2404,6 +2608,9 @@ if __name__ == "__main__":
             find_add_PDH_PDL_levels_to_key_levels_df()
             find_add_5MH_5ML_levels_to_key_levels_df()
 
+            mark_tolerance_to_the_level(get_levels_dic().get('5MH', 0), '5MH')
+            mark_tolerance_to_the_level(get_levels_dic().get('5ML', 0), '5ML')
+
             key_levels_list = get_key_levels_list()
             logger.debug(f"key_levels_list: {key_levels_list}")
             mark_close_levels(key_levels_list)
@@ -2414,7 +2621,10 @@ if __name__ == "__main__":
 
             add_buy_a_sell_entries_to_signals(buy_sell_case_results_list)
             add_atr_to_candle_info(dynamic_tolerance)
-            add_candle_info_df_to_signals()
+            add_rs_relative_to_candle_info(symbol)
+
+            add_candle_info_df_to_signals()  # add BEFORe here to signals ...
+
             logger.debug(f"{symbol}, signals: {signals}")
             hover_df = convert_signals_to_hover_df(signals)
 
