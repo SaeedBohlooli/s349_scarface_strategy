@@ -121,49 +121,17 @@ def get_previous_bday():
     prev_day = (pd.Timestamp.today() - BDay(1)).normalize()
     return prev_day
 
-def disconnect_ib(ib):
-        try:
-            logger.info("we need to diconnect first ...")
-            ib.disconnect()  # 🔹 Important: ensure full teardown
-            time.sleep(1)
-
-        except Exception as e:
-            logger.error(f"disconnect_ib: ⚠️ Exception: {e}")
-            time.sleep(1)
 
 
-def on_disconnect():
-    try:
-        logger.warning("⚠️ IB disconnected! Reconnecting...")
-        create_ib_connection()
-    except Exception as e:
-        logger.error(f"disconnect_ib: ⚠️ Exception: {e}")
-        time.sleep(1)
-    return
+
+
 
 
 
 def create_ib_connection():
-    connected = False
-    ib = None
-    while not connected:
-        try:
-            ib = IB()
-            disconnect_ib(ib)
-            # ib.disconnectedEvent += on_disconnect
-            ib.connect(ib_config['ip'], ib_config['port'], clientId=ib_config['client_id'], timeout=0)
-            ib.commissionReportEvent += ib_posttrade.on_commission_report
-            ib.updatePortfolioEvent += ib_posttrade.on_portfolio_update
-
-            connected = True
-            logger.info(f"IB connected.")
-        except Exception as e:
-            # TODO needs better exception handling
-            logger.error(f"error: {e}")
-            logger.error(f"--------------")
-            logger.error(traceback.format_exc())
-            logger.info("Sleeping for 60 secs and retrying again ...")
-            time.sleep(60)
+    ib = ib_utils.create_ib_connection(ib_config['ip'], ib_config['port'], clientId=ib_config['client_id'])
+    ib.commissionReportEvent += ib_posttrade.on_commission_report
+    ib.updatePortfolioEvent += ib_posttrade.on_portfolio_update
     return ib
 
 def get_historical_data(contract, historical_days, time_frame):
