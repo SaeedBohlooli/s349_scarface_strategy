@@ -44,16 +44,21 @@ portfolio_id = 'p250'
 configs_folder = f'../configs'
 
 mode = 'live'
+if mode == 'live':
+    dir_alias = ''
+    wait_until_end_of_period = True
+else:
+    dir_alias = '-backtest'
+    wait_until_end_of_period = False
 
-portfolio_dir = f'../../portfolios/results/{portfolio_id}'
-reports_dir = f'../../portfolios/reports/{portfolio_id}'
-log_dir = f'../../portfolios/logs/{portfolio_id}-{mode}/{datetime.datetime.now().strftime("%Y-%m-%d")}'
-detailed_log_dir = f'../../portfolios/detailed-logs/{portfolio_id}-{mode}'
-intermediate_dir = f'../../portfolios/intermediate/{portfolio_id}'
-
-ohlc_dir = f'../../portfolios/ohlc/{portfolio_id}'
-charts_dir = f'../../portfolios/charts/{portfolio_id}'
-backtest_ohlc_dir = f'../../portfolios/backtest-ohlc/{portfolio_id}'
+portfolio_dir = f'../../portfolios/results/{portfolio_id}{dir_alias}'
+reports_dir = f'../../portfolios/reports/{portfolio_id}{dir_alias}'
+log_dir = f'../../portfolios/logs/{portfolio_id}{dir_alias}/{datetime.datetime.now().strftime("%Y-%m-%d")}'
+detailed_log_dir = f'../../portfolios/detailed-logs/{portfolio_id}{dir_alias}'
+intermediate_dir = f'../../portfolios/intermediate/{portfolio_id}{dir_alias}'
+ohlc_dir = f'../../portfolios/backtest-ohlc/{portfolio_id}{dir_alias}'
+charts_dir = f'../../portfolios/charts/{portfolio_id}{dir_alias}'
+ohlc_archie_dir = f'../../portfolios/ohlc-archive/{portfolio_id}'
 
 os.makedirs(portfolio_dir, exist_ok=True)
 os.makedirs(reports_dir, exist_ok=True)
@@ -62,7 +67,7 @@ os.makedirs(detailed_log_dir, exist_ok=True)
 os.makedirs(ohlc_dir, exist_ok=True)
 os.makedirs(intermediate_dir, exist_ok=True)
 os.makedirs(charts_dir, exist_ok=True)
-os.makedirs(backtest_ohlc_dir, exist_ok=True)
+os.makedirs(ohlc_archie_dir, exist_ok=True)
 
 
 def update_config_and_save(config, key, value):
@@ -112,9 +117,11 @@ os.makedirs(detailed_log_dir, exist_ok=True)
 os.makedirs(ohlc_dir, exist_ok=True)
 os.makedirs(intermediate_dir, exist_ok=True)
 os.makedirs(charts_dir, exist_ok=True)
-os.makedirs(backtest_ohlc_dir, exist_ok=True)
+os.makedirs(ohlc_archie_dir, exist_ok=True)
 
 application_state_file_path = f'{intermediate_dir}/84-application_state.csv'
+
+
 
 
 def get_previous_bday():
@@ -185,9 +192,16 @@ def create_equity_contract(symbol):
 
 def save_ohlc_for_chart(df):
     logger.info(f"in save_ohlc_for_chart, symbol: {symbol}, len(df): {len(df)}")
-    df = df[['date','open', 'high', 'low', 'close', 'volume', 'atr_14']]
+    if mode == 'live':
+        df = df[['date','open', 'high', 'low', 'close', 'volume', 'atr_14']]
+
     file = f"{charts_dir}/{symbol}-{time_frame.replace(' ', '')}.csv"
     df.to_csv(file, index=False, mode='w')
+    return
+
+def save_ohlc_tabluar_for_chart():
+    file = f"{charts_dir}/{symbol}-{time_frame.replace(' ', '')}.csv" # TODO duplicate ...
+    df_utils.write_file_in_tabulate(file)
     return
 
 def calculate_PDL_PDH(df):
@@ -503,10 +517,6 @@ def detect_candle_patterns(df):
 
 def find_add_5MH_5ML_levels_to_key_levels_df():
 
-    # ###
-    # for live
-    # ###
-    wait_until_end_of_period = True
 
     low_for_5_min, high_for_5_min = find_session_high_and_low(df, start="09:30", end="09:34", wait_until_end_of_period= wait_until_end_of_period)
     add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dot', color='Black', price_1=low_for_5_min, memo=f'5ML {low_for_5_min}', unique_id=f'{symbol}-{time_frame}-5ML')
@@ -530,14 +540,13 @@ def add_buy_a_sell_entries_to_signals(buy_sell_case_results_list):
     for buy_sell_case_result in buy_sell_case_results_list:
 
         logger.debug(f"add_buy_a_sell_entries_to_signals(), buy_sell_case_result: {buy_sell_case_result}")
+        # case, can_buy, can_sell, details_map
         case = buy_sell_case_result[0]
         can_buy = buy_sell_case_result[1]
         can_sell = buy_sell_case_result[2]
-        res_str = f"{buy_sell_case_result[3]}"
+        result_map = buy_sell_case_result[3]
 
-
-        # offseted_price = get_offseted_price(df['high'].iloc[-1])
-        # This way we don't overlap entries in the chart ...
+        res_str = result_map.get('res_str')
 
         if case == 'case_1':
             price = df['low'].iloc[-1]
@@ -553,9 +562,219 @@ def add_buy_a_sell_entries_to_signals(buy_sell_case_results_list):
         if can_sell:
             add_to_signlas(symbol, f"SELL_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}")
 
+
         # add_to_signlas(symbol,  f"SCREENING_{case}", offseted_price, df['date'].iloc[-1], f'{case} - {res_str}')  #
         price = get_latest_offseted_price('down', df['low'].iloc[-1])
         add_to_candle_info_df(date=df['date'].iloc[-1], price=price, memo=f'{case} - {res_str}')
+
+    return
+def backtest_has_open_position():
+    if position == 0:
+        return False
+    else:
+        return  True
+
+def backtest_has_long_position():
+    if position == 1:
+        return True
+    else:
+        return  False
+
+def backtest_has_short_position():
+    if position == -1:
+        return True
+    else:
+        return  False
+def backtest_create_long_position():
+    global position
+    position = 1
+    return
+
+def backtest_create_short_position():
+    global position
+    position = -1
+    return
+
+def backtest_close_position():
+    global position
+    position = 0
+    return
+
+
+def mark_stop_loss_take_profit_for_futures(buy_sell_case_results_list):
+    global screening_log_list
+
+    for buy_sell_case_result in buy_sell_case_results_list:
+
+        logger.debug(f"add_buy_a_sell_entries_to_signals(), buy_sell_case_result: {buy_sell_case_result}")
+        # case, can_buy, can_sell, details_map
+        case = buy_sell_case_result[0]
+        can_buy = buy_sell_case_result[1]
+        can_sell = buy_sell_case_result[2]
+        result_map = buy_sell_case_result[3]
+
+        res_str = result_map.get('res_str')
+        long_level = result_map.get('long_level')
+        short_level = result_map.get('short_level')
+
+        if (can_buy or can_sell) : # we want to add SL TP in the chart in BT
+            contract_type = app_config['symbols_meta'][symbol]['contract_type']
+            side = 'long' if can_buy else 'short'
+            right = 'C' if can_buy else 'P'
+            level_used = long_level if can_buy else short_level # used in config SL and TP
+            if contract_type.lower() == 'future':
+
+                level_used = long_level if can_buy else short_level # used in SL canlcualtion
+                stop_loss_price = eval(app_config['symbols_meta'][symbol][side]['stop_loss'])
+                take_profit_price = eval(app_config['symbols_meta'][symbol][side]['take_profit'])
+
+                add_to_signlas(symbol, f'STOP_LOSS_SENT', stop_loss_price, df['date'].iloc[-1], f"SL:{round(stop_loss_price,2)}, sl-to-close: {abs(round(df['close'].iloc[-1]- stop_loss_price, 2))}<br> " )
+                add_to_signlas(symbol, f'TAKE_PROFIT_SENT', take_profit_price, df['date'].iloc[-1], f"TP:{round(take_profit_price,2)},  tp-to-close: {abs(round(take_profit_price - df['close'].iloc[-1] , 2))}")
+
+    return
+
+def reset_row():
+    global df
+    df.at[df.index[-1], "position"] = 0
+    df.at[df.index[-1], "side"] = ''
+    df.at[df.index[-1], "right"] = ''
+    df.at[df.index[-1], "open_price"] = 0
+    df.at[df.index[-1], "close_price"] = 0
+    df.at[df.index[-1], "stop_loss_price"] = 0
+    df.at[df.index[-1], "take_profit_price"] = 0
+
+
+
+def add_to_screening_log_list(side):
+    global  screening_log_list
+    data = {
+        'symbol': symbol,
+        'trade_date': back_test_date,
+        'day_of_week': pd.to_datetime(back_test_date).day_name(),
+        'date': str(df['date'].iloc[-1]),
+        'side': side,
+        'open_price': df['open'].iloc[-1],
+        'close_price': 0,
+        'pnl': 0,
+        'entry_time': str(df['date'].iloc[-1]),
+        'entry_atr': df['atr_14'].iloc[-1],
+        'entry_volume': df['volume'].iloc[-1],
+        'entry_volume_ratio': df['VR'].iloc[-1],
+        'retest_atr': df['atr_14'].iloc[retest_idx],
+        'retest_volume': df['volume'].iloc[retest_idx],
+        'retest_volume_ratio': df['VR'].iloc[retest_idx],
+        'breakout_atr': df['atr_14'].iloc[breakout_idx],
+        'breakout_volume': df['volume'].iloc[breakout_idx],
+        'breakout_volume_ratio': df['VR'].iloc[breakout_idx],
+        'rs_relative': intraday_rs_df['rs_rel'].iloc[-1],
+        'rs_delta': intraday_rs_df['rs_delta'].iloc[-1],
+        'exit_time': '',
+        'qqq_context' :'',
+    }
+    screening_log_list.append(data)
+
+def do_back_test(buy_sell_case_results_list):
+    global df
+    global screening_log_list
+
+    if backtest_has_open_position():
+
+        # first we pu them ther,e and then may be overwrite ...
+        df.at[df.index[-1], "position"] = df['position'].iloc[-2]
+        df.at[df.index[-1], "side"] = df['side'].iloc[-2]
+        df.at[df.index[-1], "right"] = df['right'].iloc[-2]
+        df.at[df.index[-1], "stop_loss_price"] = df['stop_loss_price'].iloc[-2]
+        df.at[df.index[-1], "take_profit_price"] = df['take_profit_price'].iloc[-2]
+        df.at[df.index[-1], "open_price"] = df['open_price'].iloc[-2]
+        df.at[df.index[-1], "close_price"] = df['close_price'].iloc[-2]
+    else: # no open position
+        reset_row()
+
+    for buy_sell_case_result in buy_sell_case_results_list:
+
+        logger.debug(f"add_buy_a_sell_entries_to_signals(), buy_sell_case_result: {buy_sell_case_result}")
+        # case, can_buy, can_sell, details_map
+        case = buy_sell_case_result[0]
+        can_buy = buy_sell_case_result[1]
+        can_sell = buy_sell_case_result[2]
+        result_map = buy_sell_case_result[3]
+
+        res_str = result_map.get('res_str')
+        long_level = result_map.get('long_level')
+        short_level = result_map.get('short_level')
+
+
+
+        if (can_buy or can_sell) : # we want to add SL TP in the chart in BT
+            side = 'long' if can_buy else 'short'
+            right = 'C' if can_buy else 'P'
+            level_used = long_level if can_buy else short_level # used in config SL and TP
+
+            retest_idx = result_map.get('retest_idx')
+            breakout_idx = result_map.get('breakout_idx')
+
+
+
+            if not backtest_has_open_position():
+                stop_loss_price = eval(app_config['back_test'][side]['stop_loss'])
+                take_profit_price = eval(app_config['back_test'][side]['take_profit'])
+                open_price = df['close'].iloc[-1]
+
+                if can_buy:
+                    position = 1
+                    entry_price = -1
+                    backtest_create_long_position()
+                    add_to_screening_log_list(side)
+
+                if can_sell :
+                    position = -1
+                    entry_price = -1
+                    backtest_create_short_position()
+                    add_to_screening_log_list(side)
+
+                df.at[df.index[-1], "position"] = position
+                df.at[df.index[-1], "side"] = side
+                df.at[df.index[-1], "right"] = right
+                df.at[df.index[-1], "open_price"] = open_price
+                df.at[df.index[-1], "stop_loss_price"] = stop_loss_price
+                df.at[df.index[-1], "take_profit_price"] = take_profit_price
+                add_to_signlas(symbol, 'BACKTEST_STOP_LOSS', stop_loss_price, df['date'].iloc[-1], f'SL @ {stop_loss_price}','Purple')
+                add_to_signlas(symbol, 'BACKTEST_TAKE_PROFIT', take_profit_price, df['date'].iloc[-1], f'TP @ {take_profit_price}', 'Purple')
+
+    price = df['close'].iloc[-1]
+    stop_loss_price = df['stop_loss_price'].iloc[-1]
+    take_profit_price = df['take_profit_price'].iloc[-1]
+
+
+    if backtest_has_long_position():
+        if price <= stop_loss_price:
+            backtest_close_position()
+            df.at[df.index[-1], 'close_price'] = stop_loss_price
+            screening_log_list[-1]['close_price'] = stop_loss_price
+            screening_log_list[-1]['pnl'] = (screening_log_list[-1]['close_price'] - screening_log_list[-1]['open_price'])
+            add_to_signlas(symbol, 'BACKTEST_CLOSE_POSITION', stop_loss_price, df['date'].iloc[-1], f"close @ {price} - pnl: {round(screening_log_list[-1]['pnl'] , 2)}", 'RED')
+        elif price >= take_profit_price:
+            backtest_close_position()
+            df.at[df.index[-1], 'close_price'] = take_profit_price
+            screening_log_list[-1]['close_price'] = take_profit_price
+            screening_log_list[-1]['pnl'] = (screening_log_list[-1]['close_price'] - screening_log_list[-1]['open_price'])
+            add_to_signlas(symbol, 'BACKTEST_CLOSE_POSITION', take_profit_price, df['date'].iloc[-1], f"close @ {price} - pnl: {round(screening_log_list[-1]['pnl'] , 2)}", 'GREEN')
+    elif backtest_has_short_position():
+        if price >= stop_loss_price:
+            backtest_close_position()
+            df.at[df.index[-1], 'close_price'] = stop_loss_price
+            screening_log_list[-1]['close_price'] = stop_loss_price
+            screening_log_list[-1]['pnl'] = (screening_log_list[-1]['open_price'] - screening_log_list[-1]['close_price'])
+            add_to_signlas(symbol, 'BACKTEST_CLOSE_POSITION', stop_loss_price, df['date'].iloc[-1], f"close @ {price} - pnl: {round(screening_log_list[-1]['pnl'] , 2)}", 'RED')
+
+        elif price <= take_profit_price:
+            backtest_close_position()
+            df.at[df.index[-1], 'close_price'] = take_profit_price
+            screening_log_list[-1]['close_price'] = take_profit_price
+            screening_log_list[-1]['pnl'] = (screening_log_list[-1]['open_price'] - screening_log_list[-1]['close_price'])
+            add_to_signlas(symbol, 'BACKTEST_CLOSE_POSITION', take_profit_price, df['date'].iloc[-1], f"close @ {price} - pnl: {round(screening_log_list[-1]['pnl'] , 2)}", 'GREEN')
+
+
 
     return
 
@@ -723,7 +942,16 @@ def check_buy_sell_condition(case):
         logger.error(f"in check_buy_sell_condition: {symbol} {case} error {e}")
         logger.error(traceback.format_exc())
         res_str = f'res_{case}'
-    return case, can_buy, can_sell, res_str, long_level, short_level
+    details_map = {
+        'can_buy': can_buy,
+        'can_sell': can_sell,
+        'res_str': res_str,
+        'long_level': long_level,
+        'short_level': short_level,
+        'breakout_idx': breakout_idx,
+        'retest_idx': retest_idx
+    }
+    return case, can_buy, can_sell, details_map
 
 def is_retest_after_breakout(side='up', level=1):
     global retest_idx, breakout_idx
@@ -1276,7 +1504,7 @@ def get_back_test_data():   # get data from IB.... use
             df = df.drop_duplicates(subset=[f'date'], keep=f'last')
             df = df.sort_values(by='date')
             logger.info(f"{symbol}, get_back_test_data, df['date'].min(): {df['date'].min()}, df['date'].max(): {df['date'].max()}")
-            file = os.path.join(backtest_ohlc_dir, f'{symbol}-1min.csv')
+            file = os.path.join(ohlc_archie_dir, f'{symbol}-1min.csv')
             logger.info(f"saving to file: {file}")
             if os.path.exists(file):  # load file and merge with new one ...
                 logger.info(f"File {file} exists... loading it ...")
@@ -1679,7 +1907,13 @@ def find_expiration_and_strikes_for_all():
             find_expiration_and_strikes(symbol, exchange)
 
     return
-
+def populate_volume_ratio(df):
+    df['volume_sma10'] = df['volume'].rolling(window=10).mean()
+    df['VR'] = df['volume'] / df['volume_sma10']
+    cap = df['VR'].quantile(0.95)  # 95th percentile
+    df['VR'] = df['VR'].clip(upper=cap)
+    df['VR_sma10'] = df['VR'].rolling(window=10).mean()
+    return df
 def popualate_features(df):
     period = 14
     atr_df = pd.DataFrame()
@@ -2392,19 +2626,35 @@ def save_extra_features_df():
     extra_features_df = extra_features_df.merge(intraday_rs_df, on='date', how='left')
 
     file = f"{charts_dir}/{symbol}-{time_frame.replace(' ', '')}-extra_features_df.csv"
+
+    if mode == 'back_test':
+        extra_features_df = cut_df_strating_hour_x_on_last_day(extra_features_df, cutoff_time="09:15")
+
     extra_features_df.to_csv(file, index=False)
 
-def save_all_csv_files():
-    df_file_map = {
-        "close_levels_df": f'{charts_dir}/13-close_levels_df.csv',
-        "drawing_objects_df" :f"{charts_dir}/10-drawing_objects_df.csv",
-        "key_levels_df":  f"{portfolio_dir}/11-key_levels_df.csv",
+def generate_df_file_map():
+    return {
+        "drawing_objects_df": f"{charts_dir}/10-drawing_objects_df.csv",
+        "key_levels_df": f"{portfolio_dir}/11-key_levels_df.csv",
         "hover_df": f"{charts_dir}/12-hover_df.csv",
+        "close_levels_df": f'{charts_dir}/13-close_levels_df.csv',
+        "screening_log_df": f"{charts_dir}/12-screening_log_df.csv",
         "order_history_df": f"{portfolio_dir}/13-order_history_df.csv",
         "stop_loss_history_df": f"{portfolio_dir}/14-stop_loss_history_df.csv",
         "take_profit_history_df": f"{portfolio_dir}/15-take_profit_history_df.csv",
         "futures_order_history_df": f"{portfolio_dir}/16-futures_order_history_df.csv",
+        "screening_log_for_run_df": f"{portfolio_dir}/17-screening_log_for_run_df.csv",
+        "screening_summary_df" :  f"{portfolio_dir}/18-screening_summary_df.csv",
+
     }
+
+df_file_map = generate_df_file_map()
+
+def save_all_csv_files():
+    global df_file_map
+    if mode == 'back_test': # we need to re assign ...
+        df_file_map = generate_df_file_map()
+
     logger.info(f"save_all_csv_files, start ...")
 
     save_list_to_csv(close_pairs, file=df_file_map.get('close_levels_df'), mode='w')
@@ -2415,8 +2665,10 @@ def save_all_csv_files():
     df_utils.save_df_to_csv_a_tabular(stop_loss_history_df, file_path=df_file_map.get('stop_loss_history_df'), mode='a', drop_dupplicates=True)
     df_utils.save_df_to_csv_a_tabular(take_profit_history_df, file_path=df_file_map.get('take_profit_history_df'), mode='a', drop_dupplicates=True)
     df_utils.save_df_to_csv_a_tabular(futures_order_history_df, file_path=df_file_map.get('futures_order_history_df'), mode='a', drop_dupplicates=True)
+    df_utils.save_df_to_csv_a_tabular(screening_log_df, file_path=df_file_map.get('screening_log_df'), mode='a', drop_dupplicates=True)
 
-    ib_posttrade.save_ib_dfs(portfolio_dir,ib)
+    if mode == 'live':
+        ib_posttrade.save_ib_dfs(portfolio_dir,ib)
     logger.info(f"save_all_csv_files, finished ...")
 
 def add_rs_relative_to_candle_info(symbol):
@@ -2443,23 +2695,101 @@ def mark_tolerance_to_the_level(level, level_name):
 
     return
 
+def add_list_to_dic(df, data_list):
+    df = pd.concat([df, pd.DataFrame(data_list)])
+    return df
+
+
+def summerize_screening_log(screening_log_for_run_df):
+    df = screening_log_for_run_df
+    df["is_positive"] = df["pnl"] > 0
+    df["is_negative"] = df["pnl"] < 0
+    df["is_long"] = df["side"] == "long"
+    df["is_short"] = df["side"] == "short"
+    df["is_long_positive"] = df["is_long"] & df["is_positive"]
+    df["is_short_positive"] = df["is_short"] & df["is_positive"]
+    df["is_rs_positive"] = df["rs_relative"] > 0
+    df["is_rs_negative"] = df["rs_relative"] < 0
+
+    screening_summary_df = ( df.groupby(["trade_date", "day_of_week"])
+       .agg(
+           positive_count=("is_positive", "sum"),
+           negative_count=("is_negative", "sum"),
+           total_trades=("pnl", "count"),
+           sum_pnl=("pnl", "sum"),
+           long_count=("is_long", "sum"),
+           short_count=("is_short", "sum"),
+           long_positive_count=("is_long_positive", "sum"),
+           short_positive_count=("is_short_positive", "sum"),
+           rs_positive_count=("is_rs_positive", "sum"),
+           rs_negative_count=("is_rs_negative", "sum"),
+       )
+       .reset_index()
+                             )
+    screening_summary_df["long_win_rate"] = np.where(
+        screening_summary_df["long_count"] > 0,
+        (screening_summary_df["long_positive_count"] / screening_summary_df["long_count"]) * 100,
+        0
+    )
+
+    screening_summary_df["short_win_rate"] = np.where(
+        screening_summary_df["short_count"] > 0,
+        (screening_summary_df["short_positive_count"] / screening_summary_df["short_count"]) * 100,
+        0
+    )
+
+    screening_summary_df["total_win_rate"] = np.where(
+        screening_summary_df["total_trades"] > 0,
+        (screening_summary_df["positive_count"] / screening_summary_df["total_trades"]) * 100,
+        0
+    )
+    screening_summary_df = screening_summary_df[
+        [
+            "trade_date",
+            "day_of_week",
+            "positive_count",
+            "negative_count",
+            "total_trades",
+            "sum_pnl",
+            "long_count",
+            "short_count",
+            "long_positive_count",
+            "short_positive_count",
+            "long_win_rate",
+            "short_win_rate",
+            "total_win_rate",
+            "rs_positive_count",
+            "rs_negative_count"
+        ]
+    ]
+    df_utils.save_df_to_csv_a_tabular(screening_summary_df,file_path=df_file_map.get('screening_summary_df').replace('.csv',f'-{unique_run_number}.csv'), mode='w')
+
+    return
+
+
+def populate_backtest_columns(df):
+    df['position'] = 0
+    df["side"] = ''
+    df["right"] = ''
+    df["open_price"] = 0
+    df["close_price"] = 0
+    df["stop_loss_price"] = 0.0
+    df["take_profit_price"] = 0.0
+    df["trade_return"] = 0.0
+    df["close_profit"] = 0
+    return df
+
 
 if __name__ == "__main__":
-
-    x_portfolio_df = pd.DataFrame(columns=['symbol', 'right', 'strike', 'expiry', 'position', 'marketPrice', 'averageCost', 'marketValue', 'unrealizedPNL', 'realizedPNL', 'account', 'timestamp' ])
-
-
     app_config = config_utils.load_app_config(portfolio_id)
+
     ib_config = load_ib_config()
     ib = create_ib_connection()
 
-    ib.commissionReportEvent += ib_posttrade.on_commission_report
-    ib.updatePortfolioEvent += ib_posttrade.on_portfolio_update
 
     application_state = {}
     options_meta_date_dic = {}
     unique_run_number = ''
-
 
     if app_config['load_application_state_from_file']:
         load_application_state_from_file()
@@ -2473,13 +2803,8 @@ if __name__ == "__main__":
     time_frame = '1 min'
 
     drawing_objects_df = pd.DataFrame()
-    hover_df = pd.DataFrame(columns=['symbol', 'time_frame', 'object', 'color', 'date_1', 'price_1', 'date_2', 'price_2', 'memo','unique_id'])
-    key_levels_df = pd.DataFrame( columns=['symbol', 'time_frame', 'key_level', 'price', 'memo','unique_id'])
-
-    event_history_df_columns = ['date', 'candle_date', 'order_id', 'order_ref', 'event', 'even_type', 'side', 'price',
-                                 'stop_loss', 'take_profit', 'close_price', 'pnl', 'extra_parameters', 'comment_1']
-    event_history_df = pd.DataFrame(columns=event_history_df_columns)
-
+    hover_df = pd.DataFrame(columns=['symbol', 'time_frame', 'object', 'color', 'date_1', 'price_1', 'date_2', 'price_2', 'memo', 'unique_id'])
+    key_levels_df = pd.DataFrame(columns=['symbol', 'time_frame', 'key_level', 'price', 'memo', 'unique_id'])
     order_history_df = pd.DataFrame()
     futures_order_history_df = pd.DataFrame()
     stop_loss_history_df = pd.DataFrame()
@@ -2488,6 +2813,8 @@ if __name__ == "__main__":
     consequence_exception = 0
     run_number = 0
     dfs_map = {}
+    screening_log_list = []
+    screening_log_df = pd.DataFrame()
 
     # calcuatel_pnl()
     # raise x
@@ -2578,12 +2905,11 @@ if __name__ == "__main__":
 
             mark_tolerance_to_the_level(get_levels_dic().get('5MH', 0), '5MH')
             mark_tolerance_to_the_level(get_levels_dic().get('5ML', 0), '5ML')
-
             key_levels_list = get_key_levels_list()
-            logger.debug(f"key_levels_list: {key_levels_list}")
             mark_close_levels(key_levels_list)
 
             buy_sell_case_results_list = check_buy_and_sell_cases()
+
             check_buy_sell_result_to_send_order(buy_sell_case_results_list)
             check_for_stop_loss_and_take_profit()
 

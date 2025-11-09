@@ -1,7 +1,7 @@
 logging_level: logging.INFO
 
 symbols: ['QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR', 'TSLL', 'AMZN', 'MNQ', 'SPY']
-#symbols: ['QQQ', 'TSLA']
+#symbols: ['QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD']
 
 symbols_meta:
   QQQ:
@@ -19,7 +19,7 @@ symbols_meta:
     contract_type: Equity
     min_required_move_from_level: 0.5
     breakout_confirmation_distance: 0.15
-    chart_entry_offset: 0.5
+    chart_entry_offset: 1
     retest_tolerance_multiplier: 1.8
   AAPL:
     can_trade: true
@@ -73,11 +73,11 @@ symbols_meta:
     chart_entry_offset: 20
     retest_tolerance_multiplier: 3
     contract_month: 202512
-    buy:
-      stop_loss: df['close'].iloc[-1] - (df['atr_14'].iloc[-2] * 2)
+    long:
+      stop_loss: level_used - ( dynamic_tolerance.get('tolerance', 0) * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1))
       take_profit: df['close'].iloc[-1] + (df['atr_14'].iloc[-2] * 2 )
-    sell:
-      stop_loss: df['close'].iloc[-1]  +  (df['atr_14'].iloc[-2] * 2)
+    short:
+      stop_loss: level_used + ( dynamic_tolerance.get('tolerance', 0) * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1))
       take_profit: df['close'].iloc[-1] - (df['atr_14'].iloc[-2] * 2 )
 
 
@@ -92,7 +92,7 @@ symbols_meta:
 cases:
   case_1:
     can_replace_level: false
-    long:
+    long: # TODO need to be reaned to up_side
       level: max(levels['PDH'], levels['PMH'], levels['5MH'])
       condition_01: breakout_in_last_x_candles(side='up', idx_list=[-5], level=long_level)
       condition_02: price_retest(side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
@@ -256,14 +256,23 @@ live:
 #  is_trade_time: 930 < current_hh_mm_ny  < 1130
 
 back_test:
-  get_data_from_ib: False
-#  get_data_from_ib: true
+#  get_data_from_ib: False
+  data:
+    get_data_from_ib: true
+    start_date: 2025-08-01
+    end_date: 2025-11-01
+    historical_days: 5 D  # don't change this
 
-  historical_days: 5 D
-  start_date: 2025-11-05
+  back_test_date_start: 2025-09-01
+  back_test_date_end: 2025-10-01
 
-  back_test_date_start: 2025-10-01
-  back_test_date_end: 2025-11-07
+  long:
+    stop_loss: level_used - ( dynamic_tolerance.get('tolerance', 0) * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1))
+    take_profit: ( df['open'].iloc[-1] + df['close'].iloc[-1] ) / 2 + (df['atr_14'].iloc[-2] * 1.5 )
+  short:
+    stop_loss: level_used + ( dynamic_tolerance.get('tolerance', 0) * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1))
+    take_profit: ( df['open'].iloc[-1] + df['close'].iloc[-1] ) / 2 - (df['atr_14'].iloc[-2] * 1.5 )
+
 
 chart:
 #  source: live

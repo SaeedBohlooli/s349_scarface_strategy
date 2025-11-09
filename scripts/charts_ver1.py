@@ -706,6 +706,7 @@ def create_chart_hovered_df(hover_df, symbol):
 
 #  ⇗ ↛ ⇧
     # http://xahlee.info/comp/unicode_geometric_shapes.html
+    # https: // en.wikipedia.org / wiki / List_of_Unicode_characters
 # ◒
     mapping = {
 
@@ -775,7 +776,9 @@ def create_chart_hovered_df(hover_df, symbol):
         'STOP_LOSS_SENT': '◆',
         'TAKE_PROFIT_SENT': '◆',
 
-
+        'BACKTEST_STOP_LOSS': '❉',
+        'BACKTEST_TAKE_PROFIT': '◍',
+        'BACKTEST_CLOSE_POSITION': '🞉',
 
         'CANDLE_INFO': '○',
         '5MH_SMALL_DOT': '.',
@@ -846,7 +849,7 @@ def index():
     if app_config['chart']['source'] == 'live':
         charts_dir = f'../../portfolios/charts/{portfolio_id}'
     else:
-        backtest_base_dir = '../../portfolios/backtest-charts'
+        backtest_base_dir = '../../portfolios/charts-backtest'
         available_dates = sorted([
             d for d in os.listdir(backtest_base_dir)
             if os.path.isdir(os.path.join(backtest_base_dir, d))
@@ -856,7 +859,7 @@ def index():
         if backtest_date is None:
             backtest_date = available_dates[0]
         logger.info(f"backtest_date: {backtest_date}")
-        charts_dir = f'../../portfolios/backtest-charts/{backtest_date}/{portfolio_id}'
+        charts_dir = f'../../portfolios/charts-backtest/{backtest_date}/{portfolio_id}'
         time.sleep(5)
 
     drawing_objects_df = load_file_to_drawing_objects_df()
