@@ -14,7 +14,6 @@ import configparser
 from plotly.subplots import make_subplots
 
 import datetime
-from utils import Constants
 from utils import miscutils
 from trading_utils import df_utils
 from trading_utils import config_utils
@@ -157,7 +156,7 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
         x=df['date'],
         y=df['ema_9'],
         line=dict(color='blue', dash='dot', width=1),
-        name='volume ratio '
+        name='ema_9 '
     ), row=row_in_chart, col=1)
 
     fig.update_xaxes(showticklabels=True, row=1, col=1)
@@ -480,32 +479,46 @@ def draw_objects(fig, df, drawing_objects_df, symbol, time_frame):
 
     for i in range(len(drawing_objects_df)):
 
-        if drawing_objects_df['symbol'].iloc[i] == symbol and drawing_objects_df['time_frame'].iloc[i] == time_frame:
+        if drawing_objects_df['symbol'].iloc[i] == symbol:# and drawing_objects_df['time_frame'].iloc[i] == time_frame:
+
+            obj = drawing_objects_df['object'].iloc[i]
             color = drawing_objects_df['color'].iloc[i]
             price = drawing_objects_df['price_1'].iloc[i]
-            line_style = drawing_objects_df['object'].iloc[i]
+            price_2 = drawing_objects_df['price_2'].iloc[i]
+            date = drawing_objects_df['date_1'].iloc[i]
+            date_2 = drawing_objects_df['date_2'].iloc[i]
+
             memo = drawing_objects_df['memo'].iloc[i]
 
-             # style: "solid", "dot", "dash", "longdash", "dashdot", "longdashdot"
 
-            # fig.add_hline(y=price, line_color=color, line_dash = object , annotation_text = memo)
-            # Create a horizontal line using Scatter
-            x_vals = df['date']
-            y_vals = [price] * len(x_vals)
+            if obj in [ "solid", "dot", "dash", "longdash", "dashdot", "longdashdot"]:
+                x_vals = df['date']
+                y_vals = [price] * len(x_vals)
 
-            # Create a text list: only first point has text
-            text_vals = [''] * (len(x_vals) - 1) + [memo]
+                # Create a text list: only first point has text
+                text_vals = [''] * (len(x_vals) - 1) + [memo]
 
-            fig.add_trace(go.Scatter(
-                x=x_vals,
-                y=y_vals,
-                mode='lines+text',
-                line=dict(color=color, dash=line_style),
-                text=text_vals,
-                textposition='top right',  # always on the left
-                showlegend=True,
-                name=memo
-            ))
+                fig.add_trace(go.Scatter(
+                    x=x_vals,
+                    y=y_vals,
+                    mode='lines+text',
+                    line=dict(color=color, dash=obj),
+                    text=text_vals,
+                    textposition='top right',  # always on the left
+                    showlegend=True,
+                    name=memo
+                ))
+            elif obj in ['rect']:
+
+                fig.add_shape(
+                    type="rect",
+                    x0=date,
+                    x1=date_2,
+                    y0=min(price, price_2),
+                    y1=max(price, price_2),
+                    fillcolor=color,  # green transparent
+                    line=dict(color="orange", width=1, dash="dot"),
+                )
 
     return fig
 
@@ -707,6 +720,7 @@ def create_chart_hovered_df(hover_df, symbol):
 #  ⇗ ↛ ⇧
     # http://xahlee.info/comp/unicode_geometric_shapes.html
     # https: // en.wikipedia.org / wiki / List_of_Unicode_characters
+    # colors https://stackoverflow.com/questions/72496150/user-friendly-names-for-plotly-css-colors
 # ◒
     mapping = {
 
@@ -781,10 +795,14 @@ def create_chart_hovered_df(hover_df, symbol):
         'BACKTEST_CLOSE_POSITION': '🞉',
 
         'CANDLE_INFO': '○',
+
         '5MH_SMALL_DOT': '.',
         '5MH_SMALL_DOT_1': '.',
+        '5MH_SMALL_DOT_2': '.',
+
         '5ML_SMALL_DOT': '.',
         '5ML_SMALL_DOT_1': '.',
+        '5ML_SMALL_DOT_2': '.',
 
         'ORDER_SENT': '◆',
         'TAKE_PROFIT_SENT': '✖',
@@ -888,7 +906,7 @@ def index():
             fig1 = mark_market_time_only_last_one(fig1, df)
         chart_hovered_df = create_chart_hovered_df(hover_df, symbol)
         fig1 = add_hover_to_chart(fig1, chart_hovered_df)
-        fig1 = add_close_levels_anoteation(fig1, df, close_levels_df, symbol)
+        # fig1 = add_close_levels_anoteation(fig1, df, close_levels_df, symbol)
         plot_html = pio.to_html(fig1, full_html=False)
 
         plots.append(plot_html)
