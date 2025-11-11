@@ -502,7 +502,7 @@ def find_add_5MH_5ML_levels_to_key_levels_df():
 
     return
 
-def find_add_PDH_PDL_levels_to_key_levels_df():
+def find_add_PMH_PML_levels_to_key_levels_df():
 
     wait_until_end_of_period = True
 
@@ -2913,6 +2913,7 @@ if __name__ == "__main__":
             historical_days = '1 D'
 
         qqq_df = pd.DataFrame()  # need to reset once we iterate throught all symbols ...
+
         all_positions = get_all_open_positions()
         option_positions_to_monitor = find_option_positions_to_monitor(all_positions)
         future_positions_to_monitor = find_future_positions_to_monitor(all_positions)
@@ -2923,8 +2924,8 @@ if __name__ == "__main__":
 
         symbol_number = 0
         for symbol in app_config['symbols']:
-            if symbol == 'MNQ':
-                logger.info("Here is for debug")
+
+            hold_for_debug()
 
             symbol_number += 1
             unique_run_number = f"{date_run_number}--{symbol_number}"
@@ -2947,9 +2948,10 @@ if __name__ == "__main__":
             df = popualate_features(df)
             dfs_map[symbol] = df.copy()  # we need for open trades ...
             if symbol == 'QQQ':
-                qqq_df = df.copy()
+                qqq_df = df.copy() # keep latest qqq
 
             qqq_df = preppare_qqq_df(qqq_df)
+
             if True:
                 missing_rows_in_qqq_df = df.loc[~df['date'].isin(qqq_df['date'])]
                 if len(missing_rows_in_qqq_df) > 0:
@@ -2964,9 +2966,9 @@ if __name__ == "__main__":
             if run_number == 1: # only first run for each symbol ...
                 calculate_PDL_PDH(df)
 
-            # TODO this needs to be before 9:35
+            # TODO these needs to be before 9:35
             # TODO if the levels are calcualted we dont need to do it again ...
-            find_add_PDH_PDL_levels_to_key_levels_df()
+            find_add_PMH_PML_levels_to_key_levels_df()
             find_add_5MH_5ML_levels_to_key_levels_df()
             key_levels_list = get_key_levels_list() # This need to be done after 5MH
 
@@ -2976,7 +2978,7 @@ if __name__ == "__main__":
                 mark_tolerance_to_the_level(get_levels_map().get('5ML', 0), '5ML')
                 mark_atr_to_the_level('up', get_levels_map().get('5MH', 0), '5MH')
                 mark_atr_to_the_level('down', get_levels_map().get('5ML', 0), '5ML')
-                mark_close_levels(key_levels_list)
+                mark_close_levels(key_levels_list)  # TODO run until we have all levels ...
                 add_atr_to_candle_info(dynamic_tolerance)
                 add_rs_relative_to_candle_info(symbol) # TODO can be one time per candle
 
@@ -2988,16 +2990,16 @@ if __name__ == "__main__":
             add_buy_a_sell_entries_to_signals(buy_sell_case_results_list)
 
 
-            add_candle_info_df_to_signals()  # add BEFORE here to signals ...
-
+            add_candle_info_df_to_signals()  # !! Adding to signals should happen before HERE
             logger.debug(f"{symbol}, signals: {signals}")
+
             hover_df = convert_signals_to_hover_df(signals)
 
             if (is_trade_time and run_number % 10 ==0) or (not is_trade_time and run_number % 5 ==0 ):
                 # These are for each symbol ...
                 save_ohlc_for_chart(df)
                 save_extra_features_df()
-                detect_a_mark_market_gap(symbol, df)
+                detect_a_mark_market_gap(symbol, df)  # TODO need to happen one time after 9:30
 
 
             dump_application_state_to_file()
@@ -3011,15 +3013,15 @@ if __name__ == "__main__":
             symbol_run_spend_time = round(symbol_end_time - symbol_start_time, 2)
             logger.warning(f'------------------- {symbol}, {unique_run_number}, symbol_run_spend_time: {symbol_run_spend_time} seconds')
 
-            last_candles_visit_map[symbol] = df['date'].iloc[-1] # keeps the last record we visited ...
+            last_candles_visit_map[symbol] = df['date'].iloc[-1] # keeps the last record we visited for each symbol...
 
-        # end:  for symbol in app_config['symbols']:
-        # for whole ...
+        # END:  for symbol in app_config['symbols']:
+        # in the WHILE TRUE...
         if (is_trade_time and run_number % 20 == 0) or (not is_trade_time and run_number % 10 == 0):
             save_all_csv_files()
 
 
-        # End While T
+        # End WHILE TRUE
         end_time = time.time()
 
         sleep_enough()

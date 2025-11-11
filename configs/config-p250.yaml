@@ -207,12 +207,12 @@ take_profits:
     condition: current_bid > avg_cost_for_1_contract * 1.6  and ( avg_cost_for_1_contract != -1 and current_bid != -1)
     close_quantity_percentage: -1    # -1 closes all the rest
 
-  t4_cl_lv: # when lines are close ...
-    condition: >
-      (right == 'C' and is_next_level_close_a_price_crossed(side='up', level=level_used_to_open, current_price=underlying_current_price, underlying_open_price=underlying_open_price ))
-      or
-      (right == 'P' and is_next_level_close_a_price_crossed(side='down', level=level_used_to_open, current_price=underlying_current_price, underlying_open_price=underlying_open_price ))
-    close_quantity_percentage: 0.5
+#  t4_cl_lv: # when lines are close ...
+#    condition: >
+#      (right == 'C' and is_next_level_close_a_price_crossed(side='up', level=level_used_to_open, current_price=underlying_current_price, underlying_open_price=underlying_open_price ))
+#      or
+#      (right == 'P' and is_next_level_close_a_price_crossed(side='down', level=level_used_to_open, current_price=underlying_current_price, underlying_open_price=underlying_open_price ))
+#    close_quantity_percentage: 0.5
 
   t5_ev:
     condition: >
@@ -221,12 +221,12 @@ take_profits:
       (right == 'P' and is_executed_take_profits(symbol, take_profit_list=['t1']) and underlying_previous_candle_close > underlying_open_price)
     close_quantity_percentage: -1
 
-  t5_cr_lv:
+  t5_cr_lv:  # Crossing level
     condition: >
       (right == 'C' and is_price_crossed_levels(side='up', symbol=symbol, levels=['PDH']))
       or
       (right == 'P' and is_price_crossed_levels(side='down', symbol=symbol, levels=['PDL']))
-    close_quantity_percentage: 1.5
+    close_quantity_percentage: 0.5
 
   t6_rev_af_t1:  # In case of breaking low of
     condition: check_mark_revers_candles(symbol)
@@ -234,8 +234,38 @@ take_profits:
 
 
   t10_cl_all:  # This is for closing everything just NVDA:   1 == 1 and symbol == 'NVDA'
-    condition: 1 == 1 and symbol == 'XXX'
+    condition: 1 == 2 and symbol == 'MNQ'
     close_quantity_percentage: -1
+
+scores:
+  s1:
+    cond: df['VR'].iloc[-1] > 1.2
+    score: 2
+    memo: Enough volume
+  s2:
+    cond: intraday_rs_df['rs_rel'].iloc[-1] > 0
+    score: 2
+    memo:  same direction as QQQ
+  s3:
+    cond: intraday_rs_df['stock_pct'].iloc[-1] < 0.02
+    score: 2
+    memo:  not running too fast
+  s4:
+    cond: qqq_5ML < qqq_df['close'].iloc[-1] < qqq_5MH and qqq_5ML != -1 and qqq_5MH != -1
+    score: -4
+    memo: 5ML < qqq < 5MH
+  s5: # s5 and s6 are exclusive ...
+    cond: qqq_df['close'].iloc[-1] > qqq_5MH and qqq_5MH != -1 and x_right == 'C'
+    score: 4
+    memo: qqq > 5MH and we going to call
+  s6: # s5 and s6 are exclusive ...
+    cond: qqq_df['close'].iloc[-1] < qqq_5ML and qqq_5ML != -1 and x_right == 'P'
+    score: 4
+    memo: qqq < 5ML and we going to put
+  s7:
+    cond: 1 == 1
+    score: 0
+    memo:  place holder
 
 #
 #  t5_test:
@@ -265,19 +295,19 @@ live:
   max_num_of_trade_per_symbol_per_day: 2
   max_profit_per_day: 2000 # it will not get into new trade, it is not in yet
   max_loss_per_day: 1000 # it will not get into new trade ... it is not in yet
-  is_trade_time: 930 < current_hh_mm_ny  < 1015 or 1 == 1
+  is_trade_time: 930 < current_hh_mm_ny  < 1015 # or 1 == 1
 #  is_trade_time: 930 < current_hh_mm_ny  < 1130
 
 back_test:
 #  get_data_from_ib: False
   data:
-    get_data_from_ib: false  # we have data from 06-01
-    start_date: 2025-06-01
-    end_date: 2025-08-07
+    get_data_from_ib: live  # we have data from 06-01
+    start_date: 2025-08-01
+    end_date: 2025-09-11
     historical_days: 5 D  # don't change this
 
-  back_test_date_start: 2025-11-07
-  back_test_date_end: 2025-11-07
+  back_test_date_start: 2025-08-01
+  back_test_date_end: 2025-09-01
 
   long:
     stop_loss: level_used - ( dynamic_tolerance.get('tolerance', 0) * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1))
@@ -288,12 +318,12 @@ back_test:
 
 
 chart:
-  source: live
-#  source: back_test
-  cutoff_in_hours: 0
+#  source: live
+  source: back_test
+#  cutoff_in_hours: 0
   hours_in_focus: 3
   live:
-    start_time: '09:30'
+    start_time: '09:00'
     end_time: '16:00'
 
 # before_start:

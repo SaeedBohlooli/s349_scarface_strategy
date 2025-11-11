@@ -132,7 +132,7 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
                                         f'Volume Ratio {symbol}',
                                         f'Relative Strength Relative {symbol}',
                                         f'Relative Strength Delta {symbol}',
-                                        f'Relative Strength Rate of Change {symbol}',
+                                        f'Check ... {symbol}',
                                         f'ATR-{symbol}',
                                         f'Volume-{symbol}',
 
@@ -248,13 +248,24 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
         showlegend=False
     ), row=row_in_chart, col=1)
 
-    # rs_roc
+    # rs_roc ---? stock_pct
     row_in_chart += 1
+    cap = extra_features_df['stock_pct'].quantile(0.95)  # 95th percentile
+    extra_features_df['stock_pct'] = extra_features_df['stock_pct'].clip(upper=cap)
     fig.add_trace(go.Scatter(
         x=extra_features_df['date'],
-        y=extra_features_df['rs_roc'],
+        y=extra_features_df['stock_pct'],
         line=dict(color='blue', width=2),
-        name='rs_roc'
+        name='stock_pct'
+    ), row=row_in_chart, col=1)
+
+    cap = extra_features_df['qqq_pct'].quantile(0.95)  # 95th percentile
+    extra_features_df['qqq_pct'] = extra_features_df['qqq_pct'].clip(upper=cap)
+    fig.add_trace(go.Scatter(
+        x=extra_features_df['date'],
+        y=extra_features_df['qqq_pct'],
+        line=dict(color='red', width=1),
+        name='qqq_pct'
     ), row=row_in_chart, col=1)
 
     fig.add_trace(go.Scatter( # line on 0
@@ -770,6 +781,7 @@ def create_chart_hovered_df(hover_df, symbol):
         'bullish_reversal' : '◆',
         'bearish_reversal' : '◆',
 
+        # ------------we use form here
         'CANDLE_TYPE': '○',
 
         # BUY and sell Entry
@@ -804,16 +816,26 @@ def create_chart_hovered_df(hover_df, symbol):
         '5ML_SMALL_DOT_1': '.',
         '5ML_SMALL_DOT_2': '.',
 
+
         'ORDER_SENT': '◆',
         'TAKE_PROFIT_SENT': '✖',
         'STOP_LOSS_SENT': '✖',
+
+        'SCORE': 'S',
+        # ------
+        # Test 
         'x': '↑',
         'b': '↓',
         'b': '→',
     }
 
-    # Apply mapping to a new column
-    df['signals'] = df['object'].map(mapping).fillna('●')  # default to circle if unknown
+    mask = df["object"].str.contains("TEXT", case=False, na=False)
+
+    # When object has 'TEXT' → take first part of memo before '#'
+    df.loc[mask, "signals"] = df["memo"].str.split("#").str[0].str.strip()
+
+    # Otherwise → use mapping fallback
+    df.loc[~mask, "signals"] = df["object"].map(mapping).fillna("●")
 
     df = df[['date', 'price', 'signals', 'color', 'text']]
 

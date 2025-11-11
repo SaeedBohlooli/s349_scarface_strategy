@@ -527,9 +527,9 @@ def add_buy_a_sell_entries_to_signals(buy_sell_case_results_list):
         res_str = result_map.get('res_str')
 
         if case == 'case_1':
-            price = df['low'].iloc[-1]
-        elif case == 'case_2':
             price = df['high'].iloc[-1]
+        elif case == 'case_2':
+            price = df['low'].iloc[-1]
         else:
             price = df['close'].iloc[-1]
 
@@ -542,7 +542,7 @@ def add_buy_a_sell_entries_to_signals(buy_sell_case_results_list):
 
 
         # add_to_signlas(symbol,  f"SCREENING_{case}", offseted_price, df['date'].iloc[-1], f'{case} - {res_str}')  #
-        price = get_latest_offseted_price('down', df['low'].iloc[-1])
+        price = get_offseted_price('down', df['low'].iloc[-1])
         add_to_candle_info_df(date=df['date'].iloc[-1], price=price, memo=f'{case} - {res_str}')
 
     return
@@ -691,7 +691,11 @@ def do_back_test(buy_sell_case_results_list):
             retest_idx = result_map.get('retest_idx')
             breakout_idx = result_map.get('breakout_idx')
 
-
+            score, score_memo = calculate_score(right)
+            offseted_price = get_offseted_price('down', df['low'].iloc[-1]) # we to go down a little bit
+            offseted_price = get_offseted_price('down', df['low'].iloc[-1]) # we to go down a little bit
+            offseted_price = get_offseted_price('down', df['low'].iloc[-1])
+            add_to_signlas(symbol=symbol, event='TEXT', price=offseted_price, date=df['date'].iloc[-1], memo=f'{score_memo}', color='blue')
 
             if not backtest_has_open_position():
                 stop_loss_price = eval(app_config['back_test'][side]['stop_loss'])
@@ -1061,7 +1065,10 @@ def breakout_in_last_x_candles(side='up', idx_list=[-2], level=0):
 
 def get_offseted_price(side='up', price=1):
     offset_symbol = app_config['symbols_meta'][symbol]['chart_entry_offset']
-    price = price + get_offset_counter(side, add=True) * offset_symbol
+    if side == 'up':
+        price = price + get_offset_counter(side, add=True) * offset_symbol
+    else:
+        price = price - get_offset_counter(side, add=True) * offset_symbol
     return price
 
 def get_latest_offseted_price(side='up', price = 1):
@@ -1467,7 +1474,7 @@ def get_back_test_data():   # get data from IB.... use
         end_date = app_config['back_test']['data']['end_date']
 
         for symbol in app_config['symbols']:
-            contract = ib_pricing.create_equity_contract(symbol)
+            contract = create_contract(symbol)
 
             df = get_historical_data_back_test(contract, start_date=start_date, end_date=end_date,  historical_days=historical_days, time_frame='1 min')
             df = df.drop_duplicates(subset=[f'date'], keep=f'last')
@@ -2229,12 +2236,20 @@ def check_for_stop_loss_and_take_profit():
         current_bid, current_ask = get_bid_and_ask(options_portfolio_df, symbol) #used in config
 
         # update app status ...
-        application_state['open_trades_dic'][symbol]['current_bid'] = current_bid
-        application_state['open_trades_dic'][symbol]['current_ask'] = current_ask
-        application_state['open_trades_dic'][symbol]['current_value'] = current_ask * application_state['open_trades_dic'][symbol]['starting_quantity'] * 100
-        application_state['open_trades_dic'][symbol]['current_pnl'] = application_state['open_trades_dic'][symbol].get('current_value', 0) - application_state['open_trades_dic'][symbol].get('cost_for_trade', 0)
-        application_state['open_trades_dic'][symbol]['current_roi'] = application_state['open_trades_dic'][symbol]['current_bid'] / application_state['open_trades_dic'][symbol].get('avg_cost_for_1_contract', 1)
-        application_state['open_trades_dic'][symbol]['current_underlying_price'] = underlying_current_price
+        if app_config['symbols_meta'][symbol]['contract_type'] == 'Equity':
+            application_state['open_trades_dic'][symbol]['current_bid'] = current_bid
+            application_state['open_trades_dic'][symbol]['current_ask'] = current_ask
+            application_state['open_trades_dic'][symbol]['current_underlying_price'] = underlying_current_price
+            application_state['open_trades_dic'][symbol]['current_value'] = current_ask * application_state['open_trades_dic'][symbol]['starting_quantity'] * 100
+            application_state['open_trades_dic'][symbol]['current_pnl'] = application_state['open_trades_dic'][symbol].get('current_value', 0) - application_state['open_trades_dic'][symbol].get('cost_for_trade', 0)
+            application_state['open_trades_dic'][symbol]['current_roi'] = application_state['open_trades_dic'][symbol]['current_bid'] / application_state['open_trades_dic'][symbol].get('avg_cost_for_1_contract', 1) - 1
+        else: # it is future ...
+            application_state['open_trades_dic'][symbol]['current_bid'] = current_bid
+            application_state['open_trades_dic'][symbol]['current_ask'] = current_ask
+            application_state['open_trades_dic'][symbol]['current_underlying_price'] = underlying_current_price
+            application_state['open_trades_dic'][symbol]['current_value'] = underlying_current_price * 1 # TODO avaialbe...
+            application_state['open_trades_dic'][symbol]['current_pnl'] = application_state['open_trades_dic'][symbol]['current_underlying_price'] - application_state['open_trades_dic'][symbol].get('underlying_open_price', 0)
+            application_state['open_trades_dic'][symbol]['current_roi'] = application_state['open_trades_dic'][symbol]['current_underlying_price'] / application_state['open_trades_dic'][symbol].get('underlying_open_price', 1) - 1
 
 
         logger.info(f"level_used_to_open: {level_used_to_open}, underlying_open_price: {underlying_open_price}, "
@@ -2831,6 +2846,43 @@ def is_price_crossed_levels(side='down', symbol='', levels=['PDL']):
 
 
 
+def calculate_score(right):
+    """
+    Calculate a total score based on evaluated conditions.
+    - context: dict of variables (safe eval environment)
+    - scoring_rules: list of dicts with 'cond', 'score', and 'memo'
+    """
+    final_score = 0
+    memo_lines = []
+    x_right= right
+    for s in app_config['scores']:
+        cond = app_config['scores'][s].get("cond", "")
+        score = app_config['scores'][s].get("score", 0)
+        memo = app_config['scores'][s].get("memo", "")
+        cond_result = False
+        try:
+            cond_result = eval(cond)
+        except Exception as e:
+            logger.error(f"@@ calculate_score, error {e}")
+            cond_result = False
+            memo_lines.append(f"ERROR evaluating '{cond}': {e}")
+
+        # Only add score if condition is True
+        score_got = score if cond_result else 0
+        final_score += score_got
+        memo_lines.append('----------')
+        memo_lines.append(f"{score_got}/{score}, {cond_result},{cond}  # {memo}")
+
+    memo_lines.insert(0, f"{final_score} # score") # in the chart we expecting the score#, so don't change it .
+    memo_lines.append(f"Final Score: {final_score}    {str(df['date'].iloc[-1])}")
+
+    final_memo = "<br>".join(memo_lines)
+
+    return final_score, final_memo
+
+
+
+
 if __name__ == "__main__":
     app_config = config_utils.load_app_config(portfolio_id)
 
@@ -2845,6 +2897,8 @@ if __name__ == "__main__":
 
     now = datetime.datetime.now()
     run_date_time = now.strftime("%Y-%m-%d__%H-%M")
+    day_of_week = now.strftime("%A")
+
     unique_run_number = f"{now.strftime('%Y%m%d-%H%M%S')}"
     screening_log_for_run_df = pd.DataFrame()
     # Print each date in YYYY-MM-DD format
@@ -2866,6 +2920,10 @@ if __name__ == "__main__":
         screening_log_list = []
         screening_log_df = pd.DataFrame()
 
+        qqq_5MH = -1
+        qqq_5ML = -1
+        qqq_PDH = -1
+        qqq_PDL = -1
 
         back_test_date = d.strftime('%Y-%m-%d')
         logger.info(f"back_test_date: {back_test_date}")
@@ -2958,6 +3016,11 @@ if __name__ == "__main__":
                 logger.debug(f"qqq_df[-2:]:\n{qqq_df[-2:].to_markdown()}")
                 logger.debug(f"df[:2]:\n{df[:2].to_markdown()}")
                 logger.debug(f"qqq_df[:2]:\n{qqq_df[:2].to_markdown()}")
+                if symbol == 'QQQ':
+                    qqq_5MH = get_levels_map().get('5MH', -1)
+                    qqq_5ML = get_levels_map().get('5ML', -1)
+                    qqq_PDH = get_levels_map().get('PDH', -1)
+                    qqq_PDL = get_levels_map().get('PDL', -1)
 
                 relative_strength_df = compute_relative_strength(df, qqq_df, period=20)
                 intraday_rs_df = compute_intraday_rs(df, qqq_df)
@@ -3000,7 +3063,7 @@ if __name__ == "__main__":
             # FOR EACH SYMBOL ...
             detect_a_mark_market_gap(symbol, df)
 
-            logger.info(f"signals: {signals}")
+            logger.debug(f"signals: {signals}")
             add_candle_info_df_to_signals()
             mark_close_levels(key_levels_list) # do once for the symbol. not for each row
 
