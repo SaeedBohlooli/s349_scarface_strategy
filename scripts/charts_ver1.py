@@ -168,7 +168,7 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
     df['VR'] = df['volume'] / df['volume_sma10']
     cap = df['VR'].quantile(0.95)  # 95th percentile
     df['VR'] = df['VR'].clip(upper=cap)
-    df['VR_sma10'] = df['VR'].rolling(window=10).mean()
+    df['VR_sma3'] = df['VR'].rolling(window=3).mean()
 
     fig.add_trace(go.Scatter(
         x=df['date'],
@@ -188,9 +188,9 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
 
     fig.add_trace(go.Scatter(
         x=df['date'],
-        y=df['VR_sma10'],
+        y=df['VR_sma3'],
         line=dict(color='blue', dash='dot', width=2),
-        name='VR_sma10'
+        name='VR_sma3'
     ), row=row_in_chart, col=1)
 
 

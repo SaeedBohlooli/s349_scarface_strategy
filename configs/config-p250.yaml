@@ -67,7 +67,7 @@ symbols_meta:
     exchange: CBOE
     expiry_offset: 1
   MNQ:
-    can_trade: true
+    can_trade: false
     contract_type: Future
     min_required_move_from_level: 5
     breakout_confirmation_distance: 2
@@ -104,7 +104,7 @@ cases:
       condition_07: are_levels_close_to_each_other_for_case_1(side='up')
       condition_08: 1 == 1
       condition_09: 1 == 1
-      condition_10: 1 == 1
+      condition_10: 930 < last_record_hh_mm < 1016
       master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07 and eval_buy_condition_07 and eval_buy_condition_08  and eval_buy_condition_09
 
     short:
@@ -118,11 +118,12 @@ cases:
       condition_07: are_levels_close_to_each_other_for_case_1(side='down')
       condition_08: 1 == 1
       condition_09: 1 == 1
-      condition_10: 1 == 1
+      condition_10: 930 < last_record_hh_mm < 1016
       master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09
 
   case_2:
     can_replace_level: true
+    precondition: 1 == 1
     long:
       level: levels['5MH']
       condition_01: breakout_in_last_x_candles(side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level)
@@ -131,10 +132,10 @@ cases:
       condition_04: check_entry_vs_retest(side='up', level=long_level)
       condition_05: no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
       condition_06: check_price_vs_level(side='up', price=price, level=long_level )
-      condition_07: 1 == 1
+      condition_07: not is_price_close_to_next_levels(side='up', price=price, current_level=long_level, next_levels=['PDH'])
       condition_08: 1 == 1
       condition_09: 1 == 1
-      condition_10: 1 == 1
+      condition_10: 930 < last_record_hh_mm < 1016
       master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07 and eval_buy_condition_07 and eval_buy_condition_08  and eval_buy_condition_09
     short:
       level: levels['5ML']
@@ -144,41 +145,41 @@ cases:
       condition_04: check_entry_vs_retest(side='down', level=short_level)
       condition_05: no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
       condition_06: check_price_vs_level(side='down', price=price, level=short_level )
-      condition_07: 1 == 1
+      condition_07: not is_price_close_to_next_levels(side='down', price=price, current_level=short_level, next_levels=['PDL'])
       condition_08: 1 == 1
       condition_09: 1 == 1
-      condition_10: 1 == 1
+      condition_10: 930 < last_record_hh_mm < 1016
       master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09
 
-  case_3:
-    can_replace_level: false
-    long:
-      level: levels['5MH']
-      condition_01: symbol == 'MNQ' and 1 == 2
-      condition_02: mode == 'live'
-      condition_03: 1 == 1
-      condition_04: 1 == 1
-      condition_05: 1 == 1
-      condition_06: 1 == 1
-      condition_07: 1 == 1
-      condition_08: 1 == 1
-      condition_09: 1 == 1
-      condition_10: 1 == 1
-      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07 and eval_buy_condition_07 and eval_buy_condition_08 and eval_buy_condition_09
-
-    short:
-      level: levels['5ML']
-      condition_01: symbol == 'SPY' and 2 == 1
-      condition_02: mode == 'live'
-      condition_03: 1 == 1
-      condition_04: 1 == 1
-      condition_05: 1 == 1
-      condition_06: 1 == 1
-      condition_07: 1 == 1
-      condition_08: 1 == 1
-      condition_09: 1 == 1
-      condition_10: 1 == 1
-      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09
+#  case_3:
+#    can_replace_level: false
+#    long:
+#      level: levels['5MH']
+#      condition_01: symbol == 'MNQ' and 1 == 2
+#      condition_02: mode == 'live'
+#      condition_03: 1 == 1
+#      condition_04: 1 == 1
+#      condition_05: 1 == 1
+#      condition_06: 1 == 1
+#      condition_07: 1 == 1
+#      condition_08: 1 == 1
+#      condition_09: 1 == 1
+#      condition_10: 1 == 1
+#      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07 and eval_buy_condition_07 and eval_buy_condition_08 and eval_buy_condition_09
+#
+#    short:
+#      level: levels['5MH']
+#      condition_01: symbol == 'NVDA' and 1 == 2
+#      condition_02: mode == 'live'
+#      condition_03: 1 == 1
+#      condition_04: 1 == 1
+#      condition_05: 1 == 1
+#      condition_06: 1 == 1
+#      condition_07: 1 == 1
+#      condition_08: 1 == 1
+#      condition_09: 1 == 1
+#      condition_10: 1 == 1
+#      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09
 
 
 stop_losses:
@@ -205,67 +206,62 @@ take_profits:
 
   t3:
     condition: current_bid > avg_cost_for_1_contract * 1.6  and ( avg_cost_for_1_contract != -1 and current_bid != -1)
-    close_quantity_percentage: -1    # -1 closes all the rest
+    close_quantity_percentage: -1
 
-#  t4_cl_lv: # when lines are close ...
-#    condition: >
-#      (right == 'C' and is_next_level_close_a_price_crossed(side='up', level=level_used_to_open, current_price=underlying_current_price, underlying_open_price=underlying_open_price ))
-#      or
-#      (right == 'P' and is_next_level_close_a_price_crossed(side='down', level=level_used_to_open, current_price=underlying_current_price, underlying_open_price=underlying_open_price ))
-#    close_quantity_percentage: 0.5
-
-  t5_ev:
+  t4_ev:
     condition: >
       (right == 'C' and is_executed_take_profits(symbol, take_profit_list=['t1']) and underlying_previous_candle_close < underlying_open_price)
       or
       (right == 'P' and is_executed_take_profits(symbol, take_profit_list=['t1']) and underlying_previous_candle_close > underlying_open_price)
     close_quantity_percentage: -1
+    memo: This is for even break - if we hit TP1, then we go for break even
 
-  t5_cr_lv:  # Crossing level
+  t5_cr_lv:
     condition: >
-      (right == 'C' and is_price_crossed_levels(side='up', symbol=symbol, levels=['PDH']))
+      (right == 'C' and is_price_crossed_levels(side='up', symbol=symbol, next_levels=['PDH'], current_price=underlying_current_price, underlying_open_price=underlying_open_price))
       or
-      (right == 'P' and is_price_crossed_levels(side='down', symbol=symbol, levels=['PDL']))
+      (right == 'P' and is_price_crossed_levels(side='down', symbol=symbol, next_levels=['PDL'], current_price=underlying_current_price, underlying_open_price=underlying_open_price))
     close_quantity_percentage: 0.5
+    memo: if we entered below major level and crossing level, we dump some ...
 
-  t6_rev_af_t1:  # In case of breaking low of
+  t6_rev_af_t1:
     condition: check_mark_revers_candles(symbol)
     close_quantity_percentage: -1
+    memo: for long after tp1, if we go below last down close candle, then we close the position and vice versa for short
 
-
-  t10_cl_all:  # This is for closing everything just NVDA:   1 == 1 and symbol == 'NVDA'
-    condition: 1 == 2 and symbol == 'MNQ'
+  t10_cl_manual:  # This is for closing everything just NVDA:   1 == 1 and symbol == 'NVDA'
+    condition: 1 == 1 and symbol == 'NVDA'
     close_quantity_percentage: -1
 
 scores:
   s1:
     cond: df['VR'].iloc[-1] > 1.2
-    score: 2
+    score: 4
     memo: Enough volume
   s2:
     cond: intraday_rs_df['rs_rel'].iloc[-1] > 0
-    score: 2
-    memo:  same direction as QQQ
+    score: 1
+    memo: same direction as QQQ
   s3:
-    cond: intraday_rs_df['stock_pct'].iloc[-1] < 0.02
-    score: 2
-    memo:  not running too fast
+    cond: intraday_rs_df['stock_pct'].iloc[-1] < 0.015
+    score: 1
+    memo: not running too fast. less then 1.5 percent change
   s4:
     cond: qqq_5ML < qqq_df['close'].iloc[-1] < qqq_5MH and qqq_5ML != -1 and qqq_5MH != -1
     score: -4
     memo: 5ML < qqq < 5MH
   s5: # s5 and s6 are exclusive ...
-    cond: qqq_df['close'].iloc[-1] > qqq_5MH and qqq_5MH != -1 and x_right == 'C'
+    cond: qqq_df['close'].iloc[-1] > qqq_5MH and qqq_5MH != -1 and market_trend == 'up'
     score: 4
     memo: qqq > 5MH and we going to call
   s6: # s5 and s6 are exclusive ...
-    cond: qqq_df['close'].iloc[-1] < qqq_5ML and qqq_5ML != -1 and x_right == 'P'
+    cond: qqq_df['close'].iloc[-1] < qqq_5ML and qqq_5ML != -1 and market_trend == 'down'
     score: 4
     memo: qqq < 5ML and we going to put
   s7:
     cond: 1 == 1
     score: 0
-    memo:  place holder
+    memo: place holder - ver2.0 of scoring.
 
 #
 #  t5_test:
@@ -295,19 +291,19 @@ live:
   max_num_of_trade_per_symbol_per_day: 2
   max_profit_per_day: 2000 # it will not get into new trade, it is not in yet
   max_loss_per_day: 1000 # it will not get into new trade ... it is not in yet
-  is_trade_time: 930 < current_hh_mm_ny  < 1015 # or 1 == 1
+  is_trade_time: 930 < current_hh_mm_ny  < 1015  or 1 == 1
+  save_on_disk: not (930 < current_hh_mm_ny  < 1015)
 #  is_trade_time: 930 < current_hh_mm_ny  < 1130
 
 back_test:
-#  get_data_from_ib: False
   data:
-    get_data_from_ib: live  # we have data from 06-01
-    start_date: 2025-08-01
-    end_date: 2025-09-11
+    get_data_from_ib: false  # we have data from 06-01
+    start_date: 2025-11-01
+    end_date: 2025-11-14
     historical_days: 5 D  # don't change this
 
-  back_test_date_start: 2025-08-01
-  back_test_date_end: 2025-09-01
+  back_test_date_start: 2025-09-01
+  back_test_date_end: 2025-10-01
 
   long:
     stop_loss: level_used - ( dynamic_tolerance.get('tolerance', 0) * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1))
@@ -324,7 +320,7 @@ chart:
   hours_in_focus: 3
   live:
     start_time: '09:00'
-    end_time: '16:00'
+    end_time: '12:00'
 
 # before_start:
 close_all_open_option_positions: false
