@@ -32,6 +32,7 @@ from trading_utils import email_utils
 from trading_utils import check_health_status
 from trading_utils import date_utils
 from trading_utils import constants
+from trading_utils import file_utils
 
 yaml = YAML()
 yaml.preserve_quotes = True  # Optional: preserve quotes if any
@@ -95,7 +96,7 @@ logging_level = app_config['logging_level']
 # ###
 
 log_filename = f"{log_dir}/{portfolio_id}.log"
-file_r_handler = logging.handlers.RotatingFileHandler(filename=f"{log_dir}/{portfolio_id}.log", maxBytes= 5 * 1024 * 1024, backupCount=150)
+file_r_handler = logging.handlers.RotatingFileHandler(filename=f"{log_dir}/{portfolio_id}.log", maxBytes= 5 * 1024 * 1024, backupCount=200)
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 file_r_handler.setFormatter(formatter)
 logging.basicConfig(
@@ -118,8 +119,6 @@ os.makedirs(charts_dir, exist_ok=True)
 os.makedirs(ohlc_archie_dir, exist_ok=True)
 
 application_state_file_path = f'{intermediate_dir}/84-application_state.csv'
-
-
 
 
 def get_previous_bday():
@@ -278,6 +277,7 @@ def is_between(now=None, start_str="9:25", end_str="11:00"):
     return start <= now <= end
 
 def sleep_enough():
+    # global run_spend_time
     run_spend_time = round(end_time - start_time, 2)
     if is_trade_time:
         logger.warning(f' ==================== run_number: {run_number}, date_run_number: {date_run_number}, run_spend_time: {run_spend_time} seconds, no sleep ...')
@@ -2002,8 +2002,11 @@ def get_live_quote_for_option_positions(option_positions):
     options_portfolio_df = pd.DataFrame()
     for p in option_positions:
         contract = p.contract
+        symbol = contract.symbol
+        if symbol not in app_config['symbols']:
+            continue
         contract.exchange = 'CBOE'  # TODO why not smart!
-        ticker = ib.reqMktData(contract, '', False, False)   # TODO if the symbol is in outr list, why query for SPXW
+        ticker = ib.reqMktData(contract, '', False, False)   # TODO if the symbol is in our list, why query for SPXW
         ib.sleep(0.3)  # short wait for data
         logger.info(f"{contract.symbol} {contract.lastTradeDateOrContractMonth} "
               f"{contract.right} {contract.strike} | "
@@ -2098,7 +2101,7 @@ def find_option_positions_to_monitor(positions):
     return ps
 
 def find_future_positions_to_monitor(positions):
-    logger.info(f"find_future_positions_to_monitor: all open: \n{tabulate(positions, headers='keys', tablefmt='psql')}")
+    logger.info(f"find_future_positions_to_monitor(): here are oen positions: \n{tabulate(positions, headers='keys', tablefmt='psql')}")
     ps = []
     for p in positions:
         logger.debug(f"p: {p}")
@@ -2764,6 +2767,8 @@ df_file_map = generate_df_file_map()
 
 def save_all_csv_files():
     global df_file_map
+    start_time = time.time()
+
     if mode == 'back_test': # we need to re assign ...
         df_file_map = generate_df_file_map()
 
@@ -2783,6 +2788,10 @@ def save_all_csv_files():
     if mode == 'live':
         ib_posttrade.save_ib_dfs(portfolio_dir,ib)
     logger.info(f"save_all_csv_files, finished ...")
+
+    end_time = time.time()
+    spent_time = round(end_time - start_time, 2)
+    logger.warning(f'save_all_csv_files(), spent_time: {spent_time} seconds')
 
 def add_rs_relative_to_candle_info(symbol):
     if symbol == 'QQQ':
@@ -2982,6 +2991,14 @@ def is_price_close_to_next_levels(side='up',price= 0, current_level=1, next_leve
             add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is very close to next level. price: {price}, to: {next_price} <br> {get_hhm_mm_of_last_record(df)}', color='red')
             return True
 
+        if side == "up" and price > current_level and price > next_price: # This is for once the price passes the next level as well.
+            add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is very close to next level. price: {price}, to: {next_price} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+            return True
+
+        if side == "down" and price < current_level and price < next_price:  # see PLTR Oct 09-
+            add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price passed next level. price: {price}, to: {next_price} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+            return True
+
     return False
 
 
@@ -3021,7 +3038,8 @@ def calculate_score(market_trend):
     return final_score, final_memo
 
 def print_missing_rows_in_qqq_vs_stock(df, qqq_df):
-    if True:
+    if not eval(app_config.get('busy_time', '1 == 2')):
+
         missing_rows_in_qqq_df = df.loc[~df['date'].isin(qqq_df['date'])]
         if len(missing_rows_in_qqq_df) > 0:
             logger.warning(f"missing_rows_in_qqq_df: \n{missing_rows_in_qqq_df[-3:].to_markdown()}")
@@ -3038,9 +3056,11 @@ def all_levels_in(symbol, levels=['PDL', 'PDH', 'PMH', 'PML','5MH', '5ML']):
 
 def orchestrate_expirations_strikes():
     global options_meta_date_dic
+    # get from IB. is messy ...
     find_expiration_and_strikes_for_all()
     dump_a_map_to_file(options_meta_date_dic, file_path=f'{intermediate_dir}/85-strikes-expirations-ib.csv')
 
+    # Mere with Nazadq ...
     nazdaq_file = f'{intermediate_dir}/85-strikes-nazdaq.csv'
     strikes_from_nazdaq = file_utils.load_json_from_file(nazdaq_file)
     if strikes_from_nazdaq != {}:
@@ -3062,7 +3082,7 @@ def get_last_record_hh_mm():
         return -1
 
     last_record_hh_mm = int(df['date'].iloc[-1].strftime('%H%M'))
-    return  int(last_record_hh_mm)
+    return int(last_record_hh_mm)
 
 if __name__ == "__main__":
     app_config = config_utils.load_app_config(portfolio_id)

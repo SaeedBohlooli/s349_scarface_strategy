@@ -96,7 +96,7 @@ logging_level = app_config['logging_level']
 # ###
 
 log_filename = f"{log_dir}/{portfolio_id}.log"
-file_r_handler = logging.handlers.RotatingFileHandler(filename=f"{log_dir}/{portfolio_id}.log", maxBytes= 5 * 1024 * 1024, backupCount=150)
+file_r_handler = logging.handlers.RotatingFileHandler(filename=f"{log_dir}/{portfolio_id}.log", maxBytes= 5 * 1024 * 1024, backupCount=200)
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 file_r_handler.setFormatter(formatter)
 logging.basicConfig(
@@ -119,8 +119,6 @@ os.makedirs(charts_dir, exist_ok=True)
 os.makedirs(ohlc_archie_dir, exist_ok=True)
 
 application_state_file_path = f'{intermediate_dir}/84-application_state.csv'
-
-
 
 
 def get_previous_bday():
@@ -279,6 +277,7 @@ def is_between(now=None, start_str="9:25", end_str="11:00"):
     return start <= now <= end
 
 def sleep_enough():
+    # global run_spend_time
     run_spend_time = round(end_time - start_time, 2)
     if is_trade_time:
         logger.warning(f' ==================== run_number: {run_number}, date_run_number: {date_run_number}, run_spend_time: {run_spend_time} seconds, no sleep ...')
@@ -2003,8 +2002,11 @@ def get_live_quote_for_option_positions(option_positions):
     options_portfolio_df = pd.DataFrame()
     for p in option_positions:
         contract = p.contract
+        symbol = contract.symbol
+        if symbol not in app_config['symbols']:
+            continue
         contract.exchange = 'CBOE'  # TODO why not smart!
-        ticker = ib.reqMktData(contract, '', False, False)   # TODO if the symbol is in outr list, why query for SPXW
+        ticker = ib.reqMktData(contract, '', False, False)   # TODO if the symbol is in our list, why query for SPXW
         ib.sleep(0.3)  # short wait for data
         logger.info(f"{contract.symbol} {contract.lastTradeDateOrContractMonth} "
               f"{contract.right} {contract.strike} | "
@@ -2099,7 +2101,7 @@ def find_option_positions_to_monitor(positions):
     return ps
 
 def find_future_positions_to_monitor(positions):
-    logger.info(f"find_future_positions_to_monitor: all open: \n{tabulate(positions, headers='keys', tablefmt='psql')}")
+    logger.info(f"find_future_positions_to_monitor(): here are oen positions: \n{tabulate(positions, headers='keys', tablefmt='psql')}")
     ps = []
     for p in positions:
         logger.debug(f"p: {p}")
@@ -2765,6 +2767,8 @@ df_file_map = generate_df_file_map()
 
 def save_all_csv_files():
     global df_file_map
+    start_time = time.time()
+
     if mode == 'back_test': # we need to re assign ...
         df_file_map = generate_df_file_map()
 
@@ -2784,6 +2788,10 @@ def save_all_csv_files():
     if mode == 'live':
         ib_posttrade.save_ib_dfs(portfolio_dir,ib)
     logger.info(f"save_all_csv_files, finished ...")
+
+    end_time = time.time()
+    spent_time = round(end_time - start_time, 2)
+    logger.warning(f'save_all_csv_files(), spent_time: {spent_time} seconds')
 
 def add_rs_relative_to_candle_info(symbol):
     if symbol == 'QQQ':
@@ -2983,6 +2991,14 @@ def is_price_close_to_next_levels(side='up',price= 0, current_level=1, next_leve
             add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is very close to next level. price: {price}, to: {next_price} <br> {get_hhm_mm_of_last_record(df)}', color='red')
             return True
 
+        if side == "up" and price > current_level and price > next_price: # This is for once the price passes the next level as well.
+            add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is very close to next level. price: {price}, to: {next_price} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+            return True
+
+        if side == "down" and price < current_level and price < next_price:  # see PLTR Oct 09-
+            add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price passed next level. price: {price}, to: {next_price} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+            return True
+
     return False
 
 
@@ -3022,7 +3038,8 @@ def calculate_score(market_trend):
     return final_score, final_memo
 
 def print_missing_rows_in_qqq_vs_stock(df, qqq_df):
-    if True:
+    if not eval(app_config.get('busy_time', '1 == 2')):
+
         missing_rows_in_qqq_df = df.loc[~df['date'].isin(qqq_df['date'])]
         if len(missing_rows_in_qqq_df) > 0:
             logger.warning(f"missing_rows_in_qqq_df: \n{missing_rows_in_qqq_df[-3:].to_markdown()}")
@@ -3039,9 +3056,11 @@ def all_levels_in(symbol, levels=['PDL', 'PDH', 'PMH', 'PML','5MH', '5ML']):
 
 def orchestrate_expirations_strikes():
     global options_meta_date_dic
+    # get from IB. is messy ...
     find_expiration_and_strikes_for_all()
     dump_a_map_to_file(options_meta_date_dic, file_path=f'{intermediate_dir}/85-strikes-expirations-ib.csv')
 
+    # Mere with Nazadq ...
     nazdaq_file = f'{intermediate_dir}/85-strikes-nazdaq.csv'
     strikes_from_nazdaq = file_utils.load_json_from_file(nazdaq_file)
     if strikes_from_nazdaq != {}:
@@ -3063,7 +3082,7 @@ def get_last_record_hh_mm():
         return -1
 
     last_record_hh_mm = int(df['date'].iloc[-1].strftime('%H%M'))
-    return  int(last_record_hh_mm)
+    return int(last_record_hh_mm)
 
 if __name__ == "__main__":
 
@@ -3098,20 +3117,21 @@ if __name__ == "__main__":
     bid_ask_history_df = pd.DataFrame()
     close_pairs = []
     consequence_exception = 0
-    run_number = 0
     dfs_map = {}
     screening_log_list = []
     screening_log_df = pd.DataFrame()
-    last_candles_visit_map = {} #{'QQQ': '2025-11-12 23:31:00'}
+    last_candles_visit_map = {} # {'QQQ': '2025-11-12 23:31:00'}
     close_levels_marked_for_symol_map = {}
+    checkmark_map = {} # using to check mark things ...
     qqq_df = pd.DataFrame()  # need to reset once we iterate throught all symbols ...
     qqq_5MH = -1
     qqq_5ML = -1
     qqq_PDH = -1
     qqq_PDL = -1
-    # calcuatel_pnl()
-    # raise x
+
     logger.info("application started.")
+    run_spend_time = 0
+    run_number = 0
     while True:
       try:
         start_time = time.time()
@@ -3123,9 +3143,9 @@ if __name__ == "__main__":
         date_run_number = f"{now.strftime('%Y%m%d-%H%M%S')}--{run_number}"
         day_of_week = now.strftime("%A")
 
-        is_trade_time = eval(app_config['live']['is_trade_time'])
-
         logger.info(f"==================== run_number: {run_number}, date_run_number: {date_run_number}")
+
+        is_trade_time = eval(app_config['live']['is_trade_time'])
 
         if run_number % 1 == 0:
             app_config = config_utils.load_app_config(portfolio_id)
@@ -3138,7 +3158,6 @@ if __name__ == "__main__":
         if run_number == 1:
             orchestrate_expirations_strikes()
 
-
         if run_number == 1:
             historical_days = '' # from config
         elif day_of_week == 'Monday':
@@ -3147,18 +3166,22 @@ if __name__ == "__main__":
             historical_days = '1 D'
 
 
-
         all_positions = get_all_open_positions()
         option_positions_to_monitor = find_option_positions_to_monitor(all_positions)
         future_positions_to_monitor = find_future_positions_to_monitor(all_positions)
-        update_for_avg_cost(option_positions_to_monitor)
-        options_portfolio_df = get_live_quote_for_option_positions(option_positions_to_monitor)
-        future_portfolio_df = get_live_quote_for_future_positions(future_positions_to_monitor)
-        check_application_state_vs_ib_positions()
-        if  930 <current_hh_mm_ny < 1600:
-            test_get_bid_ask_for_symbols()
 
-        logger.info(f"bid_ask_history_df: \n: {bid_ask_history_df.to_markdown()}")
+        update_for_avg_cost(option_positions_to_monitor)
+
+        options_portfolio_df = get_live_quote_for_option_positions(option_positions_to_monitor) # This is used in TP and SL, so need we have it each run
+        future_portfolio_df = get_live_quote_for_future_positions(future_positions_to_monitor)
+
+        if 5 * run_number % 60 == 0:
+           check_application_state_vs_ib_positions()
+
+        if 930 < current_hh_mm_ny < 932 and app_config.get('username','') == 'saeed' and checkmark_map.get('TEST_STRIKES'):
+            test_get_bid_ask_for_symbols()
+            checkmark_map['TEST_STRIKES'] = 'Yes'
+            logger.info(f"bid_ask_history_df: \n: {bid_ask_history_df.to_markdown()}")
 
         symbol_number = 0
         for symbol in app_config['symbols']:
@@ -3209,7 +3232,7 @@ if __name__ == "__main__":
 
             key_levels_list = get_key_levels_list() # This need to be done after 5MH
 
-            if symbol == 'QQQ':
+            if symbol == 'QQQ': # TODO we need to do once after 9:35
                 qqq_5MH = get_levels_map().get('5MH', -1)
                 qqq_5ML = get_levels_map().get('5ML', -1)
                 qqq_PDH = get_levels_map().get('PDH', -1)
@@ -3224,13 +3247,11 @@ if __name__ == "__main__":
                 add_atr_to_candle_info(dynamic_tolerance)
                 add_rs_relative_to_candle_info(symbol) # TODO can be one time per candle
 
-            if are_all_levels_in and not close_levels_marked_for_symol_map.get(symbol) :
-                mark_close_levels(key_levels_list)  # TODO run until we have all levels ...
+            if are_all_levels_in and not close_levels_marked_for_symol_map.get(symbol): # we have all elvels, so mark them ...
+                mark_close_levels(key_levels_list)
                 close_levels_marked_for_symol_map[symbol] = True
 
             last_record_hh_mm = int(df['date'].iloc[-1].strftime('%H%M'))
-            print(last_record_hh_mm)
-            exit (1)
 
             buy_sell_case_results_list = check_buy_and_sell_cases()
 
@@ -3244,12 +3265,14 @@ if __name__ == "__main__":
 
             hover_df = convert_signals_to_hover_df(signals)
 
-            if (is_trade_time and run_number % 10 == 0) or (not is_trade_time and run_number % 5 == 0 ): # for each symbol ...
+            if (is_trade_time and 5 * run_number % 60 * 5 == 0) or (not is_trade_time and 5 * run_number % 60 * 1 == 0): # for each symbol ...
                 # These are for each symbol ...
                 save_ohlc_for_chart(df)
                 save_extra_features_df()
-                detect_a_mark_market_gap(symbol, df)  # TODO need to happen one time after 9:30
 
+            if 931 < current_hh_mm_ny < 933 and not checkmark_map.get('MARK_GAP') :
+                detect_a_mark_market_gap(symbol, df)  # TODO need to happen one time after 9:30
+                checkmark_map['MARK_GAP'] = 'Done'
 
             dump_application_state_to_file()
 
@@ -3266,9 +3289,8 @@ if __name__ == "__main__":
 
         # END:  for symbol in app_config['symbols']:
         # in the WHILE TRUE...
-        if (is_trade_time and run_number % 20 == 0) or (not is_trade_time and run_number % 10 == 0):
+        if (is_trade_time and 5 * run_number % 60 * 5 == 0) or (not is_trade_time and 5 * run_number % 60 * 2 == 0):
             save_all_csv_files()
-
 
         # End WHILE TRUE
         end_time = time.time()

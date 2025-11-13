@@ -91,35 +91,35 @@ symbols_meta:
     retest_tolerance_multiplier: 1
 
 cases:
-  case_1:
-    can_replace_level: false
-    long: # TODO need to be reaned to up_side
-      level: max(levels['PDH'], levels['PMH'], levels['5MH'])
-      condition_01: breakout_in_last_x_candles(side='up', idx_list=[-5], level=long_level)
-      condition_02: price_retest(side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
-      condition_03: is_retest_after_breakout(side='up', level=long_level)
-      condition_04: check_entry_vs_retest(side='up', level=long_level)
-      condition_05: no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
-      condition_06: check_price_vs_level(side='up', price=price, level=long_level )
-      condition_07: are_levels_close_to_each_other_for_case_1(side='up')
-      condition_08: 1 == 1
-      condition_09: 1 == 1
-      condition_10: 930 < last_record_hh_mm < 1016
-      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07 and eval_buy_condition_07 and eval_buy_condition_08  and eval_buy_condition_09
-
-    short:
-      level: min(levels['PDL'], levels['PML'], levels['5ML'])
-      condition_01: breakout_in_last_x_candles(side='down', idx_list=[-5], level=short_level)
-      condition_02: price_retest(side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True )
-      condition_03: is_retest_after_breakout(side='down', level=short_level)
-      condition_04: check_entry_vs_retest(side='down', level=short_level)
-      condition_05: no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
-      condition_06: check_price_vs_level(side='down', price=price, level=short_level )
-      condition_07: are_levels_close_to_each_other_for_case_1(side='down')
-      condition_08: 1 == 1
-      condition_09: 1 == 1
-      condition_10: 930 < last_record_hh_mm < 1016
-      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09
+#  case_1:
+#    can_replace_level: false
+#    long: # TODO need to be reaned to up_side
+#      level: max(levels['PDH'], levels['PMH'], levels['5MH'])
+#      condition_01: breakout_in_last_x_candles(side='up', idx_list=[-5], level=long_level)
+#      condition_02: price_retest(side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
+#      condition_03: is_retest_after_breakout(side='up', level=long_level)
+#      condition_04: check_entry_vs_retest(side='up', level=long_level)
+#      condition_05: no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
+#      condition_06: check_price_vs_level(side='up', price=price, level=long_level )
+#      condition_07: are_levels_close_to_each_other_for_case_1(side='up')
+#      condition_08: 1 == 1
+#      condition_09: 1 == 1
+#      condition_10: 930 < last_record_hh_mm < 1016
+#      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07 and eval_buy_condition_07 and eval_buy_condition_08  and eval_buy_condition_09
+#
+#    short:
+#      level: min(levels['PDL'], levels['PML'], levels['5ML'])
+#      condition_01: breakout_in_last_x_candles(side='down', idx_list=[-5], level=short_level)
+#      condition_02: price_retest(side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True )
+#      condition_03: is_retest_after_breakout(side='down', level=short_level)
+#      condition_04: check_entry_vs_retest(side='down', level=short_level)
+#      condition_05: no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
+#      condition_06: check_price_vs_level(side='down', price=price, level=short_level )
+#      condition_07: are_levels_close_to_each_other_for_case_1(side='down')
+#      condition_08: 1 == 1
+#      condition_09: 1 == 1
+#      condition_10: 930 < last_record_hh_mm < 1016
+#      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09
 
   case_2:
     can_replace_level: true
@@ -291,9 +291,9 @@ live:
   max_num_of_trade_per_symbol_per_day: 2
   max_profit_per_day: 2000 # it will not get into new trade, it is not in yet
   max_loss_per_day: 1000 # it will not get into new trade ... it is not in yet
-  is_trade_time: 930 < current_hh_mm_ny  < 1015  or 1 == 1
+  is_trade_time: 930 < current_hh_mm_ny  < 1015
   save_on_disk: not (930 < current_hh_mm_ny  < 1015)
-#  is_trade_time: 930 < current_hh_mm_ny  < 1130
+  busy_time: 934 < current_hh_mm_ny < 1015  #don't chaneg this,  we are not saving anythng or any test ...
 
 back_test:
   data:
@@ -314,12 +314,12 @@ back_test:
 
 
 chart:
-#  source: live
-  source: back_test
+  source: live
+#  source: back_test
 #  cutoff_in_hours: 0
   hours_in_focus: 3
   live:
-    start_time: '09:00'
+    start_time: '08:00'
     end_time: '12:00'
 
 # before_start:
