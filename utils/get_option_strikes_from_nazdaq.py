@@ -47,8 +47,7 @@ def get_strikes(symbol):
         print(expirations)
 
 
-        options_meta_date_dic[symbol] = {}
-        options_meta_date_dic.get(symbol)['strikes'] = strikes
+        options_meta_date_dic[f'{symbol}-strikes'] = strikes
         return strikes
 
     except Exception as e:

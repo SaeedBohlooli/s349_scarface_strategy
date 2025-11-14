@@ -286,7 +286,7 @@ def sleep_enough():
         need_sleep_seconds = 0
         if run_spend_time < run_should_take:
             need_sleep_seconds = run_should_take - run_spend_time
-        logger.warning(f'{run_number}) run_spend_time: {run_spend_time} seconds, run_should_take: {run_should_take} unique_run_number: {unique_run_number}')
+        logger.warning(f' ==================== run_number: {run_number}, date_run_number: {date_run_number}, run_spend_time: {run_spend_time}, run_should_take: {run_should_take}, so sleep ...')
         time.sleep(need_sleep_seconds)
     return
 
@@ -650,7 +650,8 @@ def add_to_screening_log_list(side):
         'rs_relative': intraday_rs_df['rs_rel'].iloc[-1],
         'rs_delta': intraday_rs_df['rs_delta'].iloc[-1],
         'exit_time': '',
-        'qqq_context' :'',
+        'qqq_context':'',
+        'memo': app_config['back_test']['memo'],
     }
     screening_log_list.append(data)
 
@@ -1613,16 +1614,14 @@ def find_expiration_and_strikes(symbol, exchange):
     strikes = sorted(chain.strikes)
     strikes = [s for s in strikes if abs(s * 10 % 5) < 1e-6]  # keeps only .0 and .5 . IB has messy data ...
 
-    options_meta_date_dic[symbol] = {}
 
-    options_meta_date_dic.get(symbol)['first_expiry'] = expiry
-    options_meta_date_dic.get(symbol)['strikes'] = strikes
-    options_meta_date_dic.get(symbol)['expirations'] = sorted(chain.expirations)
+    options_meta_date_dic[f'{symbol}-strikes'] = strikes
+    options_meta_date_dic[f'{symbol}-expirations'] = sorted(chain.expirations)
 
     if symbol in ['NVDA', 'TSLL']:
         logger.debug('hold it here....')
 
-    if False and not is_trade_time :
+    if False and not is_trade_time : #TODO need to be m,reoved
         for c in chains:
             if c.exchange == 'SMART':
                 options_meta_date_dic.get(symbol)[f'{c.exchange}-expirations'] = sorted(c.expirations)
@@ -1631,7 +1630,7 @@ def find_expiration_and_strikes(symbol, exchange):
                 options_meta_date_dic.get(symbol)[f'{c.exchange}-expirations'] = sorted(c.expirations)
                 options_meta_date_dic.get(symbol)[f'{c.exchange}-strikes'] = sorted(c.strikes)
 
-    if False:
+    if False:  # TODO need to be rmeoved .
         dump_a_map_to_file(options_meta_date_dic[symbol], file_path=f'{intermediate_dir}/{date_run_number}-{symbol}-strikes-expiry.csv')
     return
 
@@ -1690,7 +1689,7 @@ def calculate_number_of_contracts(ask):
 def prepare_contract(symbol, right='C', max_retries=3, wait_between=1.0):
 
     underlying_price = get_current_price(symbol)
-    strikes = options_meta_date_dic.get(symbol, {}).get('strikes')
+    strikes = options_meta_date_dic.get(f'{symbol}-strikes')
 
     # example: "expirations": [
     #     "20251205",
@@ -1699,7 +1698,7 @@ def prepare_contract(symbol, right='C', max_retries=3, wait_between=1.0):
     # ]
     expiry_offset = app_config['symbols_meta'][symbol].get('expiry_offset', 0) # 0 means first one ... for QQQ/SPY we get the seond one ...
 
-    expiry_list = options_meta_date_dic.get(symbol, {}).get('expirations',[])
+    expiry_list = options_meta_date_dic.get(f'{symbol}-expirations',[])
     expiry = expiry_list[expiry_offset] if expiry_list else None
     if strikes is None:
         logger.warning(f"@@@@@ prepare_contract, strikes is None. {symbol}, {right}, underlying_price: {underlying_price}")
@@ -1877,27 +1876,26 @@ def add_to_order_history_df(data):
 def test_get_bid_ask_for_symbols():
     global bid_ask_history_df
     # if (1030 < current_hh_mm_ny < 1530 and run_number % 3 * 60 * 1  == 0) or (931 < current_hh_mm_ny < 934 and run_number % 3 * 60 == 0) : # each 1 mins
-    if True : # each 1 mins
-        for symbol in app_config['symbols']:
-            for right in ['C' , 'P']:
-                logger.info(f"---- {symbol} {right}")
-                option_contract = prepare_contract(symbol, right=right)
-                logger.info(f"test_get_bid_ask_for_symbols ...")
-                if option_contract == None:
-                    logger.warning(f"@@@ test_x. {symbol}, option_contract: {option_contract}")
-                    continue
-                bid, ask = get_quote_for_option_bid_ask(symbol=symbol, strike=option_contract.strike, right=option_contract.right,
-                                                        expiry=option_contract.lastTradeDateOrContractMonth)
-                data = {'symbol': symbol,
-                        'date': date_yyyy_mm_dd_hh_mm,
-                        'strike': option_contract.strike,
-                        'expiry': option_contract.lastTradeDateOrContractMonth,
-                        'right': right,
-                        'bid': bid,
-                        'ask': ask,
-                        'unique_run_number': unique_run_number,
-                        }
-                bid_ask_history_df = pd.concat([bid_ask_history_df, pd.DataFrame([data])], ignore_index=True)
+    for symbol in app_config['symbols']:
+        for right in ['C' , 'P']:
+            logger.info(f"---- {symbol} {right}")
+            option_contract = prepare_contract(symbol, right=right)
+            logger.info(f"test_get_bid_ask_for_symbols ...")
+            if option_contract == None:
+                logger.warning(f"@@@ test_x. {symbol}, option_contract: {option_contract}")
+                continue
+            bid, ask = get_quote_for_option_bid_ask(symbol=symbol, strike=option_contract.strike, right=option_contract.right,
+                                                    expiry=option_contract.lastTradeDateOrContractMonth)
+            data = {'symbol': symbol,
+                    'date': date_yyyy_mm_dd_hh_mm,
+                    'strike': option_contract.strike,
+                    'expiry': option_contract.lastTradeDateOrContractMonth,
+                    'right': right,
+                    'bid': bid,
+                    'ask': ask,
+                    'unique_run_number': unique_run_number,
+                    }
+            bid_ask_history_df = pd.concat([bid_ask_history_df, pd.DataFrame([data])], ignore_index=True)
     return
 def add_to_futures_order_history_df(data):
     global futures_order_history_df
@@ -2164,20 +2162,21 @@ def close_future_positions(positions, symbol='', close_qty=0, alias_for_ref=''):
 
     for pos in positions:
         contract = pos.contract
-        if close_qty == 0:
-            qty = pos.position
-        else:
-            qty = close_qty
-
-        if qty == 0:
+        pos_qty = pos.position
+        if pos_qty == 0:
             continue
 
         if symbol != '' and symbol != contract.symbol:
             logger.debug(f"We are not closing this symbol: {symbol}, contract.symbol: {contract.symbol}")
             continue
 
+        if close_qty == 0:
+            qty = pos.position
+        else:
+            qty = close_qty
+
         # --- Step 2: Determine opposite action ---
-        action = 'SELL' if qty > 0 else 'BUY'
+        action = 'SELL' if pos_qty > 0 else 'BUY'
 
         # --- Step 3: Create market order to close ---
         qty = abs(qty)
@@ -2197,7 +2196,7 @@ def close_future_positions(positions, symbol='', close_qty=0, alias_for_ref=''):
 
         # Convert to DataFrame automatically
         df = ib_util.df([trade])
-        logger.info(f"close_future_positions, trade:\n{df.to_markdown()}")
+        logger.info(f"close_future_positions, trade(ib_util.df):\n{df.to_markdown()}")
         logger.info(f"Closing {contract.localSymbol}, action: {action}, qty: {qty}")
 
     return
@@ -2760,6 +2759,7 @@ def generate_df_file_map():
         "screening_log_for_run_df": f"{portfolio_dir}/17-screening_log_for_run_df.csv", # TODO rename
         "screening_summary_df" :  f"{portfolio_dir}/18-screening_summary_df.csv",  # TODO rename
         "bid_ask_history_df" :  f"{portfolio_dir}/19-bid_ask_history_df.csv",  # TODO rename
+        "screening_summary_agg_df" :  f"{portfolio_dir}/20-screening_summary_agg_df.csv",  # TODO rename
 
     }
 
@@ -2839,9 +2839,9 @@ def add_list_to_dic(df, data_list):
 def summerize_screening_log(screening_log_for_run_df):
     if len(screening_log_for_run_df) ==0:
         return
-    df = screening_log_for_run_df[screening_log_for_run_df["symbol"] != "MNQ"]
 
     df = screening_log_for_run_df
+    df = df[df["symbol"] != "MNQ"]
     df["is_positive"] = df["pnl"] > 0
     df["is_negative"] = df["pnl"] < 0
     df["is_long"] = df["side"] == "long"
@@ -2850,8 +2850,15 @@ def summerize_screening_log(screening_log_for_run_df):
     df["is_short_positive"] = df["is_short"] & df["is_positive"]
     df["is_rs_positive"] = df["rs_relative"] > 0
     df["is_rs_negative"] = df["rs_relative"] < 0
+    df["is_vr_enough"] = df["entry_volume_ratio"] > 1.2
+    df["win_rs_positive"] = df["is_rs_positive"] & df["is_positive"]
+    df["lose_rs_positive"] = df["is_rs_positive"] & df["is_negative"]
+    df["win_rs_negative"] = df["is_rs_negative"] & df["is_positive"]
+    df["lose_rs_negative"] = df["is_rs_negative"] & df["is_negative"]
+    df["win_vr_enough"] = df["is_vr_enough"] & df["is_positive"]
+    df["lose_vr_enough"] = df["is_vr_enough"] & df["is_negative"]
 
-    screening_summary_df = ( df.groupby(["trade_date", "day_of_week"])
+    screening_summary_df = ( df.groupby(["trade_date", "day_of_week", 'memo'])
        .agg(
            positive_count=("is_positive", "sum"),
            negative_count=("is_negative", "sum"),
@@ -2863,6 +2870,12 @@ def summerize_screening_log(screening_log_for_run_df):
            short_positive_count=("is_short_positive", "sum"),
            rs_positive_count=("is_rs_positive", "sum"),
            rs_negative_count=("is_rs_negative", "sum"),
+           win_rs_positive_count=("win_rs_positive", "sum"),
+           lose_rs_positive_count=("lose_rs_positive", "sum"),
+           win_rs_negative_count=("win_rs_negative", "sum"),
+           lose_rs_negative_count=("lose_rs_negative", "sum"),
+           win_vr_enough_count=("win_vr_enough", "sum"),
+           lose_vr_enough_count=("lose_vr_enough", "sum"),
        )
        .reset_index()
                              )
@@ -2899,12 +2912,18 @@ def summerize_screening_log(screening_log_for_run_df):
             "short_win_rate",
             "total_win_rate",
             "rs_positive_count",
-            "rs_negative_count"
+            "rs_negative_count",
+            "win_rs_positive_count",
+            "lose_rs_positive_count",
+            "win_rs_negative_count",
+            "lose_rs_negative_count",
+            "win_vr_enough_count",
+            "lose_vr_enough_count",
+            "memo",
         ]
     ]
-    df_utils.save_df_to_csv_a_tabular(screening_summary_df,file_path=add_unique_run_number_start_end_date(df_file_map.get('screening_summary_df')), mode='w')
 
-    return
+    return screening_summary_df
 
 
 def add_unique_run_number_start_end_date(str):
@@ -2976,31 +2995,88 @@ def is_price_close_to_next_levels(side='up',price= 0, current_level=1, next_leve
     closeness_distance = eval(app_config['closeness_distance'])
 
     for key in next_levels:
-        next_price = levels_map.get(key, None)
-        if next_price is None:
+        next_level = levels_map.get(key, None)
+        if next_level is None:
             continue  # skip missing levels
 
-        distance = abs(price - next_price)
+        distance = abs(price - next_level)
         is_close = distance < closeness_distance
 
-        # price is below next level but very close
-        if side == "up" and price > current_level and price < next_price and is_close:
-            add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is very close to next level. price: {price}, to: {next_price} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+        # next_level is above the current level, price is below next level but very close
+        if side == "up" and next_level > current_level and price > current_level and price < next_level and is_close:
+            add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is very close to next level. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
             return True
-        if side == "down" and price < current_level and price > next_price and is_close:
-            add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is very close to next level. price: {price}, to: {next_price} <br> {get_hhm_mm_of_last_record(df)}', color='red')
-            return True
-
-        if side == "up" and price > current_level and price > next_price: # This is for once the price passes the next level as well.
-            add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is very close to next level. price: {price}, to: {next_price} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+        if side == "down" and next_level < current_level and price < current_level and price > next_level and is_close:
+            add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is very close to next level. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
             return True
 
-        if side == "down" and price < current_level and price < next_price:  # see PLTR Oct 09-
-            add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price passed next level. price: {price}, to: {next_price} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+        # next_level is above the current level, price is above next level and current level but very close
+        if side == "up" and next_level > current_level and price > current_level and price > next_level and is_close: # This is for once the price passes the next level as well.
+            add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is very close and passed next level. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+            return True
+
+        if side == "down" and next_level < current_level and price < current_level and price < next_level and is_close:  # see PLTR Oct 09-
+            add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is close and passed next level. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
             return True
 
     return False
 
+
+def is_price_close_to_next_levels_ver_2(side='up', price= 0, current_level=1, next_levels=['PDH']):  # used in the config
+
+    if next_levels is None:
+        return False
+    levels_map = get_levels_map()
+    closeness_distance = eval(app_config['closeness_distance'])
+    if breakout_idx == 0:
+        return False
+
+    clipped_df = df[breakout_idx:]
+    highest_high = clipped_df['high'].max()
+    lowest_low = clipped_df['low'].min()
+    for key in next_levels:
+        next_level = levels_map.get(key, None)
+        if next_level is None:
+            continue  # skip missing levels
+
+        distance = abs(price - next_level)
+        is_close = distance < closeness_distance
+
+        if side == "up":
+            # TODO THe first two can merged ..
+            # next_level is above the current level, price is below next level but very close
+            if next_level > current_level and price > current_level and price < next_level and is_close:
+                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is very close to next level. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+                return True
+
+            # next_level is above the current level, price is above next level
+            if next_level > current_level and price > current_level and price > next_level: # This is for once the price passes the next level as well.
+                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is very close and passed next level. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+                return True
+
+            # next_level is above the current level AND price is above leve AND highest_high after breakout canddle is close to the next level ..
+            if next_level > current_level and price > current_level and abs(highest_high - next_level) < closeness_distance:
+                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'closest high is close to the next level. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+                return True
+
+        else:
+            if next_level < current_level and price < current_level and price > next_level and is_close:
+                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is very close to next level. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+                return True
+
+
+            if next_level < current_level and price < current_level and price < next_level:  # see PLTR Oct 09-
+                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is close and passed next level. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+                return True
+
+            # next_level is below the current level AND price is below level AND highest_high after breakout canddle is close to the next level ..
+            if next_level < current_level and price < current_level and abs(lowest_low - next_level) < closeness_distance:
+                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'closest high is close to the next level. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+                return True
+
+
+
+    return False
 
 
 def calculate_score(market_trend):
@@ -3027,6 +3103,11 @@ def calculate_score(market_trend):
         score_got = score if cond_result else 0
         final_score += score_got
         memo_lines.append('----------')
+        if s =='s1':
+            memo += " "
+            last5 = df['VR'].tail(7)
+            s = " | ".join(f"{v:.2f}" for v in last5)
+            memo += s
         memo_lines.append(f"{score_got}/{score}, {cond_result},{cond}  # {memo}")
 
     memo_lines.insert(0, f"{final_score} # score") # in the chart we expecting the score#, so don't change it .
@@ -3084,7 +3165,54 @@ def get_last_record_hh_mm():
     last_record_hh_mm = int(df['date'].iloc[-1].strftime('%H%M'))
     return int(last_record_hh_mm)
 
+def aggregate_screening_log(df):
+    df['run_number_start_end'] = f'{unique_run_number}--{back_test_date_start}--{back_test_date_end}'
+    agg_df = (
+        df.groupby(["run_number_start_end", 'memo'])
+        .agg({
+            "positive_count": "sum",
+            "negative_count": "sum",
+            "total_trades": "sum",
+            "sum_pnl": "sum",
+            "long_count": "sum",
+            "short_count": "sum",
+            "long_positive_count": "sum",
+            "short_positive_count": "sum",
+            "rs_positive_count": "sum",
+            "rs_negative_count": "sum",
+            "win_rs_positive_count": "sum",
+            "lose_rs_positive_count": "sum",
+            "win_rs_negative_count": "sum",
+            "lose_rs_negative_count": "sum",
+            "win_vr_enough_count": "sum",
+            "lose_vr_enough_count": "sum",
+        })
+        .reset_index()
+    )
+    # Compute win rates
+    agg_df["long_win_rate"] = (
+                                      agg_df["long_positive_count"] /
+                                      agg_df["long_count"].replace(0, float("nan"))
+                              ) * 100
+
+    agg_df["short_win_rate"] = (
+                                       agg_df["short_positive_count"] /
+                                       agg_df["short_count"].replace(0, float("nan"))
+                               ) * 100
+
+    agg_df["total_win_rate"] = (
+                                       agg_df["positive_count"] /
+                                       agg_df["total_trades"].replace(0, float("nan"))
+                               ) * 100
+
+    agg_df = agg_df.fillna(0)
+
+    return agg_df
+
+
+
 if __name__ == "__main__":
+
     app_config = config_utils.load_app_config(portfolio_id)
 
     ib_config = load_ib_config()
@@ -3288,6 +3416,11 @@ if __name__ == "__main__":
 
     df_utils.save_df_to_csv_a_tabular(screening_log_for_run_df,file_path=add_unique_run_number_start_end_date(df_file_map.get('screening_log_for_run_df')), mode='w')
 
-    summerize_screening_log(screening_log_for_run_df)
+    screening_summary_df = summerize_screening_log(screening_log_for_run_df)
+    df_utils.save_df_to_csv_a_tabular(screening_summary_df,file_path=add_unique_run_number_start_end_date(df_file_map.get('screening_summary_df')), mode='w')
+    screening_summary_agg_df =  aggregate_screening_log(screening_summary_df)
+    file_utils.create_a_backup(file_path=df_file_map.get('screening_summary_agg_df'))
+    df_utils.save_df_to_csv_a_tabular(screening_summary_agg_df, file_path=df_file_map.get('screening_summary_agg_df'), mode='a')
+
 
     logger.info("Done!")

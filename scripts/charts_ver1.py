@@ -822,6 +822,8 @@ def create_chart_hovered_df(hover_df, symbol):
         'STOP_LOSS_SENT': '✖',
 
         'SCORE': 'S',
+        'PRICE_CLODE_TO_LEVEL': '○',
+
         # ------
         # Test 
         'x': '↑',
@@ -928,7 +930,7 @@ def index():
             fig1 = mark_market_time_only_last_one(fig1, df)
         chart_hovered_df = create_chart_hovered_df(hover_df, symbol)
         fig1 = add_hover_to_chart(fig1, chart_hovered_df)
-        # fig1 = add_close_levels_anoteation(fig1, df, close_levels_df, symbol)
+        fig1 = add_close_levels_anoteation(fig1, df, close_levels_df, symbol)
         plot_html = pio.to_html(fig1, full_html=False)
 
         plots.append(plot_html)
