@@ -651,7 +651,7 @@ def add_to_screening_log_list(side):
         'rs_delta': intraday_rs_df['rs_delta'].iloc[-1],
         'exit_time': '',
         'qqq_context':'',
-        'memo': app_config['back_test']['runs'][run]['memo'],
+        'memo': f"{app_config['back_test']['memo']} - {app_config['back_test']['runs'][run]['memo']}",
     }
     screening_log_list.append(data)
 
@@ -3152,19 +3152,22 @@ def summerize_screening_log(screening_log_for_run_df):
         (screening_summary_df["is_long_positive_count"] / screening_summary_df["is_long_count"]) * 100,
         0
     )
+    screening_summary_df["long_win_rate"] = round(screening_summary_df["long_win_rate"], 2)
 
     screening_summary_df["short_win_rate"] = np.where(
         screening_summary_df["is_short_count"] > 0,
         (screening_summary_df["is_short_positive_count"] / screening_summary_df["is_short_count"]) * 100,
         0
     )
+    screening_summary_df["short_win_rate"] = round(screening_summary_df["short_win_rate"] , 2)
 
     screening_summary_df["total_win_rate"] = np.where(
         screening_summary_df["total_trades"] > 0,
         (screening_summary_df["is_positive_count"] / screening_summary_df["total_trades"]) * 100,
         0
     )
-
+    screening_summary_df["total_win_rate"] = round(screening_summary_df["total_win_rate"], 2)
+    screening_summary_df = df_utils.move_last_x_to_position_y(screening_summary_df, 3, 4)
     return screening_summary_df
 
 
@@ -3190,22 +3193,23 @@ def aggregate_screening_log(df):
           .reset_index()
     )
     # Compute win rates
-    agg_df["long_win_rate"] = (
+    agg_df["long_win_rate"] = round ((
                                       agg_df["is_long_positive_count"] /
                                       agg_df["is_long_count"].replace(0, float("nan"))
-                              ) * 100
+                              ) * 100 , 2)
 
-    agg_df["short_win_rate"] = (
+    agg_df["short_win_rate"] = round((
                                        agg_df["is_short_positive_count"] /
                                        agg_df["is_short_count"].replace(0, float("nan"))
-                               ) * 100
+                               ) * 100, 2)
 
-    agg_df["total_win_rate"] = (
+    agg_df["total_win_rate"] = round((
                                        agg_df["is_positive_count"] /
                                        agg_df["total_trades"].replace(0, float("nan"))
-                               ) * 100
+                               ) * 100 ,2)
 
     agg_df = agg_df.fillna(0)
+    agg_df = df_utils.move_last_x_to_position_y(agg_df, 3, 4)
 
     return agg_df
 
@@ -3230,7 +3234,7 @@ if __name__ == "__main__":
         back_test_date_start = app_config['back_test']['runs'][run]['start']
         back_test_date_end = app_config['back_test']['runs'][run]['end']
 
-        back_test_dates = pd.date_range(start=back_test_date_start, end=back_test_date_end)
+        back_test_dates = pd.date_range(start=back_test_date_start, end=back_test_date_end,  closed='left')  # This excludes the end date. say 07-01 to 08-01, will not include the 08-01
 
         now = datetime.datetime.now()
         run_date_time = now.strftime("%Y-%m-%d__%H-%M")
@@ -3428,7 +3432,6 @@ if __name__ == "__main__":
         screening_summary_df = summerize_screening_log(screening_log_for_run_df)
         df_utils.save_df_to_csv_a_tabular(screening_summary_df,file_path=add_unique_run_number_start_end_date(df_file_map.get('screening_summary_df')), mode='w')
         screening_summary_agg_df =  aggregate_screening_log(screening_summary_df)
-        file_utils.create_a_backup(file_path=df_file_map.get('screening_summary_agg_df'))
         df_utils.save_df_to_csv_a_tabular(screening_summary_agg_df, file_path=df_file_map.get('screening_summary_agg_df'), mode='a')
 
 

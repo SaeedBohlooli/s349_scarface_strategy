@@ -651,7 +651,7 @@ def add_to_screening_log_list(side):
         'rs_delta': intraday_rs_df['rs_delta'].iloc[-1],
         'exit_time': '',
         'qqq_context':'',
-        'memo': app_config['back_test']['runs'][run]['memo'],
+        'memo': f"{app_config['back_test']['memo']} - {app_config['back_test']['runs'][run]['memo']}",
     }
     screening_log_list.append(data)
 
@@ -3152,19 +3152,22 @@ def summerize_screening_log(screening_log_for_run_df):
         (screening_summary_df["is_long_positive_count"] / screening_summary_df["is_long_count"]) * 100,
         0
     )
+    screening_summary_df["long_win_rate"] = round(screening_summary_df["long_win_rate"], 2)
 
     screening_summary_df["short_win_rate"] = np.where(
         screening_summary_df["is_short_count"] > 0,
         (screening_summary_df["is_short_positive_count"] / screening_summary_df["is_short_count"]) * 100,
         0
     )
+    screening_summary_df["short_win_rate"] = round(screening_summary_df["short_win_rate"] , 2)
 
     screening_summary_df["total_win_rate"] = np.where(
         screening_summary_df["total_trades"] > 0,
         (screening_summary_df["is_positive_count"] / screening_summary_df["total_trades"]) * 100,
         0
     )
-
+    screening_summary_df["total_win_rate"] = round(screening_summary_df["total_win_rate"], 2)
+    screening_summary_df = df_utils.move_last_x_to_position_y(screening_summary_df, 3, 4)
     return screening_summary_df
 
 
@@ -3190,22 +3193,23 @@ def aggregate_screening_log(df):
           .reset_index()
     )
     # Compute win rates
-    agg_df["long_win_rate"] = (
+    agg_df["long_win_rate"] = round ((
                                       agg_df["is_long_positive_count"] /
                                       agg_df["is_long_count"].replace(0, float("nan"))
-                              ) * 100
+                              ) * 100 , 2)
 
-    agg_df["short_win_rate"] = (
+    agg_df["short_win_rate"] = round((
                                        agg_df["is_short_positive_count"] /
                                        agg_df["is_short_count"].replace(0, float("nan"))
-                               ) * 100
+                               ) * 100, 2)
 
-    agg_df["total_win_rate"] = (
+    agg_df["total_win_rate"] = round((
                                        agg_df["is_positive_count"] /
                                        agg_df["total_trades"].replace(0, float("nan"))
-                               ) * 100
+                               ) * 100 ,2)
 
     agg_df = agg_df.fillna(0)
+    agg_df = df_utils.move_last_x_to_position_y(agg_df, 3, 4)
 
     return agg_df
 
