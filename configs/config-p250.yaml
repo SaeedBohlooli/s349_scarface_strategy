@@ -282,14 +282,27 @@ live:
 
 back_test:
   data:
-    get_data_from_ib: False  # we have data from 06-01
-    start_date: 2025-10-13
-    end_date: 2025-11-15
+    get_data_from_ib: true  # we have data from 06-01
+    start_date: 2025-11-03
+    end_date: 2025-11-14
     historical_days: 5 D  # don't change this
+  runs:
+    r1:
+      active: true
+      start: 2025-11-14
+      end: 2025-11-14
+      memo: run-1
+    r2:
+      active: false
+      start: 2025-11-13
+      end: 2025-11-14
+      memo: run-2
+    r3:
+      active: false
+      start: 2025-11-13
+      end: 2025-11-14
+      memo: run-2
 
-  back_test_date_start: 2025-10-01
-  back_test_date_end: 2025-11-01
-  memo: using is_price_close_to_next_levels_ver_2 - closeness from breakout- small imp.
 
   long:
     stop_loss: level_used - ( dynamic_tolerance.get('tolerance', 0) * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1))
@@ -305,8 +318,8 @@ chart:
 #  cutoff_in_hours: 0
   hours_in_focus: 3
   live:
-    start_time: '08:00'
-    end_time: '15:00'
+    start_time: '09:00'
+    end_time: '11:00'
 
 # before_start:
 close_all_open_option_positions: false
