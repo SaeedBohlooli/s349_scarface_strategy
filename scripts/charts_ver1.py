@@ -161,6 +161,16 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
 
     fig.update_xaxes(showticklabels=True, row=1, col=1)
 
+    df['ema_21'] = df['close'].ewm(span=21, adjust=False).mean()
+    fig.add_trace(go.Scatter( # add email for candle
+        x=df['date'],
+        y=df['ema_21'],
+        line=dict(color='orange', dash='dot', width=1),
+        name='ema_21'
+    ), row=row_in_chart, col=1)
+
+    fig.update_xaxes(showticklabels=True, row=1, col=1)
+
 
     # vol ratio
     row_in_chart += 1
@@ -822,7 +832,7 @@ def create_chart_hovered_df(hover_df, symbol):
         'STOP_LOSS_SENT': '✖',
 
         'SCORE': 'S',
-        'PRICE_CLODE_TO_LEVEL': '○',
+        'PRICE_CLODE_TO_LEVEL': '●',
 
         # ------
         # Test 
