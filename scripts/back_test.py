@@ -1050,8 +1050,8 @@ def breakout_in_last_x_candles(side='up', idx_list=[-2], level=0):
         # --- breakout condition ---
         if side == 'up':
             breakout = (
-                (row["low"] < level and row["close"] > level + gap)
-                or (previous["open"] < level and row["close"] > level)
+                (row["low"] < level and row["close"] > level + gap)    # The price above level + gap
+                or (previous["open"] < level and row["close"] > level)  # The prev open is below level and current above the level.
             )
         else:
             breakout = (
@@ -1560,9 +1560,9 @@ def get_order_ref(event, symbol, alias_for_ref='', unique_run_number=''):
 
     return order_ref
 
-def send_order(contract, total_quantity=1): #TODO move to utils ...
+def send_order(contract, total_quantity=1, order_ref='NA'): #TODO move to utils ...
     order = MarketOrder('BUY', totalQuantity=total_quantity)
-    order_ref = get_order_ref('OPEN', symbol, alias_for_ref='', unique_run_number=unique_run_number)
+
     order.orderRef = order_ref
     trade = ib.placeOrder(contract, order)
     # TODO convert to ib df
@@ -1708,7 +1708,7 @@ def calculate_number_of_contracts(strike, ask):
     #  num_of_contracts: 4
     logger.info(f"calculate_number_of_contracts(), {symbol}, available_capital: {available_capital}, capital_per_trade_percentage: {capital_per_trade_percentage}, max_num_open_trades: {max_num_open_trades}")
 
-    capital_per_trade = available_capital * capital_per_trade_percentage
+    capital_per_trade = max(available_capital * capital_per_trade_percentage, 800)  # TODO put in a function
     num_of_contracts = round(capital_per_trade / (ask * 100))
 
     logger.info(f"capital_per_trade: {capital_per_trade}, ask: {ask} strike: {strike}")
@@ -1797,6 +1797,33 @@ def mark_score_in_the_chart(market_trend):
     offseted_price = get_offseted_price('down', df['low'].iloc[-1])
     add_to_signlas(symbol=symbol, event='TEXT', price=offseted_price, date=df['date'].iloc[-1], memo=f'{score_memo}', color='blue')
     return
+
+
+def add_order_ref_to_application_state(open_order_ref='', close_order_ref=''):
+    global application_state
+    global open_close_refs_df
+    if open_order_ref != '' and close_order_ref == '': # this is for open order ...
+        application_state.setdefault('open_close_refs_map', {})[open_order_ref] = []
+    elif open_order_ref != '' and close_order_ref != '': # this is for close ...
+        entry = {open_order_ref: close_order_ref}
+        application_state.setdefault('open_close_refs_list', []).append(entry) # add to the list ...
+
+        if  not application_state.get('open_close_refs_map', {}).get(open_order_ref): #  opn is not there,sso add it ..
+            application_state.setdefault('open_close_refs_map', {})[open_order_ref] = []
+
+        application_state.get('open_close_refs_map', {}).get(open_order_ref).append(close_order_ref) # now add the close ...
+    else:
+        logger.info(f"@@@ add_order_ref_to_application_state, is not supported, open_order_ref: {open_order_ref}, close_order_ref: {close_order_ref}")
+    data = {
+        'open_order_ref': open_order_ref,
+        'close_order_ref': close_order_ref,
+        'ib_exec_id': ''
+    }
+
+    open_close_refs_df = pd.concat([open_close_refs_df, pd.DataFrame([data])])
+    return
+
+
 def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
     global application_state
     global capital_allocation_df
@@ -1824,7 +1851,7 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
             logger.info(f"We are not trading {symbol}.")
             continue
         if not is_trade_time:
-            logger.warning(f"@@ is_trade_time:{is_trade_time}, {symbol}, {app_config['live']['is_trade_time']}")
+            logger.warning(f"@@ is_trade_time:{is_trade_time}, {symbol}, {app_config['live']['trade_time']}")
             continue
         if application_state.get('open_trades_dic', {}).get(symbol,{}).get('available_quantity', 0) != 0:
             logger.warning(f"@@ You already have open position. Don't be greedy!!!  symbol: {symbol}")
@@ -1852,51 +1879,64 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
             if total_quantity == 0:  # we don't have enough capital
                 logger.warning(f"@@ We dont have enough capital {symbol} ....")
                 continue
-            send_order(option_contract, total_quantity=total_quantity)
+            order_ref = get_order_ref('OPEN', symbol, alias_for_ref='', unique_run_number=unique_run_number)
+            send_order(option_contract, total_quantity=total_quantity, order_ref= order_ref)
             data = {
                 'date': f'{date_utils.time_now()}',
-                'symbol' : symbol,
-                'right': 'long',
+                'symbol': symbol,
+                'side': 'long',
                 'right': right,
                 'starting_quantity':total_quantity,
                 'available_quantity':total_quantity,
-                'underlying_open_price': df['close'].iloc[-1] ,
-                'u_run_number': unique_run_number,
+                'entry_underlying_price': df['close'].iloc[-1] ,
+                'entry_bid': bid,
+                'entry_ask': ask,
+                "current_bid": 0,
+                "current_ask": 0,
+                "current_underlying_price": 0,
+                "current_value": 0,
+                "current_pnl": 0,
+                "current_roi": 0,
+                'unique_run_number': unique_run_number,
                 'level_used_to_open': level_used,
                 'level_name': '',
                 'position_type': 'OPTION',
                 'expiry': option_contract.lastTradeDateOrContractMonth,
                 'strike': option_contract.strike,
-                'open_bid': bid,
-                'open_ask': ask,
                 'local_symbol': option_contract.localSymbol,
                 'con_id': option_contract.conId,
+                'order_ref': order_ref
             }
             application_state.setdefault('open_trades_dic', {})[symbol] = data
             add_to_signlas(symbol, f'ORDER_SENT',df['close'].iloc[-1],df['date'].iloc[-1], polish_map_to_show_in_hover(data) )
             add_to_order_history_df(data)
             add_to_number_of_trades_today(symbol)
             send_email(event='order_sent', symbol=symbol, body=polish_map_to_show_in_hover(data))
+            add_order_ref_to_application_state(open_order_ref=order_ref)
 
         elif contract_type.lower() == 'future' and (can_buy or can_sell):
             right = 'long' if can_buy else 'short'
+            side = 'long' if can_buy else 'short'
+
+
             contract_month =  app_config['symbols_meta'][symbol]['contract_month']
             contract = create_contract(symbol)
-            stop_loss_price = eval(app_config['symbols_meta'][symbol][right.lower()]['stop_loss'])
-            take_profit_price = eval(app_config['symbols_meta'][symbol][right.lower()]['take_profit'])
+            stop_loss_price = eval(app_config['symbols_meta'][symbol][side.lower()]['stop_loss'])
+            take_profit_price = eval(app_config['symbols_meta'][symbol][side.lower()]['take_profit'])
             total_quantity = 1
             order_ref = get_order_ref('OPEN', symbol, alias_for_ref='', unique_run_number=unique_run_number)
             candle_date = str(df['date'].iloc[-1])
-            result_dic = ib_orders.send_market_order_w_sl_tp(ib, right, contract, stop_loss_price, take_profit_price, total_quantity, order_ref, candle_date)
+            result_dic = ib_orders.send_market_order_w_sl_tp(ib, side, contract, stop_loss_price, take_profit_price, total_quantity, order_ref, candle_date)
 
             data = {
                 'symbol': symbol,
+                'side': side,
                 'right': right,
                 'position_type': 'FUTURE',
                 'starting_quantity':total_quantity,
                 'available_quantity':total_quantity,
-                'underlying_open_price': df['close'].iloc[-1],
-                'u_run_number': unique_run_number,
+                'entry_underlying_price': df['close'].iloc[-1],
+                'unique_run_number': unique_run_number,
                 'level_used_to_open': level_used,
                 'level_name': '',
             }
@@ -1911,6 +1951,9 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
             add_to_futures_order_history_df(data)
             add_to_number_of_trades_today(symbol)
             send_email(event='order_sent', symbol=symbol, body=polish_map_to_show_in_hover(data))
+            add_order_ref_to_application_state(open_order_ref=order_ref)
+            add_order_ref_to_application_state(open_order_ref=order_ref, close_order_ref=f'{order_ref}-TP')  #TODO need to be passed to the send order ...
+            add_order_ref_to_application_state(open_order_ref=order_ref, close_order_ref=f'{order_ref}-SL')  #TODO need to be passed to the send order ...
 
     return
 
@@ -2168,6 +2211,8 @@ def find_future_positions_to_monitor(positions):
 #TODO move to utils ...
 def close_option_positions(positions, symbol='', close_qty=0, order_ref='Order_Ref'):
 
+    close_qty = int(close_qty)
+
     for pos in positions:
         contract = pos.contract
         if close_qty == 0:
@@ -2210,7 +2255,7 @@ def close_option_positions(positions, symbol='', close_qty=0, order_ref='Order_R
     return
 
 
-def close_future_positions(positions, symbol='', close_qty=0, alias_for_ref=''):
+def close_future_positions(positions, symbol='', close_qty=0, order_ref=''):
 
     for pos in positions:
         contract = pos.contract
@@ -2235,7 +2280,6 @@ def close_future_positions(positions, symbol='', close_qty=0, alias_for_ref=''):
 
         order = MarketOrder(action, qty)
 
-        order_ref = get_order_ref('CLOSE', symbol, alias_for_ref=alias_for_ref, unique_run_number=unique_run_number)
         order.orderRef = order_ref
 
         # --- Step 4: Place the order ---
@@ -2278,25 +2322,26 @@ def update_for_avg_cost(positions):
     return
 
 
-# def is_next_level_close_a_price_crossed(side='up', level=-1, current_price=-1, underlying_open_price=-1):
+# def is_next_level_close_a_price_crossed(side='up', level=-1, current_price=-1, entry_underlying_price=-1):
 #     # If price touches next level, we are in 5MH, next lelve is PDH,
 #     closeness_distance = eval(app_config['closeness_distance'])  #atr_14
 #     if side == 'up':
 #         next_level = get_next_level(side, level)  # PDH
 #         # PDH > 5MH AND  price => PDH
 #         if (next_level > level and  abs(next_level - level) < closeness_distance and # next_level is close
-#                 current_price > next_level and next_level > underlying_open_price) : # price is crossed AND we opened below the next level ...
+#                 current_price > next_level and next_level > entry_underlying_price) : # price is crossed AND we opened below the next level ...
 #             return True
 #     else:
 #         next_level = get_next_level(side, level)
 #         if (next_level < level and abs(next_level - level) < closeness_distance and current_price < next_level and
-#                 current_price < next_level and next_level < underlying_open_price):  # price is crossed AND we opened above the next level ...
+#                 current_price < next_level and next_level < entry_underlying_price):  # price is crossed AND we opened above the next level ...
 #             return True
 #
 #     return False
 
 
 def polish_map_to_show_in_hover(data):
+    logger.warning(f"@ {type(data)},  data: {data}, ")
     return json.dumps(data).replace(',', ',<br>')
 
 
@@ -2307,8 +2352,10 @@ def check_mark_revers_candles(symbol):
         result = False
         t1_candle_date = application_state['open_trades_dic'].get(symbol,{}).get('take_profits',{}).get('t1',{}).get('candle_date',None)
         logger.info(f"check_mark_revers_candles, {symbol}, t1_candle_date: {t1_candle_date}")
+
         if t1_candle_date == None:
            return False
+
         right = application_state['open_trades_dic'].get(symbol,{}).get('right', '')
         logger.info(f"check_mark_revers_candles, {symbol}, right: {right} ")
 
@@ -2316,6 +2363,7 @@ def check_mark_revers_candles(symbol):
         if len(df) == 0:
             logger.warning(f"@@ len(df) is zero")
             return False
+        logger.info(f"check_mark_revers_candles, {symbol}, df[-5:]\n {df[-5:].to_markdown()}")
         crossed_ema9 = False
         df["ema_9"] = df["close"].ewm(span=9, adjust=False).mean()
         if right == 'C':
@@ -2329,10 +2377,12 @@ def check_mark_revers_candles(symbol):
         target_date = pd.Timestamp(t1_candle_date)
 
         df = df[df["date"] >= target_date]
-        logger.info(f"@@ check_mark_revers_candles, {symbol}, prev_close: {prev_close}. The last two rows we dropping\n {df[-2:].to_markdown()}")
+        logger.info(f"@@ check_mark_revers_candles, {symbol}, prev_close: {prev_close}. ")
+        logger.info(f"check_mark_revers_candles, {symbol}, first two \n {df[:2].to_markdown()}")
+        logger.info(f"check_mark_revers_candles, {symbol}, last two \n {df[-2:].to_markdown()}")
 
         df = df[:-2]                           # cut the latest row and the prev one as we comparing against it ...
-        logger.info(f"@@ check_mark_revers_candles, {symbol}, candles we checking (need to be verified)\n {df.to_markdown()}")
+        logger.info(f"@@ check_mark_revers_candles, {symbol}, candles we checking - after cutting last two (need to be verified)\n {df.to_markdown()}")
         if right == 'C':
 
             df["is_bearish"] = df["close"] < df["open"]
@@ -2356,7 +2406,7 @@ def check_mark_revers_candles(symbol):
                 add_to_signlas(symbol, 'LEVEL_REPLACED', df['close'].iloc[-1], check_date, f'Level is break out {check_date}<br> t_date: {target_date} <br>  highest_bulish_high: {highest_bulish_high} <br> prev_close: {prev_close}' )
 
         if result:
-            logger.info(f"The break happened. ")
+            logger.info(f"check_mark_revers_candles, The break happened. ")
 
         return result
     except Exception as e:
@@ -2378,11 +2428,11 @@ def check_for_stop_loss_and_take_profit():
             continue
 
         symbol_df = dfs_map.get(symbol, pd.DataFrame())
-        underlying_open_price = float(open_trade_info.get('underlying_open_price', -1))  # used in config ...
+        entry_underlying_price = float(open_trade_info.get('entry_underlying_price', -1))  # used in config ...
         level_used_to_open = float(open_trade_info.get('level_used_to_open', -1)) # used in config ...
         avg_cost_for_1_contract = open_trade_info.get('avg_cost_for_1_contract', -1) # used in config
         right = application_state['open_trades_dic'][symbol].get('right', '') # used in config
-        side = application_state['open_trades_dic'][symbol]['side'] # used in config
+        side = application_state['open_trades_dic'][symbol].get('side') # used in config
         level_used_to_open = application_state['open_trades_dic'][symbol]['level_used_to_open'] # used in config
         tolerance_amount = dynamic_tolerance.get('tolerance', 0)  # used in config
         start_quantity = application_state.get('open_trades_dic', {}).get(symbol, {}).get('starting_quantity', 0) # used in config
@@ -2411,11 +2461,11 @@ def check_for_stop_loss_and_take_profit():
             application_state['open_trades_dic'][symbol]['current_ask'] = current_ask
             application_state['open_trades_dic'][symbol]['current_underlying_price'] = underlying_current_price
             application_state['open_trades_dic'][symbol]['current_value'] = underlying_current_price * 1 # TODO avaialbe...
-            application_state['open_trades_dic'][symbol]['current_pnl'] = round(application_state['open_trades_dic'][symbol]['current_underlying_price'] - application_state['open_trades_dic'][symbol].get('underlying_open_price', 0), 2)
-            application_state['open_trades_dic'][symbol]['current_roi'] = round(application_state['open_trades_dic'][symbol]['current_underlying_price'] / application_state['open_trades_dic'][symbol].get('underlying_open_price', 1) - 1, 3)
+            application_state['open_trades_dic'][symbol]['current_pnl'] = round(application_state['open_trades_dic'][symbol]['current_underlying_price'] - application_state['open_trades_dic'][symbol].get('entry_underlying_price', 0), 2)
+            application_state['open_trades_dic'][symbol]['current_roi'] = round(application_state['open_trades_dic'][symbol]['current_underlying_price'] / application_state['open_trades_dic'][symbol].get('entry_underlying_price', 1) - 1, 3)
 
 
-        logger.info(f"level_used_to_open: {level_used_to_open}, underlying_open_price: {underlying_open_price}, "
+        logger.info(f"level_used_to_open: {level_used_to_open}, entry_underlying_price: {entry_underlying_price}, "
                     f"underlying_current_price:, {underlying_current_price}, underlying_previous_candle_close: {underlying_previous_candle_close} ,tolerance_amount: {tolerance_amount}")
         logger.info(f"current_bid: {current_bid}, current_ask: {current_ask}, avg_cost_for_1_contract: {avg_cost_for_1_contract}")
 
@@ -2427,7 +2477,7 @@ def check_for_stop_loss_and_take_profit():
         if stop_loss_condition_evaluated:
             logger.warning(f"{symbol} SL condition met ...")
             order_ref = get_order_ref('CLOSE', symbol, alias_for_ref='SL', unique_run_number=unique_run_number)
-            close_option_positions(option_positions_to_monitor, symbol, order_ref)
+            close_option_positions(option_positions_to_monitor, symbol=symbol, order_ref=order_ref)
             data = {
                 'symbol': symbol,
                 'right': application_state['open_trades_dic'][symbol]['right'],
@@ -2449,7 +2499,7 @@ def check_for_stop_loss_and_take_profit():
             application_state['open_trades_dic'][symbol].setdefault('stop_loss', {})['s1'] = data # save it in the
             archive_open_trade_dic(symbol, open_trade_info)
             application_state.setdefault('open_trades_dic', {})[symbol] = {}  # This need to be happened after we get required inf from dic...
-
+            add_order_ref_to_application_state(open_order_ref=open_trade_info.get('order_ref'), close_order_ref=order_ref)
             add_to_stop_loss_history_df(data)
             add_to_signlas(symbol, 'STOP_LOSS_SENT', underlying_current_price, df['date'].iloc[-1], f"STOP_LOSS  <BR> {polish_map_to_show_in_hover(data)}")
             send_email(event='stop_loss_sent', symbol=symbol, body=polish_map_to_show_in_hover(data))
@@ -2490,7 +2540,8 @@ def check_for_stop_loss_and_take_profit():
                     order_ref = get_order_ref('CLOSE', symbol, alias_for_ref='SL', unique_run_number=unique_run_number)
                     close_option_positions(option_positions_to_monitor, symbol=symbol, close_qty=close_quantity, order_ref=order_ref)
                 elif app_config['symbols_meta'][symbol]['contract_type'] == 'Future':
-                    close_future_positions(future_positions_to_monitor, symbol, close_quantity, alias_for_ref=take_profit)
+                    order_ref = get_order_ref('CLOSE', symbol, alias_for_ref=take_profit, unique_run_number=unique_run_number)
+                    close_future_positions(future_positions_to_monitor, symbol=symbol, close_qty=close_quantity, order_ref=order_ref )
                 else:
                     logger.warning(f"@@@@ TBD")
 
@@ -2524,6 +2575,7 @@ def check_for_stop_loss_and_take_profit():
                     'local_symbol': application_state['open_trades_dic'][symbol].get('local_symbol'),
                     'con_id': application_state['open_trades_dic'][symbol].get('con_id'),
                 }
+                add_order_ref_to_application_state(open_order_ref=open_trade_info.get('order_ref'), close_order_ref=order_ref)
                 add_to_take_profit_history_df(data)
                 add_to_signlas(symbol, 'TAKE_PROFIT_SENT', underlying_current_price, df['date'].iloc[-1], f"TAKE-PROFIT-{take_profit} <BR>{polish_map_to_show_in_hover(data)}")
                 send_email(event='take_profit_sent', symbol=symbol, body=polish_map_to_show_in_hover(data))
@@ -2827,6 +2879,7 @@ def generate_df_file_map():
         "bid_ask_history_df" :  f"{portfolio_dir}/19-bid_ask_history_df.csv",  # TODO rename
         "screening_summary_agg_df" :  f"{portfolio_dir}/20-screening_summary_agg_df.csv",  # TODO rename
         "capital_allocation_df" :  f"{portfolio_dir}/21-capital_allocation_df.csv",  # TODO rename
+        "open_close_refs_df" :  f"{portfolio_dir}/22-open_close_refs_df.csv",  # TODO rename
 
     }
 
@@ -2852,6 +2905,7 @@ def save_all_csv_files():
     df_utils.save_df_to_csv_a_tabular(screening_log_df, file_path=add_unique_run_number_start_end_date(df_file_map.get('screening_log_df')), mode='a', drop_dupplicates=True)
     df_utils.save_df_to_csv_a_tabular(bid_ask_history_df, file_path=add_unique_run_number_start_end_date(df_file_map.get('bid_ask_history_df')), mode='a', drop_dupplicates=True)
     df_utils.save_df_to_csv_a_tabular(capital_allocation_df, file_path=add_unique_run_number_start_end_date(df_file_map.get('capital_allocation_df')), mode='a', drop_dupplicates=True)
+    df_utils.save_df_to_csv_a_tabular(open_close_refs_df, file_path=add_unique_run_number_start_end_date(df_file_map.get('open_close_refs_df')), mode='a', drop_dupplicates=True)
 
     if mode == 'live':
         ib_posttrade.save_ib_dfs(ib_dir,ib)
@@ -2950,7 +3004,7 @@ def hold_for_debug():
         logger.info('Stop for debug')
 
 
-def is_price_crossed_levels(side='down', symbol='', next_levels=['PDL'], current_price=-1, underlying_open_price=-1):
+def is_price_crossed_levels(side='down', symbol='', next_levels=['PDL'], current_price=-1, entry_underlying_price=-1):
     if next_levels is None:
         return False
 
@@ -2961,9 +3015,9 @@ def is_price_crossed_levels(side='down', symbol='', next_levels=['PDL'], current
             continue  # skip missing levels
 
         # current_price > the next level AND the open price < next level , so we croessed the level
-        if side == "up" and current_price >  next_level_price and underlying_open_price < next_level_price:
+        if side == "up" and current_price >  next_level_price and entry_underlying_price < next_level_price:
             return True
-        if side == "down" and current_price < next_level_price and underlying_open_price > next_level_price:
+        if side == "down" and current_price < next_level_price and entry_underlying_price > next_level_price:
             return True
 
     return False
@@ -3315,6 +3369,7 @@ if __name__ == "__main__":
             take_profit_history_df = pd.DataFrame()
             bid_ask_history_df = pd.DataFrame()
             capital_allocation_df = pd.DataFrame()
+            open_close_refs_df  = pd.DataFrame()
             close_pairs = []
             consequence_exception = 0
             run_number = 0
