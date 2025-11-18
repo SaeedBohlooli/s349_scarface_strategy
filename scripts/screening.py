@@ -1687,6 +1687,16 @@ def calcualte_number_of_open_trades():
             count += 1
     return count
 
+def setup_capital():
+    global application_state
+
+    available_capital = application_state.get('risk', {}).get('available_capital', None)
+    if available_capital is None:
+       available_capital = app_config['live']['capital']
+       application_state.setdefault('risk', {}).setdefault('available_capital', available_capital )
+    return available_capital
+
+
 def calcualte_availale_capital():
     global application_state
 
@@ -1696,7 +1706,7 @@ def calcualte_availale_capital():
        application_state.setdefault('risk', {}).setdefault('available_capital', available_capital )
     return available_capital
 
-def calculate_number_of_contracts(strike, ask):
+def calculate_number_of_option_contracts(strike, ask):
     global application_state
 
     available_capital = calcualte_availale_capital()
@@ -1709,7 +1719,7 @@ def calculate_number_of_contracts(strike, ask):
     logger.info(f"calculate_number_of_contracts(), {symbol}, available_capital: {available_capital}, capital_per_trade_percentage: {capital_per_trade_percentage}, max_num_open_trades: {max_num_open_trades}")
 
     capital_per_trade = max(available_capital * capital_per_trade_percentage, 800)  # TODO put in a function
-    num_of_contracts = round(capital_per_trade / (ask * 100))
+    num_of_contracts = max(round(capital_per_trade / (ask * 100)), 2)  # TODO we get 2 as min ...
 
     logger.info(f"capital_per_trade: {capital_per_trade}, ask: {ask} strike: {strike}")
     logger.info(f"symbol: {symbol}, num_of_contracts: {num_of_contracts}")
@@ -1724,9 +1734,9 @@ def calculate_number_of_contracts(strike, ask):
     data = {'symbol': symbol,
             'unique_run_number': unique_run_number,
             'starting_capital': available_capital,
-            'allowed_capital_per_trade': capital_per_trade,
             'capital_used': capital_used,
             'capital_remaining_after_order': capital_remaining_after_order,
+            'allowed_capital_per_trade': capital_per_trade,
             'strike': strike,
             'ask': ask,
             'num_of_contracts': num_of_contracts,
@@ -1736,6 +1746,46 @@ def calculate_number_of_contracts(strike, ask):
             'memo': '',
             }
     return num_of_contracts, data
+
+def calculate_number_of_future_contracts(symbol):
+    global application_state
+
+    available_capital = calcualte_availale_capital()
+
+    capital_per_trade_percentage = app_config['live']['capital_per_trade_percentage']
+    max_num_open_trades = app_config['live']['max_num_open_trades']
+
+    logger.info(f"calculate_number_of_future_contracts(), {symbol}, available_capital: {available_capital}, capital_per_trade_percentage: {capital_per_trade_percentage}, max_num_open_trades: {max_num_open_trades}")
+
+    capital_per_trade = max(available_capital * capital_per_trade_percentage, 800)  # TODO put in a function
+    num_of_contracts = 1
+
+    logger.info(f"capital_per_trade: {capital_per_trade}")
+    logger.info(f"symbol: {symbol}, num_of_contracts: {num_of_contracts}")
+    if num_of_contracts == 0:
+        logger.warning(f"@@@@ we don't have enough capital ...")
+    capital_used = num_of_contracts * 2500
+    capital_remaining_after_order = available_capital - capital_used
+    open_trades_count_at_entry = calcualte_number_of_open_trades()
+    # update ...
+    application_state.get('risk')['available_capital'] = capital_remaining_after_order
+
+    data = {'symbol': symbol,
+            'unique_run_number': unique_run_number,
+            'starting_capital': available_capital,
+            'capital_used': capital_used,
+            'capital_remaining_after_order': capital_remaining_after_order,
+            'allowed_capital_per_trade': capital_per_trade,
+            'strike': 0,
+            'ask': 0,
+            'num_of_contracts': num_of_contracts,
+            'daily_loss_so_far': 0,
+            'daily_win_so_far': 0,
+            'open_trades_count_at_entry': open_trades_count_at_entry,
+            'memo': '',
+            }
+    return num_of_contracts, data
+
 def prepare_contract(symbol, right='C', max_retries=3, wait_between=1.0):
 
     underlying_price = get_current_price(symbol)
@@ -1823,6 +1873,76 @@ def add_order_ref_to_application_state(open_order_ref='', close_order_ref=''):
     open_close_refs_df = pd.concat([open_close_refs_df, pd.DataFrame([data])])
     return
 
+def add_open_order_to_capital_flow_df(data, capital_data):
+    global capital_flow_df
+    try:
+        d = {
+            'event': 'OPEN_ORDER',
+            'capital_before_event': 0,
+            'cash_flow': -1 * capital_data.get('capital_used'),
+            'capital_after_event': 0,
+            'realized_pnl': 0,
+            'commission': 0,
+            'trade_cost': capital_data.get('capital_used'),
+            'symbol': data.get('symbol'),
+            'unique_run_number': data.get('unique_run_number'),
+            'open_order_ref': data.get('order_ref'),
+            'memo': 'Order opened ...'
+        }
+
+        capital_flow_df = pd.concat([capital_flow_df, pd.DataFrame([d])])
+    except Exception as e:
+    # TODO add
+        logger.error(f"@@@@ add_open_order_to_capital_flow_df e")
+        logger.error(traceback.format_exc())
+
+    return
+
+
+def recompute_capital_flow_df(df, start_capital):
+    # This method compuutes capital_before_event and capital_after_event
+
+    if len(df) == 0:
+        return df, start_capital
+
+    df = df.fillna(0)
+
+    capital = start_capital
+
+    for i, row in df.iterrows():
+
+        # 1) assign starting capital
+        df.at[i, "capital_before_event"] = capital
+
+        # 2) calculate cash flow based on event
+        event = row["event"]
+
+        trade_cost = float(row["trade_cost"])
+        realized_pnl = float(row["realized_pnl"])
+        commission = float(row["commission"])
+        cash_flow = float(row["cash_flow"])
+
+        # if event == "OPEN_ORDER":
+        #     cash_flow = -(trade_cost + commission)
+        #
+        # elif event in ("CLOSE_ORDER", "CLODE_ORDER"):
+        #     cash_flow = realized_pnl + trade_cost - commission
+        #
+        # else:
+        #     cash_flow = 0.0
+
+
+        # 3) update capital_after_event
+        capital = capital + cash_flow
+        df.at[i, "capital_after_event"] = capital
+
+    return df, capital
+
+
+def add_to_capital_allocation_df(data):
+    global capital_allocation_df
+    capital_allocation_df = pd.concat([capital_allocation_df, pd.DataFrame([data])])
+
 
 def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
     global application_state
@@ -1873,9 +1993,9 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
             if bid == 0 or ask == 0:
                 logger.warning(f"@@@@ We are not sending order. bid ==0 or ask ==0")
                 continue
-            total_quantity, capital_data = calculate_number_of_contracts(option_contract.strike, ask)
+            total_quantity, capital_data = calculate_number_of_option_contracts(option_contract.strike, ask)
             application_state.setdefault('risk', {}).setdefault('records', []).append(capital_data)
-            capital_allocation_df = pd.concat([capital_allocation_df, pd.DataFrame([capital_data])])
+            add_to_capital_allocation_df(capital_data)
             if total_quantity == 0:  # we don't have enough capital
                 logger.warning(f"@@ We dont have enough capital {symbol} ....")
                 continue
@@ -1913,10 +2033,11 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
             add_to_number_of_trades_today(symbol)
             send_email(event='order_sent', symbol=symbol, body=polish_map_to_show_in_hover(data))
             add_order_ref_to_application_state(open_order_ref=order_ref)
+            add_open_order_to_capital_flow_df(data, capital_data)
 
         elif contract_type.lower() == 'future' and (can_buy or can_sell):
             right = 'long' if can_buy else 'short'
-            side = 'long' if can_buy else 'short'
+            side = 'long' if can_buy else 'short' # TODO need to be rmeoved ...
 
 
             contract_month =  app_config['symbols_meta'][symbol]['contract_month']
@@ -1939,6 +2060,7 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
                 'unique_run_number': unique_run_number,
                 'level_used_to_open': level_used,
                 'level_name': '',
+                'order_ref': order_ref,
             }
             data.update(result_dic)
 
@@ -1954,6 +2076,9 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
             add_order_ref_to_application_state(open_order_ref=order_ref)
             add_order_ref_to_application_state(open_order_ref=order_ref, close_order_ref=f'{order_ref}-TP')  #TODO need to be passed to the send order ...
             add_order_ref_to_application_state(open_order_ref=order_ref, close_order_ref=f'{order_ref}-SL')  #TODO need to be passed to the send order ...
+            total_quantity, capital_data = calculate_number_of_future_contracts(symbol) # move it up ...
+            add_to_capital_allocation_df(capital_data)
+            add_open_order_to_capital_flow_df(data, capital_data)
 
     return
 
@@ -2342,8 +2467,12 @@ def update_for_avg_cost(positions):
 
 def polish_map_to_show_in_hover(data):
     logger.warning(f"@ {type(data)},  data: {data}, ")
-    return json.dumps(data).replace(',', ',<br>')
-
+    try:
+        return json.dumps(data).replace(',', ',<br>')
+    except Exception as e:
+        logger.warning(f"@@ we have paring issue ...{e}")
+        return {}
+    #
 
 def check_mark_revers_candles(symbol):
     # TODO remove try later ...
@@ -2537,7 +2666,7 @@ def check_for_stop_loss_and_take_profit():
             if take_profit_condition_evaluated and available_quantity > 0 and close_quantity != 0 and close_quantity <= available_quantity :
                 logger.info(f"Sending TP ...{take_profit}")
                 if app_config['symbols_meta'][symbol]['contract_type'] == 'Equity':
-                    order_ref = get_order_ref('CLOSE', symbol, alias_for_ref='SL', unique_run_number=unique_run_number)
+                    order_ref = get_order_ref('CLOSE', symbol, alias_for_ref=take_profit, unique_run_number=unique_run_number)
                     close_option_positions(option_positions_to_monitor, symbol=symbol, close_qty=close_quantity, order_ref=order_ref)
                 elif app_config['symbols_meta'][symbol]['contract_type'] == 'Future':
                     order_ref = get_order_ref('CLOSE', symbol, alias_for_ref=take_profit, unique_run_number=unique_run_number)
@@ -2875,11 +3004,13 @@ def generate_df_file_map():
         "take_profit_history_df": f"{portfolio_dir}/15-take_profit_history_df.csv",
         "futures_order_history_df": f"{portfolio_dir}/16-futures_order_history_df.csv",
         "screening_log_for_run_df": f"{portfolio_dir}/17-screening_log_for_run_df.csv", # TODO rename
-        "screening_summary_df" :  f"{portfolio_dir}/18-screening_summary_df.csv",  # TODO rename
-        "bid_ask_history_df" :  f"{portfolio_dir}/19-bid_ask_history_df.csv",  # TODO rename
-        "screening_summary_agg_df" :  f"{portfolio_dir}/20-screening_summary_agg_df.csv",  # TODO rename
-        "capital_allocation_df" :  f"{portfolio_dir}/21-capital_allocation_df.csv",  # TODO rename
-        "open_close_refs_df" :  f"{portfolio_dir}/22-open_close_refs_df.csv",  # TODO rename
+        "screening_summary_df":  f"{portfolio_dir}/18-screening_summary_df.csv",  # TODO rename
+        "bid_ask_history_df":  f"{portfolio_dir}/19-bid_ask_history_df.csv",  # TODO rename
+        "screening_summary_agg_df":  f"{portfolio_dir}/20-screening_summary_agg_df.csv",  # TODO rename
+        "capital_allocation_df":  f"{portfolio_dir}/21-capital_allocation_df.csv",  # TODO rename
+        "open_close_refs_df":  f"{portfolio_dir}/22-open_close_refs_df.csv",  # TODO rename
+        "open_close_refs_pnl_df":  f"{portfolio_dir}/23-open_close_refs_pnl_df.csv",  # TODO rename
+        "capital_flow_df":  f"{portfolio_dir}/24-capital_flow_df.csv",  # TODO rename
 
     }
 
@@ -2903,9 +3034,11 @@ def save_all_csv_files():
     df_utils.save_df_to_csv_a_tabular(take_profit_history_df, file_path=df_file_map.get('take_profit_history_df'), mode='a', drop_dupplicates=True)
     df_utils.save_df_to_csv_a_tabular(futures_order_history_df, file_path=df_file_map.get('futures_order_history_df'), mode='a', drop_dupplicates=True)
     df_utils.save_df_to_csv_a_tabular(screening_log_df, file_path=add_unique_run_number_start_end_date(df_file_map.get('screening_log_df')), mode='a', drop_dupplicates=True)
-    df_utils.save_df_to_csv_a_tabular(bid_ask_history_df, file_path=add_unique_run_number_start_end_date(df_file_map.get('bid_ask_history_df')), mode='a', drop_dupplicates=True)
-    df_utils.save_df_to_csv_a_tabular(capital_allocation_df, file_path=add_unique_run_number_start_end_date(df_file_map.get('capital_allocation_df')), mode='a', drop_dupplicates=True)
-    df_utils.save_df_to_csv_a_tabular(open_close_refs_df, file_path=add_unique_run_number_start_end_date(df_file_map.get('open_close_refs_df')), mode='a', drop_dupplicates=True)
+    df_utils.save_df_to_csv_a_tabular(bid_ask_history_df, file_path=df_file_map.get('bid_ask_history_df'), mode='a', drop_dupplicates=True)
+    df_utils.save_df_to_csv_a_tabular(capital_allocation_df, file_path=df_file_map.get('capital_allocation_df'), mode='a', drop_dupplicates=True, )
+    df_utils.save_df_to_csv_a_tabular(open_close_refs_df, file_path=df_file_map.get('open_close_refs_df'), mode='a', drop_dupplicates=True)
+    df_utils.save_df_to_csv_a_tabular(open_close_refs_pnl_df, file_path=df_file_map.get('open_close_refs_pnl_df'), mode='a', drop_dupplicates=True)
+    df_utils.save_df_to_csv_a_tabular(capital_flow_df, file_path=df_file_map.get('capital_flow_df'), mode='w',) #  drop_dupplicates=True, unique_columns=['event', 'open_order_ref', 'close_order_ref']
 
     if mode == 'live':
         ib_posttrade.save_ib_dfs(ib_dir,ib)
@@ -3333,6 +3466,135 @@ def add_open_position_to_candle_info(symbol):
     if open_trade_info:
         add_to_candle_info_df(symbol, df['date'].iloc[-1], candle_info_price, polish_map_to_show_in_hover(open_trade_info))  # shoe open trade inc hart ...
 
+
+def populate_open_close_refs_pnl_df():
+
+    # This method added ib_on_filla and on_commission to open_close_refs_pnl_df
+    global open_close_refs_df
+    global open_close_refs_pnl_df
+
+    if len(open_close_refs_df) == 0:
+        return open_close_refs_df
+
+    executions_df = ib_posttrade.load_ib_df(ib_dir, 'ib_on_fill_fill_df')
+    ib_commission_df = ib_posttrade.load_ib_df(ib_dir, 'ib_commission_df')
+
+    open_close_refs_df = open_close_refs_df[open_close_refs_df['close_order_ref'].notnull()]
+
+    merged_df = open_close_refs_df.merge(
+        executions_df[["execution_orderRef", "execution_execId"]],
+        how="left",
+        left_on=["close_order_ref"],
+        right_on=["execution_orderRef"],
+        suffixes=("", "_df2"),  # <--- IMPORTANT # The second table ...
+        indicator=True  # <-- enables _merge flag
+
+    )
+
+    missing = merged_df[merged_df["_merge"] == "left_only"].copy()
+    if len(missing)> 0:
+        logger.warning(f"@@@ populate_open_close_refs_pnl_df, missing: \n {missing.to_markdown()}")
+    merged_df = merged_df.drop(columns=["_merge"])
+
+    merged_df = merged_df.drop(columns=["execution_orderRef" ,"ib_exec_id"])
+    merged_df = merged_df.rename(columns={
+        "execution_execId": "ib_exec_id",
+    })
+    logger.info(f"merged_df:\n {merged_df.to_markdown()}")
+
+
+    # Now we have ib_exec_id, now merge with commission to find the pnl ...
+
+    merged_df = merged_df.merge(
+        ib_commission_df[['commission','execId','realizedPNL', 'currency']],
+        left_on=["ib_exec_id"],
+        right_on=["execId"],
+        suffixes=("", "_df2"),  # <--- IMPORTANT # The second table ...
+        indicator=True  # <-- enables _merge flag
+
+    )
+    missing = merged_df[merged_df["_merge"] == "left_only"].copy()
+    if len(missing)> 0:
+        logger.warning(f"@@@ populate_open_close_refs_pnl_df, missing:\n {missing.to_markdown()}")
+    merged_df = merged_df.drop(columns=["_merge"])
+
+    merged_df = merged_df.drop(columns=["execId" ])
+    merged_df = merged_df.rename(columns={
+        "realizedPNL": "realized_pnl",
+    })
+    logger.info(f"populate_open_close_refs_pnl_df, merged_df:\n {merged_df.to_markdown()}")
+
+    open_close_refs_pnl_df = pd.concat([open_close_refs_pnl_df, merged_df])
+
+    return open_close_refs_pnl_df
+
+
+def is_order_ref_open(open_order_ref):
+    for symbol, open_trade_info in application_state.get('open_trades_dic', {}).items():
+        if open_trade_info.get('order_ref') == open_order_ref and open_trade_info.get('available_quantity') != 0:
+            return True
+    return False
+
+def populate_close_orders_in_capital_flow_df(open_close_refs_pnl_df):
+    # This methd pouplates close orders which are sent to the the cash_flow.
+
+    if len(open_close_refs_pnl_df) ==0:
+        return
+    global capital_flow_df
+
+    # missing = df2[~df2["order_ref2"].isin(df1["order_ref"])]
+    missing = open_close_refs_pnl_df[~open_close_refs_pnl_df["close_order_ref"].isin(capital_flow_df["close_order_ref"])]
+
+    if missing.empty:
+        return capital_flow_df  # nothing to add
+
+    logger.warning(f"missing: \n{missing.to_markdown()}")
+
+    # Build rows to add. These are the one that are NOT in capital_flow_df
+    rows_to_add_df = (
+        # missing.rename(columns={"close_order_ref": "order_ref"})[["order_ref", "commission", "realized_pnl"]]
+        missing[["close_order_ref", "commission", "realized_pnl"]]
+    )
+    rows_to_add_df['event'] = 'CLOSE_ORDER'
+    rows_to_add_df['cash_flow'] = rows_to_add_df['realized_pnl']
+    rows_to_add_df['memo'] = 'Added from IB logs'
+    # Append to df1
+    capital_flow_df = pd.concat([capital_flow_df, rows_to_add_df], ignore_index=True)
+
+    logger.warning(f"capital_flow_df: \n{capital_flow_df.to_markdown()}")
+    return
+
+
+def check_open_orders_in_capital_flow_df(df):
+    # This method fndd order which are cloed and put a reverse record
+    # in the capital_flow
+    df = df.fillna(0)
+
+    reverse_records = []
+    for i, row in df.iterrows():  #TODO just find the ones we need
+        if row['is_closed'] == 'YES' or row['event'] != 'OPEN_ORDER': # we looking for open orderas which are not closed.
+            continue
+
+        open_order_ref = row['open_order_ref']
+        if not is_order_ref_open(open_order_ref):
+            d = {
+                'event': 'REVERSE_OPEN_ORDER',
+                'cash_flow': row['cash_flow'] * -1,
+                'symbol': row['symbol'],
+                'memo': f'Reverse for {open_order_ref}'
+            }
+            reverse_records.append(d)
+            df.at[i, "is_closed"] = 'YES'
+
+    if len(reverse_records) > 0:
+        df = pd.concat([df, pd.DataFrame(reverse_records)])
+
+    return df
+
+
+
+
+
 if __name__ == "__main__":
 
     app_config = config_utils.load_app_config(portfolio_id)
@@ -3365,7 +3627,15 @@ if __name__ == "__main__":
     take_profit_history_df = pd.DataFrame()
     bid_ask_history_df = pd.DataFrame()
     capital_allocation_df = pd.DataFrame()
-    open_close_refs_df = pd.DataFrame()
+    open_close_refs_df = df_utils.load_csv_file(df_file_map.get('open_close_refs_df'))
+    open_close_refs_pnl_df = df_utils.load_csv_file(df_file_map.get('open_close_refs_pnl_df'))
+    capital_flow_cols = ['event', 'capital_before_event', 'cash_flow', 'capital_after_event', 'realized_pnl',
+                      'commission', 'trade_cost', 'is_closed', 'symbol', 'unique_run_number', 'open_order_ref', 'close_order_ref', 'proccesed', 'memo']
+
+    capital_flow_df = df_utils.load_csv_file(df_file_map.get('capital_flow_df'))
+    if len(capital_flow_df) ==0:
+        capital_flow_df = pd.DataFrame(columns=capital_flow_cols) # TODO we need read CSV ...
+
     close_pairs = []
     consequence_exception = 0
     dfs_map = {}
@@ -3430,9 +3700,19 @@ if __name__ == "__main__":
         future_portfolio_df = get_live_quote_for_future_positions(future_positions_to_monitor)
 
         if not is_busy_time and is_market_time and not checkmark_map.get(f'TEST_STRIKES-{current_hh_mm_ny}') and current_hh_mm_ny % 10 == 0: # only at 1110, 1120, 1130 ..
-           test_get_bid_ask_for_symbols()
            checkmark_map[f'TEST_STRIKES-{current_hh_mm_ny}'] = True
+           test_get_bid_ask_for_symbols()
            logger.info(f"bid_ask_history_df: \n: {bid_ask_history_df.to_markdown()}")
+
+        if not is_busy_time and not checkmark_map.get(f'DO_PNL-{current_hh_mm_ny}') and current_hh_mm_ny % 1 == 0: # only
+            checkmark_map[f'DO_PNL-{current_hh_mm_ny}'] = True
+            open_close_refs_pnl_df = populate_open_close_refs_pnl_df()
+            populate_close_orders_in_capital_flow_df(open_close_refs_pnl_df)
+            capital_flow_df = check_open_orders_in_capital_flow_df(capital_flow_df)
+            capital_flow_df, capital = recompute_capital_flow_df(capital_flow_df, 4000)
+            logger.info(f'after , capital_flow_df: \n{capital_flow_df.to_markdown()}')
+            # save_all_csv_files()
+            # exit(1)
 
         if 5 * run_number % 60 == 0:
            check_application_state_vs_ib_positions()
@@ -3521,8 +3801,8 @@ if __name__ == "__main__":
 
             hover_df = convert_signals_to_hover_df(signals)
 
-            if (is_trade_time and 5 * run_number % 60 * 5 == 0) or (not is_trade_time and 5 * run_number % 60 * 1 == 0): # for each symbol ...
-                # These are for each symbol ...
+            if not is_busy_time and not checkmark_map.get(f'SAVE_OHLC-{current_hh_mm_ny}') and current_hh_mm_ny % 2 == 0:  # each 2 mins
+                checkmark_map[f'SAVE_OHLC-{current_hh_mm_ny}'] = True
                 save_ohlc_for_chart(df)
                 save_extra_features_df()
 
@@ -3545,7 +3825,8 @@ if __name__ == "__main__":
             checkmark_map[f'{symbol}-LAST_VISIT'] = df['date'].iloc[-1] # keeps the last record we visited for each symbol...
         # END:  for symbol in app_config['symbols']:
         # in the WHILE TRUE...
-        if (not is_busy_time) and (5 * run_number % 60 * 2 == 0):
+        if not is_busy_time and not checkmark_map.get(f'SAVE_ALL_CSV-{current_hh_mm_ny}') and current_hh_mm_ny % 2 == 0:  # each 3 mins
+            checkmark_map[f'SAVE_ALL_CSV-{current_hh_mm_ny}'] = True
             save_all_csv_files()
 
         # End WHILE TRUE
@@ -3560,7 +3841,7 @@ if __name__ == "__main__":
           consequence_exception = consequence_exception + 1
           logger.error(f"@@@@ error: {e}")
           logger.warning(traceback.format_exc())
-          time.sleep(20)
+          time.sleep(5)
 
           if consequence_exception == 3:
               email_utils.send_email('saeed.bx1@yahoo.com', f"error in {portfolio_id} - {app_config['user_name']}",
