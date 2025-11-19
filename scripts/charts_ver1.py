@@ -639,7 +639,7 @@ def load_file_to_close_levels_df():
     if os.path.exists(file):
         logger.info(f"reading file: {file}")
         df = pd.read_csv(file)
-        logger.info(f"load_file_to_hover_df:\n{df[-3:].to_markdown()}")
+        logger.info(f"load_file_to_close_levels_df:\n{df[-3:].to_markdown()}")
         return df
     else:
         return pd.DataFrame()

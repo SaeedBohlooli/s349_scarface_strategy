@@ -165,9 +165,9 @@ def get_market_data(symbol, time_frame ='1 day', historical_days= ''):
     contract = create_contract(symbol) # todo FOR MNQ ...
 
     df = get_historical_data(contract, historical_days, time_frame)
-
-    logger.info(f"in get_market_data, start: \n{df[:2].to_markdown()}")
-    logger.info(f"in get_market_data, end: \n{df[-2:].to_markdown()}")
+    if not is_busy_time:
+        logger.info(f"in get_market_data, start: \n{df[:2].to_markdown()}")
+        logger.info(f"in get_market_data, end: \n{df[-2:].to_markdown()}")
     return df
 
 
@@ -928,7 +928,7 @@ def check_buy_sell_condition(case):
         res_str_log = res_str.replace('<br>', '\n')
         logger.info(f"\nres_str: {res_str_log}")
     except Exception as e:
-        logger.error(f"@@ in check_buy_sell_condition: {symbol} {case} error {e}")
+        logger.error(f"@ in check_buy_sell_condition: {symbol} {case} error {e}")
         logger.error(traceback.format_exc())
         res_str = f'res_{case}'
     details_map = {
@@ -2551,7 +2551,9 @@ def check_for_stop_loss_and_take_profit():
         # ###
         # stop loss
         # ###
-        logger.info(f"in check_for_stop_loss, {symbol} ,\n{pprint.pformat(open_trade_info)}" )
+        if not is_busy_time:
+            logger.info(f"in check_for_stop_loss, {symbol} ,\n{pprint.pformat(open_trade_info)}" )
+
         if open_trade_info.get('available_quantity', 0) == 0:
             logger.info(f"{symbol}, check_for_stop_loss_and_take_profit(), available_quantity: 0")
             continue
@@ -3020,10 +3022,12 @@ def save_all_csv_files():
     global df_file_map
     start_time = time.time()
 
-    if mode == 'back_test': # we need to re assign ...
-        df_file_map = generate_df_file_map()
 
     logger.info(f"save_all_csv_files, start ...")
+    if mode == 'back_test': # we need to re assign ...
+        df_file_map = generate_df_file_map()
+    if mode == 'live':
+        dump_application_state_to_file()
 
     save_list_to_csv(close_pairs, file=df_file_map.get('close_levels_df'), mode='w')
     df_utils.save_df_to_csv_a_tabular(drawing_objects_df, file_path=df_file_map.get('drawing_objects_df'), mode='w')
@@ -3803,8 +3807,8 @@ if __name__ == "__main__":
 
             hover_df = convert_signals_to_hover_df(signals)
 
-            if not is_busy_time and not checkmark_map.get(f'SAVE_OHLC-{current_hh_mm_ny}') and current_hh_mm_ny % 2 == 0:  # each 2 mins
-                checkmark_map[f'SAVE_OHLC-{current_hh_mm_ny}'] = True
+            if not is_busy_time and not checkmark_map.get(f'SAVE_OHLC-{symbol}-{current_hh_mm_ny}') and current_hh_mm_ny % 2 == 0:  # each 2 mins
+                checkmark_map[f'SAVE_OHLC-{symbol}-{current_hh_mm_ny}'] = True
                 save_ohlc_for_chart(df)
                 save_extra_features_df()
 
@@ -3812,12 +3816,13 @@ if __name__ == "__main__":
                 detect_a_mark_market_gap(symbol, df)  # need to happen one time after 9:30
                 checkmark_map[f'{symbol}-MARK_GAP'] = 'Done'
 
-            dump_application_state_to_file()
 
             if not is_busy_time:
+                dump_application_state_to_file()
                 logger.info(f"key_levels_df\n{key_levels_df[key_levels_df['symbol']== symbol].to_markdown()}")
 
-            print_application_state(application_state, msg='application_state:')
+                print_application_state(checkmark_map, msg='checkmark_map:')
+                print_application_state(application_state, msg='application_state:')
 
             symbol_end_time = time.time()
             symbol_run_spend_time = round(symbol_end_time - symbol_start_time, 2)
