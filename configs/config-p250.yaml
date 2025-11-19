@@ -121,8 +121,8 @@ cases:
 
   case_2:
     can_replace_level: true
-    precondition: 1 == 1
-    long:
+    precondition: all_levels_in(symbol) # TODO need to be cheked in the code
+    long: #TODO should be C and P not long and short ..
       level: levels['5MH']
       condition_01: breakout_in_last_x_candles(side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level)
       condition_02: price_retest(side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
@@ -200,22 +200,22 @@ take_profits:
     close_quantity_percentage: 0.25
 
   t3:
-    condition: current_bid > avg_cost_for_1_contract * 1.6  and ( avg_cost_for_1_contract != -1 and current_bid != -1)
+    condition: current_bid > avg_cost_for_1_contract * 1.60  and ( avg_cost_for_1_contract != -1 and current_bid != -1)
     close_quantity_percentage: -1
 
   t4_ev:
     condition: >
-      (right == 'C' and is_executed_take_profits(symbol, take_profit_list=['t1']) and underlying_previous_candle_close < underlying_open_price)
+      (right == 'C' and is_executed_take_profits(symbol, take_profit_list=['t1']) and underlying_previous_candle_close < entry_underlying_price)
       or
-      (right == 'P' and is_executed_take_profits(symbol, take_profit_list=['t1']) and underlying_previous_candle_close > underlying_open_price)
+      (right == 'P' and is_executed_take_profits(symbol, take_profit_list=['t1']) and underlying_previous_candle_close > entry_underlying_price)
     close_quantity_percentage: -1
     memo: This is for even break - if we hit TP1, then we go for break even
 
   t5_cr_lv:
     condition: >
-      (right == 'C' and is_price_crossed_levels(side='up', symbol=symbol, next_levels=['PDH'], current_price=underlying_current_price, underlying_open_price=underlying_open_price))
+      (right == 'C' and is_price_crossed_levels(side='up', symbol=symbol, next_levels=['PDH'], current_price=underlying_current_price, entry_underlying_price=entry_underlying_price))
       or
-      (right == 'P' and is_price_crossed_levels(side='down', symbol=symbol, next_levels=['PDL'], current_price=underlying_current_price, underlying_open_price=underlying_open_price))
+      (right == 'P' and is_price_crossed_levels(side='down', symbol=symbol, next_levels=['PDL'], current_price=underlying_current_price, entry_underlying_price=entry_underlying_price))
     close_quantity_percentage: 0.5
     memo: if we entered below major level and crossing level, we dump some ...
 
@@ -225,7 +225,11 @@ take_profits:
     memo: for long after tp1, if we go below last down close candle, then we close the position and vice versa for short
 
   t10_cl_manual:  # This is for closing everything just NVDA:   1 == 1 and symbol == 'NVDA'
-    condition: 1 == 2 and symbol == 'MNQ'
+    condition: 1 == 2 and symbol == 'wwww'
+    close_quantity_percentage: -1
+
+  t11_cl_manual:  # This is for closing everything just NVDA:   1 == 1 and symbol == 'NVDA'
+    condition: 1 == 1 and symbol == 'ddddd'
     close_quantity_percentage: -1
 
 scores:
@@ -276,33 +280,64 @@ live:
   max_num_of_trade_per_symbol_per_day: 2
   max_profit_per_day: 2000 # it will not get into new trade, it is not in yet
   max_loss_per_day: 1000 # it will not get into new trade ... it is not in yet
-  is_trade_time: 930 < current_hh_mm_ny  < 1015
-  #is_trade_time: 1 == 1
+  trade_time: 930 < current_hh_mm_ny  < 1015 # TODO change to trade_time
+#  trade_time: 1 == 1
+  market_time: 930 < current_hh_mm_ny < 1559
   busy_time: 933 < current_hh_mm_ny < 1016  #don't chaneg this,  we are not saving anythng or any test ...
 
 back_test:
   data:
-    get_data_from_ib: true  # we have data from 06-01
-    start_date: 2025-11-03
-    end_date: 2025-11-14
+    get_data_from_ib: false  # we have data from 01-01
+    start_date: 2025-01-01
+    end_date: 2025-07-01
     historical_days: 5 D  # don't change this
+  memo: vr_enough changed to min 1
   runs:
+    r_bug:
+      active: false
+      start: 2025-08-12
+      end: 2025-08-13
+      memo: This is for bug
+    r_today:
+      active: false
+      start: 2025-11-01
+      end: 2025-11-20
+      memo:
     r1:
-      active: true
-      start: 2025-11-14
-      end: 2025-11-14
-      memo: run-1
+      active: false
+      start: 2025-10-01
+      end: 2025-11-01
+      memo:
     r2:
       active: false
-      start: 2025-11-13
-      end: 2025-11-14
-      memo: run-2
+      start: 2025-09-01
+      end: 2025-10-01
+      memo:
     r3:
       active: false
-      start: 2025-11-13
-      end: 2025-11-14
-      memo: run-2
-
+      start: 2025-08-01
+      end: 2025-09-01
+      memo:
+    r4:
+      active: false
+      start: 2025-07-01
+      end: 2025-08-01
+      memo:
+    r5:
+      active: false
+      start: 2025-06-01
+      end: 2025-07-01
+      memo:
+    r6:
+      active: false
+      start: 2025-05-01
+      end: 2025-06-01
+      memo:
+    r7:
+      active: false
+      start: 2025-04-01
+      end: 2025-05-01
+      memo:
 
   long:
     stop_loss: level_used - ( dynamic_tolerance.get('tolerance', 0) * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1))
@@ -313,8 +348,8 @@ back_test:
 
 
 chart:
-#  source: live
-  source: back_test
+  source: live
+#  source: back_test
 #  cutoff_in_hours: 0
   hours_in_focus: 3
   live:
