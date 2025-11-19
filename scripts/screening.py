@@ -3741,6 +3741,8 @@ if __name__ == "__main__":
             df = get_market_data(symbol, '1 min', historical_days=historical_days)
             df = popualate_features(df)
             df = populate_volume_ratio(df)
+            if not is_busy_time:
+                logger.info(f"{symbol}, df: \n{df[-4:].to_markdown()}")
             last_record_hh_mm = get_last_record_hh_mm()
 
             dfs_map[symbol] = df.copy()  # we need for open trades ...
