@@ -29,4 +29,4 @@
 /portfolios/
 test/
 **/*.local.yaml
-/options_greeks/
+/x/
