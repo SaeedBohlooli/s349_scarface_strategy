@@ -153,9 +153,9 @@ cases:
 #    can_replace_level: false
 #    long:
 #      level: levels['5MH']
-#      condition_01: symbol == 'MNQ' and 1 == 2
+#      condition_01: symbol == 'PLTR'
 #      condition_02: mode == 'live'
-#      condition_03: 1 == 1
+#      condition_03: 1 == 2
 #      condition_04: 1 == 1
 #      condition_05: 1 == 1
 #      condition_06: 1 == 1
@@ -167,7 +167,7 @@ cases:
 #
 #    short:
 #      level: levels['5MH']
-#      condition_01: symbol == 'MNQ' and 1 == 2
+#      condition_01: symbol == 'AMD' and 1 == 2
 #      condition_02: mode == 'live'
 #      condition_03: 1 == 1
 #      condition_04: 1 == 1
@@ -225,12 +225,12 @@ take_profits:
     memo: for long after tp1, if we go below last down close candle, then we close the position and vice versa for short
 
   t10_cl_manual:  # This is for closing everything just NVDA:   1 == 1 and symbol == 'NVDA'
-    condition: 1 == 2 and symbol == 'wwww'
+    condition: 1 == 3 and symbol == 'AAPL'
     close_quantity_percentage: -1
 
   t11_cl_manual:  # This is for closing everything just NVDA:   1 == 1 and symbol == 'NVDA'
-    condition: 1 == 1 and symbol == 'ddddd'
-    close_quantity_percentage: -1
+    condition: 1 == 2 and symbol == 'AAPL'
+    close_quantity_percentage: .5
 
 scores:
   s1:
@@ -287,18 +287,18 @@ live:
 
 back_test:
   data:
-    get_data_from_ib: false  # we have data from 01-01
-    start_date: 2025-01-01
-    end_date: 2025-07-01
+    get_data_from_ib: False  # we have data from 01-01
+    start_date: 2025-11-01
+    end_date: 2025-11-25
     historical_days: 5 D  # don't change this
-  memo: vr_enough changed to min 1
+  memo: benchmark
   runs:
-    r_bug:
-      active: false
-      start: 2025-08-12
-      end: 2025-08-13
-      memo: This is for bug
     r_today:
+      active: True
+      start: 2025-11-18
+      end: 2025-11-20
+      memo: Daily run
+    r_todayX:
       active: false
       start: 2025-11-01
       end: 2025-11-20
@@ -354,7 +354,7 @@ chart:
   hours_in_focus: 3
   live:
     start_time: '09:00'
-    end_time: '11:00'
+    end_time: '12:00'
 
 # before_start:
 close_all_open_option_positions: false

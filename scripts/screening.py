@@ -280,7 +280,7 @@ def is_between(now=None, start_str="9:25", end_str="11:00"):
 def sleep_enough():
     # global run_spend_time
     run_spend_time = round(end_time - start_time, 2)
-    if is_trade_time:
+    if is_trade_time:  # TODO not all trade time we want to rush ...  use < 1200
         logger.warning(f' ==================== run_number: {run_number}, date_run_number: {date_run_number}, run_spend_time: {run_spend_time} seconds, no sleep ...')
     else:
         run_should_take = app_config['run_should_take_seconds']
@@ -3726,18 +3726,17 @@ if __name__ == "__main__":
            test_get_bid_ask_for_symbols()
            logger.info(f"bid_ask_history_df: \n: {bid_ask_history_df.to_markdown()}")
 
-        if not is_busy_time and not checkmark_map.get(f'DO_PNL-{current_hh_mm_ny}') and current_hh_mm_ny % 1 == 0: # only
+        if not is_busy_time and not checkmark_map.get(f'DO_PNL-{current_hh_mm_ny}') and current_hh_mm_ny % 5 == 0: # only 14,24 ...
             checkmark_map[f'DO_PNL-{current_hh_mm_ny}'] = True
             open_close_refs_pnl_df = populate_open_close_refs_pnl_df()
             populate_close_orders_in_capital_flow_df(open_close_refs_pnl_df)
             capital_flow_df = check_open_orders_in_capital_flow_df(capital_flow_df)
             capital_flow_df, capital = recompute_capital_flow_df(capital_flow_df, 4000)
             logger.info(f'after , capital_flow_df: \n{capital_flow_df.to_markdown()}')
-            # save_all_csv_files()
-            # exit(1)
 
-        if 5 * run_number % 60 == 0:
-           check_application_state_vs_ib_positions()
+        if checkmark_map.get(f'CHK_APP_VS_IB-{current_hh_mm_ny}') and current_hh_mm_ny % 1 == 0:
+            checkmark_map[f'CHK_APP_VS_IB-{current_hh_mm_ny}'] = True
+            check_application_state_vs_ib_positions()
 
 
         symbol_number = 0
@@ -3850,7 +3849,7 @@ if __name__ == "__main__":
             checkmark_map[f'{symbol}-LAST_VISIT'] = df['date'].iloc[-1] # keeps the last record we visited for each symbol...
         # END:  for symbol in app_config['symbols']:
         # in the WHILE TRUE...
-        if not is_busy_time and not checkmark_map.get(f'SAVE_ALL_CSV-{current_hh_mm_ny}') and current_hh_mm_ny % 2 == 0:  # each 3 mins
+        if not is_busy_time and not checkmark_map.get(f'SAVE_ALL_CSV-{current_hh_mm_ny}') and current_hh_mm_ny % 3 == 0: # each 3 mins
             checkmark_map[f'SAVE_ALL_CSV-{current_hh_mm_ny}'] = True
             save_all_csv_files()
 
