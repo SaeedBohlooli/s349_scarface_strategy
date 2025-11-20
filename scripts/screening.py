@@ -1731,7 +1731,10 @@ def calculate_number_of_option_contracts(strike, ask):
     # update ...
     application_state.get('risk')['available_capital'] = capital_remaining_after_order
 
-    data = {'symbol': symbol,
+    data = {
+            'time_stamp': str(date_utils.time_now()),
+            'trade_date' : date_yyyy_mm_dd,
+            'symbol': symbol,
             'unique_run_number': unique_run_number,
             'starting_capital': available_capital,
             'capital_used': capital_used,
@@ -1770,7 +1773,10 @@ def calculate_number_of_future_contracts(symbol):
     # update ...
     application_state.get('risk')['available_capital'] = capital_remaining_after_order
 
-    data = {'symbol': symbol,
+    data = {
+            'time_stamp': str(date_utils.time_now()),
+            'trade_date': date_yyyy_mm_dd,
+            'symbol': symbol,
             'unique_run_number': unique_run_number,
             'starting_capital': available_capital,
             'capital_used': capital_used,
@@ -1877,6 +1883,8 @@ def add_open_order_to_capital_flow_df(data, capital_data):
     global capital_flow_df
     try:
         d = {
+            'time_stamp': str(date_utils.time_now()),
+            'trade_date' : date_yyyy_mm_dd,
             'event': 'OPEN_ORDER',
             'capital_before_event': 0,
             'cash_flow': -1 * capital_data.get('capital_used'),
@@ -1901,16 +1909,16 @@ def add_open_order_to_capital_flow_df(data, capital_data):
 
 def recompute_capital_flow_df(df, start_capital):
     # This method compuutes capital_before_event and capital_after_event
+    df = df.copy()
 
-    if len(df) == 0:
-        return df, start_capital
+    df = df.sort_values('time_stamp').reset_index(drop=True)
 
     df = df.fillna(0)
 
     capital = start_capital
 
     for i, row in df.iterrows():
-
+        logger.debug(f"recompute_capital_flow_df , {i} ,{capital}, {row}")
         # 1) assign starting capital
         df.at[i, "capital_before_event"] = capital
 
@@ -3535,7 +3543,7 @@ def populate_open_close_refs_pnl_df():
 
 def is_order_ref_open(open_order_ref):
     for symbol, open_trade_info in application_state.get('open_trades_dic', {}).items():
-        if open_trade_info.get('order_ref') == open_order_ref and open_trade_info.get('available_quantity') != 0:
+        if open_trade_info.get('order_ref', '') == open_order_ref and open_trade_info.get('available_quantity', 0) != 0:
             return True
     return False
 
@@ -3559,6 +3567,9 @@ def populate_close_orders_in_capital_flow_df(open_close_refs_pnl_df):
         # missing.rename(columns={"close_order_ref": "order_ref"})[["order_ref", "commission", "realized_pnl"]]
         missing[["close_order_ref", "commission", "realized_pnl"]]
     )
+
+    rows_to_add_df['time_stamp'] = str(date_utils.time_now())
+    rows_to_add_df['trade_date'] = date_yyyy_mm_dd
     rows_to_add_df['event'] = 'CLOSE_ORDER'
     rows_to_add_df['cash_flow'] = rows_to_add_df['realized_pnl']
     rows_to_add_df['memo'] = 'Added from IB logs'
@@ -3572,7 +3583,10 @@ def populate_close_orders_in_capital_flow_df(open_close_refs_pnl_df):
 def check_open_orders_in_capital_flow_df(df):
     # This method fndd order which are cloed and put a reverse record
     # in the capital_flow
+    df = df.copy()
     df = df.fillna(0)
+
+    df = df.sort_values('time_stamp').reset_index(drop=True)
 
     reverse_records = []
     for i, row in df.iterrows():  #TODO just find the ones we need
@@ -3582,6 +3596,8 @@ def check_open_orders_in_capital_flow_df(df):
         open_order_ref = row['open_order_ref']
         if not is_order_ref_open(open_order_ref):
             d = {
+                'time_stamp': str(date_utils.time_now()),
+                'trade_date': date_yyyy_mm_dd,
                 'event': 'REVERSE_OPEN_ORDER',
                 'cash_flow': row['cash_flow'] * -1,
                 'symbol': row['symbol'],
@@ -3589,6 +3605,8 @@ def check_open_orders_in_capital_flow_df(df):
             }
             reverse_records.append(d)
             df.at[i, "is_closed"] = 'YES'
+    # logger.info(f"reverse_recordsL: \n {\n.join(str(n) for n in reverse_records)}")  TODO not working
+    logger.info(f"reverse_recordsL: \n {reverse_records}")
 
     if len(reverse_records) > 0:
         df = pd.concat([df, pd.DataFrame(reverse_records)])
@@ -3633,10 +3651,10 @@ if __name__ == "__main__":
     capital_allocation_df = pd.DataFrame()
     open_close_refs_df = df_utils.load_csv_file(df_file_map.get('open_close_refs_df'))
     open_close_refs_pnl_df = df_utils.load_csv_file(df_file_map.get('open_close_refs_pnl_df'))
-    capital_flow_cols = ['event', 'capital_before_event', 'cash_flow', 'capital_after_event', 'realized_pnl',
+    capital_flow_cols = ['time_stamp', 'trade_date', 'event', 'capital_before_event', 'cash_flow', 'capital_after_event', 'realized_pnl',
                       'commission', 'trade_cost', 'is_closed', 'symbol', 'unique_run_number', 'open_order_ref', 'close_order_ref', 'proccesed', 'memo']
 
-    capital_flow_df = df_utils.load_csv_file(df_file_map.get('capital_flow_df'))
+    capital_flow_df = df_utils.load_csv_file(df_file_map.get('capital_flow_df'), expected_columns=capital_flow_cols)
     if len(capital_flow_df) ==0:
         capital_flow_df = pd.DataFrame(columns=capital_flow_cols) # TODO we need read CSV ...
 
