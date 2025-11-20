@@ -61,6 +61,7 @@ charts_dir = f'../../portfolios/charts/{portfolio_id}{dir_alias}'
 ohlc_archie_dir = f'../../portfolios/ohlc-archive/{portfolio_id}'
 
 os.makedirs(portfolio_dir, exist_ok=True)
+os.makedirs(ib_dir, exist_ok=True)
 os.makedirs(reports_dir, exist_ok=True)
 os.makedirs(log_dir, exist_ok=True)
 os.makedirs(detailed_log_dir, exist_ok=True)
@@ -2025,12 +2026,16 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
                 "current_value": 0,
                 "current_pnl": 0,
                 "current_roi": 0,
+                "cost_for_trade": 0,
+                "avg_cost": 0,
+                "avg_cost_for_1_position": 0,
+                "avg_cost_for_1_contract": 0,
+                'strike': option_contract.strike,
+                'expiry': option_contract.lastTradeDateOrContractMonth,
+                'position_type': 'OPTION',
                 'unique_run_number': unique_run_number,
                 'level_used_to_open': level_used,
                 'level_name': '',
-                'position_type': 'OPTION',
-                'expiry': option_contract.lastTradeDateOrContractMonth,
-                'strike': option_contract.strike,
                 'local_symbol': option_contract.localSymbol,
                 'con_id': option_contract.conId,
                 'order_ref': order_ref
@@ -3734,7 +3739,7 @@ if __name__ == "__main__":
             capital_flow_df, capital = recompute_capital_flow_df(capital_flow_df, 4000)
             logger.info(f'after , capital_flow_df: \n{capital_flow_df.to_markdown()}')
 
-        if checkmark_map.get(f'CHK_APP_VS_IB-{current_hh_mm_ny}') and current_hh_mm_ny % 1 == 0:
+        if not checkmark_map.get(f'CHK_APP_VS_IB-{current_hh_mm_ny}') and current_hh_mm_ny % 1 == 0:
             checkmark_map[f'CHK_APP_VS_IB-{current_hh_mm_ny}'] = True
             check_application_state_vs_ib_positions()
 
