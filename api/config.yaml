@@ -1,0 +1,5 @@
+app:
+  port: 3000
+  api_version: v1
+data_folder: ../../portfolios
+cache_timer: 10
