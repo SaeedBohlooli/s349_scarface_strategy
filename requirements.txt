@@ -29,6 +29,7 @@ scipy
 ib_insync
 ruamel.yaml
 flask
+flask-cors
 plotly
 tabulate
 dash
