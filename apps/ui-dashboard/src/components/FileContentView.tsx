@@ -5,8 +5,11 @@ import {
   Paper,
   TextField,
   InputAdornment,
+  IconButton,
+  Tooltip,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import { getFileContent } from "../services/api";
 import type { ApiError } from "../types/api";
 import { isTableSuitable } from "../utils/dataUtils";
@@ -96,6 +99,16 @@ export default function FileContentView({
                 : "Complex JSON data"}
             </Typography>
           </Box>
+          <Tooltip title="Refresh data">
+            <IconButton
+              size="small"
+              onClick={loadFileContent}
+              disabled={loading}
+              sx={{ ml: 2 }}
+            >
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
         </Box>
         <TextField
           fullWidth

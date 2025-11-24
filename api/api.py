@@ -9,6 +9,7 @@ import csv
 import json
 import time
 from pathlib import Path
+from collections import OrderedDict
 
 # Get the config file path relative to this file's location
 config_path = os.path.join(os.path.dirname(__file__), "config.yaml")
@@ -16,6 +17,8 @@ with open(config_path, "r") as f:
     config = yaml.safe_load(f)
 
 app = Flask(__name__)
+# Configure JSON encoder to preserve OrderedDict order
+app.json.sort_keys = False
 # Enable CORS for all routes
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
@@ -167,13 +170,34 @@ def get_cached_file_content(file_path, content_type='auto'):
     
     if content_type == 'json':
         with open(file_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+            # Use object_pairs_hook to preserve JSON key order
+            data = json.load(f, object_pairs_hook=OrderedDict)
         if isinstance(data, list):
-            result = {"data": data, "count": len(data)}
+            # Preserve order for list items if they are dicts
+            ordered_data = []
+            for item in data:
+                if isinstance(item, dict):
+                    ordered_data.append(OrderedDict(item))
+                else:
+                    ordered_data.append(item)
+            result = OrderedDict([("data", ordered_data), ("count", len(data))])
         elif isinstance(data, dict) and 'data' in data:
-            result = data
+            # Preserve order for nested data
+            if isinstance(data['data'], list):
+                ordered_list = []
+                for item in data['data']:
+                    if isinstance(item, dict):
+                        ordered_list.append(OrderedDict(item))
+                    else:
+                        ordered_list.append(item)
+                result = OrderedDict([("data", ordered_list), ("count", data.get('count', len(ordered_list)))])
+            else:
+                result = OrderedDict(data)
         else:
-            result = {"data": [data], "count": 1}
+            if isinstance(data, dict):
+                result = OrderedDict([("data", [OrderedDict(data)]), ("count", 1)])
+            else:
+                result = OrderedDict([("data", [data]), ("count", 1)])
     elif content_type == 'csv':
         result = csv_to_json(file_path)
     else:  # raw
@@ -268,61 +292,74 @@ def csv_to_json(csv_file_path):
         with open(csv_file_path, 'r', encoding='utf-8') as f:
             content = f.read().strip()
             if is_json_content(content):
-                # File is already JSON, parse it
-                json_data = json.loads(content)
+                # File is already JSON, parse it with order preservation
+                json_data = json.loads(content, object_pairs_hook=OrderedDict)
                 # If it's already in our expected format, return it
                 if isinstance(json_data, dict) and 'data' in json_data:
-                    return json_data
+                    return OrderedDict(json_data)
                 # If it's a list, wrap it in our format
                 if isinstance(json_data, list):
-                    return {
-                        "data": json_data,
-                        "count": len(json_data)
-                    }
+                    ordered_list = []
+                    for item in json_data:
+                        if isinstance(item, dict):
+                            ordered_list.append(OrderedDict(item))
+                        else:
+                            ordered_list.append(item)
+                    return OrderedDict([("data", ordered_list), ("count", len(json_data))])
                 # If it's a dict but not in our format, wrap it
-                return {
-                    "data": [json_data] if isinstance(json_data, dict) else json_data,
-                    "count": 1 if isinstance(json_data, dict) else len(json_data) if isinstance(json_data, list) else 0
-                }
+                if isinstance(json_data, dict):
+                    return OrderedDict([("data", [OrderedDict(json_data)]), ("count", 1)])
+                return OrderedDict([("data", [json_data] if not isinstance(json_data, list) else json_data), ("count", 1 if not isinstance(json_data, list) else len(json_data))])
     except UnicodeDecodeError:
         # Try with different encoding if UTF-8 fails
         try:
             with open(csv_file_path, 'r', encoding='latin-1') as f:
                 content = f.read().strip()
                 if is_json_content(content):
-                    json_data = json.loads(content)
+                    json_data = json.loads(content, object_pairs_hook=OrderedDict)
                     if isinstance(json_data, dict) and 'data' in json_data:
-                        return json_data
+                        return OrderedDict(json_data)
                     if isinstance(json_data, list):
-                        return {
-                            "data": json_data,
-                            "count": len(json_data)
-                        }
-                    return {
-                        "data": [json_data] if isinstance(json_data, dict) else json_data,
-                        "count": 1 if isinstance(json_data, dict) else len(json_data) if isinstance(json_data, list) else 0
-                    }
+                        ordered_list = []
+                        for item in json_data:
+                            if isinstance(item, dict):
+                                ordered_list.append(OrderedDict(item))
+                            else:
+                                ordered_list.append(item)
+                        return OrderedDict([("data", ordered_list), ("count", len(json_data))])
+                    if isinstance(json_data, dict):
+                        return OrderedDict([("data", [OrderedDict(json_data)]), ("count", 1)])
+                    return OrderedDict([("data", [json_data] if not isinstance(json_data, list) else json_data), ("count", 1 if not isinstance(json_data, list) else len(json_data))])
         except Exception:
             pass  # Fall through to CSV parsing
     
     # If not JSON, parse as CSV
+    # Note: csv.DictReader preserves column order from CSV header
+    # Use OrderedDict to explicitly preserve column order
     data = []
     try:
         with open(csv_file_path, 'r', encoding='utf-8') as f:
             csv_reader = csv.DictReader(f)
+            # Get fieldnames to preserve order
+            fieldnames = csv_reader.fieldnames
             for row in csv_reader:
-                data.append(row)
+                # Create OrderedDict with columns in CSV header order
+                ordered_row = OrderedDict((key, row[key]) for key in fieldnames)
+                data.append(ordered_row)
     except UnicodeDecodeError:
         # Try with different encoding if UTF-8 fails
         with open(csv_file_path, 'r', encoding='latin-1') as f:
             csv_reader = csv.DictReader(f)
+            fieldnames = csv_reader.fieldnames
             for row in csv_reader:
-                data.append(row)
+                ordered_row = OrderedDict((key, row[key]) for key in fieldnames)
+                data.append(ordered_row)
     
-    return {
-        "data": data,
-        "count": len(data)
-    }
+    # Return with OrderedDict to preserve column order
+    return OrderedDict([
+        ("data", data),
+        ("count", len(data))
+    ])
 
 @app.route(f"/api/{config['app']['api_version']}/health", methods=["GET"], strict_slashes=False)
 def health():
@@ -331,7 +368,7 @@ def health():
 
 # Get all directories under the portfolios folder
 @app.route(f"/api/{config['app']['api_version']}/directories", methods=["GET"], strict_slashes=False)
-def directories():    
+def directories():
     portfolios_abs_path = os.path.abspath(os.path.join(os.path.dirname(__file__), config['data_folder']))
     
     # Check if the path exists
