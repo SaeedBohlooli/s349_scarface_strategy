@@ -127,11 +127,20 @@ function App({ themeMode, onThemeToggle }: AppProps) {
   };
 
   const handleHomeClick = () => {
-    setSelectedPortfolio("");
-    setSelectedDirectory("");
-    setSelectedFile("");
-    navigate("/");
-    setCurrentView("portfolios");
+    if (selectedPortfolio) {
+      // If we have a portfolio selected, go to portfolio home page
+      setSelectedDirectory("");
+      setSelectedFile("");
+      navigate(`/portfolio/${selectedPortfolio}`);
+      setCurrentView("portfolios");
+    } else {
+      // Otherwise go to root
+      setSelectedPortfolio("");
+      setSelectedDirectory("");
+      setSelectedFile("");
+      navigate("/");
+      setCurrentView("portfolios");
+    }
   };
 
   const handleDirectoryClick = () => {
@@ -155,11 +164,31 @@ function App({ themeMode, onThemeToggle }: AppProps) {
     if (selectedPortfolio) {
       items.push({
         label: selectedPortfolio,
-        onClick: currentView === "file" ? handleDirectoryClick : undefined,
+        onClick: () => {
+          // Navigate to portfolio home page
+          setSelectedDirectory("");
+          setSelectedFile("");
+          navigate(`/portfolio/${selectedPortfolio}`);
+          setCurrentView("portfolios");
+        },
       });
     }
 
     if (selectedDirectory && currentView === "file") {
+      // Show directory as "directory({name})" for file view - make it clickable
+      items.push({
+        label: `directory(${selectedDirectory})`,
+        onClick: () => {
+          // Navigate to directory page
+          if (selectedPortfolio) {
+            setSelectedFile("");
+            navigate(`/portfolio/${selectedPortfolio}/directory/${selectedDirectory}`);
+            setCurrentView("directories");
+          }
+        },
+      });
+    } else if (selectedDirectory && currentView === "directories") {
+      // For directories view, show the directory name
       items.push({
         label: selectedDirectory,
       });
