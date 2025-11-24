@@ -3,7 +3,7 @@ export type ScenarioOutcome = "LOSING" | "BREAKEVEN" | "PROFITABLE";
 export interface Scenario {
   id: string; // e.g. "L1", "P2"
   label: string; // e.g. "Loss Scenario 1"
-  rewardMultiple: number; // R (Reward:Risk), e.g. 1.10
+  rewardMultiple: number; // R (Risk:Reward), e.g. 1.10 means 1 Risk : 1.10 Reward
   expectancyR: number; // expectancy in R units (net of costs)
   expectancyPerTrade: number; // dollars per trade (net of costs)
   expectancyOverNTrades: number; // dollars over numTrades
@@ -23,9 +23,10 @@ export interface RiskRewardInput {
 }
 
 export interface RiskRewardResult {
-  rBreakEven: number; // net break-even R (Reward:Risk)
+  rBreakEven: number; // net break-even R (Risk:Reward)
   costPerTrade: number; // in dollars
   lossScenarios: Scenario[];
+  breakEvenScenarios: Scenario[];
   profitScenarios: Scenario[];
 }
 
@@ -71,16 +72,62 @@ export function buildRiskRewardScenarios(
   const rBreakEven = (1 - W + costPerTrade / riskDollar) / W;
 
   // Create loss scenarios (below break-even)
-  const lossRValues = [
-    0.5 * rBreakEven, // L1
-    0.75 * rBreakEven, // L2
-    0.9 * rBreakEven, // L3
-  ];
+  // Generate scenarios from 0.7 R up to 0.98 * rBreakEven to get close to break-even
+  // Minimum R value is 0.7 (don't go below 0.7 Reward)
+  const lossRValues: number[] = [];
+  
+  // Start from 0.7 (minimum) or break-even * 0.7, whichever is higher
+  // But ensure we don't go below 0.7
+  const minRR = Math.max(0.7, Math.min(0.7 * rBreakEven, rBreakEven * 0.7));
+  const maxRR = rBreakEven * 0.98; // Go up to 98% of break-even
+  
+  // Only generate scenarios if minRR is less than maxRR and both are below break-even
+  if (minRR < maxRR && minRR < rBreakEven) {
+    // Generate approximately 8-10 scenarios between min and max
+    const numScenarios = 9;
+    const stepSize = (maxRR - minRR) / (numScenarios - 1);
+    
+    for (let i = 0; i < numScenarios; i++) {
+      const rr = minRR + (stepSize * i);
+      const roundedRR = Math.round(rr * 100) / 100;
+      // Only add if it's below break-even and >= 0.7
+      if (roundedRR < rBreakEven && roundedRR >= 0.7) {
+        lossRValues.push(roundedRR);
+      }
+    }
+  }
+  
+  // Ensure we don't exceed break-even and don't go below 0.7
+  const filteredLossRValues = lossRValues.filter(
+    rr => rr < rBreakEven && rr >= 0.7
+  );
+  
+  // If we filtered out too many, add some standard ones (but ensure >= 0.7)
+  if (filteredLossRValues.length < 3) {
+    filteredLossRValues.length = 0;
+    // Generate scenarios from 0.7 up to break-even
+    const standardMultipliers = [0.7, 0.75, 0.8, 0.85, 0.9, 0.95];
+    for (const mult of standardMultipliers) {
+      const rr = Math.round(rBreakEven * mult * 100) / 100;
+      if (rr < rBreakEven && rr >= 0.7) {
+        filteredLossRValues.push(rr);
+      }
+    }
+  }
+  
+  // Ensure minimum is 0.7
+  if (filteredLossRValues.length > 0 && filteredLossRValues[0] < 0.7) {
+    filteredLossRValues[0] = 0.7;
+  }
+  
+  // Use the filtered values
+  lossRValues.length = 0;
+  lossRValues.push(...filteredLossRValues);
 
   // Create profit scenarios
   // First scenario: break-even + 0.15
   // Then increment by 0.15 up to 1.0
-  // Then increment by 0.10 from 1.0 up to 1.7
+  // Then increment by 0.10 from 1.0 up to at least 2.0
   const profitRValues: number[] = [];
   
   // Start at break-even + 0.15
@@ -112,15 +159,20 @@ export function buildRiskRewardScenarios(
     }
   }
   
-  // Now increment by 0.10 from 1.1 up to 1.7
-  while (currentRR <= 1.7) {
+  // Now increment by 0.10 from 1.1 up to at least 2.0
+  while (currentRR <= 2.0) {
     profitRValues.push(currentRR);
     currentRR = Math.round((currentRR + 0.1) * 100) / 100;
   }
   
-  // Ensure we always have at least one scenario
+  // Ensure we always have at least one scenario and always include 2.0
   if (profitRValues.length === 0) {
     profitRValues.push(Math.min(1.0, rBreakEven + 0.15));
+  }
+  
+  // Ensure 2.0 is always included if it's not already there
+  if (profitRValues[profitRValues.length - 1] < 2.0) {
+    profitRValues.push(2.0);
   }
 
   // Helper function to create a scenario
@@ -129,7 +181,7 @@ export function buildRiskRewardScenarios(
     label: string,
     R: number
   ): Scenario => {
-    // R = Reward:Risk multiple
+    // R = Risk:Reward multiple (1 Risk : R Reward)
     const grossWin = R * riskDollar; // before costs
     const grossLoss = -riskDollar; // before costs
 
@@ -188,15 +240,25 @@ export function buildRiskRewardScenarios(
     createScenario(`L${index + 1}`, `Loss Scenario ${index + 1}`, R)
   );
 
-  // Generate profit scenarios
-  const profitScenarios: Scenario[] = profitRValues.map((R, index) =>
+  // Generate break-even scenario (exactly at break-even)
+  const breakEvenScenario = createScenario("BE1", "Break-even Scenario", rBreakEven);
+  const breakEvenScenarios: Scenario[] = [breakEvenScenario];
+
+  // Generate profit scenarios and filter to only show positive ones
+  const allProfitScenarios: Scenario[] = profitRValues.map((R, index) =>
     createScenario(`P${index + 1}`, `Profit Scenario ${index + 1}`, R)
+  );
+  
+  // Filter to only show scenarios with positive expectancy (PROFITABLE outcome)
+  const profitScenarios: Scenario[] = allProfitScenarios.filter(
+    (scenario) => scenario.outcome === "PROFITABLE" && scenario.expectancyR > 0
   );
 
   return {
     rBreakEven,
     costPerTrade,
     lossScenarios,
+    breakEvenScenarios,
     profitScenarios,
   };
 }

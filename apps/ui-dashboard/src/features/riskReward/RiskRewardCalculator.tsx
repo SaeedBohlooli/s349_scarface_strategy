@@ -73,8 +73,8 @@ export default function RiskRewardCalculator() {
   ]);
 
   const formatRR = (rr: number): string => {
-    // R:R means Reward:Risk, display as "X.XX : 1"
-    return `${rr.toFixed(2)} : 1`;
+    // R:R means Risk:Reward, display as "1 : X.XX" (1 Risk : X.XX Reward)
+    return `1 : ${rr.toFixed(2)}`;
   };
 
   const formatCurrency = (value: number): string => {
@@ -91,13 +91,73 @@ export default function RiskRewardCalculator() {
     return `${sign}${(value * 100).toFixed(1)}%`;
   };
 
-  const renderScenarioTable = (scenarios: Scenario[], title: string) => {
+  const renderScenarioTable = (
+    scenarios: Scenario[],
+    title: string,
+    sectionType: "loss" | "breakeven" | "profit" = "loss"
+  ) => {
+    // Define colors for each section type with better visibility
+    const sectionColors = {
+      loss: {
+        border: "error.main",
+        bg: "rgba(211, 47, 47, 0.08)", // Light red background
+        headerBg: "error.main",
+        headerText: "#ffffff",
+        accent: "error.main",
+      },
+      breakeven: {
+        border: "warning.main",
+        bg: "rgba(237, 108, 2, 0.08)", // Light orange background
+        headerBg: "warning.main",
+        headerText: "#000000",
+        accent: "warning.main",
+      },
+      profit: {
+        border: "success.main",
+        bg: "rgba(46, 125, 50, 0.08)", // Light green background
+        headerBg: "success.main",
+        headerText: "#ffffff",
+        accent: "success.main",
+      },
+    };
+
+    const colors = sectionColors[sectionType];
+
     return (
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
-          {title}
-        </Typography>
-        <TableContainer component={Paper} variant="outlined">
+        <Box
+          sx={{
+            bgcolor: colors.headerBg,
+            color: colors.headerText,
+            p: 1.5,
+            borderRadius: "4px 4px 0 0",
+            mb: 0,
+            boxShadow: 1,
+          }}
+        >
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>
+            {title}
+          </Typography>
+        </Box>
+        <TableContainer
+          component={Paper}
+          variant="outlined"
+          sx={{
+            border: `2px solid`,
+            borderColor: colors.border,
+            borderTop: "none",
+            borderRadius: "0 0 4px 4px",
+            "& .MuiPaper-root": {
+              bgcolor: colors.bg,
+            },
+            "& .MuiTableHead-root": {
+              bgcolor: "rgba(0, 0, 0, 0.02)",
+            },
+            "& .MuiTableRow-root:hover": {
+              bgcolor: "rgba(0, 0, 0, 0.04)",
+            },
+          }}
+        >
           <Table size="small">
             <TableHead>
               <TableRow>
@@ -106,7 +166,7 @@ export default function RiskRewardCalculator() {
                   align="right"
                   sx={{ fontWeight: 600, fontFamily: "monospace" }}
                 >
-                  R:R (Reward:Risk)
+                  R:R (Risk:Reward)
                 </TableCell>
                 <TableCell
                   align="right"
@@ -266,12 +326,12 @@ export default function RiskRewardCalculator() {
   const commissionDollar = (riskPerTradeNum * commissionPctNum) / 100;
 
   return (
-    <Box sx={{ maxWidth: 1200, mx: "auto", p: 3 }}>
+    <Box sx={{ mx: "auto", p: 3 }}>
       <Typography variant="h4" component="h1" gutterBottom>
         Risk & Reward Calculator
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        R:R = Reward:Risk ratio (Risk is always 1 unit)
+        R:R = Risk:Reward ratio (Risk is always 1 unit)
       </Typography>
 
       <Paper sx={{ p: 3, mb: 3 }}>
@@ -423,7 +483,7 @@ export default function RiskRewardCalculator() {
                 </Box>
                 <Box sx={{ flex: "1 1 150px", minWidth: "150px" }}>
                   <Typography variant="body2" color="text.secondary">
-                    Break-even R:R (Reward:Risk)
+                    Break-even R:R (Risk:Reward)
                   </Typography>
                   <Typography
                     variant="h6"
@@ -440,16 +500,28 @@ export default function RiskRewardCalculator() {
           </Card>
 
           {/* Loss Scenarios */}
-          {renderScenarioTable(
-            result.lossScenarios,
-            "Loss Scenarios (R below break-even)"
-          )}
+          {result.lossScenarios.length > 0 &&
+            renderScenarioTable(
+              result.lossScenarios,
+              "Loss Scenarios (R below break-even)",
+              "loss"
+            )}
 
-          {/* Profit Scenarios */}
-          {renderScenarioTable(
-            result.profitScenarios,
-            "Profit Scenarios (R at or above 1.0)"
-          )}
+          {/* Break-even Scenarios */}
+          {result.breakEvenScenarios.length > 0 &&
+            renderScenarioTable(
+              result.breakEvenScenarios,
+              "Break-even Scenarios",
+              "breakeven"
+            )}
+
+          {/* Profit Scenarios (only positive) */}
+          {result.profitScenarios.length > 0 &&
+            renderScenarioTable(
+              result.profitScenarios,
+              "Profit Scenarios (R above break-even, positive expectancy only)",
+              "profit"
+            )}
         </>
       )}
     </Box>

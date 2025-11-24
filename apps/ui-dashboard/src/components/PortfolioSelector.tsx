@@ -48,8 +48,12 @@ export default function PortfolioSelector({
       // Only auto-select if we're on the home page (no portfolio in URL)
       if (response.portfolios.length === 1 && !selectedPortfolio) {
         const currentPath = window.location.pathname
-        // Only auto-navigate if we're on root or empty path
-        if (currentPath === '/' || currentPath === '' || !currentPath.includes('/portfolio/')) {
+        // Only auto-navigate if we're on root or empty path (not calculator or other routes)
+        if (
+          (currentPath === '/' || currentPath === '') &&
+          !currentPath.includes('/portfolio/') &&
+          !currentPath.includes('/calculator')
+        ) {
           onPortfolioChange(response.portfolios[0])
         }
       }
