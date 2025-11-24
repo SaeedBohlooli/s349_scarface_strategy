@@ -18,6 +18,7 @@ import PortfolioSelector from "./components/PortfolioSelector";
 import DirectoriesView from "./components/DirectoriesView";
 import FileContentView from "./components/FileContentView";
 import LogsView from "./components/LogsView";
+import RiskRewardCalculator from "./features/riskReward/RiskRewardCalculator";
 import "./App.css";
 
 interface AppProps {
@@ -25,7 +26,7 @@ interface AppProps {
   onThemeToggle: () => void;
 }
 
-type ViewState = "portfolios" | "directories" | "file" | "logs";
+type ViewState = "portfolios" | "directories" | "file" | "logs" | "calculator";
 
 function App({ themeMode, onThemeToggle }: AppProps) {
   const navigate = useNavigate();
@@ -73,6 +74,11 @@ function App({ themeMode, onThemeToggle }: AppProps) {
         setSelectedFile("");
         setCurrentView("portfolios");
       }
+    } else if (pathParts[0] === "calculator") {
+      setSelectedPortfolio("");
+      setSelectedDirectory("");
+      setSelectedFile("");
+      setCurrentView("calculator");
     } else {
       setSelectedPortfolio("");
       setSelectedDirectory("");
@@ -214,6 +220,22 @@ function App({ themeMode, onThemeToggle }: AppProps) {
                     </Box>
                   </Box>
                 )}
+                <Box sx={{ mt: 3 }}>
+                  <Typography variant="h6" gutterBottom>
+                    Tools
+                  </Typography>
+                  <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+                    <Button
+                      variant="outlined"
+                      onClick={() => {
+                        navigate("/calculator");
+                        setCurrentView("calculator");
+                      }}
+                    >
+                      Risk & Reward Calculator
+                    </Button>
+                  </Box>
+                </Box>
               </Box>
             )}
 
@@ -284,6 +306,8 @@ function App({ themeMode, onThemeToggle }: AppProps) {
                 <LogsView portfolioId={selectedPortfolio} />
               </Box>
             )}
+
+            {currentView === "calculator" && <RiskRewardCalculator />}
           </Container>
         </Box>
       </Box>
