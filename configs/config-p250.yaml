@@ -387,7 +387,7 @@ live:
 
 back_test:
   data:
-    get_data_from_ib: False  # we have data from 01-01
+    get_data_from_ib: false  # we have data from 01-01
     start_date: 2025-11-20
     end_date: 2025-11-22
     historical_days: 5 D  # don't change this
@@ -396,7 +396,7 @@ back_test:
   cases_to_run: ['c_4.1_pdh_only']
   runs:
     r_today:
-      active: True
+      active: true
       start: 2025-11-21
       end: 2025-11-22
       memo: Today

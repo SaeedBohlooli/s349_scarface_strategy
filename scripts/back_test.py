@@ -61,6 +61,7 @@ charts_dir = f'../../portfolios/charts/{portfolio_id}{dir_alias}'
 ohlc_archie_dir = f'../../portfolios/ohlc-archive/{portfolio_id}'
 
 os.makedirs(portfolio_dir, exist_ok=True)
+os.makedirs(ib_dir, exist_ok=True)
 os.makedirs(reports_dir, exist_ok=True)
 os.makedirs(log_dir, exist_ok=True)
 os.makedirs(detailed_log_dir, exist_ok=True)
@@ -656,6 +657,14 @@ def add_to_screening_log_list(side):
     }
     screening_log_list.append(data)
 
+def add_to_umber_of_opened_trades_for_symbol(symbol):
+    global number_of_opened_trades_for_symbol
+    number_of_opened_trades_for_symbol[symbol] = number_of_opened_trades_for_symbol.get(symbol, 0) + 1
+
+def number_of_opened_trades_so_far():
+    return number_of_opened_trades_for_symbol.get(symbol, 0)
+
+
 def do_back_test(buy_sell_case_results_list):
     global df
     global screening_log_list
@@ -703,10 +712,12 @@ def do_back_test(buy_sell_case_results_list):
             offseted_price = get_offseted_price('down', df['low'].iloc[-1])
             add_to_signlas(symbol=symbol, event='TEXT', price=offseted_price, date=df['date'].iloc[-1], memo=f'{score_memo}', color='blue')
 
-            if not backtest_has_open_position():
+
+            if not backtest_has_open_position() and not symbol in app_config['back_test']['exclude_list'] :
                 stop_loss_price = eval(app_config['back_test'][side]['stop_loss'])
                 take_profit_price = eval(app_config['back_test'][side]['take_profit'])
                 open_price = df['close'].iloc[-1]
+                add_to_umber_of_opened_trades_for_symbol(symbol)
 
                 if can_buy:
                     position = 1
@@ -768,11 +779,11 @@ def do_back_test(buy_sell_case_results_list):
 
 def check_buy_and_sell_cases():
     buy_sell_case_results = []
-
     for case in app_config['cases']:
-            # TODO check precondtions here
-        res = check_buy_sell_condition(case)
-        buy_sell_case_results.append(res)
+        if case in app_config[mode]['cases_to_run']:
+            res = check_buy_sell_condition(case)
+            if res is not None: # if precondition not met, we get None
+                buy_sell_case_results.append(res)
 
     return buy_sell_case_results
 
@@ -815,6 +826,11 @@ def check_buy_sell_condition(case):
     short_level = -1
 
     try:
+        precondition = app_config['cases'][case]['precondition']
+        precondition_eval = eval(precondition)
+        if not precondition_eval:
+            logger.warning(f"check_buy_sell_condition, precondition not met for case: {case}, symbol: {symbol}, precondition: {precondition}")
+            return None
         levels = get_levels_map()  # used in config
 
         can_replace_level = app_config['cases'][case]['can_replace_level']
@@ -973,7 +989,7 @@ def price_retest(side='up', idx_list=[-2], level=0, both_sides=False):
     # tolerance_amount = app_config['symbols_meta'][symbol]['retest_tolerance_amount']
     tolerance_amount = dynamic_tolerance.get('tolerance', 0)
     tolerance_amount = tolerance_amount * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1)
-    logger.info(f"price_retest(), {symbol}, tolerance_amount: {tolerance_amount}")
+    logger.debug(f"price_retest(), {symbol}, tolerance_amount: {tolerance_amount}")
     retest = False
 
     for idx in idx_list:
@@ -1189,6 +1205,8 @@ def add_candle_info_df_to_signals():
     # combine memo for candles for each date ...
     if len(candle_info_df) == 0:
         return
+
+    logger.info(f"@ type(candle_info_df): {type(candle_info_df)}")
 
     df = candle_info_df
     df = df.drop_duplicates()
@@ -1915,34 +1933,36 @@ def recompute_capital_flow_df(df, start_capital):
 
     df = df.fillna(0)
 
-    capital = start_capital
 
-    for i, row in df.iterrows():
-        logger.debug(f"recompute_capital_flow_df , {i} ,{capital}, {row}")
-        # 1) assign starting capital
-        df.at[i, "capital_before_event"] = capital
+    for trade_date, group in df.groupby("trade_date"):
+        capital = start_capital
 
-        # 2) calculate cash flow based on event
-        event = row["event"]
+        for i, row in group.iterrows():
+            logger.debug(f"recompute_capital_flow_df , {i} ,{capital}, {row}")
+            # 1) assign starting capital
+            df.at[i, "capital_before_event"] = capital
 
-        trade_cost = float(row["trade_cost"])
-        realized_pnl = float(row["realized_pnl"])
-        commission = float(row["commission"])
-        cash_flow = float(row["cash_flow"])
+            # 2) calculate cash flow based on event
+            event = row["event"]
 
-        # if event == "OPEN_ORDER":
-        #     cash_flow = -(trade_cost + commission)
-        #
-        # elif event in ("CLOSE_ORDER", "CLODE_ORDER"):
-        #     cash_flow = realized_pnl + trade_cost - commission
-        #
-        # else:
-        #     cash_flow = 0.0
+            trade_cost = float(row["trade_cost"])
+            realized_pnl = float(row["realized_pnl"])
+            commission = float(row["commission"])
+            cash_flow = float(row["cash_flow"])
+
+            # if event == "OPEN_ORDER":
+            #     cash_flow = -(trade_cost + commission)
+            #
+            # elif event in ("CLOSE_ORDER", "CLODE_ORDER"):
+            #     cash_flow = realized_pnl + trade_cost - commission
+            #
+            # else:
+            #     cash_flow = 0.0
 
 
-        # 3) update capital_after_event
-        capital = capital + cash_flow
-        df.at[i, "capital_after_event"] = capital
+            # 3) update capital_after_event
+            capital = capital + cash_flow
+            df.at[i, "capital_after_event"] = capital
 
     return df, capital
 
@@ -2025,12 +2045,16 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
                 "current_value": 0,
                 "current_pnl": 0,
                 "current_roi": 0,
+                "cost_for_trade": 0,
+                "avg_cost": 0,
+                "avg_cost_for_1_position": 0,
+                "avg_cost_for_1_contract": 0,
+                'strike': option_contract.strike,
+                'expiry': option_contract.lastTradeDateOrContractMonth,
+                'position_type': 'OPTION',
                 'unique_run_number': unique_run_number,
                 'level_used_to_open': level_used,
                 'level_name': '',
-                'position_type': 'OPTION',
-                'expiry': option_contract.lastTradeDateOrContractMonth,
-                'strike': option_contract.strike,
                 'local_symbol': option_contract.localSymbol,
                 'con_id': option_contract.conId,
                 'order_ref': order_ref
@@ -2594,7 +2618,10 @@ def check_for_stop_loss_and_take_profit():
             application_state['open_trades_dic'][symbol]['current_underlying_price'] = underlying_current_price
             application_state['open_trades_dic'][symbol]['current_value'] = round( current_ask * application_state['open_trades_dic'][symbol]['starting_quantity'] * 100 , 3)
             application_state['open_trades_dic'][symbol]['current_pnl'] = round(application_state['open_trades_dic'][symbol].get('current_value', 0) - application_state['open_trades_dic'][symbol].get('cost_for_trade', 0) , 2)
-            application_state['open_trades_dic'][symbol]['current_roi'] = round(application_state['open_trades_dic'][symbol]['current_bid'] / application_state['open_trades_dic'][symbol].get('avg_cost_for_1_contract', 1) - 1, 3)
+            avg_cost_for_1_contract = application_state['open_trades_dic'][symbol].get('avg_cost_for_1_contract', 1)
+            if avg_cost_for_1_contract != 0: # not devide by 0
+                application_state['open_trades_dic'][symbol]['current_roi'] = round(application_state['open_trades_dic'][symbol]['current_bid'] / avg_cost_for_1_contract - 1, 3)
+
         else: # it is future ...
             application_state['open_trades_dic'][symbol]['current_bid'] = current_bid
             application_state['open_trades_dic'][symbol]['current_ask'] = current_ask
@@ -2933,7 +2960,7 @@ def check_application_state_vs_ib_positions():
 
 
             if not found:
-                logger.warning(f"@@@@ This symbol exist in the application_state but not in the ib. symbol:{symbol}")
+                logger.warning(f"@@@@ This symbol exist in the application_state but not in the ib. symbol: {symbol}")
                 logger.warning(f"@@@@ open_trade_info: {open_trade_info}")
                 logger.warning(f"@@@@ options_portfolio_df\n{options_portfolio_df.to_markdown()}")
                 logger.warning(f"@@@@ future_portfolio_df\n{future_portfolio_df.to_markdown()}")
@@ -3361,7 +3388,7 @@ def get_last_record_hh_mm():
 
 def summerize_screening_log(screening_log_for_run_df):
     if len(screening_log_for_run_df) ==0:
-        return
+        return pd.DataFrame()
 
     df = screening_log_for_run_df
     df = df[df["symbol"] != "MNQ"]
@@ -3664,6 +3691,7 @@ if __name__ == "__main__":
             dfs_map = {}
             screening_log_list = []
             screening_log_df = pd.DataFrame()
+            number_of_opened_trades_for_symbol = {}
 
             qqq_5MH = -1
             qqq_5ML = -1
