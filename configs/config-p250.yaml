@@ -151,6 +151,37 @@ cases:
       condition_10: 1 == 1
       master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09
 
+  case_2_1:
+    memo: This is trading on 5MH and 5ML and using breakout_ver_2
+    can_replace_level: true
+    precondition: all_levels_in(symbol)
+    long:
+      level: levels['5MH']
+      condition_01: breakout_in_last_x_candles_ver_2(side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level)
+      condition_02: price_retest(side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
+      condition_03: is_retest_after_breakout(side='up', level=long_level)
+      condition_04: check_entry_vs_retest(side='up', level=long_level)
+      condition_05: no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
+      condition_06: check_price_vs_level(side='up', price=price, level=long_level )
+      condition_07: not is_price_close_to_next_levels_ver_2(side='up', price=price, current_level=long_level, next_levels=['PDH'])
+      condition_08: 1 == 1
+      condition_09: 930 < last_record_hh_mm < 1016 or mode == 'live'
+      condition_10: 1 == 1
+      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07 and eval_buy_condition_07 and eval_buy_condition_08  and eval_buy_condition_09
+    short:
+      level: levels['5ML']
+      condition_01: breakout_in_last_x_candles_ver_2(side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level)
+      condition_02: price_retest(side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True )
+      condition_03: is_retest_after_breakout(side='down', level=short_level)
+      condition_04: check_entry_vs_retest(side='down', level=short_level)
+      condition_05: no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
+      condition_06: check_price_vs_level(side='down', price=price, level=short_level )
+      condition_07: not is_price_close_to_next_levels_ver_2(side='down', price=price, current_level=short_level, next_levels=['PDL'])
+      condition_08: 1 == 1
+      condition_09: 930 < last_record_hh_mm < 1016 or  mode == 'live'
+      condition_10: 1 == 1
+      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09
+
 
 #  case_2_vr_changed:
 #    memo: This is for back testing only
@@ -394,54 +425,54 @@ back_test:
     end_date: 2025-11-22
     historical_days: 5 D  # don't change this
   exclude_list: ['MNQ']
-  memo: Using case_4.1 and considering qqq_5mh
-  cases_to_run: ['c_4.1_pdh_only']
+  memo: case_2_1 breakout ver_2
+  cases_to_run: ['case_2_1']
   runs:
-    r_today:
+#    r_today:
+#      active: true
+#      start: 2025-11-21
+#      end: 2025-11-22
+#      memo: Today
+#    r_Nov:
+#      active: true
+#      start: 2025-11-01
+#      end: 2025-11-21
+#      memo: Nov so far
+    r1:
       active: true
-      start: 2025-11-21
-      end: 2025-11-22
-      memo: Today
-    r_Nov:
+      start: 2025-10-01
+      end: 2025-11-01
+      memo: Oct
+    r2:
       active: true
-      start: 2025-11-01
-      end: 2025-11-21
-      memo: Nov so far
-#    r1:
-#      active: true
-#      start: 2025-10-01
-#      end: 2025-11-01
-#      memo: Oct
-#    r2:
-#      active: true
-#      start: 2025-09-01
-#      end: 2025-10-01
-#      memo: Sep
-#    r3:
-#      active: true
-#      start: 2025-08-01
-#      end: 2025-09-01
-#      memo: Aug
-#    r4:
-#      active: true
-#      start: 2025-07-01
-#      end: 2025-08-01
-#      memo: July
-#    r5:
-#      active: true
-#      start: 2025-06-01
-#      end: 2025-07-01
-#      memo:
-#    r6: June
-#      active: true
-#      start: 2025-05-01
-#      end: 2025-06-01
-#      memo: May
-#    r7:
-#      active: true
-#      start: 2025-04-01
-#      end: 2025-05-01
-#      memo: April
+      start: 2025-09-01
+      end: 2025-10-01
+      memo: Sep
+    r3:
+      active: true
+      start: 2025-08-01
+      end: 2025-09-01
+      memo: Aug
+    r4:
+      active: true
+      start: 2025-07-01
+      end: 2025-08-01
+      memo: July
+    r5:
+      active: true
+      start: 2025-06-01
+      end: 2025-07-01
+      memo:
+    r6:
+      active: true
+      start: 2025-05-01
+      end: 2025-06-01
+      memo: May
+    r7:
+      active: true
+      start: 2025-04-01
+      end: 2025-05-01
+      memo: April
 
   long:
     stop_loss: level_used - ( dynamic_tolerance.get('tolerance', 0) * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1))

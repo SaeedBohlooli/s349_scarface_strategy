@@ -2609,7 +2609,7 @@ def check_mark_revers_candles(symbol):
             lowest_bearish_low = df.loc[df["is_bearish"], "low"].min()
 
             result = prev_close < lowest_bearish_low and crossed_ema9
-            logger.info(f"check_mark_revers_candles, {symbol}, lowest_bearish_low: {lowest_bearish_low}, prev_close: {prev_close}, {result}, \n {df.to_markdown()}")
+            logger.info(f"check_mark_revers_candles, {symbol}, lowest_bearish_low: {lowest_bearish_low}, prev_close: {prev_close}, {result}, \n{df.to_markdown()}")
             if result:
                 logger.info(f"check_mark_revers_candles, {symbol}, The break happened. lowest_bearish_low: {lowest_bearish_low}, prev_close: {prev_close}")
                 add_to_signlas(symbol, 'LEVEL_REPLACED', df['close'].iloc[-1], check_date, f'Level is break out {check_date}<br> t_date: {target_date} <br>  lowest_bearish_low: {lowest_bearish_low} <br> prev_close: {prev_close}' )

@@ -1029,7 +1029,7 @@ def dummy_call(level):
 
 def remove_symbol_from_open_trade_dic(symbol):
     global application_state
-    application_state['open_trades_dic'][symbol] = {}
+    application_state['open_trades_dic'].pop(symbol, None)
     return
 
 def archive_open_trade_dic(symbol, open_trade_dic_4_symbol):
@@ -1089,6 +1089,48 @@ def breakout_in_last_x_candles(side='up', idx_list=[-2], level=0):
         add_to_break_out_indices_by_level_set(level, idx)
         breakout_happened = True
 
+
+    return breakout_happened
+
+def breakout_in_last_x_candles_ver_2(side='up', idx_list=[-2], level=0):
+
+    logger.debug(f"in breakout_in_last_x_candles, symbol: {symbol}, idx_list: {idx_list}, level:{level}")
+
+    if level == 0:
+        return False
+    gap = app_config['symbols_meta'][symbol]['breakout_confirmation_distance']
+    breakout_happened = False
+
+    for idx in idx_list:
+        row = df.iloc[idx]
+        previous = df.iloc[idx-1]
+        # --- Breakout detection ---
+
+
+        # --- breakout condition ---
+        if side == 'up':
+            cond_1 = (row["low"] < level and row["close"] > level + gap)    # The price above level + gap
+            cond_2 = (previous["open"] < level and row["close"] > level + gap)  # The prev open is below level and current above the level.
+
+        else:
+            cond_1 = (row["high"] > level and row["close"] < level - gap)
+            cond_2 = (previous["open"] > level and row["close"] < level - gap)
+
+        breakout = (cond_1 or cond_2)
+        if not breakout:
+            continue
+
+
+        # --- candle body confirmation ---
+        body = abs(row["close"] - row["open"])
+        candle_range = row["high"] - row["low"]
+        candle_is_not_week = (candle_range > 0 and body / candle_range > 0.5) # do not remove candle_rage > 0 will raise devided by zero exception
+
+        if (cond_1 and candle_is_not_week) or cond_2: # for cond_1 we need body_confirmation, for cond_2 we do not need it
+
+            logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
+            add_to_break_out_indices_by_level_set(level, idx)
+            breakout_happened = True
 
     return breakout_happened
 

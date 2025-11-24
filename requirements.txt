@@ -33,3 +33,4 @@ flask-cors
 plotly
 tabulate
 dash
+ib_async
