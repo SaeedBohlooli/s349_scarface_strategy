@@ -1,6 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { DataGrid } from "@mui/x-data-grid";
-import { Box, Typography } from "@mui/material";
+import { Box, Typography, IconButton, Tooltip } from "@mui/material";
+import ViewColumnIcon from "@mui/icons-material/ViewColumn";
+import ViewComfyIcon from "@mui/icons-material/ViewComfy";
 import { toCamelCase, formatColumnHeader } from "../utils/stringUtils";
 
 interface DataTableProps {
@@ -25,27 +27,52 @@ export default function DataTable({
   fileName,
   searchQuery = "",
 }: DataTableProps) {
+  const [isCompact, setIsCompact] = useState(true);
+  const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 100 });
+  
   const { columns, filteredRows } = useMemo(() => {
     if (!data || data.length === 0) {
       return { columns: [], filteredRows: [] };
     }
 
-    // Get all unique keys from the data
-    const allKeys = new Set<string>();
+    // Get all unique keys from the data in order they appear (preserve server order)
+    const keyOrder: string[] = [];
+    const seenKeys = new Set<string>();
+    
+    // First, collect keys in the order they appear in the first row
+    if (data.length > 0) {
+      Object.keys(data[0]).forEach((key) => {
+        if (!seenKeys.has(key)) {
+          keyOrder.push(key);
+          seenKeys.add(key);
+        }
+      });
+    }
+    
+    // Then, add any keys from other rows that weren't in the first row
     data.forEach((row) => {
-      Object.keys(row).forEach((key) => allKeys.add(key));
+      Object.keys(row).forEach((key) => {
+        if (!seenKeys.has(key)) {
+          keyOrder.push(key);
+          seenKeys.add(key);
+        }
+      });
     });
 
-    // Create columns with transformed headers
-    const cols: GridColumn[] = Array.from(allKeys).map((key) => {
+    // Create columns with transformed headers in the order they appear
+    // Compact mode: smaller widths, normal mode: larger widths
+    const defaultWidth = isCompact ? 120 : 200;
+    const minWidth = isCompact ? 80 : 150;
+    
+    const cols: GridColumn[] = keyOrder.map((key) => {
       const camelCaseKey = toCamelCase(key);
       const displayHeader = formatColumnHeader(key);
 
       return {
         field: camelCaseKey,
         headerName: displayHeader,
-        width: 200,
-        minWidth: 150,
+        width: defaultWidth,
+        minWidth: minWidth,
         resizable: true,
         sortable: true,
         filterable: true,
@@ -77,7 +104,7 @@ export default function DataTable({
     }
 
     return { columns: cols, filteredRows: filtered };
-  }, [data, searchQuery]);
+  }, [data, searchQuery, isCompact]);
 
   if (!data || data.length === 0) {
     return (
@@ -89,53 +116,133 @@ export default function DataTable({
     );
   }
 
+  // Calculate height dynamically based on current page size
+  const rowHeight = isCompact ? 36 : 52;
+  const headerHeight = isCompact ? 36 : 56;
+  const footerHeight = 56; // Pagination footer height (increased to ensure visibility)
+  // Calculate rows on current page
+  const startRow = paginationModel.page * paginationModel.pageSize;
+  const endRow = Math.min(startRow + paginationModel.pageSize, filteredRows.length);
+  const rowsOnCurrentPage = endRow - startRow;
+  // Dynamic height: show actual rows on page (up to pageSize) + footer
+  const tableHeight = (rowHeight * rowsOnCurrentPage) + headerHeight + footerHeight;
+
   return (
-    <Box sx={{ height: "70vh", width: "100%", overflow: "auto" }}>
+    <Box sx={{ width: "100%" }}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 1,
+        }}
+      >
+        <Typography variant="body2" color="text.secondary" sx={{ flexGrow: 1 }}>
+          {searchQuery.trim()
+            ? `Showing ${filteredRows.length} of ${data.length} rows`
+            : `Total rows: ${data.length}`}
+        </Typography>
+        <Tooltip title={isCompact ? "Switch to normal column width" : "Switch to compact column width"}>
+          <IconButton
+            size="small"
+            onClick={() => setIsCompact(!isCompact)}
+            sx={{ ml: 1 }}
+          >
+            {isCompact ? <ViewComfyIcon fontSize="small" /> : <ViewColumnIcon fontSize="small" />}
+          </IconButton>
+        </Tooltip>
+      </Box>
       <DataGrid
         rows={filteredRows}
         columns={columns}
-        pageSizeOptions={[10, 25, 50, 100]}
-        initialState={{
-          pagination: {
-            paginationModel: { pageSize: 25 },
-          },
-        }}
+        pagination={true}
+        pageSizeOptions={[25, 50, 100, 200]}
+        paginationModel={paginationModel}
+        onPaginationModelChange={setPaginationModel}
         disableRowSelectionOnClick
+        getRowHeight={() => rowHeight}
+        disableVirtualization={true}
         sx={{
+          height: "auto",
+          minHeight: `${tableHeight}px`,
+          width: "100%",
+          "& .MuiDataGrid-root": {
+            border: "none",
+            display: "flex",
+            flexDirection: "column",
+            height: "auto !important",
+          },
           "& .MuiDataGrid-cell": {
-            fontSize: "0.875rem",
+            fontSize: isCompact ? "0.75rem" : "0.875rem",
+            padding: isCompact ? "6px 8px" : "8px 16px",
+            lineHeight: isCompact ? "1.2" : "1.5",
+            display: "flex",
+            alignItems: "center",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
           },
           "& .MuiDataGrid-columnHeaders": {
-            fontSize: "0.875rem",
+            fontSize: isCompact ? "0.75rem" : "0.875rem",
             fontWeight: 600,
+            padding: isCompact ? "6px 8px" : "8px 16px",
+            lineHeight: isCompact ? "1.2" : "1.5",
+          },
+          "& .MuiDataGrid-columnHeader": {
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "flex-start",
+          },
+          "& .MuiDataGrid-columnHeaderTitle": {
+            textAlign: "left",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
           },
           "& .MuiDataGrid-root": {
             minWidth: "fit-content",
           },
           "& .MuiDataGrid-virtualScroller": {
-            overflowX: "auto",
+            overflow: "visible !important",
+          },
+          "& .MuiDataGrid-main": {
+            overflow: "visible !important",
+            flex: "1 1 auto",
+            display: "flex",
+            flexDirection: "column",
+            height: "auto !important",
+          },
+          "& .MuiDataGrid-container--top": {
+            overflow: "visible",
+          },
+          "& .MuiDataGrid-container--bottom": {
+            overflow: "visible",
+          },
+          "& .MuiDataGrid-footerContainer": {
+            borderTop: "1px solid",
+            borderColor: "divider",
+            display: "flex !important",
+            minHeight: `${footerHeight}px`,
+            flexShrink: 0,
+          },
+          "& .MuiDataGrid-row": {
+            maxHeight: `${rowHeight}px !important`,
+            minHeight: `${rowHeight}px !important`,
+          },
+          "& .MuiDataGrid-cellContent": {
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
           },
         }}
       />
-      <Box
-        sx={{
-          mt: 1,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <Typography variant="body2" color="text.secondary">
-          {searchQuery.trim()
-            ? `Showing ${filteredRows.length} of ${data.length} rows`
-            : `Total rows: ${data.length}`}
-        </Typography>
-        {fileName && (
+      {fileName && (
+        <Box sx={{ mt: 1 }}>
           <Typography variant="body2" color="text.secondary">
             File: {fileName}
           </Typography>
-        )}
-      </Box>
+        </Box>
+      )}
     </Box>
   );
 }
