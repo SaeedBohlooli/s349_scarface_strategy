@@ -1,8 +1,9 @@
-import { useState, useMemo } from "react";
-import { Box, Paper, Typography, IconButton, Collapse } from "@mui/material";
+import { useMemo, useState } from "react";
+import { Paper, Box, Button, ButtonGroup } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
+import JsonView from "@uiw/react-json-view";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import { useTheme } from "@mui/material/styles";
 
 interface JsonViewerProps {
   data: unknown;
@@ -10,261 +11,168 @@ interface JsonViewerProps {
   searchQuery?: string;
 }
 
-function JsonNode({
-  data,
-  path = "",
-  level = 0,
-  searchQuery = "",
-}: {
-  data: unknown;
-  path?: string;
-  level?: number;
-  searchQuery?: string;
-}) {
-  const [expanded, setExpanded] = useState(level < 2); // Auto-expand first 2 levels
-  const theme = useTheme();
-  const indent = level * 20;
-
-  // Check if this node or its children match the search query
-  const hasMatch = useMemo(() => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    const jsonString = JSON.stringify(data).toLowerCase();
-    return jsonString.includes(query);
-  }, [data, searchQuery]);
-
-  // Highlight matching text
-  const highlightText = (text: string): React.ReactNode => {
-    if (!searchQuery) return text;
-    const query = searchQuery.toLowerCase();
-    const lowerText = text.toLowerCase();
-    const index = lowerText.indexOf(query);
-
-    if (index === -1) return text;
-
-    const before = text.substring(0, index);
-    const match = text.substring(index, index + searchQuery.length);
-    const after = text.substring(index + searchQuery.length);
-
-    return (
-      <>
-        {before}
-        <Box
-          component="span"
-          sx={{ backgroundColor: theme.palette.warning.light, fontWeight: 600 }}
-        >
-          {match}
-        </Box>
-        {after}
-      </>
-    );
-  };
-
-  const handleToggle = () => {
-    setExpanded(!expanded);
-  };
-
-  if (data === null) {
-    if (!hasMatch && searchQuery) return null;
-    return (
-      <Box
-        component="span"
-        sx={{ color: theme.palette.text.secondary, fontStyle: "italic" }}
-      >
-        null
-      </Box>
-    );
-  }
-
-  if (typeof data === "string") {
-    if (!hasMatch && searchQuery) return null;
-    const highlighted = highlightText(data);
-    return (
-      <Box component="span" sx={{ color: theme.palette.success.main }}>
-        "{typeof highlighted === "string" ? highlighted : highlighted}"
-      </Box>
-    );
-  }
-
-  if (typeof data === "number" || typeof data === "boolean") {
-    const strValue = String(data);
-    if (!hasMatch && searchQuery) return null;
-    return (
-      <Box component="span" sx={{ color: theme.palette.info.main }}>
-        {highlightText(strValue)}
-      </Box>
-    );
-  }
-
-  if (Array.isArray(data)) {
-    if (data.length === 0) {
-      if (!hasMatch && searchQuery) return null;
-      return (
-        <Box component="span" sx={{ color: theme.palette.text.secondary }}>
-          []
-        </Box>
-      );
-    }
-
-    // Filter items that match search query
-    const filteredItems = searchQuery
-      ? (data
-          .map((item, index) => {
-            const itemJson = JSON.stringify(item).toLowerCase();
-            return itemJson.includes(searchQuery.toLowerCase())
-              ? { item, index }
-              : null;
-          })
-          .filter(Boolean) as Array<{ item: unknown; index: number }>)
-      : data.map((item, index) => ({ item, index }));
-
-    if (filteredItems.length === 0 && searchQuery) return null;
-
-    // Auto-expand if searching
-    const shouldExpand =
-      expanded || !!(searchQuery && filteredItems.length > 0);
-
-    return (
-      <Box>
-        <Box sx={{ display: "flex", alignItems: "center", ml: `${indent}px` }}>
-          <IconButton size="small" onClick={handleToggle} sx={{ p: 0.5 }}>
-            {shouldExpand ? (
-              <ExpandLessIcon fontSize="small" />
-            ) : (
-              <ExpandMoreIcon fontSize="small" />
-            )}
-          </IconButton>
-          <Typography component="span" variant="body2" sx={{ fontWeight: 600 }}>
-            [{data.length}]
-            {searchQuery && filteredItems.length < data.length && (
-              <Typography
-                component="span"
-                variant="body2"
-                sx={{ color: theme.palette.text.secondary, ml: 1 }}
-              >
-                ({filteredItems.length} matches)
-              </Typography>
-            )}
-          </Typography>
-        </Box>
-        <Collapse in={shouldExpand}>
-          <Box sx={{ ml: `${indent + 24}px` }}>
-            {filteredItems.map(({ item, index }) => (
-              <Box key={index} sx={{ mb: 0.5 }}>
-                <Typography
-                  component="span"
-                  variant="body2"
-                  sx={{ color: theme.palette.text.secondary }}
-                >
-                  {index}:
-                </Typography>{" "}
-                <JsonNode
-                  data={item}
-                  path={`${path}[${index}]`}
-                  level={level + 1}
-                  searchQuery={searchQuery}
-                />
-              </Box>
-            ))}
-          </Box>
-        </Collapse>
-      </Box>
-    );
-  }
-
-  if (typeof data === "object") {
-    const keys = Object.keys(data);
-    if (keys.length === 0) {
-      if (!hasMatch && searchQuery) return null;
-      return (
-        <Box component="span" sx={{ color: theme.palette.text.secondary }}>
-          {"{}"}
-        </Box>
-      );
-    }
-
-    // Filter keys that match search query
-    const filteredKeys = searchQuery
-      ? keys.filter((key) => {
-          const keyMatches = key
-            .toLowerCase()
-            .includes(searchQuery.toLowerCase());
-          const valueJson = JSON.stringify(
-            (data as Record<string, unknown>)[key]
-          ).toLowerCase();
-          const valueMatches = valueJson.includes(searchQuery.toLowerCase());
-          return keyMatches || valueMatches;
-        })
-      : keys;
-
-    if (filteredKeys.length === 0 && searchQuery) return null;
-
-    // Auto-expand if searching
-    const shouldExpand = expanded || !!(searchQuery && filteredKeys.length > 0);
-
-    return (
-      <Box>
-        <Box sx={{ display: "flex", alignItems: "center", ml: `${indent}px` }}>
-          <IconButton size="small" onClick={handleToggle} sx={{ p: 0.5 }}>
-            {shouldExpand ? (
-              <ExpandLessIcon fontSize="small" />
-            ) : (
-              <ExpandMoreIcon fontSize="small" />
-            )}
-          </IconButton>
-          <Typography component="span" variant="body2" sx={{ fontWeight: 600 }}>
-            {"{"} {keys.length} {keys.length === 1 ? "key" : "keys"} {"}"}
-            {searchQuery && filteredKeys.length < keys.length && (
-              <Typography
-                component="span"
-                variant="body2"
-                sx={{ color: theme.palette.text.secondary, ml: 1 }}
-              >
-                ({filteredKeys.length} matches)
-              </Typography>
-            )}
-          </Typography>
-        </Box>
-        <Collapse in={shouldExpand}>
-          <Box sx={{ ml: `${indent + 24}px` }}>
-            {filteredKeys.map((key) => {
-              const keyMatches =
-                searchQuery &&
-                key.toLowerCase().includes(searchQuery.toLowerCase());
-              return (
-                <Box key={key} sx={{ mb: 0.5 }}>
-                  <Typography
-                    component="span"
-                    variant="body2"
-                    sx={{ color: theme.palette.primary.main, fontWeight: 600 }}
-                  >
-                    "{keyMatches ? highlightText(key) : key}":
-                  </Typography>{" "}
-                  <JsonNode
-                    data={(data as Record<string, unknown>)[key]}
-                    path={`${path}.${key}`}
-                    level={level + 1}
-                    searchQuery={searchQuery}
-                  />
-                </Box>
-              );
-            })}
-          </Box>
-        </Collapse>
-      </Box>
-    );
-  }
-
-  return <Box component="span">{String(data)}</Box>;
-}
-
 export default function JsonViewer({
   data,
   searchQuery = "",
 }: JsonViewerProps) {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
+  const [collapsed, setCollapsed] = useState<number | boolean>(2);
+
+  // Filter data based on search query if provided
+  const filteredData = useMemo(() => {
+    if (!searchQuery) return data;
+
+    const query = searchQuery.toLowerCase();
+    const jsonString = JSON.stringify(data).toLowerCase();
+
+    // If search query doesn't match, return null to show nothing
+    if (!jsonString.includes(query)) {
+      return null;
+    }
+
+    // For now, return the full data and let the browser's find feature handle search
+    // The library doesn't have built-in search, but we can highlight matches
+    return data;
+  }, [data, searchQuery]);
+
+  const handleExpandAll = () => {
+    setCollapsed(false);
+  };
+
+  const handleCollapseAll = () => {
+    setCollapsed(true);
+  };
+
+  // Custom theme colors based on Material-UI theme
+  const customTheme = useMemo(() => {
+    if (isDark) {
+      return {
+        "--w-rjv-font-family": "monospace",
+        "--w-rjv-font-size": "14px",
+        "--w-rjv-line-height": "1.5",
+        "--w-rjv-curlybraces-color": theme.palette.text.primary,
+        "--w-rjv-colon-color": theme.palette.text.secondary,
+        "--w-rjv-brackets-color": theme.palette.text.primary,
+        "--w-rjv-ellipsis-color": theme.palette.text.secondary,
+        "--w-rjv-quotes-color": theme.palette.success.main,
+        "--w-rjv-quotes-string-color": theme.palette.success.light,
+        "--w-rjv-type-string-color": theme.palette.success.main,
+        "--w-rjv-type-int-color": theme.palette.info.main,
+        "--w-rjv-type-float-color": theme.palette.info.main,
+        "--w-rjv-type-bigint-color": theme.palette.info.main,
+        "--w-rjv-type-boolean-color": theme.palette.warning.main,
+        "--w-rjv-type-date-color": theme.palette.text.secondary,
+        "--w-rjv-type-null-color": theme.palette.text.secondary,
+        "--w-rjv-type-nan-color": theme.palette.error.main,
+        "--w-rjv-type-undefined-color": theme.palette.text.secondary,
+        "--w-rjv-background-color": theme.palette.background.paper,
+        "--w-rjv-border-color": theme.palette.divider,
+        "--w-rjv-key-string": theme.palette.primary.main,
+        "--w-rjv-arrow-color": theme.palette.text.secondary,
+        "--w-rjv-edit-color": theme.palette.primary.main,
+        "--w-rjv-info-color": theme.palette.text.secondary,
+        "--w-rjv-update-color": theme.palette.success.main,
+        "--w-rjv-copied-color": theme.palette.success.main,
+        "--w-rjv-copy-color": theme.palette.text.secondary,
+        "--w-rjv-edit-bg-color": theme.palette.action.hover,
+        "--w-rjv-edit-tag-color": theme.palette.primary.main,
+        "--w-rjv-edit-tag-edit-color": theme.palette.primary.main,
+        "--w-rjv-edit-tag-input-bg-color": theme.palette.background.paper,
+        "--w-rjv-edit-tag-input-border-color": theme.palette.divider,
+        "--w-rjv-edit-tag-input-color": theme.palette.text.primary,
+      };
+    } else {
+      return {
+        "--w-rjv-font-family": "monospace",
+        "--w-rjv-font-size": "14px",
+        "--w-rjv-line-height": "1.5",
+        "--w-rjv-curlybraces-color": theme.palette.text.primary,
+        "--w-rjv-colon-color": theme.palette.text.secondary,
+        "--w-rjv-brackets-color": theme.palette.text.primary,
+        "--w-rjv-ellipsis-color": theme.palette.text.secondary,
+        "--w-rjv-quotes-color": theme.palette.success.main,
+        "--w-rjv-quotes-string-color": theme.palette.success.dark,
+        "--w-rjv-type-string-color": theme.palette.success.dark,
+        "--w-rjv-type-int-color": theme.palette.info.main,
+        "--w-rjv-type-float-color": theme.palette.info.main,
+        "--w-rjv-type-bigint-color": theme.palette.info.main,
+        "--w-rjv-type-boolean-color": theme.palette.warning.main,
+        "--w-rjv-type-date-color": theme.palette.text.secondary,
+        "--w-rjv-type-null-color": theme.palette.text.secondary,
+        "--w-rjv-type-nan-color": theme.palette.error.main,
+        "--w-rjv-type-undefined-color": theme.palette.text.secondary,
+        "--w-rjv-background-color": theme.palette.background.paper,
+        "--w-rjv-border-color": theme.palette.divider,
+        "--w-rjv-key-string": theme.palette.primary.main,
+        "--w-rjv-arrow-color": theme.palette.text.secondary,
+        "--w-rjv-edit-color": theme.palette.primary.main,
+        "--w-rjv-info-color": theme.palette.text.secondary,
+        "--w-rjv-update-color": theme.palette.success.main,
+        "--w-rjv-copied-color": theme.palette.success.main,
+        "--w-rjv-copy-color": theme.palette.text.secondary,
+        "--w-rjv-edit-bg-color": theme.palette.action.hover,
+        "--w-rjv-edit-tag-color": theme.palette.primary.main,
+        "--w-rjv-edit-tag-edit-color": theme.palette.primary.main,
+        "--w-rjv-edit-tag-input-bg-color": theme.palette.background.paper,
+        "--w-rjv-edit-tag-input-border-color": theme.palette.divider,
+        "--w-rjv-edit-tag-input-color": theme.palette.text.primary,
+      };
+    }
+  }, [theme, isDark]);
+
   return (
     <Paper sx={{ p: 2, maxHeight: "70vh", overflow: "auto" }}>
-      <JsonNode data={data} searchQuery={searchQuery} />
+      <Box
+        sx={{
+          mb: 1,
+          display: "flex",
+          justifyContent: "flex-end",
+        }}
+      >
+        <ButtonGroup size="small" variant="outlined">
+          <Button
+            startIcon={<ExpandMoreIcon />}
+            onClick={handleExpandAll}
+            disabled={filteredData === null}
+          >
+            Expand All
+          </Button>
+          <Button
+            startIcon={<ExpandLessIcon />}
+            onClick={handleCollapseAll}
+            disabled={filteredData === null}
+          >
+            Collapse All
+          </Button>
+        </ButtonGroup>
+      </Box>
+      <Box
+        sx={{
+          ...customTheme,
+          "& .w-rjv": {
+            fontFamily: "monospace",
+          },
+        }}
+      >
+        {filteredData === null && searchQuery ? (
+          <Box sx={{ p: 2, textAlign: "center", color: "text.secondary" }}>
+            No results found for "{searchQuery}"
+          </Box>
+        ) : (
+          <JsonView
+            value={filteredData as object}
+            style={{
+              ...customTheme,
+              backgroundColor: "transparent",
+            }}
+            displayDataTypes={false}
+            displayObjectSize={true}
+            enableClipboard={true}
+            collapsed={collapsed}
+          />
+        )}
+      </Box>
     </Paper>
   );
 }
