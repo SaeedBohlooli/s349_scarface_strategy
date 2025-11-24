@@ -6,7 +6,10 @@ import {
   Select,
   MenuItem,
   Typography,
+  IconButton,
+  Tooltip,
 } from '@mui/material'
+import RefreshIcon from '@mui/icons-material/Refresh'
 import { getLogDirectories, getLogFiles, getLogContent } from '../services/api'
 import type { ApiError } from '../types/api'
 import LoadingSpinner from './LoadingSpinner'
@@ -154,6 +157,16 @@ export default function LogsView({ portfolioId }: LogsViewProps) {
         <Typography variant="body2" color="text.secondary" sx={{ minWidth: 'fit-content' }}>
           Portfolio: {portfolioId}
         </Typography>
+        
+        <Tooltip title="Refresh log directories">
+          <IconButton
+            size="small"
+            onClick={loadLogDirectories}
+            disabled={loading}
+          >
+            <RefreshIcon />
+          </IconButton>
+        </Tooltip>
         
         <FormControl size="small" sx={{ minWidth: 200 }}>
           <InputLabel id="log-directory-select-label">Directory</InputLabel>

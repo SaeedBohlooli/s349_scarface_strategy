@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Grid, Card, CardContent, Typography, List, ListItem, ListItemButton, Box } from '@mui/material'
+import { Grid, Card, CardContent, Typography, List, ListItem, ListItemButton, Box, IconButton, Tooltip } from '@mui/material'
+import RefreshIcon from '@mui/icons-material/Refresh'
 import { getDirectories, getFiles } from '../services/api'
 import type { ApiError } from '../types/api'
 import { IGNORED_DIRECTORIES } from '../config/appConfig'
@@ -110,7 +111,19 @@ export default function DirectoriesView({ portfolioId, onFileClick }: Directorie
   }
 
   return (
-    <Grid container spacing={3}>
+    <Box>
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+        <Tooltip title="Refresh directories and files">
+          <IconButton
+            size="small"
+            onClick={loadDirectories}
+            disabled={loading}
+          >
+            <RefreshIcon />
+          </IconButton>
+        </Tooltip>
+      </Box>
+      <Grid container spacing={3}>
       {directories.map((directory) => {
         const dirData = directoryFiles[directory] || { files: [], loading: false, error: null }
         
@@ -151,7 +164,8 @@ export default function DirectoriesView({ portfolioId, onFileClick }: Directorie
           </Grid>
         )
       })}
-    </Grid>
+      </Grid>
+    </Box>
   )
 }
 
