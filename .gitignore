@@ -30,3 +30,4 @@
 test/
 **/*.local.yaml
 /x/
+apps/api/node_modules

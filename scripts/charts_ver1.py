@@ -896,23 +896,25 @@ def index():
 
     portfolio_id = 'p250'
     app_config = load_app_config(portfolio_id)
-    backtest_date = ''
     mode = app_config['chart']['source']
-    if app_config['chart']['source'] == 'live':
+
+    backtest_base_dir = '../../portfolios/charts-backtest'
+    available_dates = sorted([
+        d for d in os.listdir(backtest_base_dir)
+        if os.path.isdir(os.path.join(backtest_base_dir, d))
+    ], reverse=True)  # sort newest first
+    available_dates.insert(0 , 'live') # adding live to bigiinig ...
+    backtest_date = request.args.get('backtest_date') # read from URL
+    logger.info(f"available_dates {available_dates}")
+    if backtest_date is None:
+        backtest_date = available_dates[0]
+    logger.info(f"backtest_date: {backtest_date}")
+    if backtest_date == 'live':
         charts_dir = f'../../portfolios/charts/{portfolio_id}'
+        mode = 'live'
     else:
-        backtest_base_dir = '../../portfolios/charts-backtest'
-        available_dates = sorted([
-            d for d in os.listdir(backtest_base_dir)
-            if os.path.isdir(os.path.join(backtest_base_dir, d))
-        ], reverse=True)  # sort newest first
-        backtest_date = request.args.get('backtest_date')
-        logger.info(f"available_dates {available_dates}")
-        if backtest_date is None:
-            backtest_date = available_dates[0]
-        logger.info(f"backtest_date: {backtest_date}")
         charts_dir = f'../../portfolios/charts-backtest/{backtest_date}/{portfolio_id}'
-        time.sleep(5)
+    # time.sleep(1)
 
     drawing_objects_df = load_file_to_drawing_objects_df()
     hover_df = load_file_to_hover_df()

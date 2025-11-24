@@ -13,6 +13,7 @@ symbols_meta:
     exchange: CBOE
     expiry_offset: 1
   TSLA:
+    group: G1
     can_trade: true
     contract_type: Equity
     min_required_move_from_level: 0.25
@@ -48,6 +49,7 @@ symbols_meta:
     chart_entry_offset: 0.5
     retest_tolerance_multiplier: 1
   TSLL:
+    group: G1
     can_trade: true
     contract_type: Equity
     min_required_move_from_level: 0.04
@@ -405,41 +407,41 @@ back_test:
       start: 2025-11-01
       end: 2025-11-21
       memo: Nov so far
-    r1:
-      active: true
-      start: 2025-10-01
-      end: 2025-11-01
-      memo: Oct
-    r2:
-      active: true
-      start: 2025-09-01
-      end: 2025-10-01
-      memo: Sep
-    r3:
-      active: true
-      start: 2025-08-01
-      end: 2025-09-01
-      memo: Aug
-    r4:
-      active: true
-      start: 2025-07-01
-      end: 2025-08-01
-      memo: July
-    r5:
-      active: true
-      start: 2025-06-01
-      end: 2025-07-01
-      memo:
-    r6:
-      active: true
-      start: 2025-05-01
-      end: 2025-06-01
-      memo:
-    r7:
-      active: true
-      start: 2025-04-01
-      end: 2025-05-01
-      memo:
+#    r1:
+#      active: true
+#      start: 2025-10-01
+#      end: 2025-11-01
+#      memo: Oct
+#    r2:
+#      active: true
+#      start: 2025-09-01
+#      end: 2025-10-01
+#      memo: Sep
+#    r3:
+#      active: true
+#      start: 2025-08-01
+#      end: 2025-09-01
+#      memo: Aug
+#    r4:
+#      active: true
+#      start: 2025-07-01
+#      end: 2025-08-01
+#      memo: July
+#    r5:
+#      active: true
+#      start: 2025-06-01
+#      end: 2025-07-01
+#      memo:
+#    r6: June
+#      active: true
+#      start: 2025-05-01
+#      end: 2025-06-01
+#      memo: May
+#    r7:
+#      active: true
+#      start: 2025-04-01
+#      end: 2025-05-01
+#      memo: April
 
   long:
     stop_loss: level_used - ( dynamic_tolerance.get('tolerance', 0) * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1))

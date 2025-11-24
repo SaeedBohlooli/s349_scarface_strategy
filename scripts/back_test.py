@@ -3133,10 +3133,14 @@ def add_list_to_dic(df, data_list):
 
 
 
-def add_unique_run_number_start_end_date(str):
+def add_unique_run_number_start_end_date(file_path):
     if mode == 'live':
-        return str
-    return str.replace('.csv', f'-{unique_run_number}-{back_test_date_start}-{back_test_date_end}.csv')
+        return file_path
+    dir = file_utils.extract_dir_from_path(file_path)
+    file_name = file_utils.extract_filename_from_path(file_path)
+    file_name = f'{unique_run_number}--{back_test_date_start}--{back_test_date_end}-{file_name}'
+    file_path = f'{dir}/{file_name}'
+    return file_path
 
 def populate_backtest_columns(df):
     df['position'] = 0
