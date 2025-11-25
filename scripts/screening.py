@@ -98,7 +98,7 @@ logging_level = app_config['logging_level']
 # ###
 
 log_filename = f"{log_dir}/{portfolio_id}.log"
-file_r_handler = logging.handlers.RotatingFileHandler(filename=f"{log_dir}/{portfolio_id}.log", maxBytes= 5 * 1024 * 1024, backupCount=200)
+file_r_handler = logging.handlers.RotatingFileHandler(filename=f"{log_dir}/{portfolio_id}.log", maxBytes= 7 * 1024 * 1024, backupCount=500)
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 file_r_handler.setFormatter(formatter)
 logging.basicConfig(
@@ -1649,7 +1649,7 @@ def get_best_option_chain(chains):
     logger.info(f" Using {best.exchange} ({best.tradingClass}) with {len(best.expirations)} expirations")
     return best
 
-def find_expiration_and_strikes(symbol, exchange):
+def find_expiration_and_strikes_from_ib(symbol, exchange):
     global options_meta_date_dic
     underlying = Stock(symbol, 'SMART', 'USD')
     ib.qualifyContracts(underlying)
@@ -2003,7 +2003,7 @@ def recompute_capital_flow_df(df, start_capital):
 
 
             # 3) update capital_after_event
-            capital = capital + cash_flow
+            capital = round(capital + cash_flow, 2)
             df.at[i, "capital_after_event"] = capital
 
     return df, capital
@@ -2064,9 +2064,9 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
         if number_of_trades_today(symbol) >= app_config['live']['max_num_of_trade_per_symbol_per_day']:
             logger.warning(f"@@  We already sent enough orders for {symbol} .... number_of_trades_today: {number_of_trades_today(symbol)}")
             continue
-        # if has_open_order_in_same_group(symbol):
-        #     logger.warning(f"@@  We already have open order in same group {symbol}")
-        #     continue
+        if has_open_order_in_same_group(symbol):
+            logger.warning(f"@@  We already have open order in same group {symbol}")
+            continue
         market_trend = 'up' if can_buy else 'down' #
         mark_score_in_the_chart(market_trend)
 
@@ -2260,11 +2260,11 @@ def print_map_pretty(map, msg = ''):
     logger.warning(f"{msg}\n{pprint.pformat(map)}")
     return
 
-def find_expiration_and_strikes_for_all():
+def find_expiration_and_strikes_for_all_from_ib():
     for symbol in app_config['symbols']:
         if app_config['symbols_meta'][symbol]['contract_type'] in ['Equity']:
             exchange = app_config['symbols_meta'][symbol].get('exchange', 'SMART')
-            find_expiration_and_strikes(symbol, exchange)
+            find_expiration_and_strikes_from_ib(symbol, exchange)
 
     return
 def populate_volume_ratio(df):
@@ -2282,6 +2282,22 @@ def popualate_features(df):
 
     df = pd.concat(features_list, axis=1)
     return df
+
+
+
+def next_fridays(n=10):
+    today = datetime.date.today()
+    result = []
+
+    # Find the upcoming Friday (weekday(): Monday=0, Sunday=6)
+    days_until_friday = (4 - today.weekday()) % 7
+    next_friday = today + datetime.timedelta(days=days_until_friday)
+
+    for _ in range(n):
+        result.append(next_friday.strftime("%Y%m%d"))
+        next_friday += datetime.timedelta(days=7)
+
+    return result
 
 def get_quote_for_option_bid_ask(symbol, strike, right, expiry, exchange='SMART',max_retries=3, wait_between=1.0 ):
     option = Option(
@@ -3417,7 +3433,7 @@ def all_levels_in(symbol, levels=['PDL', 'PDH', 'PMH', 'PML','5MH', '5ML']):
 def orchestrate_expirations_strikes():
     global options_meta_date_dic
     # get from IB. is messy ...
-    find_expiration_and_strikes_for_all()
+    find_expiration_and_strikes_for_all_from_ib()
     dump_a_map_to_file(options_meta_date_dic, file_path=f'{intermediate_dir}/85-strikes-expirations-ib.csv')
 
     # Mere with Nazadq ...
@@ -3432,6 +3448,13 @@ def orchestrate_expirations_strikes():
     if strikes_from_adhoc != {}:
         options_meta_date_dic.update(strikes_from_adhoc)
         dump_a_map_to_file(options_meta_date_dic, file_path=f'{intermediate_dir}/85-strikes-expirations-ib+nazdaq+adhoc.csv')
+
+    expirations_manually_created = {}
+    for s in app_config['symbols']:
+        if s not in ['QQQ', 'SPY', 'MNQ']:
+            expirations_manually_created[f"{s}-expirations"] = next_fridays(10)
+    options_meta_date_dic.update(expirations_manually_created)
+    dump_a_map_to_file(options_meta_date_dic,file_path=f'{intermediate_dir}/85-strikes-expirations-ib+nazdaq+adhoc+manual.csv')
 
     logger.debug('hold it here ')
     return
@@ -3820,7 +3843,7 @@ if __name__ == "__main__":
             populate_close_orders_in_capital_flow_df(open_close_refs_pnl_df)
             capital_flow_df = check_open_orders_in_capital_flow_df(capital_flow_df)
             capital_flow_df, capital = recompute_capital_flow_df(capital_flow_df, 4000)
-            logger.info(f'after , capital_flow_df: \n{capital_flow_df.to_markdown()}')
+            logger.debug(f'after , capital_flow_df: \n{capital_flow_df[-10:].to_markdown()}')
 
         if not checkmark_map.get(f'CHK_APP_VS_IB-{current_hh_mm_ny}') and current_hh_mm_ny % 1 == 0:
             checkmark_map[f'CHK_APP_VS_IB-{current_hh_mm_ny}'] = True
@@ -3833,7 +3856,7 @@ if __name__ == "__main__":
             symbol_number += 1
             unique_run_number = f"{date_run_number}--{symbol_number}"
 
-            logger.warning(f"------------------- {symbol}, {unique_run_number}")
+            logger.warning(f"------------------- {symbol}, {unique_run_number}, {current_hh_mm_ny} ")
             symbol_start_time = time.time()
 
             # These are for each symbol ...
