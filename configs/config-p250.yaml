@@ -4,6 +4,7 @@ symbols: ['QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR', 'TSLL', 'AMZN', 'MNQ', '
 
 symbols_meta:
   QQQ:
+    group: Index
     can_trade: true
     contract_type: Equity
     min_required_move_from_level: 0.25
@@ -35,6 +36,7 @@ symbols_meta:
     chart_entry_offset: 0.5
     retest_tolerance_multiplier: 1
   AMD:
+    group: Index
     can_trade: true
     contract_type: Equity
     min_required_move_from_level: 0.25
@@ -57,6 +59,7 @@ symbols_meta:
     chart_entry_offset: 0.5
     retest_tolerance_multiplier: 1.8
   SPY:
+    group: Index
     can_trade: true
     contract_type: Equity
     min_required_move_from_level: 0.25
@@ -118,7 +121,7 @@ cases:
       condition_08: 1 == 1
       condition_09: 930 < last_record_hh_mm < 1016 or  mode == 'live'
       condition_10: 1 == 1
-      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09
+      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09 and eval_sell_condition_10
 
   case_2:
     memo: This is trading on 5MH and 5ML
@@ -149,7 +152,7 @@ cases:
       condition_08: 1 == 1
       condition_09: 930 < last_record_hh_mm < 1016 or  mode == 'live'
       condition_10: 1 == 1
-      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09
+      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09 and eval_sell_condition_10
 
   case_2_1:
     memo: This is trading on 5MH and 5ML and using breakout_ver_2
@@ -180,7 +183,38 @@ cases:
       condition_08: 1 == 1
       condition_09: 930 < last_record_hh_mm < 1016 or  mode == 'live'
       condition_10: 1 == 1
-      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09
+      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09 and eval_sell_condition_10
+
+  case_2_2:
+    memo: 5MH and 5ML. using breakout_ver_2. GAPs incorporated
+    can_replace_level: true
+    precondition: all_levels_in(symbol)
+    long:
+      level: levels['5MH']
+      condition_01: breakout_in_last_x_candles_ver_2(side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level)
+      condition_02: price_retest(side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
+      condition_03: is_retest_after_breakout(side='up', level=long_level)
+      condition_04: check_entry_vs_retest(side='up', level=long_level)
+      condition_05: no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
+      condition_06: check_price_vs_level(side='up', price=price, level=long_level )
+      condition_07: not is_price_close_to_next_levels_ver_2(side='up', price=price, current_level=long_level, next_levels=['PDH'])
+      condition_08: QQQ_gap_up_in_current_candle()
+      condition_09: 930 < last_record_hh_mm < 1016 or mode == 'live'
+      condition_10: 1 == 1
+      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07 and eval_buy_condition_07 and eval_buy_condition_08  and eval_buy_condition_09
+    short:
+      level: levels['5ML']
+      condition_01: breakout_in_last_x_candles_ver_2(side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level)
+      condition_02: price_retest(side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True )
+      condition_03: is_retest_after_breakout(side='down', level=short_level)
+      condition_04: check_entry_vs_retest(side='down', level=short_level)
+      condition_05: no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
+      condition_06: check_price_vs_level(side='down', price=price, level=short_level )
+      condition_07: not is_price_close_to_next_levels_ver_2(side='down', price=price, current_level=short_level, next_levels=['PDL'])
+      condition_08: QQQ_gap_down_in_current_candle()
+      condition_09: 930 < last_record_hh_mm < 1016 or  mode == 'live'
+      condition_10: 1 == 1
+      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09 and eval_sell_condition_10
 
 
 #  case_2_vr_changed:
@@ -212,39 +246,39 @@ cases:
 #      condition_08: df['VR'].iloc[-1] > 0.9
 #      condition_09: 930 < last_record_hh_mm < 1016  and mode != 'live'
 #      condition_10: 1 == 1
-#      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09
+#      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09 and eval_sell_condition_10
 
 
   c_4_pdh_only:
-    memo: This case is only for PDH
+    memo: From PDH
     can_replace_level: false
     precondition: mode == 'back_test'
     long:
       level: levels['PDH']
-      condition_01: breakout_in_last_x_candles(side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level)
+      condition_01: breakout_in_last_x_candles_ver_2(side='up', idx_list=[-3,-4,-5], level=long_level)
       condition_02: price_retest(side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
       condition_03: is_retest_after_breakout(side='up', level=long_level)
       condition_04: check_entry_vs_retest(side='up', level=long_level)
       condition_05: no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
       condition_06: check_price_vs_level(side='up', price=price, level=long_level )
-      condition_07: last_record_hh_mm < 945
+      condition_07: abs (price - long_level) < 1.2 * atr_14
       condition_08: number_of_opened_trades_so_far() == 0
-      condition_09: 930 < last_record_hh_mm < 1016 or mode == 'live'
+      condition_09: 930 < last_record_hh_mm < 945
       condition_10: 1 == 1
       master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07 and eval_buy_condition_07 and eval_buy_condition_08  and eval_buy_condition_09
     short:
       level: levels['PDL']
-      condition_01: breakout_in_last_x_candles(side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level)
+      condition_01: breakout_in_last_x_candles_ver_2(side='down', idx_list=[-3,-4,-5], level=short_level)
       condition_02: price_retest(side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True )
       condition_03: is_retest_after_breakout(side='down', level=short_level)
       condition_04: check_entry_vs_retest(side='down', level=short_level)
       condition_05: no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
       condition_06: check_price_vs_level(side='down', price=price, level=short_level )
-      condition_07: last_record_hh_mm < 945
+      condition_07: abs (price - short_level) < 1.2 * atr_14
       condition_08: number_of_opened_trades_so_far() == 0
-      condition_09: 930 < last_record_hh_mm < 1016 or  mode == 'live'
+      condition_09: 930 < last_record_hh_mm < 945
       condition_10: 1 == 1
-      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09
+      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09 and eval_sell_condition_10
 
 
   c_4.1_pdh_only:
@@ -276,40 +310,40 @@ cases:
       condition_08: number_of_opened_trades_so_far() == 0
       condition_09: 930 < last_record_hh_mm < 1016 or  mode == 'live'
       condition_10: 1 == 1
-      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09
+      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09 and eval_sell_condition_10
 
 
-#  case_live_test:
-#    memo: This is for Saeed's live test
-#    can_replace_level: False
-#    precondition: all_levels_in(symbol) and mode == 'live' and user_name == 'saeed' and current_hh_mm_ny > 1100
-#    long:
-#      level: levels['5MH']
-#      condition_01: symbol == 'PLTR'
-#      condition_02: mode == 'live'
-#      condition_03: 1 == 2
-#      condition_04: 1 == 1
-#      condition_05: 1 == 1
-#      condition_06: 1 == 1
-#      condition_07: 1 == 1
-#      condition_08: 1 == 1
-#      condition_09: 930 < last_record_hh_mm < 1016 or  mode == 'live'
-#      condition_10: 1 == 1
-#      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07 and eval_buy_condition_07 and eval_buy_condition_08 and eval_buy_condition_09
-#
-#    short:
-#      level: levels['5MH']
-#      condition_01: symbol == 'AMD' and 1 == 2
-#      condition_02: mode == 'live'
-#      condition_03: 1 == 1
-#      condition_04: 1 == 1
-#      condition_05: 1 == 1
-#      condition_06: 1 == 1
-#      condition_07: 1 == 1
-#      condition_08: 1 == 1
-#      condition_09: 930 < last_record_hh_mm < 1016 or  mode == 'live'
-#      condition_10: 1 == 1
-#      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09
+  case_3:
+    memo: This is for Saeed's live test
+    can_replace_level: false
+    precondition: all_levels_in(symbol) and mode == 'live' and current_hh_mm_ny > 1100
+    long:
+      level: levels['5MH']
+      condition_01: symbol == 'AMD' and 2 == 5000
+      condition_02: mode == 'live'
+      condition_03: 1 == 1
+      condition_04: 1 == 1
+      condition_05: 1 == 1
+      condition_06: 1 == 1
+      condition_07: 1 == 1
+      condition_08: 1 == 1
+      condition_09: 1 == 1
+      condition_10: 1 == 1
+      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07 and eval_buy_condition_07 and eval_buy_condition_08 and eval_buy_condition_09
+
+    short:
+      level: levels['5MH']
+      condition_01: symbol == 'AMD' and 1 == 2
+      condition_02: mode == 'live'
+      condition_03: 1 == 1
+      condition_04: 1 == 1
+      condition_05: 1 == 1
+      condition_06: 1 == 1
+      condition_07: 1 == 1
+      condition_08: 1 == 1
+      condition_09: 1 == 1
+      condition_10: 1 == 1
+      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09 and eval_sell_condition_10
 
 
 stop_losses:
@@ -361,8 +395,8 @@ take_profits:
     close_quantity_percentage: -1
 
   t11_cl_manual:  # This is for closing everything just NVDA:   1 == 1 and symbol == 'NVDA'
-    condition: 1 == 2 and symbol == 'AAPL'
-    close_quantity_percentage: .5
+    condition: 1 == 1 and symbol == 'QQQ'
+    close_quantity_percentage: -1
 
 scores:
   s1:
@@ -404,13 +438,14 @@ closeness_distance_for_chart:
 closeness_distance_for_case_1: df['atr_14'].iloc[-1] * 2
 
 live:
-  cases_to_run: ['case_2']
+  cases_to_run: ['case_3']
   historical_days: 4 D
   capital: 4000
   capital_per_trade_percentage: 0.20
   max_num_open_trades: 4 # it is not in yet
   num_of_contracts: calculate_number_of_contracts()
-  max_num_of_trade_per_symbol_per_day: 2
+#  max_num_of_trade_per_symbol_per_day: 2
+  max_num_of_trade_per_symbol_per_day: 20
   max_profit_per_day: 2000 # it will not get into new trade, it is not in yet
   max_loss_per_day: 1000 # it will not get into new trade ... it is not in yet
   trade_time: 930 < current_hh_mm_ny  < 1015 # TODO change to trade_time
@@ -421,65 +456,75 @@ live:
 back_test:
   data:
     get_data_from_ib: false  # we have data from 01-01
-    start_date: 2025-11-20
-    end_date: 2025-11-22
+    start_date: 2025-11-22
+    end_date: 2025-11-25
     historical_days: 5 D  # don't change this
   exclude_list: ['MNQ']
-  memo: case_2_1 breakout ver_2
-  cases_to_run: ['case_2_1']
+  memo: c_4 TP 1 ATR - BR ver1.2- BR 4 candle- Ent. close to level
+  cases_to_run: ['c_4_pdh_only']
   runs:
 #    r_today:
 #      active: true
-#      start: 2025-11-21
-#      end: 2025-11-22
+#      start: 2025-11-24
+#      end: 2025-11-25
 #      memo: Today
 #    r_Nov:
 #      active: true
-#      start: 2025-11-01
-#      end: 2025-11-21
-#      memo: Nov so far
-    r1:
-      active: true
-      start: 2025-10-01
-      end: 2025-11-01
-      memo: Oct
-    r2:
-      active: true
-      start: 2025-09-01
-      end: 2025-10-01
-      memo: Sep
-    r3:
-      active: true
-      start: 2025-08-01
-      end: 2025-09-01
-      memo: Aug
-    r4:
-      active: true
-      start: 2025-07-01
-      end: 2025-08-01
-      memo: July
-    r5:
-      active: true
-      start: 2025-06-01
-      end: 2025-07-01
-      memo:
-    r6:
-      active: true
-      start: 2025-05-01
-      end: 2025-06-01
-      memo: May
+#      start: 2025-11-03
+#      end: 2025-11-05
+#      memo: Test changes
+
     r7:
       active: true
       start: 2025-04-01
       end: 2025-05-01
       memo: April
 
+    r6:
+      active: true
+      start: 2025-05-01
+      end: 2025-06-01
+      memo: May
+
+    r5:
+      active: true
+      start: 2025-06-01
+      end: 2025-07-01
+      memo:
+
+    r4:
+      active: true
+      start: 2025-07-01
+      end: 2025-08-01
+      memo: July
+
+    r3:
+      active: true
+      start: 2025-08-01
+      end: 2025-09-01
+      memo: Aug
+
+    r2:
+      active: true
+      start: 2025-09-01
+      end: 2025-10-01
+      memo: Sep
+
+    r1:
+      active: true
+      start: 2025-10-01
+      end: 2025-11-01
+      memo: Oct
+
+
+
+
   long:
     stop_loss: level_used - ( dynamic_tolerance.get('tolerance', 0) * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1))
-    take_profit: ( df['open'].iloc[-1] + df['close'].iloc[-1] ) / 2 + (df['atr_14'].iloc[-2] * 1.5 )
+    take_profit: ( df['open'].iloc[-1] + df['close'].iloc[-1] ) / 2 + (df['atr_14'].iloc[-2] * 1 )
   short:
     stop_loss: level_used + ( dynamic_tolerance.get('tolerance', 0) * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1))
-    take_profit: ( df['open'].iloc[-1] + df['close'].iloc[-1] ) / 2 - (df['atr_14'].iloc[-2] * 1.5 )
+    take_profit: ( df['open'].iloc[-1] + df['close'].iloc[-1] ) / 2 - (df['atr_14'].iloc[-2] * 1 )
 
 
 chart:
@@ -513,3 +558,11 @@ health_check:
 
 #TODO move to another file ...
 exit: false
+
+not_shortable_symbols:
+  -TSLA
+  -NVDA
+
+not_longable_symbols:
+    -AMD
+
