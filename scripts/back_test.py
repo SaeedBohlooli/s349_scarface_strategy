@@ -1,7 +1,6 @@
 import datetime
 import json
 import logging.handlers
-import math
 import os
 import pprint
 import sys
@@ -25,11 +24,9 @@ from trading_utils import ib_utils
 from trading_utils import ib_orders
 from trading_utils import ib_pricing
 from trading_utils import ib_posttrade
-from trading_utils import global_state
 from trading_utils import config_utils
 from trading_utils import ruamel_confg_util
 from trading_utils import email_utils
-from trading_utils import check_health_status
 from trading_utils import date_utils
 from trading_utils import constants
 from trading_utils import file_utils
@@ -98,7 +95,7 @@ logging_level = app_config['logging_level']
 # ###
 
 log_filename = f"{log_dir}/{portfolio_id}.log"
-file_r_handler = logging.handlers.RotatingFileHandler(filename=f"{log_dir}/{portfolio_id}.log", maxBytes= 5 * 1024 * 1024, backupCount=200)
+file_r_handler = logging.handlers.RotatingFileHandler(filename=f"{log_dir}/{portfolio_id}.log", maxBytes= 7 * 1024 * 1024, backupCount=500)
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 file_r_handler.setFormatter(formatter)
 logging.basicConfig(
@@ -227,15 +224,7 @@ def calculate_PDL_PDH(df):
     add_to_key_levels_df(symbol=symbol, time_frame=time_frame, key_level_name='PDL', price=day_low, memo=f'PDH {day_high}')
     return
 
-def load_application_state_from_file():
-    global application_state
-    file_path = application_state_file_path
-    if os.path.exists(file_path):
-        with open(file_path, 'r') as f:
-            logger.info(f"loading from file_path: {file_path} ")
-            application_state = json.load(f)
-        logger.info(f"loaded, application_state: {application_state}")
-    return
+
 
 def  add_to_key_levels_df(symbol, time_frame, key_level_name, price, memo='', unique_id=''):
     global key_levels_df
@@ -631,6 +620,8 @@ def reset_row():
 def add_to_screening_log_list(side):
     global  screening_log_list
     data = {
+        'run_number': unique_run_number,
+        'memo': f"{app_config['back_test']['memo']} - {app_config['back_test']['runs'][run]['memo']}",
         'symbol': symbol,
         'trade_date': back_test_date,
         'day_of_week': pd.to_datetime(back_test_date).day_name(),
@@ -653,7 +644,6 @@ def add_to_screening_log_list(side):
         'rs_delta': intraday_rs_df['rs_delta'].iloc[-1],
         'exit_time': '',
         'qqq_context':'',
-        'memo': f"{app_config['back_test']['memo']} - {app_config['back_test']['runs'][run]['memo']}",
     }
     screening_log_list.append(data)
 
@@ -842,6 +832,7 @@ def check_buy_sell_condition(case):
 
         min_required_move_from_level = app_config['symbols_meta'][symbol]['min_required_move_from_level']  # used in config
         price = df['close'].iloc[-1]  # used in config
+        atr_14 = df['atr_14'].iloc[-1]  # used in config
 
         logger.debug(f"in check_buy_sell_condition, levels: {levels}")
 
@@ -958,10 +949,6 @@ def check_buy_sell_condition(case):
     }
     return case, can_buy, can_sell, details_map
 
-def get_hhm_mm_of_last_record(df=None):
-    if df is None or len(df) == 0:
-        return "N/A"
-    return df['date'].iloc[-1].strftime('%H:%M')
 
 def is_retest_after_breakout(side='up', level=1):
     global retest_idx, breakout_idx
@@ -1032,9 +1019,7 @@ def remove_symbol_from_open_trade_dic(symbol):
     application_state['open_trades_dic'].pop(symbol, None)
     return
 
-def archive_open_trade_dic(symbol, open_trade_dic_4_symbol):
-    open_trade_dic_arcive = {}
-    open_trade_dic_arcive[unique_run_number] = open_trade_dic_4_symbol
+def archive_open_trade_dic(symbol):
     file_path = f'{intermediate_dir}/84-{unique_run_number}-{symbol}.csv'
 
     file_path = file_path
@@ -1084,7 +1069,7 @@ def breakout_in_last_x_candles(side='up', idx_list=[-2], level=0):
         candle_range = row["high"] - row["low"]
         if candle_range > 0 and body / candle_range < 0.5: # do not remove candle_rage > 0 will raise devided by zero exception
             continue
-
+        # if row['date']
         logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
         add_to_break_out_indices_by_level_set(level, idx)
         breakout_happened = True
@@ -1649,7 +1634,7 @@ def get_best_option_chain(chains):
     logger.info(f" Using {best.exchange} ({best.tradingClass}) with {len(best.expirations)} expirations")
     return best
 
-def find_expiration_and_strikes(symbol, exchange):
+def find_expiration_and_strikes_from_ib(symbol, exchange):
     global options_meta_date_dic
     underlying = Stock(symbol, 'SMART', 'USD')
     ib.qualifyContracts(underlying)
@@ -1694,7 +1679,7 @@ def find_expiration_and_strikes(symbol, exchange):
                 options_meta_date_dic.get(symbol)[f'{c.exchange}-strikes'] = sorted(c.strikes)
 
     if False:  # TODO need to be rmeoved .
-        dump_a_map_to_file(options_meta_date_dic[symbol], file_path=f'{intermediate_dir}/{date_run_number}-{symbol}-strikes-expiry.csv')
+        file_utils.save_a_map_to_file(options_meta_date_dic[symbol], file_path=f'{intermediate_dir}/{date_run_number}-{symbol}-strikes-expiry.csv')
     return
 
 def create_option_contract(strike, expiry, right, exchange="CBOE", symbol='SPX', trading_class='SPXW', max_retries=4, wait_between=1.0):
@@ -2003,10 +1988,26 @@ def recompute_capital_flow_df(df, start_capital):
 
 
             # 3) update capital_after_event
-            capital = capital + cash_flow
+            capital = round(capital + cash_flow, 2)
             df.at[i, "capital_after_event"] = capital
 
     return df, capital
+
+
+def has_open_order_in_same_group(symbol):
+    global application_state
+    symbol_group = app_config['symbols_meta'][symbol].get('group')
+    if symbol_group is None: # no group ...
+        return False
+    open_orders = application_state.get('open_trades_dic', {})
+    logger.info(f"@ has_open_order_in_same_group, symbol: {symbol}, symbol_group: {symbol_group}, open_orders: {open_orders}")
+    for open_order_symbol, open_order_data in open_orders.items():
+        open_order_symbol_group = app_config['symbols_meta'].get(open_order_symbol, {}).get('group', 'no-group')
+
+        if open_order_symbol_group == symbol_group:
+            logger.info(f"has_open_order_in_same_group, found open order in same group, symbol: {symbol}, open_order_symbol: {open_order_symbol}, group: {symbol_group}")
+            return True
+    return False
 
 
 def add_to_capital_allocation_df(data):
@@ -2049,7 +2050,9 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
         if number_of_trades_today(symbol) >= app_config['live']['max_num_of_trade_per_symbol_per_day']:
             logger.warning(f"@@  We already sent enough orders for {symbol} .... number_of_trades_today: {number_of_trades_today(symbol)}")
             continue
-
+        if has_open_order_in_same_group(symbol):
+            logger.warning(f"@@  We already have open order in same group {symbol}")
+            continue
         market_trend = 'up' if can_buy else 'down' #
         mark_score_in_the_chart(market_trend)
 
@@ -2057,11 +2060,11 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
             right = 'C' if can_buy else 'P'
             option_contract = prepare_contract(symbol, right=right)
             if option_contract == None:
-                logger.warning(f"@@@@ We are not sending order. {symbol}, option_contract: {option_contract}")
+                logger.warning(f"@@@@@ We are not sending order. {symbol}, option_contract: {option_contract}")
                 continue
             bid, ask = get_quote_for_option_bid_ask(symbol=symbol, strike=option_contract.strike, right=option_contract.right, expiry=option_contract.lastTradeDateOrContractMonth)
             if bid == 0 or ask == 0:
-                logger.warning(f"@@@@ We are not sending order. bid ==0 or ask ==0")
+                logger.warning(f"@@@@@ We are not sending order. bid ==0 or ask ==0")
                 continue
             total_quantity, capital_data = calculate_number_of_option_contracts(option_contract.strike, ask)
             application_state.setdefault('risk', {}).setdefault('records', []).append(capital_data)
@@ -2173,6 +2176,8 @@ def add_to_order_history_df(data):
 def test_get_bid_ask_for_symbols():
     global bid_ask_history_df
     for symbol in app_config['symbols']:
+        if app_config['symbols_meta'][symbol]['contract_type'] not in ['Equity']: # no bid ask for futures ...
+            continue
         for right in ['C', 'P']:
             logger.info(f"---- {symbol} {right}")
             option_contract = prepare_contract(symbol, right=right)
@@ -2224,16 +2229,6 @@ def dump_application_state_to_file():
             logger.error(e)
     return
 
-def dump_a_map_to_file(map, file_path):
-    with open(file_path, 'w') as f:
-        try:
-            logger.info(f"saving at file_path: {file_path}")
-            json.dump(map, f, indent=4)
-            logger.info(f"saving done. ")
-        except Exception as e:
-            # TODO add
-            logger.error(e)
-    return
 
 def print_application_state(application_state, msg = ''):
     logger.warning(f"{msg}\n{pprint.pformat(application_state)}")
@@ -2243,11 +2238,11 @@ def print_map_pretty(map, msg = ''):
     logger.warning(f"{msg}\n{pprint.pformat(map)}")
     return
 
-def find_expiration_and_strikes_for_all():
+def find_expiration_and_strikes_for_all_from_ib():
     for symbol in app_config['symbols']:
         if app_config['symbols_meta'][symbol]['contract_type'] in ['Equity']:
             exchange = app_config['symbols_meta'][symbol].get('exchange', 'SMART')
-            find_expiration_and_strikes(symbol, exchange)
+            find_expiration_and_strikes_from_ib(symbol, exchange)
 
     return
 def populate_volume_ratio(df):
@@ -2265,6 +2260,22 @@ def popualate_features(df):
 
     df = pd.concat(features_list, axis=1)
     return df
+
+
+
+def next_fridays(n=10):
+    today = datetime.date.today()
+    result = []
+
+    # Find the upcoming Friday (weekday(): Monday=0, Sunday=6)
+    days_until_friday = (4 - today.weekday()) % 7
+    next_friday = today + datetime.timedelta(days=days_until_friday)
+
+    for _ in range(n):
+        result.append(next_friday.strftime("%Y%m%d"))
+        next_friday += datetime.timedelta(days=7)
+
+    return result
 
 def get_quote_for_option_bid_ask(symbol, strike, right, expiry, exchange='SMART',max_retries=3, wait_between=1.0 ):
     option = Option(
@@ -2592,7 +2603,7 @@ def check_mark_revers_candles(symbol):
             lowest_bearish_low = df.loc[df["is_bearish"], "low"].min()
 
             result = prev_close < lowest_bearish_low and crossed_ema9
-            logger.info(f"check_mark_revers_candles, {symbol}, lowest_bearish_low: {lowest_bearish_low}, prev_close: {prev_close}, {result}, \n {df.to_markdown()}")
+            logger.info(f"check_mark_revers_candles, {symbol}, lowest_bearish_low: {lowest_bearish_low}, prev_close: {prev_close}, {result}, \n{df.to_markdown()}")
             if result:
                 logger.info(f"check_mark_revers_candles, {symbol}, The break happened. lowest_bearish_low: {lowest_bearish_low}, prev_close: {prev_close}")
                 add_to_signlas(symbol, 'LEVEL_REPLACED', df['close'].iloc[-1], check_date, f'Level is break out {check_date}<br> t_date: {target_date} <br>  lowest_bearish_low: {lowest_bearish_low} <br> prev_close: {prev_close}' )
@@ -2618,6 +2629,7 @@ def check_mark_revers_candles(symbol):
     return result
 def check_for_stop_loss_and_take_profit():
     global application_state
+    symbols_need_to_be_removed = [] # we dont remove in the loop ..
 
     for symbol, open_trade_info in application_state.get('open_trades_dic', {}).items():
         logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, " )
@@ -2705,8 +2717,8 @@ def check_for_stop_loss_and_take_profit():
                 'con_id': application_state['open_trades_dic'][symbol].get('con_id'),
                 }
             application_state['open_trades_dic'][symbol].setdefault('stop_loss', {})['s1'] = data # save it in the
-            archive_open_trade_dic(symbol, open_trade_info)
-            application_state.setdefault('open_trades_dic', {})[symbol] = {}  # This need to be happened after we get required inf from dic...
+            archive_open_trade_dic(symbol)
+            application_state.setdefault('open_trades_dic', {})[symbol] = {}  #  TODO This need to be happened after we get required inf from dic...
             add_order_ref_to_application_state(open_order_ref=open_trade_info.get('order_ref'), close_order_ref=order_ref)
             add_to_stop_loss_history_df(data)
             add_to_signlas(symbol, 'STOP_LOSS_SENT', underlying_current_price, df['date'].iloc[-1], f"STOP_LOSS  <BR> {polish_map_to_show_in_hover(data)}")
@@ -2800,8 +2812,11 @@ def check_for_stop_loss_and_take_profit():
         # check to clean up
         if application_state['open_trades_dic'].get(symbol, {}) != {} and application_state['open_trades_dic'][symbol].get('available_quantity', 0) == 0:
             logger.info(f"{symbol}, the available_quantity is zero, so we set empty dic for it")
-            archive_open_trade_dic(symbol, open_trade_info)
-            remove_symbol_from_open_trade_dic(symbol)
+            symbols_need_to_be_removed.append(symbol)
+
+    for s in symbols_need_to_be_removed:
+        archive_open_trade_dic(symbol)
+        remove_symbol_from_open_trade_dic(s)
 
     return
 
@@ -2985,6 +3000,7 @@ def cancel_open_orders(symbol = ''):
 
 def check_application_state_vs_ib_positions():
     global application_state
+    symbols_need_to_be_removed = []
     for symbol, open_trade_info in application_state.get('open_trades_dic', {}).items():
         found = False
         if open_trade_info.get('available_quantity', 0) != 0:  # There is in the dic
@@ -3006,8 +3022,11 @@ def check_application_state_vs_ib_positions():
                 logger.warning(f"@@@@ open_trade_info: {open_trade_info}")
                 logger.warning(f"@@@@ options_portfolio_df\n{options_portfolio_df.to_markdown()}")
                 logger.warning(f"@@@@ future_portfolio_df\n{future_portfolio_df.to_markdown()}")
-                archive_open_trade_dic(symbol, open_trade_info)
-                remove_symbol_from_open_trade_dic(symbol)
+                symbols_need_to_be_removed.append(symbol)
+
+    for s in symbols_need_to_be_removed:
+        archive_open_trade_dic(symbol)
+        remove_symbol_from_open_trade_dic(s)
 
     return
 
@@ -3180,7 +3199,7 @@ def add_unique_run_number_start_end_date(file_path):
         return file_path
     dir = file_utils.extract_dir_from_path(file_path)
     file_name = file_utils.extract_filename_from_path(file_path)
-    file_name = f'{unique_run_number}--{back_test_date_start}--{back_test_date_end}-{file_name}'
+    file_name = f'{unique_run_number}--{back_test_date_start}--{back_test_date_end}--{file_name}'
     file_path = f'{dir}/{file_name}'
     return file_path
 
@@ -3197,6 +3216,7 @@ def populate_backtest_columns(df):
     return df
 
 def detect_a_mark_market_gap(symbol, df):
+    global application_state
     df["trade_day"] = df["date"].dt.date
     unique_days = sorted(df["trade_day"].unique())
     today = unique_days[-1]
@@ -3208,12 +3228,26 @@ def detect_a_mark_market_gap(symbol, df):
 
     t = pd.Timestamp("16:00").time()
     res = df.loc[(df["trade_day"] == yesterday) & (df["date"].dt.time == t), "close"]
-    close_yesterday_1600 = res.iloc[-1] if not res.empty else None
+    if res.empty:
+        # no close for last day. This happnns only in the MNQ on Mnday. last day which is sunday doesn't have any close
+        # so we consider the last record of yesterday as the close
+        logger.warning(f"@ detect_a_mark_market_gap, no 16:00 close for yesterday {yesterday}, so we take the last record of that day as the close")
+        close_yesterday_1600 = df.loc[df["trade_day"] == yesterday, "close"].iloc[-1]
+    else:
+        close_yesterday_1600 = res.iloc[-1]
+    logger.info(f"{symbol}, open_today_0930: {open_today_0930} , close_yesterday_1600: {close_yesterday_1600}")
+    gap_size = round(open_today_0930 - close_yesterday_1600, 2)
+    color = constants.COLOR_GREEN_TRANSPARENT if gap_size > 0 else constants.COLOR_RED_TRANSPARENT
 
     if open_today_0930 is not  None and close_yesterday_1600 is not None:
-        add_to_drawing_objects_df(symbol=symbol, time_frame='1min', object='rect', color=constants.COLOR_GREEN_TRANSPARENT, date_1=f'{today} 09:00:00', price_1=close_yesterday_1600,
+        add_to_drawing_objects_df(symbol=symbol, time_frame='1min', object='rect', color=color, date_1=f'{today} 09:00:00', price_1=close_yesterday_1600,
                                   date_2=f'{today} 09:30:00', price_2=open_today_0930, memo='Market Gap', unique_id=f'{symbol}--MARKET-GAP')
-
+        application_state.setdefault('market_gaps', {})[symbol] = {
+            'date': str(df['date'].iloc[-1]),
+            'open_today_0930': open_today_0930,
+            'close_yesterday_1600': close_yesterday_1600,
+            'gap_size': gap_size,
+        }
     return
 
 
@@ -3257,19 +3291,19 @@ def is_price_close_to_next_levels(side='up',price= 0, current_level=1, next_leve
 
         # next_level is above the current level, price is below next level but very close
         if side == "up" and next_level > current_level and price > current_level and price < next_level and is_close:
-            add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is very close to next level. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+            add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is very close to next level. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
             return True
         if side == "down" and next_level < current_level and price < current_level and price > next_level and is_close:
-            add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is very close to next level. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+            add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is very close to next level. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
             return True
 
         # next_level is above the current level, price is above next level and current level but very close
         if side == "up" and next_level > current_level and price > current_level and price > next_level and is_close: # This is for once the price passes the next level as well.
-            add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is very close and passed next level. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+            add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is very close and passed next level. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
             return True
 
         if side == "down" and next_level < current_level and price < current_level and price < next_level and is_close:  # see PLTR Oct 09-
-            add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is close and passed next level. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+            add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is close and passed next level. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
             return True
 
     return False
@@ -3302,43 +3336,43 @@ def is_price_close_to_next_levels_ver_2(side='up', price= 0, current_level=1, ne
             # TODO THe first two can merged ..
             # next_level is above the current level, price is below next level but very close
             if next_level > current_level and price > current_level and price < next_level and is_close:
-                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-1 {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-1 {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
                 return True
 
             # next_level is above the current level, price is above next level
             if next_level > current_level and price > current_level and price > next_level: # This is for once the price passes the next level as well.
-                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-2. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-2. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
                 return True
 
             # next_level is above the current level AND price is above leve AND highest_high after breakout canddle is close to the next level ..
             if next_level > current_level and price > current_level and abs(highest_high - next_level) < closeness_distance:
-                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-3. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-3. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
                 return True
 
             # next_level > current level AND price > c level AND highest high >  next level
             if next_level > current_level and price > current_level and highest_high > next_level:
-                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-4. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-4. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
                 return True
 
         else:
             # next l < c level AND price < c level AND price > next l ...
             if next_level < current_level and price < current_level and price > next_level and is_close:
-                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-1. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-1. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
                 return True
 
 
             if next_level < current_level and price < current_level and price < next_level:  # see PLTR Oct 09-
-                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-2. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-2. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
                 return True
 
             # next_level < current level AND price is below level AND lowest low after breakout canddle is close to the next level ..
             if next_level < current_level and price < current_level and abs(lowest_low - next_level) < closeness_distance:
-                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-3. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-3. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
                 return True
 
             # next_level < current level AND price < c level AND lowest low  <  next level
             if next_level < current_level and price < current_level and lowest_low < next_level:
-                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-4. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-4. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
                 return True
 
 
@@ -3378,7 +3412,7 @@ def calculate_score(market_trend):
 
     memo_lines.insert(0, f"{final_score} # score") # in the chart we expecting the score#, so don't change it .
     memo_lines.append(f"Final Score: {final_score}")
-    memo_lines.append(f"{get_hhm_mm_of_last_record(df)}")
+    memo_lines.append(f"{date_utils.get_hhm_mm_of_last_record(df)}")
 
     final_memo = "<br>".join(memo_lines)
 
@@ -3404,32 +3438,31 @@ def all_levels_in(symbol, levels=['PDL', 'PDH', 'PMH', 'PML','5MH', '5ML']):
 def orchestrate_expirations_strikes():
     global options_meta_date_dic
     # get from IB. is messy ...
-    find_expiration_and_strikes_for_all()
-    dump_a_map_to_file(options_meta_date_dic, file_path=f'{intermediate_dir}/85-strikes-expirations-ib.csv')
+    find_expiration_and_strikes_for_all_from_ib()
+    file_utils.save_a_map_to_file(options_meta_date_dic, file_path=f'{intermediate_dir}/85-strikes-expirations-ib.csv')
 
     # Mere with Nazadq ...
     nazdaq_file = f'{intermediate_dir}/85-strikes-nazdaq.csv'
     strikes_from_nazdaq = file_utils.load_json_from_file(nazdaq_file)
     if strikes_from_nazdaq != {}:
         options_meta_date_dic.update(strikes_from_nazdaq)
-        dump_a_map_to_file(options_meta_date_dic, file_path=f'{intermediate_dir}/85-strikes-expirations-ib+nazdaq.csv')
+        file_utils.save_a_map_to_file(options_meta_date_dic, file_path=f'{intermediate_dir}/85-strikes-expirations-ib+nazdaq.csv')
 
     adhoc_file = f'{intermediate_dir}/85-strikes-adhoc.csv'
     strikes_from_adhoc = file_utils.load_json_from_file(adhoc_file)
     if strikes_from_adhoc != {}:
         options_meta_date_dic.update(strikes_from_adhoc)
-        dump_a_map_to_file(options_meta_date_dic, file_path=f'{intermediate_dir}/85-strikes-expirations-ib+nazdaq+adhoc.csv')
+        file_utils.save_a_map_to_file(options_meta_date_dic, file_path=f'{intermediate_dir}/85-strikes-expirations-ib+nazdaq+adhoc.csv')
+
+    expirations_manually_created = {}
+    for s in app_config['symbols']:
+        if s not in ['QQQ', 'SPY', 'MNQ']:
+            expirations_manually_created[f"{s}-expirations"] = next_fridays(10)
+    options_meta_date_dic.update(expirations_manually_created)
+    file_utils.save_a_map_to_file(options_meta_date_dic,file_path=f'{intermediate_dir}/85-strikes-expirations-ib+nazdaq+adhoc+manual.csv')
 
     logger.debug('hold it here ')
     return
-
-
-def get_last_record_hh_mm():
-    if len(df) == 0 or df is None:
-        return -1
-
-    last_record_hh_mm = int(df['date'].iloc[-1].strftime('%H%M'))
-    return int(last_record_hh_mm)
 
 
 def summerize_screening_log(screening_log_for_run_df):
@@ -3472,7 +3505,7 @@ def summerize_screening_log(screening_log_for_run_df):
     logger.info(f'hold it{agg_dict}')
     # ---- GROUPBY using classic syntax ----
     screening_summary_df = (
-        df.groupby(["trade_date", "day_of_week", "memo"])
+        df.groupby(["run_number", "memo", "trade_date", "day_of_week"])
         .agg(**agg_dict)
         .reset_index()
     )
@@ -3505,7 +3538,9 @@ def summerize_screening_log(screening_log_for_run_df):
 def aggregate_screening_log(df):
     if len(df) == 0:
         return df
-    df['run_number_start_end'] = f'{unique_run_number}--{back_test_date_start}--{back_test_date_end}'
+    df['run_number'] = f'{unique_run_number}'
+    df['start'] = f'{back_test_date_start}'
+    df['end'] = f'{back_test_date_end}'
 
     # auto-pick columns ending with _count OR equal to "total_trades"
 
@@ -3521,7 +3556,7 @@ def aggregate_screening_log(df):
     agg_map.update({col: "sum" for col in count_cols})
 
     agg_df = (
-        df.groupby(['run_number_start_end', 'memo'])
+        df.groupby(['run_number', 'start', 'end', 'memo'])
           .agg(agg_map)
           .reset_index()
     )
@@ -3542,7 +3577,7 @@ def aggregate_screening_log(df):
                                ) * 100 ,2)
 
     agg_df = agg_df.fillna(0)
-    agg_df = df_utils.move_last_x_to_position_y(agg_df, 3, 4)
+    agg_df = df_utils.move_last_x_to_position_y(agg_df, 3, 6)
 
     return agg_df
 
@@ -3689,226 +3724,259 @@ def check_open_orders_in_capital_flow_df(df):
     return df
 
 
+def QQQ_gap_up_in_current_candle():
+    if application_state.get('market_gaps', {}).get('QQQ', None) is None:
+        return False
+    if (application_state.get('market_gaps', {}).get('QQQ',{}).get('gap_size', 0) > 0 and # gapped up
+            qqq_df['close'].iloc[-1] > application_state['market_gaps']['QQQ']['open_today_0930']) : # close is above the open 9:30
+        return True
 
+    return False
+
+
+def QQQ_gap_down_in_current_candle():
+    if application_state.get('market_gaps', {}).get('QQQ', None) is None:
+        return False
+    if (application_state.get('market_gaps', {}).get('QQQ', {}).get('gap_size', 0) < 0 and  # gapped down
+            qqq_df['close'].iloc[-1] < application_state['market_gaps']['QQQ']['open_today_0930']):  # close is below the open 9:30
+        return True
+
+    return False
 
 
 if __name__ == "__main__":
+    try:
 
-    app_config = config_utils.load_app_config(portfolio_id)
+        app_config = config_utils.load_app_config(portfolio_id)
 
-    ib_config = load_ib_config()
-    ib = None
-    get_back_test_data()
-    for run in app_config['back_test']['runs']:
-        if not app_config['back_test']['runs'][run]['active']:
-            continue
-
-        back_test_date_start = app_config['back_test']['runs'][run]['start']
-        back_test_date_end = app_config['back_test']['runs'][run]['end']
-
-        back_test_dates = pd.date_range(start=back_test_date_start, end=back_test_date_end)[:-1]  # This excludes the end date. say 07-01 to 08-01, will not include the 08-01
-
+        ib_config = load_ib_config()
+        ib = None
+        get_back_test_data()
         now = datetime.datetime.now()
-        run_date_time = now.strftime("%Y-%m-%d__%H-%M")
-        day_of_week = now.strftime("%A")
-
         unique_run_number = f"{now.strftime('%Y%m%d-%H%M%S')}"
-        screening_log_for_run_df = pd.DataFrame()
-        # Print each date in YYYY-MM-DD format
-        for d in back_test_dates:
+        for run in app_config['back_test']['runs']:
+            if not app_config['back_test']['runs'][run]['active']:
+                continue
 
-            time_frame = '1min'
+            back_test_date_start = app_config['back_test']['runs'][run]['start']
+            back_test_date_end = app_config['back_test']['runs'][run]['end']
 
-            drawing_objects_df = pd.DataFrame()
-            hover_df = pd.DataFrame(columns=['symbol', 'time_frame', 'object', 'color', 'date_1', 'price_1', 'date_2', 'price_2', 'memo', 'unique_id'])
-            key_levels_df = pd.DataFrame(columns=['symbol', 'time_frame', 'key_level', 'price', 'memo', 'unique_id'])
-            order_history_df = pd.DataFrame()
-            futures_order_history_df = pd.DataFrame()
-            stop_loss_history_df = pd.DataFrame()
-            take_profit_history_df = pd.DataFrame()
-            bid_ask_history_df = pd.DataFrame()
-            capital_allocation_df = pd.DataFrame()
-            open_close_refs_df = pd.DataFrame()
-            open_close_refs_pnl_df = pd.DataFrame()
-            capital_flow_df = pd.DataFrame()
-            close_pairs = []
-            consequence_exception = 0
-            run_number = 0
-            dfs_map = {}
-            screening_log_list = []
-            screening_log_df = pd.DataFrame()
-            number_of_opened_trades_for_symbol = {}
+            back_test_dates = pd.date_range(start=back_test_date_start, end=back_test_date_end)[:-1]  # This excludes the end date. say 07-01 to 08-01, will not include the 08-01
 
-            qqq_5MH = -1
-            qqq_5ML = -1
-            qqq_PDH = -1
-            qqq_PDL = -1
+            now = datetime.datetime.now()
+            run_date_time = now.strftime("%Y-%m-%d__%H-%M")
+            day_of_week = now.strftime("%A")
 
-            back_test_date = d.strftime('%Y-%m-%d')
-            logger.info(f"back_test_date: {back_test_date}")
-            charts_dir = f'../../portfolios/charts-backtest/{unique_run_number}--{back_test_date}/{portfolio_id}'
-            for symbol in app_config['symbols']:
+            screening_log_for_run_df = pd.DataFrame()
+            # Print each date in YYYY-MM-DD format
+            for d in back_test_dates:
 
-                df = pd.read_csv(f'{ohlc_archie_dir}/{symbol}-{time_frame}.csv')
-                df = df.drop_duplicates(subset=[f'date'], keep=f'last') # KEEP IT
+                time_frame = '1min'
+                application_state = {}
+                drawing_objects_df = pd.DataFrame()
+                hover_df = pd.DataFrame(columns=['symbol', 'time_frame', 'object', 'color', 'date_1', 'price_1', 'date_2', 'price_2', 'memo', 'unique_id'])
+                key_levels_df = pd.DataFrame(columns=['symbol', 'time_frame', 'key_level', 'price', 'memo', 'unique_id'])
+                order_history_df = pd.DataFrame()
+                futures_order_history_df = pd.DataFrame()
+                stop_loss_history_df = pd.DataFrame()
+                take_profit_history_df = pd.DataFrame()
+                bid_ask_history_df = pd.DataFrame()
+                capital_allocation_df = pd.DataFrame()
+                open_close_refs_df = pd.DataFrame()
+                open_close_refs_pnl_df = pd.DataFrame()
+                capital_flow_df = pd.DataFrame()
+                close_pairs = []
+                consequence_exception = 0
+                run_number = 0
+                dfs_map = {}
+                screening_log_list = []
+                screening_log_df = pd.DataFrame()
+                number_of_opened_trades_for_symbol = {}
 
-                df['date'] = pd.to_datetime(df['date'], utc=True) # bcs of carsh when they change summer time ...
-                df['date'] = df['date'].dt.tz_convert('America/New_York')
+                qqq_5MH = -1
+                qqq_5ML = -1
+                qqq_PDH = -1
+                qqq_PDL = -1
 
-                if back_test_date == '2025-10-xx':
-                    logger.info('Stop for debug')
+                back_test_date = d.strftime('%Y-%m-%d')
+                logger.info(f"back_test_date: {back_test_date}")
+                charts_dir = f'../../portfolios/charts-backtest/{unique_run_number}--{back_test_date}/{portfolio_id}'
+                for symbol in app_config['symbols']:
 
+                    df = pd.read_csv(f'{ohlc_archie_dir}/{symbol}-{time_frame}.csv')
+                    df = df.drop_duplicates(subset=[f'date'], keep=f'last') # KEEP IT
 
-                df_filtered = df[df['date'].dt.strftime("%Y-%m-%d") == back_test_date]
-                if len(df_filtered) ==0: # no data so go for next one ....
-                    logger.warning(f"no data ...{symbol} {d}")
-                    break
-                os.makedirs(charts_dir, exist_ok=True)
+                    df['date'] = pd.to_datetime(df['date'], utc=True) # bcs of carsh when they change summer time ...
+                    df['date'] = df['date'].dt.tz_convert('America/New_York')
 
-                cutoff_date = back_test_date
-                df = cut_df_until_date(df, cutoff_date=cutoff_date)
-
-                df = cut_df_starting_x_days_ago(df, days=5) # we want to kieep 5 days until end ...
-
-                df = cut_df_until_hour_x_on_last_day(df, cutoff_time="11:00")
-                df.reset_index(drop=True, inplace=True) # reset index start from 0
-
-                df = popualate_features(df)
-                df = populate_volume_ratio(df)
-                df = populate_backtest_columns(df)
-
-                orig_df = df.copy()
-
-                calculate_PDL_PDH(df)
-                starting_index = find_index(df, start="09:31")
-                four_pm_index = find_index(df, start="11:00")
-                last_index = df.index[-1] # four_pm_index
-
-                logger.info(f"starting_index: {starting_index}")
+                    if back_test_date == '2025-10-xx':
+                        logger.info('Stop for debug')
 
 
-                my_index = starting_index
-                position = 0  # used in back test for optn postions
-                run_id = 0
-                signals = []
-                key_levels_list = [] # we need it here.
-                # THese are for each symbol
-                candle_info_df = pd.DataFrame(columns=['date', 'price', 'memo'])
-                relative_strength_df = pd.DataFrame()
+                    df_filtered = df[df['date'].dt.strftime("%Y-%m-%d") == back_test_date]
+                    if len(df_filtered) ==0: # no data so go for next one ....
+                        logger.warning(f"no data ...{symbol} {d}")
+                        break
+                    os.makedirs(charts_dir, exist_ok=True)
+
+                    cutoff_date = back_test_date
+                    df = cut_df_until_date(df, cutoff_date=cutoff_date)
+
+                    df = cut_df_starting_x_days_ago(df, days=5) # we want to kieep 5 days until end ...
+
+                    df = cut_df_until_hour_x_on_last_day(df, cutoff_time="11:00")
+                    df.reset_index(drop=True, inplace=True) # reset index start from 0
+
+                    df = popualate_features(df)
+                    df = populate_volume_ratio(df)
+                    df = populate_backtest_columns(df)
+
+                    orig_df = df.copy()
+
+                    calculate_PDL_PDH(df)
+                    starting_index = find_index(df, start="09:31")
+                    four_pm_index = find_index(df, start="11:00")
+                    last_index = df.index[-1] # four_pm_index
+
+                    logger.info(f"starting_index: {starting_index}")
 
 
-                orig_qqq_df = pd.read_csv(f'{ohlc_archie_dir}/QQQ-1min.csv')
-                orig_qqq_df['date'] = pd.to_datetime(orig_qqq_df['date'], utc=True) # bcs of carsh when they change summmer time ...
-                orig_qqq_df['date'] = orig_qqq_df['date'].dt.tz_convert('America/New_York')
-
-                df = orig_df.iloc[:my_index].copy()
-
-                while my_index < last_index:
-                    df = pd.concat([df, orig_df.iloc[[my_index]]], ignore_index=True) # adding last row ...
-                    run_id += 1
-                    start_time = time.time()
-                    now = datetime.datetime.now()
-                    current_hh_mm_ny = int(now.strftime("%H%M"))  # checks trade time ...
-                    date_yyyy_mm_dd_hh_mm = now.strftime("%Y-%m-%d__%H-%M")
-                    date_yyyy_mm_dd = now.strftime("%Y-%m-%d")
-                    date_run_number = f"{now.strftime('%Y%m%d-%H%M%S')}--{run_number}"
-
-                    last_record_hh_mm = get_last_record_hh_mm()
-
-                    logger.info(f"-------------------- {symbol}, run_date_time: {run_date_time}  unique_run_id: {unique_run_number}")
-                    logger.info(f"------ {symbol} {df['date'].iloc[-1]}, my_index: {my_index}")
-                    logger.info(f"{symbol}, last row:\n{df[-1:].to_markdown()}")
-
-                    up_offset_counter = 0 # this is for hovers on the candles ... need to be renamed ..
-                    down_offset_counter = 0 # this is for hovers on the candles ... need to be renamed ..
-
-                    hold_for_debug()
-                    # check_mark_revers_candles(symbol)
-
-                    qqq_df = orig_qqq_df.copy()
-                    # cit it exactly like df
-                    qqq_df['date'] = pd.to_datetime(qqq_df['date'])
-                    qqq_df = qqq_df[qqq_df['date'].isin(df['date'])]
-                    qqq_df.reset_index(drop=True, inplace=True)  # reset index start from 0
-                    if True:
-                        missing_rows_in_qqq_df = df.loc[~df['date'].isin(qqq_df['date'])]
-                        logger.warning(f"missing_rows_in_qqq_df: \n{missing_rows_in_qqq_df[-10:].to_markdown()}")
-                    logger.debug(f"df[-2:]:\n{df[-2:].to_markdown()}")
-                    logger.debug(f"qqq_df[-2:]:\n{qqq_df[-2:].to_markdown()}")
-                    logger.debug(f"df[:2]:\n{df[:2].to_markdown()}")
-                    logger.debug(f"qqq_df[:2]:\n{qqq_df[:2].to_markdown()}")
-                    if symbol == 'QQQ':
-                        qqq_5MH = get_levels_map().get('5MH', -1)
-                        qqq_5ML = get_levels_map().get('5ML', -1)
-                        qqq_PDH = get_levels_map().get('PDH', -1)
-                        qqq_PDL = get_levels_map().get('PDL', -1)
-
-                    relative_strength_df = compute_relative_strength(df, qqq_df, period=20)
-                    intraday_rs_df = compute_intraday_rs(df, qqq_df)
-                    dynamic_tolerance = atr_tolerance_helper.get_dynamic_tolerance(df, level=0, min_tick=0.01)
-                    add_rs_relative_to_candle_info(symbol)
-
-                    my_index += 1
+                    my_index = starting_index
+                    position = 0  # used in back test for optn postions
+                    run_id = 0
+                    signals = []
+                    key_levels_list = [] # we need it here.
+                    # THese are for each symbol
+                    candle_info_df = pd.DataFrame(columns=['date', 'price', 'memo'])
+                    relative_strength_df = pd.DataFrame()
 
 
-                    retest_indices_by_level_set = {}
-                    break_out_indices_by_level_set = {}
-                    retest_idx = 0
-                    breakout_idx = 0
+                    orig_qqq_df = pd.read_csv(f'{ohlc_archie_dir}/QQQ-1min.csv')
+                    orig_qqq_df['date'] = pd.to_datetime(orig_qqq_df['date'], utc=True) # bcs of carsh when they change summmer time ...
+                    orig_qqq_df['date'] = orig_qqq_df['date'].dt.tz_convert('America/New_York')
 
-                    find_add_PMH_PML_levels_to_key_levels_df()
-                    find_add_5MH_5ML_levels_to_key_levels_df()
+                    df = orig_df.iloc[:my_index].copy()
 
-                    mark_tolerance_to_the_level(get_levels_map().get('5MH', 0), '5MH')
-                    mark_tolerance_to_the_level(get_levels_map().get('5ML', 0), '5ML')
-                    mark_atr_to_the_level('up', get_levels_map().get('5MH', 0), '5MH')
-                    mark_atr_to_the_level('down', get_levels_map().get('5ML', 0), '5ML')
+                    while my_index < last_index:
+                        df = pd.concat([df, orig_df.iloc[[my_index]]], ignore_index=True) # adding last row ...
+                        run_id += 1
+                        start_time = time.time()
+                        now = datetime.datetime.now()
+                        current_hh_mm_ny = int(now.strftime("%H%M"))  # checks trade time ...
+                        date_yyyy_mm_dd_hh_mm = now.strftime("%Y-%m-%d__%H-%M")
+                        date_yyyy_mm_dd = now.strftime("%Y-%m-%d")
+                        date_run_number = f"{now.strftime('%Y%m%d-%H%M%S')}--{run_number}"
 
-                    key_levels_list = get_key_levels_list()
+                        last_record_hh_mm = date_utils.get_last_record_hhmm(df)
 
-                    buy_sell_case_results_list = check_buy_and_sell_cases()
+                        logger.info(f"-------------------- {symbol}, run_date_time: {run_date_time}  unique_run_id: {unique_run_number}")
+                        logger.info(f"------ {symbol} {df['date'].iloc[-1]}, my_index: {my_index}")
+                        logger.info(f"{symbol}, last row:\n{df[-1:].to_markdown()}")
 
-                    mark_stop_loss_take_profit_for_futures(buy_sell_case_results_list)
-                    do_back_test(buy_sell_case_results_list)
+                        up_offset_counter = 0 # this is for hovers on the candles ... need to be renamed ..
+                        down_offset_counter = 0 # this is for hovers on the candles ... need to be renamed ..
 
-                    add_buy_a_sell_entries_to_signals(buy_sell_case_results_list)
-                    add_atr_to_candle_info(dynamic_tolerance)
+                        hold_for_debug()
+                        # check_mark_revers_candles(symbol)
 
-                    detect_candle_patterns(df)
-                    end_time = time.time()
+                        qqq_df = orig_qqq_df.copy()
+                        # cit it exactly like df
+                        qqq_df['date'] = pd.to_datetime(qqq_df['date'])
+                        qqq_df = qqq_df[qqq_df['date'].isin(df['date'])]
+                        qqq_df.reset_index(drop=True, inplace=True)  # reset index start from 0
+                        if True:
+                            missing_rows_in_qqq_df = df.loc[~df['date'].isin(qqq_df['date'])]
+                            logger.warning(f"missing_rows_in_qqq_df: \n{missing_rows_in_qqq_df[-10:].to_markdown()}")
+                        logger.debug(f"df[-2:]:\n{df[-2:].to_markdown()}")
+                        logger.debug(f"qqq_df[-2:]:\n{qqq_df[-2:].to_markdown()}")
+                        logger.debug(f"df[:2]:\n{df[:2].to_markdown()}")
+                        logger.debug(f"qqq_df[:2]:\n{qqq_df[:2].to_markdown()}")
+                        if symbol == 'QQQ':
+                            qqq_5MH = get_levels_map().get('5MH', -1)
+                            qqq_5ML = get_levels_map().get('5ML', -1)
+                            qqq_PDH = get_levels_map().get('PDH', -1)
+                            qqq_PDL = get_levels_map().get('PDL', -1)
 
-                    # sleep_enough()
-                    # pass
-                    # break
+                        relative_strength_df = compute_relative_strength(df, qqq_df, period=20)
+                        intraday_rs_df = compute_intraday_rs(df, qqq_df)
+                        dynamic_tolerance = atr_tolerance_helper.get_dynamic_tolerance(df, level=0, min_tick=0.01)
+                        add_rs_relative_to_candle_info(symbol)
 
-                # FOR EACH SYMBOL ...
-                detect_a_mark_market_gap(symbol, df)
-
-                logger.debug(f"signals: {signals}")
-                add_candle_info_df_to_signals()
-                mark_close_levels(key_levels_list) # do once for the symbol. not for each row
-
-                hover_df = convert_signals_to_hover_df(signals)  # for whole symbol ...
-                logger.debug(f"hover_df[-3:]: \n{hover_df[-10:].to_markdown()}")
-
-                df = cut_df_strating_hour_x_on_last_day(df, cutoff_time="09:15")
-                save_ohlc_for_chart(df)
-                save_ohlc_tabluar_for_chart()
-                save_extra_features_df()
-
-            screening_log_df = add_list_to_dic(screening_log_df, screening_log_list)
-            screening_log_for_run_df = pd.concat([screening_log_for_run_df, screening_log_df])
-
-            # for each date ...
-            save_all_csv_files()
-
-
-        df_utils.save_df_to_csv_a_tabular(screening_log_for_run_df,file_path=add_unique_run_number_start_end_date(df_file_map.get('screening_log_for_run_df')), mode='w')
-
-        screening_summary_df = summerize_screening_log(screening_log_for_run_df)
-        df_utils.save_df_to_csv_a_tabular(screening_summary_df,file_path=add_unique_run_number_start_end_date(df_file_map.get('screening_summary_df')), mode='w')
-        screening_summary_agg_df =  aggregate_screening_log(screening_summary_df)
-        df_utils.save_df_to_csv_a_tabular(screening_summary_agg_df, file_path=df_file_map.get('screening_summary_agg_df'), mode='a')
+                        my_index += 1
 
 
-        logger.info("Done!")
+                        retest_indices_by_level_set = {}
+                        break_out_indices_by_level_set = {}
+                        retest_idx = 0
+                        breakout_idx = 0
+
+                        find_add_PMH_PML_levels_to_key_levels_df()
+                        find_add_5MH_5ML_levels_to_key_levels_df()
+
+                        mark_tolerance_to_the_level(get_levels_map().get('5MH', 0), '5MH')
+                        mark_tolerance_to_the_level(get_levels_map().get('5ML', 0), '5ML')
+                        mark_atr_to_the_level('up', get_levels_map().get('5MH', 0), '5MH')
+                        mark_atr_to_the_level('down', get_levels_map().get('5ML', 0), '5ML')
+
+                        key_levels_list = get_key_levels_list()
+
+                        buy_sell_case_results_list = check_buy_and_sell_cases()
+
+                        mark_stop_loss_take_profit_for_futures(buy_sell_case_results_list)
+                        do_back_test(buy_sell_case_results_list)
+
+                        add_buy_a_sell_entries_to_signals(buy_sell_case_results_list)
+                        add_atr_to_candle_info(dynamic_tolerance)
+
+                        detect_candle_patterns(df)
+                        end_time = time.time()
+
+                        # sleep_enough()
+                        # pass
+                        # break
+
+                    # FOR EACH SYMBOL ...
+                    detect_a_mark_market_gap(symbol, df)
+
+                    logger.debug(f"signals: {signals}")
+                    add_candle_info_df_to_signals()
+                    mark_close_levels(key_levels_list) # do once for the symbol. not for each row
+
+                    hover_df = convert_signals_to_hover_df(signals)  # for whole symbol ...
+                    logger.debug(f"hover_df[-3:]: \n{hover_df[-10:].to_markdown()}")
+
+                    df = cut_df_strating_hour_x_on_last_day(df, cutoff_time="09:15")
+                    save_ohlc_for_chart(df)
+                    save_ohlc_tabluar_for_chart()
+                    save_extra_features_df()
+
+                screening_log_df = add_list_to_dic(screening_log_df, screening_log_list)
+                screening_log_for_run_df = pd.concat([screening_log_for_run_df, screening_log_df])
+
+                # for each date ...
+                save_all_csv_files()
+
+
+            df_utils.save_df_to_csv_a_tabular(screening_log_for_run_df,file_path=add_unique_run_number_start_end_date(df_file_map.get('screening_log_for_run_df')), mode='w')
+
+            screening_summary_df = summerize_screening_log(screening_log_for_run_df)
+            df_utils.save_df_to_csv_a_tabular(screening_summary_df,file_path=add_unique_run_number_start_end_date(df_file_map.get('screening_summary_df')), mode='w') # for each run ...
+            df_utils.save_df_to_csv_a_tabular(screening_summary_df, file_path=df_file_map.get('screening_summary_df'), mode='a') # adding acumulated ....
+            screening_summary_agg_df =  aggregate_screening_log(screening_summary_df)
+            df_utils.save_df_to_csv_a_tabular(screening_summary_agg_df, file_path=df_file_map.get('screening_summary_agg_df'), mode='a')
+
+
+            logger.info("Done!")
+    except Exception as e:
+        logger.warning('-------------------')
+        logger.error(f"@@@@ error: {e}")
+        logger.warning(traceback.format_exc())
+        logger.warning("--------------------")
+        logger.warning(f"symbol:{symbol}, date: {df['date'].iloc[-1]}")
+        logger.warning(f"qqq_df: \n{qqq_df[:5].to_markdown()}")
+        logger.warning(f"qqq_df: \n{qqq_df[-5:].to_markdown()}")
+        logger.warning(f"df: \n{df[-5:].to_markdown()}")
+
+        if consequence_exception == 3:
+            email_utils.send_email('saeed.bx1@yahoo.com', f"error in {portfolio_id} - {app_config['user_name']}",
+                                   body=f"Error in {app_config['user_name']} <br>{e}<br\><br\><br\>{traceback.format_exc()}")
