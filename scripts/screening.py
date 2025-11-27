@@ -227,15 +227,7 @@ def calculate_PDL_PDH(df):
     add_to_key_levels_df(symbol=symbol, time_frame=time_frame, key_level_name='PDL', price=day_low, memo=f'PDH {day_high}')
     return
 
-def load_application_state_from_file():
-    global application_state
-    file_path = application_state_file_path
-    if os.path.exists(file_path):
-        with open(file_path, 'r') as f:
-            logger.info(f"loading from file_path: {file_path} ")
-            application_state = json.load(f)
-        logger.info(f"loaded, application_state: {application_state}")
-    return
+
 
 def  add_to_key_levels_df(symbol, time_frame, key_level_name, price, memo='', unique_id=''):
     global key_levels_df
@@ -631,6 +623,8 @@ def reset_row():
 def add_to_screening_log_list(side):
     global  screening_log_list
     data = {
+        'run_number': unique_run_number,
+        'memo': f"{app_config['back_test']['memo']} - {app_config['back_test']['runs'][run]['memo']}",
         'symbol': symbol,
         'trade_date': back_test_date,
         'day_of_week': pd.to_datetime(back_test_date).day_name(),
@@ -653,7 +647,6 @@ def add_to_screening_log_list(side):
         'rs_delta': intraday_rs_df['rs_delta'].iloc[-1],
         'exit_time': '',
         'qqq_context':'',
-        'memo': f"{app_config['back_test']['memo']} - {app_config['back_test']['runs'][run]['memo']}",
     }
     screening_log_list.append(data)
 
@@ -842,6 +835,7 @@ def check_buy_sell_condition(case):
 
         min_required_move_from_level = app_config['symbols_meta'][symbol]['min_required_move_from_level']  # used in config
         price = df['close'].iloc[-1]  # used in config
+        atr_14 = df['atr_14'].iloc[-1]  # used in config
 
         logger.debug(f"in check_buy_sell_condition, levels: {levels}")
 
@@ -1032,9 +1026,7 @@ def remove_symbol_from_open_trade_dic(symbol):
     application_state['open_trades_dic'].pop(symbol, None)
     return
 
-def archive_open_trade_dic(symbol, open_trade_dic_4_symbol):
-    open_trade_dic_arcive = {}
-    open_trade_dic_arcive[unique_run_number] = open_trade_dic_4_symbol
+def archive_open_trade_dic(symbol):
     file_path = f'{intermediate_dir}/84-{unique_run_number}-{symbol}.csv'
 
     file_path = file_path
@@ -1694,7 +1686,7 @@ def find_expiration_and_strikes_from_ib(symbol, exchange):
                 options_meta_date_dic.get(symbol)[f'{c.exchange}-strikes'] = sorted(c.strikes)
 
     if False:  # TODO need to be rmeoved .
-        dump_a_map_to_file(options_meta_date_dic[symbol], file_path=f'{intermediate_dir}/{date_run_number}-{symbol}-strikes-expiry.csv')
+        file_utils.save_a_map_to_file(options_meta_date_dic[symbol], file_path=f'{intermediate_dir}/{date_run_number}-{symbol}-strikes-expiry.csv')
     return
 
 def create_option_contract(strike, expiry, right, exchange="CBOE", symbol='SPX', trading_class='SPXW', max_retries=4, wait_between=1.0):
@@ -2011,10 +2003,11 @@ def recompute_capital_flow_df(df, start_capital):
 
 def has_open_order_in_same_group(symbol):
     global application_state
-    open_orders = application_state.get('open_orders_dic', {})
     symbol_group = app_config['symbols_meta'][symbol].get('group')
     if symbol_group is None: # no group ...
         return False
+    open_orders = application_state.get('open_trades_dic', {})
+    logger.info(f"@ has_open_order_in_same_group, symbol: {symbol}, symbol_group: {symbol_group}, open_orders: {open_orders}")
     for open_order_symbol, open_order_data in open_orders.items():
         open_order_symbol_group = app_config['symbols_meta'].get(open_order_symbol, {}).get('group', 'no-group')
 
@@ -2074,11 +2067,11 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
             right = 'C' if can_buy else 'P'
             option_contract = prepare_contract(symbol, right=right)
             if option_contract == None:
-                logger.warning(f"@@@@ We are not sending order. {symbol}, option_contract: {option_contract}")
+                logger.warning(f"@@@@@ We are not sending order. {symbol}, option_contract: {option_contract}")
                 continue
             bid, ask = get_quote_for_option_bid_ask(symbol=symbol, strike=option_contract.strike, right=option_contract.right, expiry=option_contract.lastTradeDateOrContractMonth)
             if bid == 0 or ask == 0:
-                logger.warning(f"@@@@ We are not sending order. bid ==0 or ask ==0")
+                logger.warning(f"@@@@@ We are not sending order. bid ==0 or ask ==0")
                 continue
             total_quantity, capital_data = calculate_number_of_option_contracts(option_contract.strike, ask)
             application_state.setdefault('risk', {}).setdefault('records', []).append(capital_data)
@@ -2190,6 +2183,8 @@ def add_to_order_history_df(data):
 def test_get_bid_ask_for_symbols():
     global bid_ask_history_df
     for symbol in app_config['symbols']:
+        if app_config['symbols_meta'][symbol]['contract_type'] not in ['Equity']: # no bid ask for futures ...
+            continue
         for right in ['C', 'P']:
             logger.info(f"---- {symbol} {right}")
             option_contract = prepare_contract(symbol, right=right)
@@ -2241,16 +2236,6 @@ def dump_application_state_to_file():
             logger.error(e)
     return
 
-def dump_a_map_to_file(map, file_path):
-    with open(file_path, 'w') as f:
-        try:
-            logger.info(f"saving at file_path: {file_path}")
-            json.dump(map, f, indent=4)
-            logger.info(f"saving done. ")
-        except Exception as e:
-            # TODO add
-            logger.error(e)
-    return
 
 def print_application_state(application_state, msg = ''):
     logger.warning(f"{msg}\n{pprint.pformat(application_state)}")
@@ -2651,6 +2636,7 @@ def check_mark_revers_candles(symbol):
     return result
 def check_for_stop_loss_and_take_profit():
     global application_state
+    symbols_need_to_be_removed = [] # we dont remove in the loop ..
 
     for symbol, open_trade_info in application_state.get('open_trades_dic', {}).items():
         logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, " )
@@ -2738,8 +2724,8 @@ def check_for_stop_loss_and_take_profit():
                 'con_id': application_state['open_trades_dic'][symbol].get('con_id'),
                 }
             application_state['open_trades_dic'][symbol].setdefault('stop_loss', {})['s1'] = data # save it in the
-            archive_open_trade_dic(symbol, open_trade_info)
-            application_state.setdefault('open_trades_dic', {})[symbol] = {}  # This need to be happened after we get required inf from dic...
+            archive_open_trade_dic(symbol)
+            application_state.setdefault('open_trades_dic', {})[symbol] = {}  #  TODO This need to be happened after we get required inf from dic...
             add_order_ref_to_application_state(open_order_ref=open_trade_info.get('order_ref'), close_order_ref=order_ref)
             add_to_stop_loss_history_df(data)
             add_to_signlas(symbol, 'STOP_LOSS_SENT', underlying_current_price, df['date'].iloc[-1], f"STOP_LOSS  <BR> {polish_map_to_show_in_hover(data)}")
@@ -2833,8 +2819,11 @@ def check_for_stop_loss_and_take_profit():
         # check to clean up
         if application_state['open_trades_dic'].get(symbol, {}) != {} and application_state['open_trades_dic'][symbol].get('available_quantity', 0) == 0:
             logger.info(f"{symbol}, the available_quantity is zero, so we set empty dic for it")
-            archive_open_trade_dic(symbol, open_trade_info)
-            remove_symbol_from_open_trade_dic(symbol)
+            symbols_need_to_be_removed.append(symbol)
+
+    for s in symbols_need_to_be_removed:
+        archive_open_trade_dic(symbol)
+        remove_symbol_from_open_trade_dic(s)
 
     return
 
@@ -3018,6 +3007,7 @@ def cancel_open_orders(symbol = ''):
 
 def check_application_state_vs_ib_positions():
     global application_state
+    symbols_need_to_be_removed = []
     for symbol, open_trade_info in application_state.get('open_trades_dic', {}).items():
         found = False
         if open_trade_info.get('available_quantity', 0) != 0:  # There is in the dic
@@ -3039,8 +3029,11 @@ def check_application_state_vs_ib_positions():
                 logger.warning(f"@@@@ open_trade_info: {open_trade_info}")
                 logger.warning(f"@@@@ options_portfolio_df\n{options_portfolio_df.to_markdown()}")
                 logger.warning(f"@@@@ future_portfolio_df\n{future_portfolio_df.to_markdown()}")
-                archive_open_trade_dic(symbol, open_trade_info)
-                remove_symbol_from_open_trade_dic(symbol)
+                symbols_need_to_be_removed.append(symbol)
+
+    for s in symbols_need_to_be_removed:
+        archive_open_trade_dic(symbol)
+        remove_symbol_from_open_trade_dic(s)
 
     return
 
@@ -3208,10 +3201,14 @@ def add_list_to_dic(df, data_list):
 
 
 
-def add_unique_run_number_start_end_date(str):
+def add_unique_run_number_start_end_date(file_path):
     if mode == 'live':
-        return str
-    return str.replace('.csv', f'-{unique_run_number}-{back_test_date_start}-{back_test_date_end}.csv')
+        return file_path
+    dir = file_utils.extract_dir_from_path(file_path)
+    file_name = file_utils.extract_filename_from_path(file_path)
+    file_name = f'{unique_run_number}--{back_test_date_start}--{back_test_date_end}--{file_name}'
+    file_path = f'{dir}/{file_name}'
+    return file_path
 
 def populate_backtest_columns(df):
     df['position'] = 0
@@ -3226,6 +3223,7 @@ def populate_backtest_columns(df):
     return df
 
 def detect_a_mark_market_gap(symbol, df):
+    global application_state
     df["trade_day"] = df["date"].dt.date
     unique_days = sorted(df["trade_day"].unique())
     today = unique_days[-1]
@@ -3237,12 +3235,26 @@ def detect_a_mark_market_gap(symbol, df):
 
     t = pd.Timestamp("16:00").time()
     res = df.loc[(df["trade_day"] == yesterday) & (df["date"].dt.time == t), "close"]
-    close_yesterday_1600 = res.iloc[-1] if not res.empty else None
+    if res.empty:
+        # no close for last day. This happnns only in the MNQ on Mnday. last day which is sunday doesn't have any close
+        # so we consider the last record of yesterday as the close
+        logger.warning(f"@ detect_a_mark_market_gap, no 16:00 close for yesterday {yesterday}, so we take the last record of that day as the close")
+        close_yesterday_1600 = df.loc[df["trade_day"] == yesterday, "close"].iloc[-1]
+    else:
+        close_yesterday_1600 = res.iloc[-1]
+    logger.info(f"{symbol}, open_today_0930: {open_today_0930} , close_yesterday_1600: {close_yesterday_1600}")
+    gap_size = round(open_today_0930 - close_yesterday_1600, 2)
+    color = constants.COLOR_GREEN_TRANSPARENT if gap_size > 0 else constants.COLOR_RED_TRANSPARENT
 
     if open_today_0930 is not  None and close_yesterday_1600 is not None:
-        add_to_drawing_objects_df(symbol=symbol, time_frame='1min', object='rect', color=constants.COLOR_GREEN_TRANSPARENT, date_1=f'{today} 09:00:00', price_1=close_yesterday_1600,
+        add_to_drawing_objects_df(symbol=symbol, time_frame='1min', object='rect', color=color, date_1=f'{today} 09:00:00', price_1=close_yesterday_1600,
                                   date_2=f'{today} 09:30:00', price_2=open_today_0930, memo='Market Gap', unique_id=f'{symbol}--MARKET-GAP')
-
+        application_state.setdefault('market_gaps', {})[symbol] = {
+            'date': str(df['date'].iloc[-1]),
+            'open_today_0930': open_today_0930,
+            'close_yesterday_1600': close_yesterday_1600,
+            'gap_size': gap_size,
+        }
     return
 
 
@@ -3434,27 +3446,27 @@ def orchestrate_expirations_strikes():
     global options_meta_date_dic
     # get from IB. is messy ...
     find_expiration_and_strikes_for_all_from_ib()
-    dump_a_map_to_file(options_meta_date_dic, file_path=f'{intermediate_dir}/85-strikes-expirations-ib.csv')
+    file_utils.save_a_map_to_file(options_meta_date_dic, file_path=f'{intermediate_dir}/85-strikes-expirations-ib.csv')
 
     # Mere with Nazadq ...
     nazdaq_file = f'{intermediate_dir}/85-strikes-nazdaq.csv'
     strikes_from_nazdaq = file_utils.load_json_from_file(nazdaq_file)
     if strikes_from_nazdaq != {}:
         options_meta_date_dic.update(strikes_from_nazdaq)
-        dump_a_map_to_file(options_meta_date_dic, file_path=f'{intermediate_dir}/85-strikes-expirations-ib+nazdaq.csv')
+        file_utils.save_a_map_to_file(options_meta_date_dic, file_path=f'{intermediate_dir}/85-strikes-expirations-ib+nazdaq.csv')
 
     adhoc_file = f'{intermediate_dir}/85-strikes-adhoc.csv'
     strikes_from_adhoc = file_utils.load_json_from_file(adhoc_file)
     if strikes_from_adhoc != {}:
         options_meta_date_dic.update(strikes_from_adhoc)
-        dump_a_map_to_file(options_meta_date_dic, file_path=f'{intermediate_dir}/85-strikes-expirations-ib+nazdaq+adhoc.csv')
+        file_utils.save_a_map_to_file(options_meta_date_dic, file_path=f'{intermediate_dir}/85-strikes-expirations-ib+nazdaq+adhoc.csv')
 
     expirations_manually_created = {}
     for s in app_config['symbols']:
         if s not in ['QQQ', 'SPY', 'MNQ']:
             expirations_manually_created[f"{s}-expirations"] = next_fridays(10)
     options_meta_date_dic.update(expirations_manually_created)
-    dump_a_map_to_file(options_meta_date_dic,file_path=f'{intermediate_dir}/85-strikes-expirations-ib+nazdaq+adhoc+manual.csv')
+    file_utils.save_a_map_to_file(options_meta_date_dic,file_path=f'{intermediate_dir}/85-strikes-expirations-ib+nazdaq+adhoc+manual.csv')
 
     logger.debug('hold it here ')
     return
@@ -3508,7 +3520,7 @@ def summerize_screening_log(screening_log_for_run_df):
     logger.info(f'hold it{agg_dict}')
     # ---- GROUPBY using classic syntax ----
     screening_summary_df = (
-        df.groupby(["trade_date", "day_of_week", "memo"])
+        df.groupby(["run_number", "memo", "trade_date", "day_of_week"])
         .agg(**agg_dict)
         .reset_index()
     )
@@ -3541,7 +3553,9 @@ def summerize_screening_log(screening_log_for_run_df):
 def aggregate_screening_log(df):
     if len(df) == 0:
         return df
-    df['run_number_start_end'] = f'{unique_run_number}--{back_test_date_start}--{back_test_date_end}'
+    df['run_number'] = f'{unique_run_number}'
+    df['start'] = f'{back_test_date_start}'
+    df['end'] = f'{back_test_date_end}'
 
     # auto-pick columns ending with _count OR equal to "total_trades"
 
@@ -3557,7 +3571,7 @@ def aggregate_screening_log(df):
     agg_map.update({col: "sum" for col in count_cols})
 
     agg_df = (
-        df.groupby(['run_number_start_end', 'memo'])
+        df.groupby(['run_number', 'start', 'end', 'memo'])
           .agg(agg_map)
           .reset_index()
     )
@@ -3578,7 +3592,7 @@ def aggregate_screening_log(df):
                                ) * 100 ,2)
 
     agg_df = agg_df.fillna(0)
-    agg_df = df_utils.move_last_x_to_position_y(agg_df, 3, 4)
+    agg_df = df_utils.move_last_x_to_position_y(agg_df, 3, 6)
 
     return agg_df
 
@@ -3725,7 +3739,24 @@ def check_open_orders_in_capital_flow_df(df):
     return df
 
 
+def QQQ_gap_up_in_current_candle():
+    if application_state.get('market_gaps', {}).get('QQQ', None) is None:
+        return False
+    if (application_state.get('market_gaps', {}).get('QQQ',{}).get('gap_size', 0) > 0 and # gapped up
+            qqq_df['close'].iloc[-1] > application_state['market_gaps']['QQQ']['open_today_0930']) : # close is above the open 9:30
+        return True
 
+    return False
+
+
+def QQQ_gap_down_in_current_candle():
+    if application_state.get('market_gaps', {}).get('QQQ', None) is None:
+        return False
+    if (application_state.get('market_gaps', {}).get('QQQ', {}).get('gap_size', 0) < 0 and  # gapped down
+            qqq_df['close'].iloc[-1] < application_state['market_gaps']['QQQ']['open_today_0930']):  # close is below the open 9:30
+        return True
+
+    return False
 
 
 if __name__ == "__main__":
