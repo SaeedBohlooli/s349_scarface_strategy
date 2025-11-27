@@ -1,3 +1,7 @@
 [submodule "trading_utils"]
 	path = trading_utils
 	url = https://github.com/SaeedBohlooli/trading_utils.git
+
+[submodule "trading_core"]
+	path = trading_core
+	url = https://github.com/SaeedBohlooli/trading_core.git
