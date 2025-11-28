@@ -437,17 +437,12 @@ back_test:
   memo: case_2_2 TP 1.5 ATR - BR ver1.2- Ent. close to level - no short above PDH
   cases_to_run: ['case_2_1']
   runs:
-    r_today:
-      active: true
-      start: 2025-11-26
-      end: 2025-11-27
-      memo: Today
-#    r_Nov:
+#    r_today:
 #      active: true
-#      start: 2025-11-01
-#      end: 2025-11-05
-#      memo: few days in nov
-  x:
+#      start: 2025-11-26
+#      end: 2025-11-27
+#      memo: Today
+
     r7:
       active: true
       start: 2025-04-01
