@@ -1,6 +1,7 @@
 import datetime
 import json
 import logging.handlers
+import math
 import os
 import pprint
 import sys
@@ -24,9 +25,11 @@ from trading_utils import ib_utils
 from trading_utils import ib_orders
 from trading_utils import ib_pricing
 from trading_utils import ib_posttrade
+from trading_utils import global_state
 from trading_utils import config_utils
 from trading_utils import ruamel_confg_util
 from trading_utils import email_utils
+from trading_utils import check_health_status
 from trading_utils import date_utils
 from trading_utils import constants
 from trading_utils import file_utils
@@ -621,7 +624,8 @@ def add_to_screening_log_list(side):
     global  screening_log_list
     data = {
         'run_number': unique_run_number,
-        'memo': f"{app_config['back_test']['memo']} - {app_config['back_test']['runs'][run]['memo']}",
+        # 'memo': f"{app_config['back_test']['memo']} - {app_config['back_test']['runs'][run]['memo']}",
+        'memo': f"{app_config['back_test']['memo']}",
         'symbol': symbol,
         'trade_date': back_test_date,
         'day_of_week': pd.to_datetime(back_test_date).day_name(),
@@ -647,12 +651,12 @@ def add_to_screening_log_list(side):
     }
     screening_log_list.append(data)
 
-def add_to_umber_of_opened_trades_for_symbol(symbol):
-    global number_of_opened_trades_for_symbol
-    number_of_opened_trades_for_symbol[symbol] = number_of_opened_trades_for_symbol.get(symbol, 0) + 1
+def add_to_umber_of_opened_positions_for_symbol(symbol):
+    global number_of_opened_positions_for_symbol
+    number_of_opened_positions_for_symbol[symbol] = number_of_opened_positions_for_symbol.get(symbol, 0) + 1
 
-def number_of_opened_trades_so_far():
-    return number_of_opened_trades_for_symbol.get(symbol, 0)
+def number_of_opened_positions_so_far():
+    return number_of_opened_positions_for_symbol.get(symbol, 0)
 
 
 def do_back_test(buy_sell_case_results_list):
@@ -707,7 +711,7 @@ def do_back_test(buy_sell_case_results_list):
                 stop_loss_price = eval(app_config['back_test'][side]['stop_loss'])
                 take_profit_price = eval(app_config['back_test'][side]['take_profit'])
                 open_price = df['close'].iloc[-1]
-                add_to_umber_of_opened_trades_for_symbol(symbol)
+                add_to_umber_of_opened_positions_for_symbol(symbol)
 
                 if can_buy:
                     position = 1
@@ -982,6 +986,9 @@ def price_retest(side='up', idx_list=[-2], level=0, both_sides=False):
     for idx in idx_list:
         row = df.iloc[idx]
 
+        if date_utils.get_hhmm_int(row['date']) < 930: # we dont want breaks before 930
+            continue
+
 
         # --- Retest detection ---
         if side == 'up':
@@ -1069,7 +1076,7 @@ def breakout_in_last_x_candles(side='up', idx_list=[-2], level=0):
         candle_range = row["high"] - row["low"]
         if candle_range > 0 and body / candle_range < 0.5: # do not remove candle_rage > 0 will raise devided by zero exception
             continue
-        # if row['date']
+
         logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
         add_to_break_out_indices_by_level_set(level, idx)
         breakout_happened = True
@@ -1090,7 +1097,8 @@ def breakout_in_last_x_candles_ver_2(side='up', idx_list=[-2], level=0):
         row = df.iloc[idx]
         previous = df.iloc[idx-1]
         # --- Breakout detection ---
-
+        if date_utils.get_hhmm_int(row['date']) < 930: # we dont want breaks before 930
+            continue
 
         # --- breakout condition ---
         if side == 'up':
@@ -1172,6 +1180,22 @@ def get_levels_map():
     ))
     return levels
 
+def get_levels_for_all_symbols_map():  # TODO need to map in map
+    #  { 'AAPL': {'PDH': 150, 'PDL': 145}, 'MSFT': {'PDH': 300, 'PDL': 290} }
+    #
+    #  is not working
+    global key_levels_df
+    df = key_levels_df.copy()
+
+    # ensure numeric
+    df["price"] = pd.to_numeric(df["price"], errors="coerce")
+
+    levels_map = {}
+
+    for symbol, group in df.groupby("symbol"):
+        levels_map[symbol] = dict(zip(group["key_level"], group["price"]))
+
+    return levels_map
 
 def add_to_signlas(symbol, event, price, date, memo='', color=''):
 
@@ -1717,7 +1741,7 @@ def create_option_contract(strike, expiry, right, exchange="CBOE", symbol='SPX',
 
     return None
 
-def calcualte_number_of_open_trades():
+def calcualte_number_of_open_positions():
     """
     Count open trades across all symbols.
     A trade is considered open if available_quantity > 0.
@@ -1772,7 +1796,7 @@ def calculate_number_of_option_contracts(strike, ask):
         logger.warning(f"@@@@ we don't have enough capital ...")
     capital_used = num_of_contracts * 100 * ask
     capital_remaining_after_order = available_capital - capital_used
-    open_trades_count_at_entry = calcualte_number_of_open_trades()
+    open_trades_count_at_entry = calcualte_number_of_open_positions()
     # update ...
     application_state.get('risk')['available_capital'] = capital_remaining_after_order
 
@@ -1814,7 +1838,7 @@ def calculate_number_of_future_contracts(symbol):
         logger.warning(f"@@@@ we don't have enough capital ...")
     capital_used = num_of_contracts * 2500
     capital_remaining_after_order = available_capital - capital_used
-    open_trades_count_at_entry = calcualte_number_of_open_trades()
+    open_trades_count_at_entry = calcualte_number_of_open_positions()
     # update ...
     application_state.get('risk')['available_capital'] = capital_remaining_after_order
 
@@ -1878,13 +1902,13 @@ def prepare_contract(symbol, right='C', max_retries=3, wait_between=1.0):
 
     return None
 
-def number_of_trades_today(symbol):
-    number_of_trades_today = application_state.get('number_of_trades', {}).get(date_yyyy_mm_dd, {}).get(symbol, 0)
-    return number_of_trades_today
+def number_of_positions_today(symbol):
+    number_of_positions_today = application_state.get('number_of_trades', {}).get(date_yyyy_mm_dd, {}).get(symbol, 0)
+    return number_of_positions_today
 
-def add_to_number_of_trades_today(symbol):
+def add_to_number_of_positions_today(symbol):
     global application_state
-    current_number = number_of_trades_today(symbol)
+    current_number = number_of_positions_today(symbol)
     if current_number == 0:
         application_state.setdefault('number_of_trades', {}).setdefault(date_yyyy_mm_dd, {})[symbol] = 1
     else:
@@ -2037,7 +2061,7 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
         if can_buy == False and can_sell == False: # no sucess ...
             continue
         logger.info(f"check_buy_sell_result_to_send_order, {symbol}, can_buy: {can_buy}, can_sell:{can_sell}")
-
+        side = 'long' if can_buy else 'short'
         if not app_config['symbols_meta'][symbol]['can_trade']:
             logger.info(f"We are not trading {symbol}.")
             continue
@@ -2047,11 +2071,14 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
         if application_state.get('open_trades_dic', {}).get(symbol,{}).get('available_quantity', 0) != 0:
             logger.warning(f"@@ You already have open position. Don't be greedy!!!  symbol: {symbol}")
             continue
-        if number_of_trades_today(symbol) >= app_config['live']['max_num_of_trade_per_symbol_per_day']:
-            logger.warning(f"@@  We already sent enough orders for {symbol} .... number_of_trades_today: {number_of_trades_today(symbol)}")
+        if number_of_positions_today(symbol) >= app_config['live']['max_num_of_trade_per_symbol_per_day']:
+            logger.warning(f"@@  We already sent enough orders for {symbol} .... number_of_trades_today: {number_of_positions_today(symbol)}")
             continue
         if has_open_order_in_same_group(symbol):
             logger.warning(f"@@  We already have open order in same group {symbol}")
+            continue
+        if symbol in app_config['live']['blocked_symbols'][side]:
+            logger.warning(f"@@  This symbol is blocked, {symbol}, {app_config['live']['blocked_symbols'][side]}")
             continue
         market_trend = 'up' if can_buy else 'down' #
         mark_score_in_the_chart(market_trend)
@@ -2067,7 +2094,7 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
                 logger.warning(f"@@@@@ We are not sending order. bid ==0 or ask ==0")
                 continue
             total_quantity, capital_data = calculate_number_of_option_contracts(option_contract.strike, ask)
-            application_state.setdefault('risk', {}).setdefault('records', []).append(capital_data)
+            # application_state.setdefault('risk', {}).setdefault('records', []).append(capital_data)  NO need for now ...
             add_to_capital_allocation_df(capital_data)
             if total_quantity == 0:  # we don't have enough capital
                 logger.warning(f"@@ We dont have enough capital {symbol} ....")
@@ -2107,7 +2134,7 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
             application_state.setdefault('open_trades_dic', {})[symbol] = data
             add_to_signlas(symbol, f'ORDER_SENT',df['close'].iloc[-1],df['date'].iloc[-1], polish_map_to_show_in_hover(data) )
             add_to_order_history_df(data)
-            add_to_number_of_trades_today(symbol)
+            add_to_number_of_positions_today(symbol)
             send_email(event='order_sent', symbol=symbol, body=polish_map_to_show_in_hover(data))
             add_order_ref_to_application_state(open_order_ref=order_ref)
             add_open_order_to_capital_flow_df(data, capital_data)
@@ -2148,7 +2175,7 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
             add_to_signlas(symbol, f'STOP_LOSS_SENT', stop_loss_price, df['date'].iloc[-1], polish_map_to_show_in_hover(data) )
             add_to_signlas(symbol, f'TAKE_PROFIT_SENT', take_profit_price, df['date'].iloc[-1], polish_map_to_show_in_hover(data) )
             add_to_futures_order_history_df(data)
-            add_to_number_of_trades_today(symbol)
+            add_to_number_of_positions_today(symbol)
             send_email(event='order_sent', symbol=symbol, body=polish_map_to_show_in_hover(data))
             add_order_ref_to_application_state(open_order_ref=order_ref)
             add_order_ref_to_application_state(open_order_ref=order_ref, close_order_ref=f'{order_ref}-TP')  #TODO need to be passed to the send order ...
@@ -2996,9 +3023,22 @@ def cancel_open_orders(symbol = ''):
                     ib.sleep(0.5)
     return
 
+def remove_symbol_from_open_trade_dic_by_order_ref(order_ref):
+    global application_state
+    for symbol, open_trade_info in application_state.get('open_trades_dic', {}).items():
+        if open_trade_info.get('order_ref', 0) == order_ref:
+            archive_open_trade_dic(symbol)
+            remove_symbol_from_open_trade_dic(symbol)
 
+    return
 
-def check_application_state_vs_ib_positions():
+def remove_symbols_from_open_trade_dic_by_order_ref():
+    for order_ref in app_config['live'].get('order_refs_to_remove',[]):
+           remove_symbol_from_open_trade_dic_by_order_ref(order_ref)
+def check_application_positions_vs_ib_positions():
+    remove_symbols_from_open_trade_dic_by_order_ref()
+    return
+
     global application_state
     symbols_need_to_be_removed = []
     for symbol, open_trade_info in application_state.get('open_trades_dic', {}).items():
@@ -3025,7 +3065,7 @@ def check_application_state_vs_ib_positions():
                 symbols_need_to_be_removed.append(symbol)
 
     for s in symbols_need_to_be_removed:
-        archive_open_trade_dic(symbol)
+        archive_open_trade_dic(s)
         remove_symbol_from_open_trade_dic(s)
 
     return
@@ -3109,6 +3149,7 @@ def generate_df_file_map():
         "open_close_refs_df":  f"{portfolio_dir}/22-open_close_refs_df.csv",  # TODO rename
         "open_close_refs_pnl_df":  f"{portfolio_dir}/23-open_close_refs_pnl_df.csv",  # TODO rename
         "capital_flow_df":  f"{portfolio_dir}/24-capital_flow_df.csv",  # TODO rename
+        "screening_summary_for_all_sub_runs_agg_df":  f"{portfolio_dir}/25-screening_summary_for_all_sub_runs_agg_df.csv",  # TODO rename
 
     }
 
@@ -3534,6 +3575,45 @@ def summerize_screening_log(screening_log_for_run_df):
     screening_summary_df = df_utils.move_last_x_to_position_y(screening_summary_df, 3, 4)
     return screening_summary_df
 
+def aggregate_screening_log_for_all_sub_runs(df):
+    # then append all is_* count columns
+    count_cols = [col for col in df.columns
+                  if col.endswith('_count')]
+
+    agg_map = {
+        "total_trades": "sum",
+        "sum_pnl": "sum",
+    }
+
+    agg_map.update({col: "sum" for col in count_cols})
+
+    agg_df = (
+        df.groupby(['run_number', 'memo' ])
+          .agg(agg_map)
+          .reset_index()
+    )
+    # Compute win rates
+    agg_df["long_win_rate"] = round ((
+                                      agg_df["is_long_positive_count"] /
+                                      agg_df["is_long_count"].replace(0, float("nan"))
+                              ) * 100 , 2)
+
+    agg_df["short_win_rate"] = round((
+                                       agg_df["is_short_positive_count"] /
+                                       agg_df["is_short_count"].replace(0, float("nan"))
+                               ) * 100, 2)
+
+    agg_df["total_win_rate"] = round((
+                                       agg_df["is_positive_count"] /
+                                       agg_df["total_trades"].replace(0, float("nan"))
+                               ) * 100 ,2)
+
+    agg_df = agg_df.fillna(0)
+    agg_df = df_utils.move_last_x_to_position_y(agg_df, 3, 6)
+
+    return agg_df
+
+
 
 def aggregate_screening_log(df):
     if len(df) == 0:
@@ -3744,6 +3824,20 @@ def QQQ_gap_down_in_current_candle():
     return False
 
 
+def populate_levels_into_application_state(symbol, symbols_levels_maps, df):
+    global application_state
+    application_state.setdefault('symbols', {})[symbol] = {
+        'price': df['close'].iloc[-1],
+        'unique_run_number': unique_run_number,
+        'PDH': symbols_levels_maps[symbol].get('PDH', None),
+        'PDL': symbols_levels_maps[symbol].get('PDL', None),
+        'PMH': symbols_levels_maps[symbol].get('PMH', None),
+        'PML': symbols_levels_maps[symbol].get('PML', None),
+        '5MH': symbols_levels_maps[symbol].get('5MH', None),
+        '5ML': symbols_levels_maps[symbol].get('P5ML', None),
+
+    }
+
 if __name__ == "__main__":
     try:
 
@@ -3791,7 +3885,7 @@ if __name__ == "__main__":
                 dfs_map = {}
                 screening_log_list = []
                 screening_log_df = pd.DataFrame()
-                number_of_opened_trades_for_symbol = {}
+                number_of_opened_positions_for_symbol = {}
 
                 qqq_5MH = -1
                 qqq_5ML = -1
@@ -3920,6 +4014,9 @@ if __name__ == "__main__":
 
                         key_levels_list = get_key_levels_list()
 
+                        symbols_levels_maps = get_levels_for_all_symbols_map()
+                        populate_levels_into_application_state(symbol, symbols_levels_maps, df)
+
                         buy_sell_case_results_list = check_buy_and_sell_cases()
 
                         mark_stop_loss_take_profit_for_futures(buy_sell_case_results_list)
@@ -3964,6 +4061,9 @@ if __name__ == "__main__":
             df_utils.save_df_to_csv_a_tabular(screening_summary_df, file_path=df_file_map.get('screening_summary_df'), mode='a') # adding acumulated ....
             screening_summary_agg_df =  aggregate_screening_log(screening_summary_df)
             df_utils.save_df_to_csv_a_tabular(screening_summary_agg_df, file_path=df_file_map.get('screening_summary_agg_df'), mode='a')
+            screening_summary_for_all_sub_runs_agg_df =  aggregate_screening_log_for_all_sub_runs(screening_summary_df)
+            df_utils.save_df_to_csv_a_tabular(screening_summary_for_all_sub_runs_agg_df, file_path=df_file_map.get('screening_summary_for_all_sub_runs_agg_df'), mode='a')
+
 
 
             logger.info("Done!")

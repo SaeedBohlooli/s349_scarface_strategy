@@ -650,12 +650,12 @@ def add_to_screening_log_list(side):
     }
     screening_log_list.append(data)
 
-def add_to_umber_of_opened_trades_for_symbol(symbol):
-    global number_of_opened_trades_for_symbol
-    number_of_opened_trades_for_symbol[symbol] = number_of_opened_trades_for_symbol.get(symbol, 0) + 1
+def add_to_umber_of_opened_positions_for_symbol(symbol):
+    global number_of_opened_positions_for_symbol
+    number_of_opened_positions_for_symbol[symbol] = number_of_opened_positions_for_symbol.get(symbol, 0) + 1
 
-def number_of_opened_trades_so_far():
-    return number_of_opened_trades_for_symbol.get(symbol, 0)
+def number_of_opened_positions_so_far():
+    return number_of_opened_positions_for_symbol.get(symbol, 0)
 
 
 def do_back_test(buy_sell_case_results_list):
@@ -710,7 +710,7 @@ def do_back_test(buy_sell_case_results_list):
                 stop_loss_price = eval(app_config['back_test'][side]['stop_loss'])
                 take_profit_price = eval(app_config['back_test'][side]['take_profit'])
                 open_price = df['close'].iloc[-1]
-                add_to_umber_of_opened_trades_for_symbol(symbol)
+                add_to_umber_of_opened_positions_for_symbol(symbol)
 
                 if can_buy:
                     position = 1
@@ -952,10 +952,6 @@ def check_buy_sell_condition(case):
     }
     return case, can_buy, can_sell, details_map
 
-def get_hhm_mm_of_last_record(df=None):
-    if df is None or len(df) == 0:
-        return "N/A"
-    return df['date'].iloc[-1].strftime('%H:%M')
 
 def is_retest_after_breakout(side='up', level=1):
     global retest_idx, breakout_idx
@@ -988,6 +984,9 @@ def price_retest(side='up', idx_list=[-2], level=0, both_sides=False):
 
     for idx in idx_list:
         row = df.iloc[idx]
+
+        if date_utils.get_hhmm_int(row['date']) < 930: # we dont want breaks before 930
+            continue
 
 
         # --- Retest detection ---
@@ -1097,7 +1096,8 @@ def breakout_in_last_x_candles_ver_2(side='up', idx_list=[-2], level=0):
         row = df.iloc[idx]
         previous = df.iloc[idx-1]
         # --- Breakout detection ---
-
+        if date_utils.get_hhmm_int(row['date']) < 930: # we dont want breaks before 930
+            continue
 
         # --- breakout condition ---
         if side == 'up':
@@ -1179,6 +1179,22 @@ def get_levels_map():
     ))
     return levels
 
+def get_levels_for_all_symbols_map():  # TODO need to map in map
+    #  { 'AAPL': {'PDH': 150, 'PDL': 145}, 'MSFT': {'PDH': 300, 'PDL': 290} }
+    #
+    #  is not working
+    global key_levels_df
+    df = key_levels_df.copy()
+
+    # ensure numeric
+    df["price"] = pd.to_numeric(df["price"], errors="coerce")
+
+    levels_map = {}
+
+    for symbol, group in df.groupby("symbol"):
+        levels_map[symbol] = dict(zip(group["key_level"], group["price"]))
+
+    return levels_map
 
 def add_to_signlas(symbol, event, price, date, memo='', color=''):
 
@@ -1724,7 +1740,7 @@ def create_option_contract(strike, expiry, right, exchange="CBOE", symbol='SPX',
 
     return None
 
-def calcualte_number_of_open_trades():
+def calcualte_number_of_open_positions():
     """
     Count open trades across all symbols.
     A trade is considered open if available_quantity > 0.
@@ -1779,7 +1795,7 @@ def calculate_number_of_option_contracts(strike, ask):
         logger.warning(f"@@@@ we don't have enough capital ...")
     capital_used = num_of_contracts * 100 * ask
     capital_remaining_after_order = available_capital - capital_used
-    open_trades_count_at_entry = calcualte_number_of_open_trades()
+    open_trades_count_at_entry = calcualte_number_of_open_positions()
     # update ...
     application_state.get('risk')['available_capital'] = capital_remaining_after_order
 
@@ -1821,7 +1837,7 @@ def calculate_number_of_future_contracts(symbol):
         logger.warning(f"@@@@ we don't have enough capital ...")
     capital_used = num_of_contracts * 2500
     capital_remaining_after_order = available_capital - capital_used
-    open_trades_count_at_entry = calcualte_number_of_open_trades()
+    open_trades_count_at_entry = calcualte_number_of_open_positions()
     # update ...
     application_state.get('risk')['available_capital'] = capital_remaining_after_order
 
@@ -1885,13 +1901,13 @@ def prepare_contract(symbol, right='C', max_retries=3, wait_between=1.0):
 
     return None
 
-def number_of_trades_today(symbol):
-    number_of_trades_today = application_state.get('number_of_trades', {}).get(date_yyyy_mm_dd, {}).get(symbol, 0)
-    return number_of_trades_today
+def number_of_positions_today(symbol):
+    number_of_positions_today = application_state.get('number_of_trades', {}).get(date_yyyy_mm_dd, {}).get(symbol, 0)
+    return number_of_positions_today
 
-def add_to_number_of_trades_today(symbol):
+def add_to_number_of_positions_today(symbol):
     global application_state
-    current_number = number_of_trades_today(symbol)
+    current_number = number_of_positions_today(symbol)
     if current_number == 0:
         application_state.setdefault('number_of_trades', {}).setdefault(date_yyyy_mm_dd, {})[symbol] = 1
     else:
@@ -2044,7 +2060,7 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
         if can_buy == False and can_sell == False: # no sucess ...
             continue
         logger.info(f"check_buy_sell_result_to_send_order, {symbol}, can_buy: {can_buy}, can_sell:{can_sell}")
-
+        side = 'long' if can_buy else 'short'
         if not app_config['symbols_meta'][symbol]['can_trade']:
             logger.info(f"We are not trading {symbol}.")
             continue
@@ -2054,11 +2070,14 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
         if application_state.get('open_trades_dic', {}).get(symbol,{}).get('available_quantity', 0) != 0:
             logger.warning(f"@@ You already have open position. Don't be greedy!!!  symbol: {symbol}")
             continue
-        if number_of_trades_today(symbol) >= app_config['live']['max_num_of_trade_per_symbol_per_day']:
-            logger.warning(f"@@  We already sent enough orders for {symbol} .... number_of_trades_today: {number_of_trades_today(symbol)}")
+        if number_of_positions_today(symbol) >= app_config['live']['max_num_of_trade_per_symbol_per_day']:
+            logger.warning(f"@@  We already sent enough orders for {symbol} .... number_of_trades_today: {number_of_positions_today(symbol)}")
             continue
         if has_open_order_in_same_group(symbol):
             logger.warning(f"@@  We already have open order in same group {symbol}")
+            continue
+        if symbol in app_config['live']['blocked_symbols'][side]:
+            logger.warning(f"@@  This symbol is blocked, {symbol}, {app_config['live']['blocked_symbols'][side]}")
             continue
         market_trend = 'up' if can_buy else 'down' #
         mark_score_in_the_chart(market_trend)
@@ -2074,7 +2093,7 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
                 logger.warning(f"@@@@@ We are not sending order. bid ==0 or ask ==0")
                 continue
             total_quantity, capital_data = calculate_number_of_option_contracts(option_contract.strike, ask)
-            application_state.setdefault('risk', {}).setdefault('records', []).append(capital_data)
+            # application_state.setdefault('risk', {}).setdefault('records', []).append(capital_data)  NO need for now ...
             add_to_capital_allocation_df(capital_data)
             if total_quantity == 0:  # we don't have enough capital
                 logger.warning(f"@@ We dont have enough capital {symbol} ....")
@@ -2114,7 +2133,7 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
             application_state.setdefault('open_trades_dic', {})[symbol] = data
             add_to_signlas(symbol, f'ORDER_SENT',df['close'].iloc[-1],df['date'].iloc[-1], polish_map_to_show_in_hover(data) )
             add_to_order_history_df(data)
-            add_to_number_of_trades_today(symbol)
+            add_to_number_of_positions_today(symbol)
             send_email(event='order_sent', symbol=symbol, body=polish_map_to_show_in_hover(data))
             add_order_ref_to_application_state(open_order_ref=order_ref)
             add_open_order_to_capital_flow_df(data, capital_data)
@@ -2155,7 +2174,7 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
             add_to_signlas(symbol, f'STOP_LOSS_SENT', stop_loss_price, df['date'].iloc[-1], polish_map_to_show_in_hover(data) )
             add_to_signlas(symbol, f'TAKE_PROFIT_SENT', take_profit_price, df['date'].iloc[-1], polish_map_to_show_in_hover(data) )
             add_to_futures_order_history_df(data)
-            add_to_number_of_trades_today(symbol)
+            add_to_number_of_positions_today(symbol)
             send_email(event='order_sent', symbol=symbol, body=polish_map_to_show_in_hover(data))
             add_order_ref_to_application_state(open_order_ref=order_ref)
             add_order_ref_to_application_state(open_order_ref=order_ref, close_order_ref=f'{order_ref}-TP')  #TODO need to be passed to the send order ...
@@ -3003,9 +3022,22 @@ def cancel_open_orders(symbol = ''):
                     ib.sleep(0.5)
     return
 
+def remove_symbol_from_open_trade_dic_by_order_ref(order_ref):
+    global application_state
+    for symbol, open_trade_info in application_state.get('open_trades_dic', {}).items():
+        if open_trade_info.get('order_ref', 0) == order_ref:
+            archive_open_trade_dic(symbol)
+            remove_symbol_from_open_trade_dic(symbol)
 
+    return
 
-def check_application_state_vs_ib_positions():
+def remove_symbols_from_open_trade_dic_by_order_ref():
+    for order_ref in app_config['live'].get('order_refs_to_remove',[]):
+           remove_symbol_from_open_trade_dic_by_order_ref(order_ref)
+def check_application_positions_vs_ib_positions():
+    remove_symbols_from_open_trade_dic_by_order_ref()
+    return
+
     global application_state
     symbols_need_to_be_removed = []
     for symbol, open_trade_info in application_state.get('open_trades_dic', {}).items():
@@ -3032,7 +3064,7 @@ def check_application_state_vs_ib_positions():
                 symbols_need_to_be_removed.append(symbol)
 
     for s in symbols_need_to_be_removed:
-        archive_open_trade_dic(symbol)
+        archive_open_trade_dic(s)
         remove_symbol_from_open_trade_dic(s)
 
     return
@@ -3298,19 +3330,19 @@ def is_price_close_to_next_levels(side='up',price= 0, current_level=1, next_leve
 
         # next_level is above the current level, price is below next level but very close
         if side == "up" and next_level > current_level and price > current_level and price < next_level and is_close:
-            add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is very close to next level. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+            add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is very close to next level. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
             return True
         if side == "down" and next_level < current_level and price < current_level and price > next_level and is_close:
-            add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is very close to next level. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+            add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is very close to next level. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
             return True
 
         # next_level is above the current level, price is above next level and current level but very close
         if side == "up" and next_level > current_level and price > current_level and price > next_level and is_close: # This is for once the price passes the next level as well.
-            add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is very close and passed next level. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+            add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is very close and passed next level. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
             return True
 
         if side == "down" and next_level < current_level and price < current_level and price < next_level and is_close:  # see PLTR Oct 09-
-            add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is close and passed next level. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+            add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'price is close and passed next level. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
             return True
 
     return False
@@ -3343,43 +3375,43 @@ def is_price_close_to_next_levels_ver_2(side='up', price= 0, current_level=1, ne
             # TODO THe first two can merged ..
             # next_level is above the current level, price is below next level but very close
             if next_level > current_level and price > current_level and price < next_level and is_close:
-                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-1 {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-1 {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
                 return True
 
             # next_level is above the current level, price is above next level
             if next_level > current_level and price > current_level and price > next_level: # This is for once the price passes the next level as well.
-                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-2. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-2. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
                 return True
 
             # next_level is above the current level AND price is above leve AND highest_high after breakout canddle is close to the next level ..
             if next_level > current_level and price > current_level and abs(highest_high - next_level) < closeness_distance:
-                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-3. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-3. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
                 return True
 
             # next_level > current level AND price > c level AND highest high >  next level
             if next_level > current_level and price > current_level and highest_high > next_level:
-                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-4. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-4. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
                 return True
 
         else:
             # next l < c level AND price < c level AND price > next l ...
             if next_level < current_level and price < current_level and price > next_level and is_close:
-                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-1. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-1. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
                 return True
 
 
             if next_level < current_level and price < current_level and price < next_level:  # see PLTR Oct 09-
-                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-2. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-2. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
                 return True
 
             # next_level < current level AND price is below level AND lowest low after breakout canddle is close to the next level ..
             if next_level < current_level and price < current_level and abs(lowest_low - next_level) < closeness_distance:
-                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-3. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-3. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
                 return True
 
             # next_level < current level AND price < c level AND lowest low  <  next level
             if next_level < current_level and price < current_level and lowest_low < next_level:
-                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-4. price: {price}, to: {next_level} <br> {get_hhm_mm_of_last_record(df)}', color='red')
+                add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-4. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
                 return True
 
 
@@ -3419,7 +3451,7 @@ def calculate_score(market_trend):
 
     memo_lines.insert(0, f"{final_score} # score") # in the chart we expecting the score#, so don't change it .
     memo_lines.append(f"Final Score: {final_score}")
-    memo_lines.append(f"{get_hhm_mm_of_last_record(df)}")
+    memo_lines.append(f"{date_utils.get_hhm_mm_of_last_record(df)}")
 
     final_memo = "<br>".join(memo_lines)
 
@@ -3470,14 +3502,6 @@ def orchestrate_expirations_strikes():
 
     logger.debug('hold it here ')
     return
-
-
-def get_last_record_hh_mm():
-    if len(df) == 0 or df is None:
-        return -1
-
-    last_record_hh_mm = int(df['date'].iloc[-1].strftime('%H%M'))
-    return int(last_record_hh_mm)
 
 
 def summerize_screening_log(screening_log_for_run_df):
@@ -3759,6 +3783,22 @@ def QQQ_gap_down_in_current_candle():
     return False
 
 
+def populate_levels_into_application_state(symbol, symbols_levels_maps, df):
+    global application_state
+    application_state.setdefault('symbols', {})[symbol] = {
+        'price': df['close'].iloc[-1],
+        'unique_run_number': unique_run_number,
+        'PDH': symbols_levels_maps[symbol].get('PDH', None),
+        'PDL': symbols_levels_maps[symbol].get('PDL', None),
+        'PMH': symbols_levels_maps[symbol].get('PMH', None),
+        'PML': symbols_levels_maps[symbol].get('PML', None),
+        '5MH': symbols_levels_maps[symbol].get('5MH', None),
+        '5ML': symbols_levels_maps[symbol].get('P5ML', None),
+        'HOLD_PDH': False,
+        'HOLD_PDL': False,
+
+    }
+
 if __name__ == "__main__":
 
     app_config = config_utils.load_app_config(portfolio_id)
@@ -3878,7 +3918,7 @@ if __name__ == "__main__":
 
         if not checkmark_map.get(f'CHK_APP_VS_IB-{current_hh_mm_ny}') and current_hh_mm_ny % 1 == 0:
             checkmark_map[f'CHK_APP_VS_IB-{current_hh_mm_ny}'] = True
-            check_application_state_vs_ib_positions()
+            check_application_positions_vs_ib_positions()
 
 
         symbol_number = 0
@@ -3906,7 +3946,7 @@ if __name__ == "__main__":
             df = populate_volume_ratio(df)
             if not is_busy_time:
                 logger.info(f"{symbol}, df: \n{df[-4:].to_markdown()}")
-            last_record_hh_mm = get_last_record_hh_mm()
+            last_record_hh_mm = date_utils.get_last_record_hhmm(df)  # TODO is not used anywhere ...
 
             dfs_map[symbol] = df.copy()  # we need for open trades ...
             if symbol == 'QQQ':
@@ -3954,6 +3994,9 @@ if __name__ == "__main__":
                 close_levels_marked_for_symol_map[symbol] = True
                 checkmark_map[f'{symbol}-ALL_LEVELS_IN'] = True
 
+            symbols_levels_maps = get_levels_for_all_symbols_map()
+            populate_levels_into_application_state(symbol, symbols_levels_maps, df)
+
             buy_sell_case_results_list = check_buy_and_sell_cases()
 
             check_buy_sell_result_to_send_order(buy_sell_case_results_list)
@@ -3991,9 +4034,15 @@ if __name__ == "__main__":
             checkmark_map[f'{symbol}-LAST_VISIT'] = df['date'].iloc[-1] # keeps the last record we visited for each symbol...
         # END:  for symbol in app_config['symbols']:
         # in the WHILE TRUE...
-        if not is_busy_time and not checkmark_map.get(f'SAVE_ALL_CSV-{current_hh_mm_ny}') and current_hh_mm_ny % 3 == 0: # each 3 mins
-            checkmark_map[f'SAVE_ALL_CSV-{current_hh_mm_ny}'] = True
-            save_all_csv_files()
+        if not is_busy_time:
+            if calcualte_number_of_open_positions() != 0:
+                if not checkmark_map.get(f'SAVE_ALL_CSV-{current_hh_mm_ny}') and current_hh_mm_ny % 10 == 0: # each 10 mins
+                    checkmark_map[f'SAVE_ALL_CSV-{current_hh_mm_ny}'] = True
+                    save_all_csv_files()
+            else:
+                if not checkmark_map.get( f'SAVE_ALL_CSV-{current_hh_mm_ny}') and current_hh_mm_ny % 3 == 0:  # each 3 mins if not open order
+                    checkmark_map[f'SAVE_ALL_CSV-{current_hh_mm_ny}'] = True
+                    save_all_csv_files()
 
         # End WHILE TRUE
         end_time = time.time()
@@ -4007,9 +4056,9 @@ if __name__ == "__main__":
           consequence_exception = consequence_exception + 1
           logger.error(f"@@@@ error: {e}")
           logger.warning(traceback.format_exc())
-          time.sleep(5)
+          time.sleep(1)
 
-          if consequence_exception == 3:
+          if consequence_exception == 1:
               email_utils.send_email('saeed.bx1@yahoo.com', f"error in {portfolio_id} - {app_config['user_name']}",
                                            body=f"Error in {app_config['user_name']} <br>{e}<br\><br\><br\>{traceback.format_exc()}")
 
