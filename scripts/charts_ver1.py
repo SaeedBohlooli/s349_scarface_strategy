@@ -719,7 +719,7 @@ def add_hover_to_chart(fig1, hover_df):
 
 def cut_df_for_live(df):
     # return df
-    if app_config['chart']['source'] == 'live':
+    if mode == 'live':
 
         df = df_utils.cut_df_strating_hour_x_on_last_day(df, cutoff_time=app_config['chart']['live']['start_time'] )
         df = df_utils.cut_df_until_hour_x_on_last_day(df, cutoff_time=app_config['chart']['live']['end_time'] )
@@ -886,12 +886,15 @@ charts_dir = ''
 chart_rows = 2
 df = pd.DataFrame()
 extra_features_df = pd.DataFrame()
+mode = 'live'  # live or back_test
 @app.route('/')
 def index():
     global charts_dir
     global df
     global extra_features_df
     global close_levels_df
+    global mode
+
     start_time = time.time()
 
     portfolio_id = 'p250'
@@ -914,6 +917,7 @@ def index():
         mode = 'live'
     else:
         charts_dir = f'../../portfolios/charts-backtest/{backtest_date}/{portfolio_id}'
+        mode = 'back_test'
     # time.sleep(1)
 
     drawing_objects_df = load_file_to_drawing_objects_df()
@@ -968,4 +972,4 @@ def index():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5001)
+    app.run(debug=True, host='0.0.0.0', port=int(app_config['chart']['port']))
