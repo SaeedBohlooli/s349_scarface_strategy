@@ -16,30 +16,28 @@ from ib_insync import *
 from pandas.tseries.offsets import BDay
 from tabulate import tabulate
 from ruamel.yaml import YAML
+import argparse
+
+import trading_utils.df_utils
+
 sys.path.insert(0, f'../')
 
 from utils import miscutils
 from utils import atr_tolerance_helper
-from trading_utils import df_utils
-from trading_utils import ib_utils
-from trading_utils import ib_orders
-from trading_utils import ib_pricing
-from trading_utils import ib_posttrade
-from trading_utils import global_state
-from trading_utils import config_utils
-from trading_utils import ruamel_confg_util
-from trading_utils import email_utils
-from trading_utils import check_health_status
-from trading_utils import date_utils
-from trading_utils import constants
-from trading_utils import file_utils
+from trading_utils import *
 
 yaml = YAML()
 yaml.preserve_quotes = True  # Optional: preserve quotes if any
 yaml.width = 1000 # so will not wrap lines in the yaml file
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--portfolio-id', help="active portfolio", default='p250')
+args = parser.parse_args()
+portfolio_id = args.portfolio_id
+if portfolio_id == 'p000':
+    print('you need to pass portfolio like  --portfolio-id=p100')
+    exit()
 
-portfolio_id = 'p250'
 configs_folder = f'../configs'
 
 mode = 'live'
@@ -84,7 +82,7 @@ def update_config_and_save(config, key, value):
     return
 
 def load_ib_config():
-    file = 'ib-config.yaml'
+    file = f'ib-config-{portfolio_id}.yaml'
     logger.warning(f"loading ... {file}")
     app_config = config_utils.load_config(f'{configs_folder}/{file}')
     logger.info(f"loaded ... file")
@@ -136,26 +134,26 @@ def create_ib_connection():
     return ib
 
 def get_historical_data(contract, historical_days, time_frame):
-
-    bars = ib.reqHistoricalData(
-        contract,
-        endDateTime='',
-        durationStr=historical_days,
-        barSizeSetting=time_frame,
-        whatToShow='TRADES',  # for BTC  'AGGTRADES',
-        useRTH=False,
-        formatDate=1)
-
-    # Create a Pandas dataframe from the historical data
-    df = util.df(bars)
-    logger.info(f"get_historical_data, len(df): {len(df)}")
-
-    if time_frame != '1 day':
-        if df["date"].dt.tz is not None:
-            df["date"] = df["date"].dt.tz_convert(None)
-            df = miscutils.convert_column_timezone(df, 'date', 'date', from_zone='UTC', to_zone='America/New_York')
-
-    return df
+    return ib_marketdata.get_historical_data(ib, contract, historical_days, time_frame)
+    # bars = ib.reqHistoricalData(
+    #     contract,
+    #     endDateTime='',
+    #     durationStr=historical_days,
+    #     barSizeSetting=time_frame,
+    #     whatToShow='TRADES',  # for BTC  'AGGTRADES',
+    #     useRTH=False,
+    #     formatDate=1)
+    #
+    # # Create a Pandas dataframe from the historical data
+    # df = util.df(bars)
+    # logger.info(f"get_historical_data, len(df): {len(df)}")
+    #
+    # if time_frame != '1 day':
+    #     if df["date"].dt.tz is not None:
+    #         df["date"] = df["date"].dt.tz_convert(None)
+    #         df = df_utils.convert_column_timezone(df, 'date', 'date', from_zone='UTC', to_zone='America/New_York')
+    #
+    # return df
 
 
 def get_market_data(symbol, time_frame ='1 day', historical_days= ''):
@@ -1360,36 +1358,37 @@ def get_historical_data_from_start_date(contract, historical_days, time_frame, s
     # calculate end date (20 days ago)
     # end_date = datetime.datetime.now() - datetime.timedelta(days=10)
     # end_date_str = end_date.strftime('%Y%m%d %H:%M:%S')
-    for attempt in range(1, max_retries + 1):
-        try:
-            bars = ib.reqHistoricalData(
-                contract,
-                endDateTime=start_date,
-                durationStr=historical_days,
-                barSizeSetting=time_frame,
-                whatToShow='TRADES',  # for BTC  'AGGTRADES',
-                useRTH=False,
-                formatDate=1)
-
-            # Create a Pandas dataframe from the historical data
-            df = util.df(bars)
-            logger.info(f"get_historical_data_from_start_date, start_date: {start_date}, len(df): {len(df)}")
-
-            if time_frame != '1 day':
-                 # df["date"]=df["date"].dt.tz_convert(None)
-                if df["date"].dt.tz is not None:
-                    df["date"] = df["date"].dt.tz_convert(None)
-                    df = miscutils.convert_column_timezone(df, 'date', 'date', from_zone='UTC', to_zone='America/New_York')
-
-            logger.info(f"get_historical_data_from_start_date, {contract.symbol}, df['date'].min(): {df['date'].min()}, df['date'].max(): {df['date'].max()}")
-            return df
-        except Exception as e:
-            # TODO add
-            logger.error(e)
-            logger.warning("we going try again")
-            time.sleep(retry_delay)
-    # if we are here, means that we could not get data
-    return pd.DataFrame()
+    return ib_marketdata.get_historical_data_from_start_date(contract, historical_days, time_frame, start_date, max_retries=3, retry_delay=2)
+    # for attempt in range(1, max_retries + 1):
+    #     try:
+    #         bars = ib.reqHistoricalData(
+    #             contract,
+    #             endDateTime=start_date,
+    #             durationStr=historical_days,
+    #             barSizeSetting=time_frame,
+    #             whatToShow='TRADES',  # for BTC  'AGGTRADES',
+    #             useRTH=False,
+    #             formatDate=1)
+    #
+    #         # Create a Pandas dataframe from the historical data
+    #         df = util.df(bars)
+    #         logger.info(f"get_historical_data_from_start_date, start_date: {start_date}, len(df): {len(df)}")
+    #
+    #         if time_frame != '1 day':
+    #              # df["date"]=df["date"].dt.tz_convert(None)
+    #             if df["date"].dt.tz is not None:
+    #                 df["date"] = df["date"].dt.tz_convert(None)
+    #                 df = df_utils.convert_column_timezone(df, 'date', 'date', from_zone='UTC', to_zone='America/New_York')
+    #
+    #         logger.info(f"get_historical_data_from_start_date, {contract.symbol}, df['date'].min(): {df['date'].min()}, df['date'].max(): {df['date'].max()}")
+    #         return df
+    #     except Exception as e:
+    #         # TODO add
+    #         logger.error(e)
+    #         logger.warning("we going try again")
+    #         time.sleep(retry_delay)
+    # # if we are here, means that we could not get data
+    # return pd.DataFrame()
 
 def get_historical_data_back_test(contract, start_date='2025-09-01', end_date= '', historical_days='', time_frame='1 min'):
     """
@@ -2060,7 +2059,10 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
         if can_buy == False and can_sell == False: # no sucess ...
             continue
         logger.info(f"check_buy_sell_result_to_send_order, {symbol}, can_buy: {can_buy}, can_sell:{can_sell}")
-        side = 'long' if can_buy else 'short'
+
+        market_trend = 'up' if can_buy else 'down' #
+        right = 'C' if can_buy else 'P'
+
         if not app_config['symbols_meta'][symbol]['can_trade']:
             logger.info(f"We are not trading {symbol}.")
             continue
@@ -2076,10 +2078,9 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
         if has_open_order_in_same_group(symbol):
             logger.warning(f"@@  We already have open order in same group {symbol}")
             continue
-        if symbol in app_config['live']['blocked_symbols'][side]:
+        if symbol in app_config['live']['blocked_symbols'][right]:
             logger.warning(f"@@  This symbol is blocked, {symbol}, {app_config['live']['blocked_symbols'][side]}")
             continue
-        market_trend = 'up' if can_buy else 'down' #
         mark_score_in_the_chart(market_trend)
 
         if contract_type.lower() == 'equity' and (can_buy or can_sell): # go for buy
