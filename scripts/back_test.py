@@ -153,7 +153,7 @@ def get_historical_data(contract, historical_days, time_frame):
     if time_frame != '1 day':
         if df["date"].dt.tz is not None:
             df["date"] = df["date"].dt.tz_convert(None)
-            df = miscutils.convert_column_timezone(df, 'date', 'date', from_zone='UTC', to_zone='America/New_York')
+            df = df_utils.convert_column_timezone(df, 'date', 'date', from_zone='UTC', to_zone='America/New_York')
 
     return df
 
@@ -1361,6 +1361,7 @@ def get_historical_data_from_start_date(contract, historical_days, time_frame, s
     # calculate end date (20 days ago)
     # end_date = datetime.datetime.now() - datetime.timedelta(days=10)
     # end_date_str = end_date.strftime('%Y%m%d %H:%M:%S')
+    return get_historical_data_from_start_date(ib, contract, start_date, historical_days, time_frame, max_retries=3, retry_delay=5)
     for attempt in range(1, max_retries + 1):
         try:
             bars = ib.reqHistoricalData(
@@ -1380,7 +1381,7 @@ def get_historical_data_from_start_date(contract, historical_days, time_frame, s
                  # df["date"]=df["date"].dt.tz_convert(None)
                 if df["date"].dt.tz is not None:
                     df["date"] = df["date"].dt.tz_convert(None)
-                    df = miscutils.convert_column_timezone(df, 'date', 'date', from_zone='UTC', to_zone='America/New_York')
+                    df = df_utils.convert_column_timezone(df, 'date', 'date', from_zone='UTC', to_zone='America/New_York')
 
             logger.info(f"get_historical_data_from_start_date, {contract.symbol}, df['date'].min(): {df['date'].min()}, df['date'].max(): {df['date'].max()}")
             return df
@@ -3847,6 +3848,7 @@ if __name__ == "__main__":
         ib = None
         get_back_test_data()
         now = datetime.datetime.now()
+        screening_summary_for_all_sub_runs_agg_df = pd.DataFrame() # this is for all sub runs aggregation
         unique_run_number = f"{now.strftime('%Y%m%d-%H%M%S')}"
         for run in app_config['back_test']['runs']:
             if not app_config['back_test']['runs'][run]['active']:
@@ -4053,7 +4055,7 @@ if __name__ == "__main__":
                 # for each date ...
                 save_all_csv_files()
 
-
+            # for 1 run ,sa 1 month
             df_utils.save_df_to_csv_a_tabular(screening_log_for_run_df,file_path=add_unique_run_number_start_end_date(df_file_map.get('screening_log_for_run_df')), mode='w')
 
             screening_summary_df = summerize_screening_log(screening_log_for_run_df)
@@ -4061,12 +4063,16 @@ if __name__ == "__main__":
             df_utils.save_df_to_csv_a_tabular(screening_summary_df, file_path=df_file_map.get('screening_summary_df'), mode='a') # adding acumulated ....
             screening_summary_agg_df =  aggregate_screening_log(screening_summary_df)
             df_utils.save_df_to_csv_a_tabular(screening_summary_agg_df, file_path=df_file_map.get('screening_summary_agg_df'), mode='a')
-            screening_summary_for_all_sub_runs_agg_df =  aggregate_screening_log_for_all_sub_runs(screening_summary_df)
-            df_utils.save_df_to_csv_a_tabular(screening_summary_for_all_sub_runs_agg_df, file_path=df_file_map.get('screening_summary_for_all_sub_runs_agg_df'), mode='a')
+            screening_summary_for_all_sub_runs_agg_df = pd.concat([screening_summary_for_all_sub_runs_agg_df, screening_summary_agg_df])
 
 
 
             logger.info("Done!")
+
+
+        # For set of runs, say few months
+        screening_summary_for_all_sub_runs_agg_df = aggregate_screening_log_for_all_sub_runs(screening_summary_for_all_sub_runs_agg_df)
+        df_utils.save_df_to_csv_a_tabular(screening_summary_for_all_sub_runs_agg_df,file_path=df_file_map.get('screening_summary_for_all_sub_runs_agg_df'), mode='a')
     except Exception as e:
         logger.warning('-------------------')
         logger.error(f"@@@@ error: {e}")
