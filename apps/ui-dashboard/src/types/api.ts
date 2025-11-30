@@ -39,7 +39,10 @@ export interface LogFilesResponse {
 
 export interface LogLine {
   lineNumber: number;
+  originalLineNumber: number;
   content: string;
+  isMatch: boolean;
+  page: number;
 }
 
 export interface LogContentResponse {
@@ -52,4 +55,22 @@ export interface LogContentResponse {
   totalPages: number;
   hasSearch: boolean;
   searchQuery?: string;
+  totalMatches?: number;
+  contextLines?: number;
+}
+
+export interface DirectorySearchResult extends LogLine {
+  fileName: string;
+}
+
+export interface DirectorySearchResponse {
+  type: "directory_search";
+  results: DirectorySearchResult[];
+  totalResults: number;
+  page: number;
+  perPage: number;
+  totalPages: number;
+  searchQuery: string;
+  filesSearched: number;
+  contextLines: number;
 }

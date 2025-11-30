@@ -1,6 +1,4 @@
-import { useMemo } from 'react'
-import { LogViewer } from '@patternfly/react-log-viewer'
-import '@patternfly/react-log-viewer/dist/css/log-viewer.css'
+import { useEffect, useRef } from 'react'
 import {
   Box,
   Typography,
@@ -31,6 +29,7 @@ interface LogViewerProps {
   onPageChange: (page: number) => void
   onLoadPage: (page: number, search?: string) => Promise<void>
   loading?: boolean
+  targetLineNumber?: number | null
 }
 
 export default function PatternFlyLogViewer({
@@ -45,13 +44,23 @@ export default function PatternFlyLogViewer({
   onSearchChange,
   onLoadPage,
   loading = false,
+  targetLineNumber = null,
 }: LogViewerProps) {
   const theme = useTheme()
+  const logViewerRef = useRef<HTMLDivElement>(null)
+  const targetLineRef = useRef<HTMLDivElement>(null)
 
-  // Convert lines to string format for PatternFly LogViewer
-  const logData = useMemo(() => {
-    return lines.map((line) => line.content).join('\n')
-  }, [lines])
+  // Scroll to target line when it's available
+  useEffect(() => {
+    if (targetLineNumber !== null && !loading && targetLineRef.current) {
+      setTimeout(() => {
+        targetLineRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        })
+      }, 100)
+    }
+  }, [targetLineNumber, lines, loading])
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -81,16 +90,46 @@ export default function PatternFlyLogViewer({
         }}
       >
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-          {searchQuery && (
+          {targetLineNumber !== null && (
             <Chip
-              label={`${totalLines} match${totalLines !== 1 ? 'es' : ''} of ${originalTotalLines}`}
-              onDelete={handleClearSearch}
-              color="primary"
+              label={`📍 Target: Line ${targetLineNumber}`}
+              color="warning"
               size="small"
+              sx={{
+                fontWeight: 600,
+                animation: 'pulse 2s infinite',
+                '@keyframes pulse': {
+                  '0%, 100%': {
+                    opacity: 1,
+                  },
+                  '50%': {
+                    opacity: 0.7,
+                  },
+                },
+              }}
             />
           )}
+          {searchQuery && (
+            <>
+              <Chip
+                label={`${lines.filter(l => l.isMatch).length} match${lines.filter(l => l.isMatch).length !== 1 ? 'es' : ''} shown`}
+                color="primary"
+                size="small"
+                variant="outlined"
+              />
+              <Chip
+                label={`${totalLines} total lines with context`}
+                onDelete={handleClearSearch}
+                color="secondary"
+                size="small"
+              />
+            </>
+          )}
           <Typography variant="body2" color="text.secondary">
-            Lines {((page - 1) * perPage) + 1}-{Math.min(page * perPage, totalLines)} of {totalLines}
+            {searchQuery 
+              ? `Showing ${lines.length} line${lines.length !== 1 ? 's' : ''} (${originalTotalLines} total in file)`
+              : `Lines ${((page - 1) * perPage) + 1}-${Math.min(page * perPage, totalLines)} of ${totalLines}`
+            }
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -127,7 +166,7 @@ export default function PatternFlyLogViewer({
         <TextField
           fullWidth
           size="small"
-          placeholder="Search in log file (server-side)..."
+          placeholder='Search in log file (use ".." for multiple terms on same line, e.g., "10:35 .. AMD")'
           defaultValue={searchQuery}
           InputProps={{
             startAdornment: (
@@ -148,24 +187,15 @@ export default function PatternFlyLogViewer({
       </Box>
 
       <Box
+        ref={logViewerRef}
         sx={{
           height: '75vh',
           border: '1px solid',
           borderColor: 'divider',
           borderRadius: 1,
-          overflow: 'hidden',
-          '& .pf-v5-c-log-viewer': {
-            height: '100%',
-          },
-          '& .pf-v5-c-log-viewer__header': {
-            display: 'none',
-          },
-          '& .pf-v5-c-toolbar': {
-            display: 'none',
-          },
-          '& .pf-v6-c-log-viewer__main': {
-            padding: '6px',
-          },
+          overflow: 'auto',
+          position: 'relative',
+          backgroundColor: theme.palette.mode === 'dark' ? '#1e1e1e' : '#ffffff',
         }}
       >
         {loading ? (
@@ -182,12 +212,64 @@ export default function PatternFlyLogViewer({
             </Typography>
           </Box>
         ) : (
-          <LogViewer
-            data={logData}
-            height="100%"
-            theme={theme.palette.mode === 'dark' ? 'dark' : 'light'}
-            isTextWrapped={false}
-          />
+          <Box
+            component="pre"
+            sx={{
+              margin: 0,
+              padding: '12px',
+              fontFamily: 'monospace',
+              fontSize: '0.875rem',
+              lineHeight: '1.6',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              color: theme.palette.text.primary,
+            }}
+          >
+            {lines.map((line, index) => {
+              const isTargetLine = targetLineNumber !== null && line.originalLineNumber === targetLineNumber
+              
+              return (
+                <Box
+                  key={`${line.originalLineNumber}-${index}`}
+                  ref={isTargetLine ? targetLineRef : null}
+                  component="div"
+                  sx={{
+                    padding: '2px 4px',
+                    margin: '1px 0',
+                    backgroundColor: isTargetLine
+                      ? theme.palette.mode === 'dark'
+                        ? 'rgba(255, 193, 7, 0.3)'
+                        : 'rgba(255, 193, 7, 0.25)'
+                      : line.isMatch && searchQuery
+                      ? theme.palette.mode === 'dark'
+                        ? 'rgba(144, 202, 249, 0.15)'
+                        : 'rgba(25, 118, 210, 0.1)'
+                      : 'transparent',
+                    borderLeft: isTargetLine
+                      ? `4px solid ${theme.palette.warning.main}`
+                      : line.isMatch && searchQuery
+                      ? `3px solid ${theme.palette.primary.main}`
+                      : 'none',
+                    borderRadius: '2px',
+                    fontWeight: isTargetLine ? 600 : line.isMatch && searchQuery ? 500 : 400,
+                    color: isTargetLine
+                      ? theme.palette.warning.main
+                      : line.isMatch && searchQuery
+                      ? theme.palette.primary.main
+                      : theme.palette.text.primary,
+                    transition: 'all 0.2s ease-in-out',
+                    '&:hover': {
+                      backgroundColor: theme.palette.mode === 'dark'
+                        ? 'rgba(255, 255, 255, 0.05)'
+                        : 'rgba(0, 0, 0, 0.03)',
+                    },
+                  }}
+                >
+                  {line.content}
+                </Box>
+              )
+            })}
+          </Box>
         )}
       </Box>
     </Box>

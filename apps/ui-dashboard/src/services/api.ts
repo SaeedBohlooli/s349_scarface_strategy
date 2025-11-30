@@ -8,6 +8,7 @@ import type {
   LogDirectoriesResponse,
   LogFilesResponse,
   LogContentResponse,
+  DirectorySearchResponse,
 } from '../types/api'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:5000'
@@ -145,7 +146,8 @@ export async function getLogContent(
   file: string,
   page: number = 1,
   perPage: number = 1000,
-  search?: string
+  search?: string,
+  contextLines: number = 5
 ): Promise<LogContentResponse> {
   try {
     const params = new URLSearchParams()
@@ -153,10 +155,38 @@ export async function getLogContent(
     params.append('per_page', perPage.toString())
     if (search) {
       params.append('search', search)
+      params.append('context_lines', contextLines.toString())
     }
     
     const response = await apiClient.get<LogContentResponse>(
       `/api/${API_VERSION}/logs/content/${portfolioId}/${logDirectory}/${file}?${params.toString()}`
+    )
+    return response.data
+  } catch (error) {
+    throw handleApiError(error)
+  }
+}
+
+/**
+ * Search across all log files in a directory
+ */
+export async function searchLogDirectory(
+  portfolioId: string,
+  logDirectory: string,
+  searchQuery: string,
+  page: number = 1,
+  perPage: number = 50,
+  contextLines: number = 5
+): Promise<DirectorySearchResponse> {
+  try {
+    const params = new URLSearchParams()
+    params.append('search', searchQuery)
+    params.append('page', page.toString())
+    params.append('per_page', perPage.toString())
+    params.append('context_lines', contextLines.toString())
+    
+    const response = await apiClient.get<DirectorySearchResponse>(
+      `/api/${API_VERSION}/logs/search/${portfolioId}/${logDirectory}?${params.toString()}`
     )
     return response.data
   } catch (error) {

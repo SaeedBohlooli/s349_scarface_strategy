@@ -531,6 +531,7 @@ def log_content(portfolio_id, log_directory, file):
     - page: Page number (default: 1)
     - per_page: Number of lines per page (default: 1000)
     - search: Optional search query to filter lines
+    - context_lines: Number of context lines before/after matches (default: 5, only used with search)
     """
     file_abs_path = os.path.abspath(os.path.join(os.path.dirname(__file__), config['data_folder'], 'logs', portfolio_id, log_directory, file))
     
@@ -544,12 +545,15 @@ def log_content(portfolio_id, log_directory, file):
     page = request.args.get('page', default=1, type=int)
     per_page = request.args.get('per_page', default=1000, type=int)
     search_query = request.args.get('search', default='', type=str)
+    context_lines = request.args.get('context_lines', default=5, type=int)
     
     # Validate parameters
     if page < 1:
         return jsonify({"error": "Page must be >= 1"}), 400
     if per_page < 1 or per_page > 10000:
         return jsonify({"error": "per_page must be between 1 and 10000"}), 400
+    if context_lines < 0 or context_lines > 50:
+        return jsonify({"error": "context_lines must be between 0 and 50"}), 400
     
     try:
         # Use cached lines
@@ -561,39 +565,118 @@ def log_content(portfolio_id, log_directory, file):
     
     total_lines = len(lines)
     
+    # Helper function to calculate page number for a line
+    def get_page_for_line(line_num, per_page):
+        return ((line_num - 1) // per_page) + 1
+    
+    # Helper function to check if a line matches all search terms
+    def line_matches_all_terms(line, search_terms):
+        """Check if all search terms appear in the same line (case-insensitive)."""
+        line_lower = line.lower()
+        return all(term.strip().lower() in line_lower for term in search_terms if term.strip())
+    
     # Filter by search query if provided
     if search_query:
-        filtered_lines = [
-            (i+1, line) for i, line in enumerate(lines) 
-            if search_query.lower() in line.lower()
-        ]
-        total_filtered = len(filtered_lines)
+        # Split search query by ".." to support multiple terms
+        # Also support "&" and "," as alternative separators
+        search_terms = []
+        if ".." in search_query:
+            search_terms = [term.strip() for term in search_query.split("..")]
+        elif "&" in search_query:
+            search_terms = [term.strip() for term in search_query.split("&")]
+        elif "," in search_query:
+            search_terms = [term.strip() for term in search_query.split(",")]
+        else:
+            # Single term
+            search_terms = [search_query.strip()]
         
-        # Paginate filtered results
+        # Remove empty terms
+        search_terms = [term for term in search_terms if term]
+        
+        # Find all matching line numbers where ALL terms appear on the same line
+        matching_line_nums = [
+            i + 1 for i, line in enumerate(lines) 
+            if line_matches_all_terms(line, search_terms)
+        ]
+        total_matches = len(matching_line_nums)
+        
+        if total_matches == 0:
+            return jsonify({
+                "type": "log",
+                "lines": [],
+                "totalLines": 0,
+                "originalTotalLines": total_lines,
+                "page": page,
+                "perPage": per_page,
+                "totalPages": 0,
+                "hasSearch": True,
+                "searchQuery": search_query,
+                "totalMatches": 0
+            })
+        
+        # Build result with context around each match
+        # Use a set to track which lines we've already included (to avoid duplicates)
+        included_lines = set()
+        result_lines = []
+        
+        # For each match, include context lines before and after
+        for match_line_num in matching_line_nums:
+            # Calculate context range
+            context_start = max(1, match_line_num - context_lines)
+            context_end = min(total_lines, match_line_num + context_lines)
+            
+            # Add lines in this context range
+            for line_num in range(context_start, context_end + 1):
+                if line_num not in included_lines:
+                    included_lines.add(line_num)
+                    is_match = line_num in matching_line_nums
+                    result_lines.append({
+                        "lineNumber": line_num,
+                        "originalLineNumber": line_num,
+                        "content": lines[line_num - 1].rstrip('\n\r'),
+                        "isMatch": is_match,
+                        "page": get_page_for_line(line_num, per_page)
+                    })
+        
+        # Sort by line number
+        result_lines.sort(key=lambda x: x["lineNumber"])
+        
+        # Paginate the results with context
         start = (page - 1) * per_page
         end = start + per_page
-        paginated = filtered_lines[start:end]
+        paginated = result_lines[start:end]
         
         return jsonify({
             "type": "log",
-            "lines": [{"lineNumber": num, "content": content.rstrip('\n\r')} for num, content in paginated],
-            "totalLines": total_filtered,
+            "lines": paginated,
+            "totalLines": len(result_lines),
             "originalTotalLines": total_lines,
             "page": page,
             "perPage": per_page,
-            "totalPages": (total_filtered + per_page - 1) // per_page if total_filtered > 0 else 1,
+            "totalPages": (len(result_lines) + per_page - 1) // per_page if len(result_lines) > 0 else 1,
             "hasSearch": True,
-            "searchQuery": search_query
+            "searchQuery": search_query,
+            "totalMatches": total_matches,
+            "contextLines": context_lines
         })
     else:
         # Paginate all lines
         start = (page - 1) * per_page
         end = start + per_page
-        paginated = [(i+1, lines[i]) for i in range(start, min(end, total_lines))]
+        paginated = [
+            {
+                "lineNumber": i + 1,
+                "originalLineNumber": i + 1,
+                "content": lines[i].rstrip('\n\r'),
+                "isMatch": False,
+                "page": page
+            }
+            for i in range(start, min(end, total_lines))
+        ]
         
         return jsonify({
             "type": "log",
-            "lines": [{"lineNumber": num, "content": content.rstrip('\n\r')} for num, content in paginated],
+            "lines": paginated,
             "totalLines": total_lines,
             "originalTotalLines": total_lines,
             "page": page,
@@ -601,6 +684,165 @@ def log_content(portfolio_id, log_directory, file):
             "totalPages": (total_lines + per_page - 1) // per_page if total_lines > 0 else 1,
             "hasSearch": False
         })
+
+
+# Search across all files in a log directory
+@app.route(f"/api/{config['app']['api_version']}/logs/search/<portfolio_id>/<log_directory>", methods=["GET"], strict_slashes=False)
+def log_directory_search(portfolio_id, log_directory):
+    """
+    Search across all log files in a directory.
+    Query parameters:
+    - search: Search query (required)
+    - page: Page number (default: 1)
+    - per_page: Number of results per page (default: 50)
+    - context_lines: Number of context lines before/after matches (default: 5)
+    """
+    log_dir_abs_path = os.path.abspath(os.path.join(os.path.dirname(__file__), config['data_folder'], 'logs', portfolio_id, log_directory))
+    
+    if not os.path.exists(log_dir_abs_path):
+        return jsonify({"error": f"Log directory not found: {log_dir_abs_path}"}), 404
+    
+    if not os.path.isdir(log_dir_abs_path):
+        return jsonify({"error": f"Path is not a directory: {log_dir_abs_path}"}), 400
+    
+    # Get search parameters
+    search_query = request.args.get('search', default='', type=str)
+    page = request.args.get('page', default=1, type=int)
+    per_page = request.args.get('per_page', default=50, type=int)
+    context_lines = request.args.get('context_lines', default=5, type=int)
+    
+    # Validate parameters
+    if not search_query:
+        return jsonify({"error": "Search query is required"}), 400
+    if page < 1:
+        return jsonify({"error": "Page must be >= 1"}), 400
+    if per_page < 1 or per_page > 200:
+        return jsonify({"error": "per_page must be between 1 and 200"}), 400
+    if context_lines < 0 or context_lines > 50:
+        return jsonify({"error": "context_lines must be between 0 and 50"}), 400
+    
+    try:
+        # Get all files in the directory
+        files_list = get_cached_file_listing(log_dir_abs_path, filter_txt_csv=False)
+    except PermissionError:
+        return jsonify({"error": f"Permission denied accessing: {log_dir_abs_path}"}), 403
+    except Exception as e:
+        return jsonify({"error": f"Error reading directory: {str(e)}"}), 500
+    
+    if not files_list:
+        return jsonify({
+            "type": "directory_search",
+            "results": [],
+            "totalResults": 0,
+            "page": page,
+            "perPage": per_page,
+            "totalPages": 0,
+            "searchQuery": search_query,
+            "filesSearched": 0
+        })
+    
+    # Helper function to calculate page number for a line
+    def get_page_for_line(line_num, per_page):
+        return ((line_num - 1) // per_page) + 1
+    
+    # Helper function to check if a line matches all search terms
+    def line_matches_all_terms(line, search_terms):
+        """Check if all search terms appear in the same line (case-insensitive)."""
+        line_lower = line.lower()
+        return all(term.strip().lower() in line_lower for term in search_terms if term.strip())
+    
+    # Split search query by ".." to support multiple terms
+    # Also support "&" and "," as alternative separators
+    search_terms = []
+    if ".." in search_query:
+        search_terms = [term.strip() for term in search_query.split("..")]
+    elif "&" in search_query:
+        search_terms = [term.strip() for term in search_query.split("&")]
+    elif "," in search_query:
+        search_terms = [term.strip() for term in search_query.split(",")]
+    else:
+        # Single term
+        search_terms = [search_query.strip()]
+    
+    # Remove empty terms
+    search_terms = [term for term in search_terms if term]
+    
+    # Search across all files
+    all_results = []
+    files_searched = 0
+    
+    for file_name in files_list:
+        file_path = os.path.join(log_dir_abs_path, file_name)
+        
+        if not os.path.isfile(file_path):
+            continue
+        
+        try:
+            lines = get_cached_log_lines(file_path)
+            files_searched += 1
+        except Exception:
+            continue
+        
+        # Find matching lines where ALL terms appear on the same line
+        matching_line_nums = [
+            i + 1 for i, line in enumerate(lines) 
+            if line_matches_all_terms(line, search_terms)
+        ]
+        
+        if not matching_line_nums:
+            continue
+        
+        # Build results with context for each match
+        included_lines = set()
+        file_results = []
+        
+        for match_line_num in matching_line_nums:
+            context_start = max(1, match_line_num - context_lines)
+            context_end = min(len(lines), match_line_num + context_lines)
+            
+            for line_num in range(context_start, context_end + 1):
+                if line_num not in included_lines:
+                    included_lines.add(line_num)
+                    is_match = line_num in matching_line_nums
+                    file_results.append({
+                        "lineNumber": line_num,
+                        "originalLineNumber": line_num,
+                        "content": lines[line_num - 1].rstrip('\n\r'),
+                        "isMatch": is_match,
+                        "page": get_page_for_line(line_num, 1000)  # Use standard per_page for page calculation
+                    })
+        
+        # Sort by line number
+        file_results.sort(key=lambda x: x["lineNumber"])
+        
+        # Add file information to results
+        for result in file_results:
+            all_results.append({
+                "fileName": file_name,
+                **result
+            })
+    
+    # Sort all results by file name, then by line number
+    all_results.sort(key=lambda x: (x["fileName"], x["lineNumber"]))
+    
+    total_results = len(all_results)
+    
+    # Paginate results
+    start = (page - 1) * per_page
+    end = start + per_page
+    paginated_results = all_results[start:end]
+    
+    return jsonify({
+        "type": "directory_search",
+        "results": paginated_results,
+        "totalResults": total_results,
+        "page": page,
+        "perPage": per_page,
+        "totalPages": (total_results + per_page - 1) // per_page if total_results > 0 else 1,
+        "searchQuery": search_query,
+        "filesSearched": files_searched,
+        "contextLines": context_lines
+    })
 
 if __name__ == "__main__":
     app.run(debug=True)
