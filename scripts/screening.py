@@ -3930,7 +3930,7 @@ if __name__ == "__main__":
         elif day_of_week == 'Monday':
             historical_days = '3 D'  # 1 D doesnt go for previous day ...
         else:
-            historical_days = '1 D'
+            historical_days = '2 D'
 
 
         all_positions = get_all_open_positions()
