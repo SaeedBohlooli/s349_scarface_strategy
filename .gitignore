@@ -31,3 +31,6 @@ test/
 **/*.local.yaml
 /x/
 apps/api/node_modules
+options_greeks/
+greeks/
+core/

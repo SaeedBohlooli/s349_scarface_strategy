@@ -1,11 +1,4 @@
-import json
-import os
 import logging
-import pandas as pd
-import configparser
-from datetime import datetime
-import yaml
-import sys
 
 logger = logging.getLogger(__name__)
 
@@ -26,13 +19,3 @@ def setup_logger(name, level=logging.INFO, fmt='%(asctime)s - %(name)s - %(level
 
 
 
-def convert_column_timezone(df, from_column='date', to_column='date_est', from_zone='UTC', to_zone='America/New_York'):
-    from_column_tmp = from_column + '_tmp'
-    df[from_column_tmp] = pd.to_datetime(df[from_column])
-    df[from_column_tmp] = df[from_column_tmp].dt.tz_localize(from_zone)
-
-    # Convert from UTC to Eastern Time
-    df[to_column] = df[from_column_tmp].dt.tz_convert(to_zone)
-    logger.debug(f"df[-3:].to_markdown():\n {df[-10:].to_markdown()}")
-    df = df.drop(columns=[from_column_tmp])
-    return df
