@@ -1,4 +1,4 @@
-
+# This is used common between all portfolios
 
 symbols_meta:
   QQQ:
@@ -218,7 +218,7 @@ cases:
   case_4:
     memo: From PDH
     can_replace_level: false
-    precondition: mode == 'back_test'
+    precondition: 1 == 1  # all_levels_in(symbol)
     long:
       level: levels['PDH']
       condition_01: breakout_in_last_x_candles_ver_2(side='up', idx_list=[-3,-4,-5], level=long_level)

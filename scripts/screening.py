@@ -71,14 +71,13 @@ os.makedirs(charts_dir, exist_ok=True)
 os.makedirs(ohlc_archie_dir, exist_ok=True)
 
 
-def update_config_and_save(config, key, value):
-    global app_config
-    existing_value = app_config[key]
+def update_runtime_config_and_save(key, value):
+    existing_value = runtime_config.get(key)
     if value != existing_value:
-        logger.info(f"in update_config_and_save, key: {key}, existing value: {existing_value}, new value: {value} ")
-        app_config = ruamel_confg_util.load_app_config(portfolio_id)
-        app_config[key] = value
-        file = f'{configs_folder}/config-{portfolio_id}.yaml'
+        logger.info(f"in update_runtime_config_and_save, key: {key}, existing value: {existing_value}, new value: {value} ")
+        config = ruamel_confg_util.load_runtime_config(portfolio_id)
+        config[key] = value
+        file = f'{configs_folder}/runtime-config-{portfolio_id}.yaml'
         with open(file, 'w') as f:  #TODO fix it
             yaml.dump(app_config, f)
     return
@@ -88,6 +87,8 @@ def load_ib_config():
 
 
 app_config = config_utils.load_app_config(portfolio_id)
+runtime_config = config_utils.load_runtime_config(portfolio_id)
+
 logging_level = app_config['logging_level']
 # ###
 # Logging setup ..
@@ -2544,7 +2545,7 @@ def close_future_positions(positions, symbol='', close_qty=0, order_ref=''):
     return
 
 def close_all_open_option_positions():
-    update_config_and_save(app_config, 'close_all_open_option_positions', False)
+    update_runtime_config_and_save('close_all_open_option_positions', False)
     option_positions_to_monitor = find_option_positions_to_monitor()
     close_option_positions(option_positions_to_monitor)
 
@@ -3006,7 +3007,7 @@ def call_api_top_step(symbol, side):
 def cancel_open_orders(symbol = ''):
     if not app_config['cancel_open_orders_on_start']:
         return
-    update_config_and_save(app_config, 'cancel_open_orders_on_start', False)
+    update_runtime_config_and_save('cancel_open_orders_on_start', False)
 
     open_orders = ib.reqAllOpenOrders()
     # Cancel all open orders
@@ -3864,10 +3865,10 @@ if __name__ == "__main__":
     if app_config['load_application_state_from_file']:
         load_application_state_from_file()
 
-    if app_config['close_all_open_option_positions']:
+    if runtime_config.get('close_all_open_option_positions'):
         close_all_open_option_positions()
 
-    if app_config['cancel_open_orders_on_start']:
+    if runtime_config.get('cancel_open_orders_on_start'):
         cancel_open_orders()
 
     time_frame = '1 min'
@@ -3927,9 +3928,10 @@ if __name__ == "__main__":
 
         if run_number % 1 == 0:
             app_config = config_utils.load_app_config(portfolio_id)
+            runtime_config = config_utils.load_runtime_config(portfolio_id)
 
         if app_config['exit']:
-            update_config_and_save(app_config, 'exit', False)
+            update_runtime_config_and_save('exit', False)
             save_all_csv_files()
             exit(1)
 

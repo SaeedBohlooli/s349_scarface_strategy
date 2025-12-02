@@ -1,0 +1,4 @@
+exit: false
+
+cancel_open_orders_on_start: False
+close_all_open_option_positions: False

@@ -219,7 +219,3 @@ health_check:
   email_recipients: saeed.bx1@yahoo.com
   email_interval_minutes: 10
 
-#TODO move to another file ...
-exit: false
-
-

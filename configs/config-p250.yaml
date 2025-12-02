@@ -120,20 +120,20 @@ live:
 
 back_test:
   data:
-    get_data_from_ib: True  # we have data from 01-01
+    get_data_from_ib: False  # we have data from 01-01
     start_date: 2025-11-24
-    end_date: 2025-12-02
+    end_date: 2025-12-05
     historical_days: 5 D  # don't change this
   exclude_list: ['MNQ']
 #  memo: c_4 TP 1 ATR - BR ver1.2- BR 4 candle- Ent. close to level
 #  memo: case_2_1 TP 1.5 ATR - BR ver1.2- Ent. close to level - no short above PDH
   memo: case_2 TP 1.5 ATR - BR ver1.0
-  cases_to_run: ['case_2']
+  cases_to_run: ['case_4']
   runs:
     r_today:
       active: true
       start: 2025-12-01
-      end: 2025-12-02
+      end: 2025-12-03
       memo: Today
   x:
     r7:
@@ -200,8 +200,6 @@ chart:
     end_time: '12:00'
 
 # before_start:
-close_all_open_option_positions: false
-cancel_open_orders_on_start: false
 load_application_state_from_file: true
 run_should_take_seconds: 20
 
@@ -218,8 +216,5 @@ health_check:
   email_hours: 920 < current_hh_mm_ny < 1030
   email_recipients: saeed.bx1@yahoo.com
   email_interval_minutes: 10
-
-#TODO move to another file ...
-exit: false
 
 
