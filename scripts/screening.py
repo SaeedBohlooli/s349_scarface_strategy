@@ -82,10 +82,6 @@ def update_config_and_save(config, key, value):
     return
 
 def load_ib_config():
-    file = f'ib-config-{portfolio_id}.yaml'
-    logger.warning(f"loading ... {file}")
-    app_config = config_utils.load_config(f'{configs_folder}/{file}')
-    logger.info(f"loaded ... file")
     return app_config
 
 
@@ -216,8 +212,8 @@ def calculate_PDL_PDH(df):
     day_high = df_rth["high"].max()
     day_low = df_rth["low"].min()
 
-    logger.debug(f"Previous weekday RTH High: {day_high}")
-    logger.debug(f"Previous weekday RTH Low: {day_low}" )
+    logger.info(f"Previous Day RTH High: {day_high}")
+    logger.info(f"Previous Day RTH Low: {day_low}" )
 
     add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame,  object='dash', color='Blue', price_1=day_high, memo=f'PDH {day_high}', unique_id=f'{symbol}-{time_frame}-PDH' )
     add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame,  object='dash', color='Blue', price_1=day_low, memo=f'PDL {day_low}' , unique_id=f'{symbol}-{time_frame}-LDH' )
@@ -622,7 +618,8 @@ def add_to_screening_log_list(side):
     global  screening_log_list
     data = {
         'run_number': unique_run_number,
-        'memo': f"{app_config['back_test']['memo']} - {app_config['back_test']['runs'][run]['memo']}",
+        # 'memo': f"{app_config['back_test']['memo']} - {app_config['back_test']['runs'][run]['memo']}",
+        'memo': f"{app_config['back_test']['memo']}",
         'symbol': symbol,
         'trade_date': back_test_date,
         'day_of_week': pd.to_datetime(back_test_date).day_name(),
@@ -1358,7 +1355,7 @@ def get_historical_data_from_start_date(contract, historical_days, time_frame, s
     # calculate end date (20 days ago)
     # end_date = datetime.datetime.now() - datetime.timedelta(days=10)
     # end_date_str = end_date.strftime('%Y%m%d %H:%M:%S')
-    return ib_marketdata.get_historical_data_from_start_date(contract, historical_days, time_frame, start_date, max_retries=3, retry_delay=2)
+    return ib_marketdata.get_historical_data_until_end_date(contract, historical_days, time_frame, start_date, max_retries=3, retry_delay=2)
     # for attempt in range(1, max_retries + 1):
     #     try:
     #         bars = ib.reqHistoricalData(
@@ -1982,6 +1979,7 @@ def recompute_capital_flow_df(df, start_capital):
 
     df = df.fillna(0)
 
+    capital = start_capital
 
     for trade_date, group in df.groupby("trade_date"):
         capital = start_capital
@@ -3149,6 +3147,7 @@ def generate_df_file_map():
         "open_close_refs_df":  f"{portfolio_dir}/22-open_close_refs_df.csv",  # TODO rename
         "open_close_refs_pnl_df":  f"{portfolio_dir}/23-open_close_refs_pnl_df.csv",  # TODO rename
         "capital_flow_df":  f"{portfolio_dir}/24-capital_flow_df.csv",  # TODO rename
+        "screening_summary_for_all_sub_runs_agg_df":  f"{portfolio_dir}/25-screening_summary_for_all_sub_runs_agg_df.csv",  # TODO rename
 
     }
 
@@ -3574,6 +3573,45 @@ def summerize_screening_log(screening_log_for_run_df):
     screening_summary_df = df_utils.move_last_x_to_position_y(screening_summary_df, 3, 4)
     return screening_summary_df
 
+def aggregate_screening_log_for_all_sub_runs(df):
+    # then append all is_* count columns
+    count_cols = [col for col in df.columns
+                  if col.endswith('_count')]
+
+    agg_map = {
+        "total_trades": "sum",
+        "sum_pnl": "sum",
+    }
+
+    agg_map.update({col: "sum" for col in count_cols})
+
+    agg_df = (
+        df.groupby(['run_number', 'memo' ])
+          .agg(agg_map)
+          .reset_index()
+    )
+    # Compute win rates
+    agg_df["long_win_rate"] = round ((
+                                      agg_df["is_long_positive_count"] /
+                                      agg_df["is_long_count"].replace(0, float("nan"))
+                              ) * 100 , 2)
+
+    agg_df["short_win_rate"] = round((
+                                       agg_df["is_short_positive_count"] /
+                                       agg_df["is_short_count"].replace(0, float("nan"))
+                               ) * 100, 2)
+
+    agg_df["total_win_rate"] = round((
+                                       agg_df["is_positive_count"] /
+                                       agg_df["total_trades"].replace(0, float("nan"))
+                               ) * 100 ,2)
+
+    agg_df = agg_df.fillna(0)
+    agg_df = df_utils.move_last_x_to_position_y(agg_df, 3, 6)
+
+    return agg_df
+
+
 
 def aggregate_screening_log(df):
     if len(df) == 0:
@@ -3789,12 +3827,12 @@ def populate_levels_into_application_state(symbol, symbols_levels_maps, df):
     application_state.setdefault('symbols', {})[symbol] = {
         'price': df['close'].iloc[-1],
         'unique_run_number': unique_run_number,
-        'PDH': symbols_levels_maps[symbol].get('PDH', None),
-        'PDL': symbols_levels_maps[symbol].get('PDL', None),
-        'PMH': symbols_levels_maps[symbol].get('PMH', None),
-        'PML': symbols_levels_maps[symbol].get('PML', None),
-        '5MH': symbols_levels_maps[symbol].get('5MH', None),
-        '5ML': symbols_levels_maps[symbol].get('P5ML', None),
+        'PDH': symbols_levels_maps.get(symbol,{}).get('PDH', None),
+        'PDL': symbols_levels_maps.get(symbol,{}).get('PDL', None),
+        'PMH': symbols_levels_maps.get(symbol,{}).get('PMH', None),
+        'PML': symbols_levels_maps.get(symbol,{}).get('PML', None),
+        '5MH': symbols_levels_maps.get(symbol,{}).get('5MH', None),
+        '5ML': symbols_levels_maps.get(symbol,{}).get('P5ML', None),
         'HOLD_PDH': False,
         'HOLD_PDL': False,
 
@@ -3963,7 +4001,7 @@ if __name__ == "__main__":
             dynamic_tolerance = atr_tolerance_helper.get_dynamic_tolerance(df, level=0, min_tick=0.01)
 
             # Levels
-            if run_number == 1: # only first run for each symbol ...
+            if not get_levels_map().get('PDH'):  # PDH is not calculated yet
                 calculate_PDL_PDH(df)
 
             are_all_levels_in = all_levels_in(symbol)
