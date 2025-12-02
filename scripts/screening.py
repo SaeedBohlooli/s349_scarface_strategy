@@ -1,3 +1,5 @@
+from ib_insync import *
+import ib_insync
 import datetime
 import json
 import logging.handlers
@@ -1655,11 +1657,18 @@ def get_best_option_chain(chains):
 
 def find_expiration_and_strikes_from_ib(symbol, exchange):
     global options_meta_date_dic
-    underlying = Stock(symbol, 'SMART', 'USD')
-    ib.qualifyContracts(underlying)
+    underlying = ib_insync.Stock(symbol, 'SMART', 'USD')
+    logger.info(f"underlying: {underlying}, type: {type(underlying)}, module: {type(underlying).__module__}" )
+    # if app_config['symbols_meta'][symbol].get('primary_exchange'):
+    #     underlying.primaryExchange = app_config['symbols_meta'][symbol]['primary_exchange']
 
-    logger.info(f"underlying: {underlying}")
+    q = ib.qualifyContracts(underlying)
 
+    logger.info(f"underlying: {underlying}:  qualifyContracts: {q}")
+
+    if not q or len(q) == 0:
+        logger.warning(f"@@@@ underlying contract not qualified. {symbol}: {underlying}")
+        return
     #  Request all option chains for this symbol
     chains = ib.reqSecDefOptParams(symbol, '', 'STK', underlying.conId)
 
@@ -1704,7 +1713,7 @@ def find_expiration_and_strikes_from_ib(symbol, exchange):
 def create_option_contract(strike, expiry, right, exchange="CBOE", symbol='SPX', trading_class='SPXW', max_retries=4, wait_between=1.0):
     contracts = []
     # put in the loop
-    contract = Option(
+    contract = ib_insync.Option(
         symbol=symbol,
         lastTradeDateOrContractMonth=expiry,
         strike=strike,
@@ -2303,7 +2312,7 @@ def next_fridays(n=10):
     return result
 
 def get_quote_for_option_bid_ask(symbol, strike, right, expiry, exchange='SMART',max_retries=3, wait_between=1.0 ):
-    option = Option(
+    option = ib_insync.Option(
         symbol=symbol,
         lastTradeDateOrContractMonth=expiry,
         strike=strike,
@@ -2313,11 +2322,13 @@ def get_quote_for_option_bid_ask(symbol, strike, right, expiry, exchange='SMART'
     bid = ask = 0
 
     for attempt in range(1, max_retries + 1):
-        ticker = ib.reqMktData(option, snapshot=True)
+        ticker = ib.reqMktData(option, '', False, False)
+        # ticker = ib.reqMktData(option, snapshot=True)
+
         ib.sleep(0.2)  # Give IB a moment to return data
 
-        bid = ticker.bid  if ticker.bid > 0 else 0
-        ask = ticker.ask  if ticker.ask > 0 else 0
+        bid = ticker.bid if ticker.bid > 0 else 0
+        ask = ticker.ask if ticker.ask > 0 else 0
         last = ticker.last if ticker.last > 0 else 0
         logger.info(f"get_quote_for_option_bid_ask, {symbol}, bid: {bid}, ask:{ask}")
         if bid == 0 or ask == 0:
@@ -3922,15 +3933,17 @@ if __name__ == "__main__":
             save_all_csv_files()
             exit(1)
 
-        if run_number == 1:
+        if not checkmark_map.get(f'ORCHESTRATE_EXPIRATIONS_STRIKES_DONE'):
             orchestrate_expirations_strikes()
+            checkmark_map['ORCHESTRATE_EXPIRATIONS_STRIKES_DONE'] = True
 
-        if run_number == 1:
+        if not checkmark_map.get(f'FIRST_RUN_FOR_DATA'):
             historical_days = '' # from config
+            checkmark_map[f'FIRST_RUN_FOR_DATA'] = True
         elif day_of_week == 'Monday':
             historical_days = '3 D'  # 1 D doesnt go for previous day ...
         else:
-            historical_days = '2 D'
+            historical_days = '1 D'
 
 
         all_positions = get_all_open_positions()
