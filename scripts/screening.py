@@ -3930,7 +3930,7 @@ if __name__ == "__main__":
             app_config = config_utils.load_app_config(portfolio_id)
             runtime_config = config_utils.load_runtime_config(portfolio_id)
 
-        if app_config['exit']:
+        if runtime_config.get('exit'):
             update_runtime_config_and_save('exit', False)
             save_all_csv_files()
             exit(1)
