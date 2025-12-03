@@ -3575,6 +3575,8 @@ def summerize_screening_log(screening_log_for_run_df):
     return screening_summary_df
 
 def aggregate_screening_log_for_all_sub_runs(df):
+    if df is None or len(df) == 0:
+        return df
     # then append all is_* count columns
     count_cols = [col for col in df.columns
                   if col.endswith('_count')]
