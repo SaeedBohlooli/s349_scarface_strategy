@@ -79,7 +79,7 @@ def update_runtime_config_and_save(key, value):
         config[key] = value
         file = f'{configs_folder}/runtime-config-{portfolio_id}.yaml'
         with open(file, 'w') as f:  #TODO fix it
-            yaml.dump(app_config, f)
+            yaml.dump(config, f)
     return
 
 def load_ib_config():
@@ -3296,12 +3296,14 @@ def detect_a_mark_market_gap(symbol, df):
     if open_today_0930 is not  None and close_yesterday_1600 is not None:
         add_to_drawing_objects_df(symbol=symbol, time_frame='1min', object='rect', color=color, date_1=f'{today} 09:00:00', price_1=close_yesterday_1600,
                                   date_2=f'{today} 09:30:00', price_2=open_today_0930, memo='Market Gap', unique_id=f'{symbol}--MARKET-GAP')
-        application_state.setdefault('market_gaps', {})[symbol] = {
+        application_state.setdefault('symbols', {}).setdefault(symbol, {}).update(
+            {
             'date': str(df['date'].iloc[-1]),
             'open_today_0930': open_today_0930,
             'close_yesterday_1600': close_yesterday_1600,
             'gap_size': gap_size,
-        }
+            }
+        )
     return
 
 
@@ -3839,19 +3841,25 @@ def QQQ_gap_down_in_current_candle():
 
 def populate_levels_into_application_state(symbol, symbols_levels_maps, df):
     global application_state
-    application_state.setdefault('symbols', {})[symbol] = {
+    price = df['close'].iloc[-1]
+    application_state.setdefault('symbols', {}).setdefault(symbol, {}).update({
         'price': df['close'].iloc[-1],
-        'unique_run_number': unique_run_number,
+        'last_unique_run_number': unique_run_number,
         'PDH': symbols_levels_maps.get(symbol,{}).get('PDH', None),
         'PDL': symbols_levels_maps.get(symbol,{}).get('PDL', None),
         'PMH': symbols_levels_maps.get(symbol,{}).get('PMH', None),
         'PML': symbols_levels_maps.get(symbol,{}).get('PML', None),
         '5MH': symbols_levels_maps.get(symbol,{}).get('5MH', None),
-        '5ML': symbols_levels_maps.get(symbol,{}).get('P5ML', None),
-        'HOLD_PDH': False,
-        'HOLD_PDL': False,
+        '5ML': symbols_levels_maps.get(symbol,{}).get('5ML', None),
+        'HOLD_PDH': True if price > symbols_levels_maps.get(symbol,{}).get('PDH', np.nan) else False,
+        'HOLD_PDL': True if price < symbols_levels_maps.get(symbol,{}).get('PDL', np.nan) else False,
+        'HOLD_PMH': True if price > symbols_levels_maps.get(symbol,{}).get('PMH', np.nan) else False,
+        'HOLD_PML': True if price < symbols_levels_maps.get(symbol,{}).get('PML', np.nan) else False,
+        'HOLD_5MH': True if price > symbols_levels_maps.get(symbol, {}).get('5MH', np.nan) else False,
+        'HOLD_5ML': True if price < symbols_levels_maps.get(symbol, {}).get('5ML', np.nan) else False,
+        'HOLD_TEST': True if price < symbols_levels_maps.get(symbol, {}).get('TEST', np.nan) else False,
 
-    }
+    })
 
 if __name__ == "__main__":
 
@@ -4016,7 +4024,7 @@ if __name__ == "__main__":
             # Preparing ....
             relative_strength_df = compute_relative_strength(df, qqq_df, period=20)
             intraday_rs_df = compute_intraday_rs(df, qqq_df)
-            dynamic_tolerance = atr_tolerance_helper.get_dynamic_tolerance(df, level=0, min_tick=0.01)
+            dynamic_tolerance = atr_tolerance_helper.get_dynamic_tolerance(df[:-1].copy() , level=0, min_tick=0.01)  # Drop -1 as it fluctates ans SL triggers ...
 
             # Levels
             if not get_levels_map().get('PDH'):  # PDH is not calculated yet
