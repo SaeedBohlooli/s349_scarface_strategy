@@ -228,7 +228,8 @@ cases:
       condition_05: no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
       condition_06: check_price_vs_level(side='up', price=price, level=long_level )
       condition_07: abs (price - long_level) < 1.2 * atr_14
-      condition_08: number_of_opened_trades_so_far() == 0
+#      condition_08: number_of_opened_trades_so_far() == 0
+      condition_08: 1 == 1
       condition_09: 930 < last_record_hh_mm < 940
       condition_10: 1 == 1
       master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07 and eval_buy_condition_07 and eval_buy_condition_08  and eval_buy_condition_09
@@ -241,7 +242,8 @@ cases:
       condition_05: no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
       condition_06: check_price_vs_level(side='down', price=price, level=short_level )
       condition_07: abs (price - short_level) < 1.2 * atr_14
-      condition_08: number_of_opened_trades_so_far() == 0
+#      condition_08: number_of_opened_trades_so_far() == 0
+      condition_08: 1 == 1
       condition_09: 930 < last_record_hh_mm < 940
       condition_10: 1 == 1
       master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09 and eval_sell_condition_10
