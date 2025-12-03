@@ -1613,7 +1613,7 @@ def flatten(obj, prefix=''):
 
 def get_order_ref(event, symbol, alias_for_ref='', unique_run_number=''):
     order_ref = ''
-    portofilio_oreder_ref_alias = 'p250'
+    portofilio_oreder_ref_alias = portfolio_id
     if event.lower() == 'open':
         order_ref += f'OP-{portofilio_oreder_ref_alias}-{symbol}'
     else:
@@ -2682,6 +2682,9 @@ def check_for_stop_loss_and_take_profit():
             continue
 
         symbol_df = dfs_map.get(symbol, pd.DataFrame())
+        if symbol_df is None or len(symbol_df) == 0:
+            logger.warning(f"@@@ check_for_stop_loss_and_take_profit(), symbol_df is None or len==0 , {symbol}")
+            continue
         entry_underlying_price = float(open_trade_info.get('entry_underlying_price', -1))  # used in config ...
         level_used_to_open = float(open_trade_info.get('level_used_to_open', -1)) # used in config ...
         avg_cost_for_1_contract = open_trade_info.get('avg_cost_for_1_contract', -1) # used in config
