@@ -2044,6 +2044,22 @@ def add_to_capital_allocation_df(data):
     global capital_allocation_df
     capital_allocation_df = pd.concat([capital_allocation_df, pd.DataFrame([data])])
 
+def check_manual_conditions(symbol, right):
+    try:
+        for condition in app_config['live'].get('manual_settings', {}).get(right,{}).get('conditions', []):
+            evaluated_condition = eval(condition)
+            logger.info(f"check_manual_conditions, {symbol} , {right}, condition: {condition}, evaluated_condition: {evaluated_condition} ")
+            if not evaluated_condition:
+                return False
+
+    except Exception as e:
+        logger.error(f"@@@ TODO This is temp .... {e}")
+        logger.error(f"@@@ TODO This is temp .... {traceback.format_exc()}")
+
+    return True
+
+
+
 
 def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
     global application_state
@@ -2089,6 +2105,10 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
         if symbol in app_config['live']['blocked_symbols'][right]:
             logger.warning(f"@@  This symbol is blocked, {symbol}, {app_config['live']['blocked_symbols'][side]}")
             continue
+        if not check_manual_conditions(symbol, right):
+            logger.warning(f"@@  check_manual_conditions failed, {symbol}")
+            continue
+
         mark_score_in_the_chart(market_trend)
 
         if contract_type.lower() == 'equity' and (can_buy or can_sell): # go for buy
@@ -3915,6 +3935,7 @@ if __name__ == "__main__":
     qqq_5ML = -1
     qqq_PDH = -1
     qqq_PDL = -1
+    qqq_close = -1
 
     logger.info("application started.")
     run_spend_time = 0
@@ -4043,6 +4064,7 @@ if __name__ == "__main__":
                 qqq_5ML = get_levels_map().get('5ML', -1)
                 qqq_PDH = get_levels_map().get('PDH', -1)
                 qqq_PDL = get_levels_map().get('PDL', -1)
+                qqq_close = df['close'].iloc[-1]
 
             # once per candle per symbol ...
             if last_candles_visit_map.get(symbol, None ) != df['date'].iloc[-1]:

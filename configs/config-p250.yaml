@@ -122,13 +122,12 @@ live:
     C: ['C']
     P: ['F']
   manual_settings:
-    sides:
-      long:
-        cond:
-          - qqq_price > qqq_5ML   # check to make sure qqq_5ML is going to be 1
-      short:
-        cond:
-          - qqq_close < qqq_PDL
+    C:
+      conditions:
+        - qqq_close > qqq_5ML   # check to make sure qqq_5ML is going to be 1
+    P:
+      conditions:
+        - qqq_close < qqq_PDL
 
 
 back_test:
