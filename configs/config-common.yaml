@@ -52,7 +52,7 @@ symbols_meta:
     can_trade: true
     contract_type: Equity
     min_required_move_from_level: 0.04
-    breakout_confirmation_distance: 0.15
+    breakout_confirmation_distance: 0.07
     chart_entry_offset: 0.5
     retest_tolerance_multiplier: 1.8
   SPY:

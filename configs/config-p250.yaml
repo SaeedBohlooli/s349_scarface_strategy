@@ -9,7 +9,7 @@ symbols: ['QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR', 'TSLL', 'AMZN', 'MNQ', '
 
 stop_losses:
   C:
-    stop_loss_condition: underlying_previous_candle_close < level_used_to_open - tolerance_amount and underlying_current_price > underlying_previous_candle_close
+    stop_loss_condition: underlying_previous_candle_close < level_used_to_open - tolerance_amount and underlying_current_price < underlying_previous_candle_close
 #    stop_loss_condition:  symbol == 'AMD' or 1 == 2
 
   P:
@@ -121,6 +121,14 @@ live:
   blocked_symbols:
     C: ['C']
     P: ['F']
+  manual_settings:
+    sides:
+      long:
+        cond:
+          - qqq_price > qqq_5ML   # check to make sure qqq_5ML is going to be 1
+      short:
+        cond:
+          - qqq_close < qqq_PDL
 
 
 back_test:
