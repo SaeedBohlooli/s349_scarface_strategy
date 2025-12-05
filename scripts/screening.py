@@ -80,6 +80,7 @@ def update_runtime_config_and_save(key, value):
         file = f'{configs_folder}/runtime-config-{portfolio_id}.yaml'
         with open(file, 'w') as f:  #TODO fix it
             yaml.dump(config, f)
+        logger.info(f"in update_runtime_config_and_save, saved key: {key}, value: {value} to file: {file} ")
     return
 
 def load_ib_config():
@@ -2689,7 +2690,7 @@ def check_for_stop_loss_and_take_profit():
     symbols_need_to_be_removed = [] # we dont remove in the loop ..
 
     for symbol, open_trade_info in application_state.get('open_trades_dic', {}).items():
-        logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, " )
+        logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, open order unique_ru_number: {open_trade_info.get('unique_ru_number')}" )
 
         # ###
         # stop loss
@@ -2705,6 +2706,17 @@ def check_for_stop_loss_and_take_profit():
         if symbol_df is None or len(symbol_df) == 0:
             logger.warning(f"@@@ check_for_stop_loss_and_take_profit(), symbol_df is None or len==0 , {symbol}")
             continue
+        try:
+            minutes_since_last_record = date_utils.minutes_since_last_record(symbol_df)
+            logger.info(f"@ check_for_stop_loss_and_take_profit(), symbol: {symbol}, minutes_since_last_record: {minutes_since_last_record}")
+            if minutes_since_last_record > 2:
+                logger.warning(f"@@@ check_for_stop_loss_and_take_profit(), minutes_since_last_record >1 , {symbol}, minutes_since_last_record: {minutes_since_last_record}")
+                logger.info(f"@@@ check_for_stop_loss_and_take_profit(), symbol_df[-1:]\n {symbol_df[-1:].to_markdown()}")
+                continue
+        except Exception as e:
+            logger.error(f"@@@@@@ check_for_stop_loss_and_take_profit(), error in date check , {symbol}, e: {e}")
+
+        # TODO check date to make sure that the data is not old
         entry_underlying_price = float(open_trade_info.get('entry_underlying_price', -1))  # used in config ...
         level_used_to_open = float(open_trade_info.get('level_used_to_open', -1)) # used in config ...
         avg_cost_for_1_contract = open_trade_info.get('avg_cost_for_1_contract', -1) # used in config

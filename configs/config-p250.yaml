@@ -19,15 +19,15 @@ stop_losses:
 
 take_profits:
   t1:
-    condition: current_bid > avg_cost_for_1_contract * 1.15 and ( avg_cost_for_1_contract != -1 and current_bid != -1)
+    condition: current_bid > avg_cost_for_1_contract * 1.15 and avg_cost_for_1_contract not in [0,-1] and current_bid not in [0,-1]
     close_quantity_percentage: 0.5
 
   t2:
-    condition: current_bid > avg_cost_for_1_contract * 1.30  and ( avg_cost_for_1_contract != -1 and current_bid != -1)
+    condition: current_bid > avg_cost_for_1_contract * 1.30 and avg_cost_for_1_contract not in [0,-1] and current_bid not in [0,-1]
     close_quantity_percentage: 0.25
 
   t3:
-    condition: current_bid > avg_cost_for_1_contract * 1.60  and ( avg_cost_for_1_contract != -1 and current_bid != -1)
+    condition: current_bid > avg_cost_for_1_contract * 1.60 and avg_cost_for_1_contract not in [0,-1] and current_bid not in [0,-1]
     close_quantity_percentage: -1
 
   t4_ev:
@@ -124,10 +124,10 @@ live:
   manual_settings:
     C:
       conditions:
-        - qqq_close > qqq_5ML   # check to make sure qqq_5ML is going to be 1
+        - qqq_close > qqq_PDH   # check to make sure qqq_5ML is going to be 1
     P:
       conditions:
-        - qqq_close < qqq_PDL
+        - qqq_close < qqq_5ML
 
 
 back_test:
