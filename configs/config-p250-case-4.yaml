@@ -19,15 +19,15 @@ stop_losses:
 
 take_profits:
   t1:
-    condition: current_bid > avg_cost_for_1_contract * 1.15 and ( avg_cost_for_1_contract != -1 and current_bid != -1)
+    condition: current_bid > avg_cost_for_1_contract * 1.15 and avg_cost_for_1_contract not in [0,-1] and current_bid not in [0,-1]
     close_quantity_percentage: 0.5
 
   t2:
-    condition: current_bid > avg_cost_for_1_contract * 1.30  and ( avg_cost_for_1_contract != -1 and current_bid != -1)
+    condition: current_bid > avg_cost_for_1_contract * 1.30 and avg_cost_for_1_contract not in [0,-1] and current_bid not in [0,-1]
     close_quantity_percentage: 0.25
 
   t3:
-    condition: current_bid > avg_cost_for_1_contract * 1.60  and ( avg_cost_for_1_contract != -1 and current_bid != -1)
+    condition: current_bid > avg_cost_for_1_contract * 1.60 and avg_cost_for_1_contract not in [0,-1] and current_bid not in [0,-1]
     close_quantity_percentage: -1
 
   t4_ev:
@@ -50,6 +50,11 @@ take_profits:
     condition: check_mark_revers_candles(symbol)
     close_quantity_percentage: -1
     memo: for long after tp1, if we go below last down close candle, then we close the position and vice versa for short
+
+#  t6_trail_w_ema_9:
+  #    condition: symbol_df['close'].iloc[-1] < symbol_df['ema_9'].iloc[-1]  # for long after tp1, if we go below ema 9, then we close the position and vice versa for short
+  #    close_quantity_percentage: -1
+  #    memo: for long after tp1, if we go below last down close candle, then we close the position and vice versa for short
 
   t10_cl_manual:  # This is for closing everything just NVDA:   1 == 1 and symbol == 'NVDA'
     condition: 1 == 3 and symbol == 'AAPL'
