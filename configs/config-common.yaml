@@ -250,33 +250,35 @@ cases:
 
 
   case_4_1:
-    memo: This case is only for PDH and qqq stays above 5MH - we decide to NOT go with this
+    memo: From PDH
     can_replace_level: false
-    precondition: mode == 'back_test'
+    precondition: 1 == 1  # all_levels_in(symbol)
     long:
       level: levels['PDH']
-      condition_01: breakout_in_last_x_candles(side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level)
+      condition_01: breakout_in_last_x_candles_ver_2(side='up', idx_list=[-3,-4,-5], level=long_level)
       condition_02: price_retest(side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
       condition_03: is_retest_after_breakout(side='up', level=long_level)
       condition_04: check_entry_vs_retest(side='up', level=long_level)
       condition_05: no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
       condition_06: check_price_vs_level(side='up', price=price, level=long_level )
-      condition_07: last_record_hh_mm < 940 and qqq_df['close'].iloc[-1] > qqq_5MH
-      condition_08: number_of_opened_trades_so_far() == 0
-      condition_09: 930 < last_record_hh_mm < 1016 or mode == 'live'
+      condition_07: abs (price - long_level) < 1.2 * atr_14
+#      condition_08: number_of_opened_trades_so_far() == 0
+      condition_08: 1 == 1
+      condition_09: 930 < last_record_hh_mm < 940
       condition_10: 1 == 1
       master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07 and eval_buy_condition_07 and eval_buy_condition_08  and eval_buy_condition_09
     short:
       level: levels['PDL']
-      condition_01: breakout_in_last_x_candles(side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level)
+      condition_01: breakout_in_last_x_candles_ver_2(side='down', idx_list=[-3,-4,-5], level=short_level)
       condition_02: price_retest(side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True )
       condition_03: is_retest_after_breakout(side='down', level=short_level)
       condition_04: check_entry_vs_retest(side='down', level=short_level)
       condition_05: no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
       condition_06: check_price_vs_level(side='down', price=price, level=short_level )
-      condition_07: last_record_hh_mm < 940 and qqq_df['close'].iloc[-1] < qqq_5ML
-      condition_08: number_of_opened_trades_so_far() == 0
-      condition_09: 930 < last_record_hh_mm < 1016 or  mode == 'live'
+      condition_07: abs (price - short_level) < 1.2 * atr_14
+#      condition_08: number_of_opened_trades_so_far() == 0
+      condition_08: 1 == 1
+      condition_09: 930 < last_record_hh_mm < 940
       condition_10: 1 == 1
       master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09 and eval_sell_condition_10
 
