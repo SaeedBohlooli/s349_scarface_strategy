@@ -4087,4 +4087,4 @@ if __name__ == "__main__":
 
         if consequence_exception == 3:
             email_utils.send_email('saeed.bx1@yahoo.com', f"error in {portfolio_id} - {app_config['user_name']}",
-                                   body=f"Error in {app_config['user_name']} <br>{e}<br\><br\><br\>{traceback.format_exc()}")
+                                   body=f"Error in {app_config['user_name']} <br>{e}<br><br><br>{traceback.format_exc()}")
