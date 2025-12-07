@@ -24,13 +24,16 @@
 /data/
 /results/*.csv
 **/session_name.session
-/bin/*.lock
 /.venv
 /portfolios/
-test/
-**/*.local.yaml
 /x/
 apps/api/node_modules
 options_greeks/
 greeks/
 core/
+
+
+# for all u* projects
+/bin/*.lock
+test/
+**/*.local.yaml

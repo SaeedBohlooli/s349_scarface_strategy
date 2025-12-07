@@ -1102,12 +1102,14 @@ def breakout_in_last_x_candles_ver_2(side='up', idx_list=[-2], level=0):
         if side == 'up':
             cond_1 = (row["low"] < level and row["close"] > level + gap)    # The price above level + gap
             cond_2 = (previous["open"] < level and row["close"] > level + gap)  # The prev open is below level and current above the level.
+            cond_3 = (previous["open"] < level and row["open"] > level and row["close"] > level)  # The prev open is below level and current open and close are above the level.
 
         else:
             cond_1 = (row["high"] > level and row["close"] < level - gap)
             cond_2 = (previous["open"] > level and row["close"] < level - gap)
+            cond_3 = (previous["open"] > level and row["open"] < level and row["close"] < level)
 
-        breakout = (cond_1 or cond_2)
+        breakout = (cond_1 or cond_2 or cond_3)
         if not breakout:
             continue
 
@@ -1117,7 +1119,7 @@ def breakout_in_last_x_candles_ver_2(side='up', idx_list=[-2], level=0):
         candle_range = row["high"] - row["low"]
         candle_is_not_week = (candle_range > 0 and body / candle_range > 0.5) # do not remove candle_rage > 0 will raise devided by zero exception
 
-        if (cond_1 and candle_is_not_week) or cond_2: # for cond_1 we need body_confirmation, for cond_2 we do not need it
+        if (cond_1 and candle_is_not_week) or cond_2 or cond_3: # for cond_1 we need body_confirmation, for cond_2 and cond_3 we do not need it
 
             logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
             add_to_break_out_indices_by_level_set(level, idx)
@@ -2116,6 +2118,7 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
             right = 'C' if can_buy else 'P'
             option_contract = prepare_contract(symbol, right=right)
             if option_contract == None:
+                notification_utils.notify_user(app_config, msg=f"@@@@@ prepare_contract returned None. We are not sending order. symbol={symbol}, option_contract={option_contract}")
                 logger.warning(f"@@@@@ We are not sending order. {symbol}, option_contract: {option_contract}")
                 continue
             bid, ask = get_quote_for_option_bid_ask(symbol=symbol, strike=option_contract.strike, right=option_contract.right, expiry=option_contract.lastTradeDateOrContractMonth)
@@ -4159,7 +4162,7 @@ if __name__ == "__main__":
 
           if consequence_exception == 1:
               email_utils.send_email('saeed.bx1@yahoo.com', f"error in {portfolio_id} - {app_config['user_name']}",
-                                           body=f"Error in {app_config['user_name']} <br>{e}<br\><br\><br\>{traceback.format_exc()}")
+                                           body=f"Error in {app_config['user_name']} <br>{e}<br><br><br>{traceback.format_exc()}")
 
           if isinstance(e, ConnectionError):
               # set a flag and set connection in loop .. exists if riase exceptin

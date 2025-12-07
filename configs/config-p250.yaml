@@ -217,6 +217,14 @@ run_should_take_seconds: 20
 
 user_name: saeed
 
+notification:
+  conditions:
+    - busy_time
+    - 1 == 1
+  severity:
+    high: ['email']
+    medium: []
+    low: []
 
 email:
   send_email: true
@@ -224,6 +232,8 @@ email:
   recipients: saeed.bx1@yahoo.com
 
 health_check:
+  conditions:
+    - 920 < current_hh_mm_ny < 1030
   send_email: true
   email_hours: 920 < current_hh_mm_ny < 1030
   email_recipients: saeed.bx1@yahoo.com

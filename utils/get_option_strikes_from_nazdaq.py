@@ -3,6 +3,7 @@ import time
 
 import logging
 import json
+
 logger = logging.getLogger(__name__)
 
 
@@ -71,14 +72,15 @@ def dump_a_map_to_file(map, file_path):
 if __name__ == "__main__":
 
     options_meta_date_dic = {}
-    portfolio_id = 'p250'
-    intermediate_dir = f'../../portfolios/intermediate/{portfolio_id}'
 
     for symbol in ['QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR', 'TSLL', 'AMZN', 'MNQ', 'SPY']:
         print(f"\n===== {symbol} =====")
         get_strikes(symbol)
         time.sleep(1)
 
+    portfolio_ids = ['p250', 'p250-case-4']
+    for portfolio_id in portfolio_ids:
+        intermediate_dir = f'../../portfolios/intermediate/{portfolio_id}'
 
-    file_path = f'{intermediate_dir}/85-strikes-nazdaq.csv'
-    dump_a_map_to_file(options_meta_date_dic, file_path )
+        file_path = f'{intermediate_dir}/85-strikes-nazdaq.csv'
+        dump_a_map_to_file(options_meta_date_dic, file_path )
