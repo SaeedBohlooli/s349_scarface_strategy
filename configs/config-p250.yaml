@@ -104,7 +104,7 @@ closeness_distance_for_chart:
 closeness_distance_for_case_1: df['atr_14'].iloc[-1] * 2
 
 live:
-  cases_to_run: ['case_2_1']
+  cases_to_run: ['case_2_1', 'case_4_1']
   historical_days: 4 D
   capital: 4000
   capital_per_trade_percentage: 0.20
@@ -139,14 +139,20 @@ back_test:
   exclude_list: ['MNQ']
 #  memo: c_4 TP 1 ATR - BR ver1.2- BR 4 candle- Ent. close to level
 #  memo: case_2_1 TP 1.5 ATR - BR ver1.2- Ent. close to level - no short above PDH
-  memo: case_2 TP 1.5 ATR - BR ver1.0
-  cases_to_run: ['case_4']
+  memo: case_4_1 from PDH once below 5MH
+  cases_to_run: ['case_4_1']
   runs:
     r_today:
       active: true
       start: 2025-12-01
       end: 2025-12-03
       memo: Today
+
+    last_month:
+      active: true
+      start: 2025-11-01
+      end: 2025-12-01
+      memo: last month
   x:
     r7:
       active: true
@@ -219,8 +225,9 @@ user_name: saeed
 
 notification:
   conditions:
-    - busy_time
+    - application_state['is_busy_time']
     - 1 == 1
+  recipients: saeed.bx1@yahoo.com
   severity:
     high: ['email']
     medium: []

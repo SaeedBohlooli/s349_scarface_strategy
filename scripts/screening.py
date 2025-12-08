@@ -837,81 +837,17 @@ def check_buy_sell_condition(case):
         atr_14 = df['atr_14'].iloc[-1]  # used in config
 
         logger.debug(f"in check_buy_sell_condition, levels: {levels}")
+        evaluated_conditions_map = {}
+        for side in ['long', 'short']:
+            for condition in app_config['cases'][case][side]['conditions']:
+                evaluated = eval(condition)
+                logger.info(f"in check_buy_sell_condition, {symbol}, case: {case}, side: {side}, evaluated: {evaluated},  condition: {condition}, ")
+                evaluated_conditions_map.setdefault(side, {}).setdefault('valuated_conditions',[]).append(evaluated)
 
 
-        buy_condition_01 = app_config['cases'][case]['long']['condition_01']
-        sell_condition_01 = app_config['cases'][case]['short']['condition_01']
-        buy_condition_02 = app_config['cases'][case]['long']['condition_02']
-        sell_condition_02 = app_config['cases'][case]['short']['condition_02']
-        buy_condition_03 = app_config['cases'][case]['long']['condition_03']
-        sell_condition_03 = app_config['cases'][case]['short']['condition_03']
-        buy_condition_04 = app_config['cases'][case]['long']['condition_04']
-        sell_condition_04 = app_config['cases'][case]['short']['condition_04']
-        buy_condition_05 = app_config['cases'][case]['long']['condition_05']
-        sell_condition_05 = app_config['cases'][case]['short']['condition_05']
-        buy_condition_06 = app_config['cases'][case]['long']['condition_06']
-        sell_condition_06 = app_config['cases'][case]['short']['condition_06']
-        buy_condition_07 = app_config['cases'][case]['long']['condition_07']
-        sell_condition_07 = app_config['cases'][case]['short']['condition_07']
-        buy_condition_08 = app_config['cases'][case]['long']['condition_08']
-        sell_condition_08 = app_config['cases'][case]['short']['condition_08']
-        buy_condition_09 = app_config['cases'][case]['long']['condition_09']
-        sell_condition_09 = app_config['cases'][case]['short']['condition_09']
-        buy_condition_10 = app_config['cases'][case]['long']['condition_10']
-        sell_condition_10 = app_config['cases'][case]['short']['condition_10']
-
-        eval_buy_condition_01 = eval(buy_condition_01)
-        eval_buy_condition_02 = eval(buy_condition_02)
-        eval_buy_condition_03 = eval(buy_condition_03)
-        eval_buy_condition_04 = eval(buy_condition_04)
-        eval_buy_condition_05 = eval(buy_condition_05)
-        eval_buy_condition_06 = eval(buy_condition_06)
-        eval_buy_condition_07 = eval(buy_condition_07)
-        eval_buy_condition_08 = eval(buy_condition_08)
-        eval_buy_condition_09 = eval(buy_condition_09)
-        eval_buy_condition_10 = eval(buy_condition_10)
-
-        eval_sell_condition_01 = eval(sell_condition_01)
-        eval_sell_condition_02 = eval(sell_condition_02)
-        eval_sell_condition_03 = eval(sell_condition_03)
-        eval_sell_condition_04 = eval(sell_condition_04)
-        eval_sell_condition_05 = eval(sell_condition_05)
-        eval_sell_condition_06 = eval(sell_condition_06)
-        eval_sell_condition_07 = eval(sell_condition_07)
-        eval_sell_condition_08 = eval(sell_condition_08)
-        eval_sell_condition_09 = eval(sell_condition_09)
-        eval_sell_condition_10 = eval(sell_condition_10)
-
-        logger.info(
-            f"\n{symbol}, case: {case} "
-            f"\nbuy_condition_01: {buy_condition_01} "
-            f"\nbuy_condition_02: {buy_condition_02} "
-            f"\nbuy_condition_03: {buy_condition_03} "
-            f"\nbuy_condition_04: {buy_condition_04} "
-            f"\nbuy_condition_05: {buy_condition_05} "
-            f"\nbuy_condition_06: {buy_condition_06} "
-            f"\nbuy_condition_07: {buy_condition_07} "
-            f"\nbuy_condition_08: {buy_condition_08} "
-            f"\nbuy_condition_09: {buy_condition_09} "
-            f"\nbuy_condition_10: {buy_condition_10} "
-            f"\n"
-            f"\n{symbol}, case: {case} "
-            f"\nsell_condition_01: {sell_condition_01}"
-            f"\nsell_condition_02: {sell_condition_02}"
-            f"\nsell_condition_03: {sell_condition_03}"
-            f"\nsell_condition_04: {sell_condition_04}"
-            f"\nsell_condition_05: {sell_condition_05}"
-            f"\nsell_condition_06: {sell_condition_06}"
-            f"\nsell_condition_07: {sell_condition_07}"
-            f"\nsell_condition_08: {sell_condition_08}"
-            f"\nsell_condition_09: {sell_condition_09}"
-            f"\nsell_condition_10: {sell_condition_10}"
-            f"\n"
-        )
-
-        if eval(app_config['cases'][case]['long']['master_condition']):
+        if all(evaluated_conditions_map.get('long', {}).get('valuated_conditions', [])):
             can_buy = True
-        if eval(app_config['cases'][case]['short']['master_condition']):
+        if all(evaluated_conditions_map.get('short', {}).get('valuated_conditions', [])):
             can_sell = True
 
         logger.info(f"check_buy_sell_condition(), {case}, {symbol}, {can_buy}, {can_sell}")
@@ -922,13 +858,13 @@ def check_buy_sell_condition(case):
         short_breakup_idxs = break_out_indices_by_level_set.get(short_level, set())
         short_retest_idxs = retest_indices_by_level_set.get(short_level, set())
 
-
-
+        result_long =  ",".join(f"{i + 1}:{val}" for i, val in enumerate(evaluated_conditions_map.get('long', {}).get('valuated_conditions', [])))
+        result_short = ",".join(f"{i + 1}:{val}" for i, val in enumerate(evaluated_conditions_map.get('short', {}).get('valuated_conditions', [])))
 
         # This is shown in the chart ..
         res_str = (f"res_{case}:<br>"
-                   f"{eval_buy_condition_01}.{eval_buy_condition_02}.{eval_buy_condition_03}|{eval_buy_condition_04}.{eval_buy_condition_05}.{eval_buy_condition_06}|{eval_buy_condition_07}.{eval_buy_condition_08}.{eval_buy_condition_09}|{eval_buy_condition_10} .. {long_breakup_idxs}.{long_retest_idxs} <br>"
-                   f"{eval_sell_condition_01}.{eval_sell_condition_02}.{eval_sell_condition_03}|{eval_sell_condition_04}.{eval_sell_condition_05}.{eval_sell_condition_06}|{eval_sell_condition_07}.{eval_sell_condition_08}.{eval_sell_condition_09}.{eval_sell_condition_10} .. {short_breakup_idxs}.{short_retest_idxs} <br>"
+                   f"{result_long} .. {long_breakup_idxs}.{long_retest_idxs} <br>"
+                   f"{result_short} .. {short_breakup_idxs}.{short_retest_idxs} <br>"
                    f"breakout: {breakout_idx}, retest: {retest_idx} <br>"
                    f"{df['date'].iloc[-1].strftime('%H:%M')}")
         res_str = res_str.replace('True', 'T')
@@ -1357,11 +1293,9 @@ def get_current_price(symbol):
         return None
 
 
-def get_historical_data_from_start_date(contract, historical_days, time_frame, start_date, max_retries=3, retry_delay=2):
-    # calculate end date (20 days ago)
-    # end_date = datetime.datetime.now() - datetime.timedelta(days=10)
-    # end_date_str = end_date.strftime('%Y%m%d %H:%M:%S')
-    return ib_marketdata.get_historical_data_until_end_date(contract, historical_days, time_frame, start_date, max_retries=3, retry_delay=2)
+def get_historical_data_until_end_date(contract, historical_days, time_frame, end_date, max_retries=3, retry_delay=2):
+
+    return ib_marketdata.get_historical_data_until_end_date(ib, contract=contract, historical_days=historical_days, time_frame=time_frame, end_date=end_date, max_retries=3, retry_delay=2)
     # for attempt in range(1, max_retries + 1):
     #     try:
     #         bars = ib.reqHistoricalData(
@@ -1413,11 +1347,11 @@ def get_historical_data_back_test(contract, start_date='2025-09-01', end_date= '
 
         logger.info(f"start: {start}, end: {end}, historical_days:{historical_days}")
         # Call your inner function
-        tmp_df = get_historical_data_from_start_date(
+        tmp_df = get_historical_data_until_end_date(
             contract=contract,
             historical_days=historical_days,
             time_frame=time_frame,
-            start_date=start_date_time
+            end_date=start_date_time
         )
         if len(tmp_df)> 0:
             df = pd.concat([df,tmp_df])
@@ -1562,6 +1496,9 @@ def get_back_test_data():   # get data from IB.... use
             contract = create_contract(symbol)
 
             df = get_historical_data_back_test(contract, start_date=start_date, end_date=end_date,  historical_days=historical_days, time_frame='1 min')
+            if len(df)==0:
+                logger.warning(f"@@@@ no data for symbol: {symbol}")
+                continue
             df = df.drop_duplicates(subset=[f'date'], keep=f'last')
             df = df.sort_values(by='date')
             logger.info(f"{symbol}, get_back_test_data, df['date'].min(): {df['date'].min()}, df['date'].max(): {df['date'].max()}")
@@ -2118,7 +2055,7 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
             right = 'C' if can_buy else 'P'
             option_contract = prepare_contract(symbol, right=right)
             if option_contract == None:
-                notification_utils.notify_user(app_config, msg=f"@@@@@ prepare_contract returned None. We are not sending order. symbol={symbol}, option_contract={option_contract}")
+                notification_utls.notify_user(app_config, msg=f"@@@@@ prepare_contract returned None. We are not sending order. symbol={symbol}, option_contract={option_contract}")
                 logger.warning(f"@@@@@ We are not sending order. {symbol}, option_contract: {option_contract}")
                 continue
             bid, ask = get_quote_for_option_bid_ask(symbol=symbol, strike=option_contract.strike, right=option_contract.right, expiry=option_contract.lastTradeDateOrContractMonth)
@@ -2915,7 +2852,7 @@ def send_email(event='order_sent', symbol='', subject='', body=''):
                     f"<br>Later more detail will come ...<br>")
 
         logger.info(f"send_email, recipientse {recipients}, subject: {subject}")
-        email_utils.send_email(recipients, subject=subject, body=body)
+        email_utils.send_email(to_emails=recipients, subject=subject, body=body)
 
     return
 
@@ -3626,6 +3563,8 @@ def summerize_screening_log(screening_log_for_run_df):
     return screening_summary_df
 
 def aggregate_screening_log_for_all_sub_runs(df):
+    if df is None or len(df) == 0:
+        return df
     # then append all is_* count columns
     count_cols = [col for col in df.columns
                   if col.endswith('_count')]
@@ -4161,7 +4100,7 @@ if __name__ == "__main__":
           time.sleep(1)
 
           if consequence_exception == 1:
-              email_utils.send_email('saeed.bx1@yahoo.com', f"error in {portfolio_id} - {app_config['user_name']}",
+              email_utils.send_email(to_emails='saeed.bx1@yahoo.com', subject=f"error in {portfolio_id} - {app_config['user_name']}",
                                            body=f"Error in {app_config['user_name']} <br>{e}<br><br><br>{traceback.format_exc()}")
 
           if isinstance(e, ConnectionError):

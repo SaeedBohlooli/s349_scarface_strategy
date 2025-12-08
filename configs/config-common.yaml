@@ -90,99 +90,90 @@ symbols_meta:
 
 cases:
   case_1:
-    memo: trade if the levels are close to each other
+    memo: trade if the levels are close to each other - we not runing this one anymore
     precondition: all_levels_in(symbol)  # , 'back_test'
     can_replace_level: false
     long:
       level: max(levels['PDH'], levels['PMH'], levels['5MH'])
-      condition_01: breakout_in_last_x_candles(side='up', idx_list=[-5], level=long_level)
-      condition_02: price_retest(side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
-      condition_03: is_retest_after_breakout(side='up', level=long_level)
-      condition_04: check_entry_vs_retest(side='up', level=long_level)
-      condition_05: no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
-      condition_06: check_price_vs_level(side='up', price=price, level=long_level )
-      condition_07: are_levels_close_to_each_other_for_case_1(side='up')
-      condition_08: 1 == 1
-      condition_09: 930 < last_record_hh_mm < 1016 or  mode == 'live'
-      condition_10: 1 == 1
-      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07 and eval_buy_condition_07 and eval_buy_condition_08  and eval_buy_condition_09
+      conditions:
+        - breakout_in_last_x_candles(side='up', idx_list=[-5], level=long_level)
+        - price_retest(side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
+        - is_retest_after_breakout(side='up', level=long_level)
+        - check_entry_vs_retest(side='up', level=long_level)
+        - no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
+        - check_price_vs_level(side='up', price=price, level=long_level )
+        - are_levels_close_to_each_other_for_case_1(side='up')
+        - 930 < last_record_hh_mm < 1016 or  mode == 'live'
 
     short:
       level: min(levels['PDL'], levels['PML'], levels['5ML'])
-      condition_01: breakout_in_last_x_candles(side='down', idx_list=[-5], level=short_level)
-      condition_02: price_retest(side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True )
-      condition_03: is_retest_after_breakout(side='down', level=short_level)
-      condition_04: check_entry_vs_retest(side='down', level=short_level)
-      condition_05: no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
-      condition_06: check_price_vs_level(side='down', price=price, level=short_level )
-      condition_07: are_levels_close_to_each_other_for_case_1(side='down')
-      condition_08: 1 == 1
-      condition_09: 930 < last_record_hh_mm < 1016 or  mode == 'live'
-      condition_10: 1 == 1
-      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09 and eval_sell_condition_10
+      conditions:
+        - breakout_in_last_x_candles(side='down', idx_list=[-5], level=short_level)
+        - price_retest(side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True )
+        - is_retest_after_breakout(side='down', level=short_level)
+        - check_entry_vs_retest(side='down', level=short_level)
+        - no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
+        - check_price_vs_level(side='down', price=price, level=short_level )
+        - are_levels_close_to_each_other_for_case_1(side='down')
+        - 930 < last_record_hh_mm < 1016 or  mode == 'live'
 
   case_2:
-    memo: This is trading on 5MH and 5ML - release candidate
+    memo: This is trading on 5MH and 5ML - release candidate - we not running any more.
     can_replace_level: true
     precondition: all_levels_in(symbol)
     long:
       level: levels['5MH']
-      condition_01: breakout_in_last_x_candles(side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level)
-      condition_02: price_retest(side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
-      condition_03: is_retest_after_breakout(side='up', level=long_level)
-      condition_04: check_entry_vs_retest(side='up', level=long_level)
-      condition_05: no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
-      condition_06: check_price_vs_level(side='up', price=price, level=long_level )
-      condition_07: not is_price_close_to_next_levels_ver_2(side='up', price=price, current_level=long_level, next_levels=['PDH'])
-      condition_08: 1 == 1
-      condition_09: 930 < last_record_hh_mm < 1016
-      condition_10: 1 == 1
-      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07 and eval_buy_condition_07 and eval_buy_condition_08  and eval_buy_condition_09
+      conditions:
+        - breakout_in_last_x_candles(side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level)
+        - price_retest(side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
+        - is_retest_after_breakout(side='up', level=long_level)
+        - check_entry_vs_retest(side='up', level=long_level)
+        - no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
+        - check_price_vs_level(side='up', price=price, level=long_level )
+        - not is_price_close_to_next_levels_ver_2(side='up', price=price, current_level=long_level, next_levels=['PDH'])
+        - 930 < last_record_hh_mm < 1016
     short:
       level: levels['5ML']
-      condition_01: breakout_in_last_x_candles(side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level)
-      condition_02: price_retest(side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True )
-      condition_03: is_retest_after_breakout(side='down', level=short_level)
-      condition_04: check_entry_vs_retest(side='down', level=short_level)
-      condition_05: no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
-      condition_06: check_price_vs_level(side='down', price=price, level=short_level )
-      condition_07: not is_price_close_to_next_levels_ver_2(side='down', price=price, current_level=short_level, next_levels=['PDL'])
-      condition_08: 1 == 1
-      condition_09: 930 < last_record_hh_mm < 1016
-      condition_10: 1 == 1
-      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09 and eval_sell_condition_10
+      conditions:
+      - breakout_in_last_x_candles(side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level)
+      - price_retest(side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True )
+      - is_retest_after_breakout(side='down', level=short_level)
+      - check_entry_vs_retest(side='down', level=short_level)
+      - no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
+      - check_price_vs_level(side='down', price=price, level=short_level )
+      - not is_price_close_to_next_levels_ver_2(side='down', price=price, current_level=short_level, next_levels=['PDL'])
+      - 930 < last_record_hh_mm < 1016
 
   case_2_1:
-    memo: 5MH and 5ML breakout_ver_2, no short above PDH, trade close to level.
+    memo: 5MH and 5ML breakout_ver_2, no short above PDH, trade close to level. - we running this one
     can_replace_level: true
     precondition: all_levels_in(symbol)
     long:
       level: levels['5MH']
-      condition_01: breakout_in_last_x_candles_ver_2(side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level)
-      condition_02: price_retest(side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
-      condition_03: is_retest_after_breakout(side='up', level=long_level)
-      condition_04: check_entry_vs_retest(side='up', level=long_level)
-      condition_05: no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
-      condition_06: check_price_vs_level(side='up', price=price, level=long_level )
-      condition_07: not is_price_close_to_next_levels_ver_2(side='up', price=price, current_level=long_level, next_levels=['PDH'])
-      condition_08: price > application_state['symbols'][symbol]['PDL'] and application_state['symbols']['QQQ']['price'] > application_state['symbols']['QQQ']['PDL']
-      condition_08_memo: no long if we below PDL for both symbol and QQQ
-      condition_09: 930 < last_record_hh_mm < 1016 or mode == 'live'
-      condition_10: abs (price - long_level) < 1.2 * atr_14
-      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07 and eval_buy_condition_07 and eval_buy_condition_08  and eval_buy_condition_09
+      conditions:
+        - breakout_in_last_x_candles_ver_2(side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level)
+        - price_retest(side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
+        - is_retest_after_breakout(side='up', level=long_level)
+        - check_entry_vs_retest(side='up', level=long_level)
+        - no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
+        - check_price_vs_level(side='up', price=price, level=long_level )
+        - not is_price_close_to_next_levels_ver_2(side='up', price=price, current_level=long_level, next_levels=['PDH'])
+        - price > application_state['symbols'][symbol]['PDL'] and application_state['symbols']['QQQ']['price'] > application_state['symbols']['QQQ']['PDL']
+        - 930 < last_record_hh_mm < 1016 or mode == 'live'
+        - abs (price - long_level) < 1.2 * atr_14
     short:
       level: levels['5ML']
-      condition_01: breakout_in_last_x_candles_ver_2(side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level)
-      condition_02: price_retest(side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True )
-      condition_03: is_retest_after_breakout(side='down', level=short_level)
-      condition_04: check_entry_vs_retest(side='down', level=short_level)
-      condition_05: no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
-      condition_06: check_price_vs_level(side='down', price=price, level=short_level )
-      condition_07: not is_price_close_to_next_levels_ver_2(side='down', price=price, current_level=short_level, next_levels=['PDL'])
-      condition_08: price < application_state['symbols'][symbol]['PDH'] and application_state['symbols']['QQQ']['price'] < application_state['symbols']['QQQ']['PDH']
-      condition_09: 930 < last_record_hh_mm < 1016 or  mode == 'live'
-      condition_10: abs (price - short_level) < 1.2 * atr_14
-      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09 and eval_sell_condition_10
+      conditions:
+        - breakout_in_last_x_candles_ver_2(side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level)
+        - price_retest(side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True )
+        - is_retest_after_breakout(side='down', level=short_level)
+        - check_entry_vs_retest(side='down', level=short_level)
+        - no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
+        - check_price_vs_level(side='down', price=price, level=short_level )
+        - not is_price_close_to_next_levels_ver_2(side='down', price=price, current_level=short_level, next_levels=['PDL'])
+        - price < application_state['symbols'][symbol]['PDH'] and application_state['symbols']['QQQ']['price'] < application_state['symbols']['QQQ']['PDH']
+        - 930 < last_record_hh_mm < 1016 or  mode == 'live'
+        - abs (price - short_level) < 1.2 * atr_14
 
   case_2_2:
     memo: 5MH and 5ML. using breakout_ver_2. GAPs incorporated  - we decided to HOLD this
@@ -190,98 +181,82 @@ cases:
     precondition: all_levels_in(symbol)
     long:
       level: levels['5MH']
-      condition_01: breakout_in_last_x_candles_ver_2(side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level)
-      condition_02: price_retest(side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
-      condition_03: is_retest_after_breakout(side='up', level=long_level)
-      condition_04: check_entry_vs_retest(side='up', level=long_level)
-      condition_05: no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
-      condition_06: check_price_vs_level(side='up', price=price, level=long_level )
-      condition_07: not is_price_close_to_next_levels_ver_2(side='up', price=price, current_level=long_level, next_levels=['PDH'])
-      condition_08: QQQ_gap_up_in_current_candle()
-      condition_09: 930 < last_record_hh_mm < 1016 or mode == 'live'
-      condition_10: 1 == 1
-      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07 and eval_buy_condition_07 and eval_buy_condition_08  and eval_buy_condition_09
+      conditions:
+        - breakout_in_last_x_candles_ver_2(side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level)
+        - price_retest(side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
+        - is_retest_after_breakout(side='up', level=long_level)
+        - check_entry_vs_retest(side='up', level=long_level)
+        - no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
+        - check_price_vs_level(side='up', price=price, level=long_level )
+        - not is_price_close_to_next_levels_ver_2(side='up', price=price, current_level=long_level, next_levels=['PDH'])
+        - QQQ_gap_up_in_current_candle()
+        - 930 < last_record_hh_mm < 1016 or mode == 'live'
     short:
       level: levels['5ML']
-      condition_01: breakout_in_last_x_candles_ver_2(side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level)
-      condition_02: price_retest(side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True )
-      condition_03: is_retest_after_breakout(side='down', level=short_level)
-      condition_04: check_entry_vs_retest(side='down', level=short_level)
-      condition_05: no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
-      condition_06: check_price_vs_level(side='down', price=price, level=short_level )
-      condition_07: not is_price_close_to_next_levels_ver_2(side='down', price=price, current_level=short_level, next_levels=['PDL'])
-      condition_08: QQQ_gap_down_in_current_candle()
-      condition_09: 930 < last_record_hh_mm < 1016 or  mode == 'live'
-      condition_10: 1 == 1
-      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09 and eval_sell_condition_10
-
+      conditions:
+        - breakout_in_last_x_candles_ver_2(side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level)
+        - price_retest(side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True )
+        - is_retest_after_breakout(side='down', level=short_level)
+        - check_entry_vs_retest(side='down', level=short_level)
+        - no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
+        - check_price_vs_level(side='down', price=price, level=short_level )
+        - not is_price_close_to_next_levels_ver_2(side='down', price=price, current_level=short_level, next_levels=['PDL'])
+        - QQQ_gap_down_in_current_candle()
+        - 930 < last_record_hh_mm < 1016 or  mode == 'live'
   case_4:
-    memo: From PDH
+    memo: From PDH in first few mins
     can_replace_level: false
     precondition: 1 == 1  # all_levels_in(symbol)
     long:
       level: levels['PDH']
-      condition_01: breakout_in_last_x_candles_ver_2(side='up', idx_list=[-3,-4,-5], level=long_level)
-      condition_02: price_retest(side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
-      condition_03: is_retest_after_breakout(side='up', level=long_level)
-      condition_04: check_entry_vs_retest(side='up', level=long_level)
-      condition_05: no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
-      condition_06: check_price_vs_level(side='up', price=price, level=long_level )
-      condition_07: abs (price - long_level) < 1.2 * atr_14
-#      condition_08: number_of_opened_trades_so_far() == 0
-      condition_08: 1 == 1
-      condition_09: 930 < last_record_hh_mm < 940
-      condition_10: 1 == 1
-      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07 and eval_buy_condition_07 and eval_buy_condition_08  and eval_buy_condition_09
+      conditions:
+        - breakout_in_last_x_candles_ver_2(side='up', idx_list=[-3,-4,-5], level=long_level)
+        - price_retest(side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
+        - is_retest_after_breakout(side='up', level=long_level)
+        - check_entry_vs_retest(side='up', level=long_level)
+        - no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
+        - check_price_vs_level(side='up', price=price, level=long_level )
+        - abs (price - long_level) < 1.2 * atr_14
+        - 930 < last_record_hh_mm < 940
     short:
       level: levels['PDL']
-      condition_01: breakout_in_last_x_candles_ver_2(side='down', idx_list=[-3,-4,-5], level=short_level)
-      condition_02: price_retest(side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True )
-      condition_03: is_retest_after_breakout(side='down', level=short_level)
-      condition_04: check_entry_vs_retest(side='down', level=short_level)
-      condition_05: no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
-      condition_06: check_price_vs_level(side='down', price=price, level=short_level )
-      condition_07: abs (price - short_level) < 1.2 * atr_14
-#      condition_08: number_of_opened_trades_so_far() == 0
-      condition_08: 1 == 1
-      condition_09: 930 < last_record_hh_mm < 940
-      condition_10: 1 == 1
-      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09 and eval_sell_condition_10
-
-
+      conditions:
+        - breakout_in_last_x_candles_ver_2(side='down', idx_list=[-3,-4,-5], level=short_level)
+        - price_retest(side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True )
+        - is_retest_after_breakout(side='down', level=short_level)
+        - check_entry_vs_retest(side='down', level=short_level)
+        - no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
+        - check_price_vs_level(side='down', price=price, level=short_level )
+        - abs (price - short_level) < 1.2 * atr_14
+        - 930 < last_record_hh_mm < 940
   case_4_1:
-    memo: From PDH
+    memo: From PDH PDL - we running this one
     can_replace_level: false
-    precondition: 1 == 1  # all_levels_in(symbol)
+    precondition: all_levels_in(symbol)
     long:
       level: levels['PDH']
-      condition_01: breakout_in_last_x_candles_ver_2(side='up', idx_list=[-3,-4,-5], level=long_level)
-      condition_02: price_retest(side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
-      condition_03: is_retest_after_breakout(side='up', level=long_level)
-      condition_04: check_entry_vs_retest(side='up', level=long_level)
-      condition_05: no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
-      condition_06: check_price_vs_level(side='up', price=price, level=long_level )
-      condition_07: abs (price - long_level) < 1.2 * atr_14
-#      condition_08: number_of_opened_trades_so_far() == 0
-      condition_08: 1 == 1
-      condition_09: 930 < last_record_hh_mm < 940
-      condition_10: 1 == 1
-      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07 and eval_buy_condition_07 and eval_buy_condition_08  and eval_buy_condition_09
+      conditions:
+        - breakout_in_last_x_candles_ver_2(side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level)
+        - price_retest(side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
+        - is_retest_after_breakout(side='up', level=long_level)
+        - check_entry_vs_retest(side='up', level=long_level)
+        - no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
+        - check_price_vs_level(side='up', price=price, level=long_level )
+        - abs (price - long_level) < 1.2 * atr_14
+        - levels['PDH'] < levels['5MH']
+        - 930 < last_record_hh_mm < 1016 or mode == 'live'
     short:
       level: levels['PDL']
-      condition_01: breakout_in_last_x_candles_ver_2(side='down', idx_list=[-3,-4,-5], level=short_level)
-      condition_02: price_retest(side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True )
-      condition_03: is_retest_after_breakout(side='down', level=short_level)
-      condition_04: check_entry_vs_retest(side='down', level=short_level)
-      condition_05: no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
-      condition_06: check_price_vs_level(side='down', price=price, level=short_level )
-      condition_07: abs (price - short_level) < 1.2 * atr_14
-#      condition_08: number_of_opened_trades_so_far() == 0
-      condition_08: 1 == 1
-      condition_09: 930 < last_record_hh_mm < 940
-      condition_10: 1 == 1
-      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09 and eval_sell_condition_10
-
+      conditions:
+        - breakout_in_last_x_candles_ver_2(side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level)
+        - price_retest(side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True )
+        - is_retest_after_breakout(side='down', level=short_level)
+        - check_entry_vs_retest(side='down', level=short_level)
+        - no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
+        - check_price_vs_level(side='down', price=price, level=short_level )
+        - abs (price - long_level) < 1.2 * atr_14
+        - levels['PDL'] > levels['5ML']
+        - 930 < last_record_hh_mm < 1016 or  mode == 'live'
 
   case_3:
     memo: This is for Saeed's live test
@@ -289,30 +264,12 @@ cases:
     precondition: all_levels_in(symbol) and mode == 'live' and current_hh_mm_ny > 1100
     long:
       level: levels['5MH']
-      condition_01: symbol == 'AMD' and 2 == 5000
-      condition_02: mode == 'live'
-      condition_03: 1 == 1
-      condition_04: 1 == 1
-      condition_05: 1 == 1
-      condition_06: 1 == 1
-      condition_07: 1 == 1
-      condition_08: 1 == 1
-      condition_09: 1 == 1
-      condition_10: 1 == 1
-      master_condition: eval_buy_condition_01 and eval_buy_condition_02 and eval_buy_condition_03 and eval_buy_condition_04 and eval_buy_condition_05 and eval_buy_condition_06 and eval_buy_condition_07 and eval_buy_condition_07 and eval_buy_condition_08 and eval_buy_condition_09
+      conditions:
+        - symbol == 'AMD' and 2 == 5000
+        - mode == 'live'
 
     short:
       level: levels['5MH']
-      condition_01: symbol == 'AMD' and 1 == 2
-      condition_02: mode == 'live'
-      condition_03: 1 == 1
-      condition_04: 1 == 1
-      condition_05: 1 == 1
-      condition_06: 1 == 1
-      condition_07: 1 == 1
-      condition_08: 1 == 1
-      condition_09: 1 == 1
-      condition_10: 1 == 1
-      master_condition: eval_sell_condition_01 and eval_sell_condition_02 and eval_sell_condition_03 and eval_sell_condition_04 and eval_sell_condition_05 and eval_sell_condition_06 and eval_sell_condition_07 and eval_sell_condition_08 and eval_sell_condition_09 and eval_sell_condition_10
-
-
+      conditions:
+        - symbol == 'AMD' and 1 == 2
+        - mode == 'live'

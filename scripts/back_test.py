@@ -69,16 +69,16 @@ os.makedirs(charts_dir, exist_ok=True)
 os.makedirs(ohlc_archie_dir, exist_ok=True)
 
 
-def update_config_and_save(config, key, value):
-    global app_config
-    existing_value = app_config[key]
+def update_runtime_config_and_save(key, value):
+    existing_value = runtime_config.get(key)
     if value != existing_value:
-        logger.info(f"in update_config_and_save, key: {key}, existing value: {existing_value}, new value: {value} ")
-        app_config = ruamel_confg_util.load_app_config(portfolio_id)
-        app_config[key] = value
-        file = f'{configs_folder}/config-{portfolio_id}.yaml'
+        logger.info(f"in update_runtime_config_and_save, key: {key}, existing value: {existing_value}, new value: {value} ")
+        config = ruamel_confg_util.load_runtime_config(portfolio_id)
+        config[key] = value
+        file = f'{configs_folder}/runtime-config-{portfolio_id}.yaml'
         with open(file, 'w') as f:  #TODO fix it
-            yaml.dump(app_config, f)
+            yaml.dump(config, f)
+        logger.info(f"in update_runtime_config_and_save, saved key: {key}, value: {value} to file: {file} ")
     return
 
 def load_ib_config():
@@ -86,6 +86,8 @@ def load_ib_config():
 
 
 app_config = config_utils.load_app_config(portfolio_id)
+runtime_config = config_utils.load_runtime_config(portfolio_id)
+
 logging_level = app_config['logging_level']
 # ###
 # Logging setup ..
@@ -833,81 +835,17 @@ def check_buy_sell_condition(case):
         atr_14 = df['atr_14'].iloc[-1]  # used in config
 
         logger.debug(f"in check_buy_sell_condition, levels: {levels}")
+        evaluated_conditions_map = {}
+        for side in ['long', 'short']:
+            for condition in app_config['cases'][case][side]['conditions']:
+                evaluated = eval(condition)
+                logger.info(f"in check_buy_sell_condition, {symbol}, case: {case}, side: {side}, evaluated: {evaluated},  condition: {condition}, ")
+                evaluated_conditions_map.setdefault(side, {}).setdefault('valuated_conditions',[]).append(evaluated)
 
 
-        buy_condition_01 = app_config['cases'][case]['long']['condition_01']
-        sell_condition_01 = app_config['cases'][case]['short']['condition_01']
-        buy_condition_02 = app_config['cases'][case]['long']['condition_02']
-        sell_condition_02 = app_config['cases'][case]['short']['condition_02']
-        buy_condition_03 = app_config['cases'][case]['long']['condition_03']
-        sell_condition_03 = app_config['cases'][case]['short']['condition_03']
-        buy_condition_04 = app_config['cases'][case]['long']['condition_04']
-        sell_condition_04 = app_config['cases'][case]['short']['condition_04']
-        buy_condition_05 = app_config['cases'][case]['long']['condition_05']
-        sell_condition_05 = app_config['cases'][case]['short']['condition_05']
-        buy_condition_06 = app_config['cases'][case]['long']['condition_06']
-        sell_condition_06 = app_config['cases'][case]['short']['condition_06']
-        buy_condition_07 = app_config['cases'][case]['long']['condition_07']
-        sell_condition_07 = app_config['cases'][case]['short']['condition_07']
-        buy_condition_08 = app_config['cases'][case]['long']['condition_08']
-        sell_condition_08 = app_config['cases'][case]['short']['condition_08']
-        buy_condition_09 = app_config['cases'][case]['long']['condition_09']
-        sell_condition_09 = app_config['cases'][case]['short']['condition_09']
-        buy_condition_10 = app_config['cases'][case]['long']['condition_10']
-        sell_condition_10 = app_config['cases'][case]['short']['condition_10']
-
-        eval_buy_condition_01 = eval(buy_condition_01)
-        eval_buy_condition_02 = eval(buy_condition_02)
-        eval_buy_condition_03 = eval(buy_condition_03)
-        eval_buy_condition_04 = eval(buy_condition_04)
-        eval_buy_condition_05 = eval(buy_condition_05)
-        eval_buy_condition_06 = eval(buy_condition_06)
-        eval_buy_condition_07 = eval(buy_condition_07)
-        eval_buy_condition_08 = eval(buy_condition_08)
-        eval_buy_condition_09 = eval(buy_condition_09)
-        eval_buy_condition_10 = eval(buy_condition_10)
-
-        eval_sell_condition_01 = eval(sell_condition_01)
-        eval_sell_condition_02 = eval(sell_condition_02)
-        eval_sell_condition_03 = eval(sell_condition_03)
-        eval_sell_condition_04 = eval(sell_condition_04)
-        eval_sell_condition_05 = eval(sell_condition_05)
-        eval_sell_condition_06 = eval(sell_condition_06)
-        eval_sell_condition_07 = eval(sell_condition_07)
-        eval_sell_condition_08 = eval(sell_condition_08)
-        eval_sell_condition_09 = eval(sell_condition_09)
-        eval_sell_condition_10 = eval(sell_condition_10)
-
-        logger.info(
-            f"\n{symbol}, case: {case} "
-            f"\nbuy_condition_01: {buy_condition_01} "
-            f"\nbuy_condition_02: {buy_condition_02} "
-            f"\nbuy_condition_03: {buy_condition_03} "
-            f"\nbuy_condition_04: {buy_condition_04} "
-            f"\nbuy_condition_05: {buy_condition_05} "
-            f"\nbuy_condition_06: {buy_condition_06} "
-            f"\nbuy_condition_07: {buy_condition_07} "
-            f"\nbuy_condition_08: {buy_condition_08} "
-            f"\nbuy_condition_09: {buy_condition_09} "
-            f"\nbuy_condition_10: {buy_condition_10} "
-            f"\n"
-            f"\n{symbol}, case: {case} "
-            f"\nsell_condition_01: {sell_condition_01}"
-            f"\nsell_condition_02: {sell_condition_02}"
-            f"\nsell_condition_03: {sell_condition_03}"
-            f"\nsell_condition_04: {sell_condition_04}"
-            f"\nsell_condition_05: {sell_condition_05}"
-            f"\nsell_condition_06: {sell_condition_06}"
-            f"\nsell_condition_07: {sell_condition_07}"
-            f"\nsell_condition_08: {sell_condition_08}"
-            f"\nsell_condition_09: {sell_condition_09}"
-            f"\nsell_condition_10: {sell_condition_10}"
-            f"\n"
-        )
-
-        if eval(app_config['cases'][case]['long']['master_condition']):
+        if all(evaluated_conditions_map.get('long', {}).get('valuated_conditions', [])):
             can_buy = True
-        if eval(app_config['cases'][case]['short']['master_condition']):
+        if all(evaluated_conditions_map.get('short', {}).get('valuated_conditions', [])):
             can_sell = True
 
         logger.info(f"check_buy_sell_condition(), {case}, {symbol}, {can_buy}, {can_sell}")
@@ -918,13 +856,13 @@ def check_buy_sell_condition(case):
         short_breakup_idxs = break_out_indices_by_level_set.get(short_level, set())
         short_retest_idxs = retest_indices_by_level_set.get(short_level, set())
 
-
-
+        result_long =  ",".join(f"{i + 1}:{val}" for i, val in enumerate(evaluated_conditions_map.get('long', {}).get('valuated_conditions', [])))
+        result_short = ",".join(f"{i + 1}:{val}" for i, val in enumerate(evaluated_conditions_map.get('short', {}).get('valuated_conditions', [])))
 
         # This is shown in the chart ..
         res_str = (f"res_{case}:<br>"
-                   f"{eval_buy_condition_01}.{eval_buy_condition_02}.{eval_buy_condition_03}|{eval_buy_condition_04}.{eval_buy_condition_05}.{eval_buy_condition_06}|{eval_buy_condition_07}.{eval_buy_condition_08}.{eval_buy_condition_09}|{eval_buy_condition_10} .. {long_breakup_idxs}.{long_retest_idxs} <br>"
-                   f"{eval_sell_condition_01}.{eval_sell_condition_02}.{eval_sell_condition_03}|{eval_sell_condition_04}.{eval_sell_condition_05}.{eval_sell_condition_06}|{eval_sell_condition_07}.{eval_sell_condition_08}.{eval_sell_condition_09}.{eval_sell_condition_10} .. {short_breakup_idxs}.{short_retest_idxs} <br>"
+                   f"{result_long} .. {long_breakup_idxs}.{long_retest_idxs} <br>"
+                   f"{result_short} .. {short_breakup_idxs}.{short_retest_idxs} <br>"
                    f"breakout: {breakout_idx}, retest: {retest_idx} <br>"
                    f"{df['date'].iloc[-1].strftime('%H:%M')}")
         res_str = res_str.replace('True', 'T')
@@ -1098,12 +1036,14 @@ def breakout_in_last_x_candles_ver_2(side='up', idx_list=[-2], level=0):
         if side == 'up':
             cond_1 = (row["low"] < level and row["close"] > level + gap)    # The price above level + gap
             cond_2 = (previous["open"] < level and row["close"] > level + gap)  # The prev open is below level and current above the level.
+            cond_3 = (previous["open"] < level and row["open"] > level and row["close"] > level)  # The prev open is below level and current open and close are above the level.
 
         else:
             cond_1 = (row["high"] > level and row["close"] < level - gap)
             cond_2 = (previous["open"] > level and row["close"] < level - gap)
+            cond_3 = (previous["open"] > level and row["open"] < level and row["close"] < level)
 
-        breakout = (cond_1 or cond_2)
+        breakout = (cond_1 or cond_2 or cond_3)
         if not breakout:
             continue
 
@@ -1113,7 +1053,7 @@ def breakout_in_last_x_candles_ver_2(side='up', idx_list=[-2], level=0):
         candle_range = row["high"] - row["low"]
         candle_is_not_week = (candle_range > 0 and body / candle_range > 0.5) # do not remove candle_rage > 0 will raise devided by zero exception
 
-        if (cond_1 and candle_is_not_week) or cond_2: # for cond_1 we need body_confirmation, for cond_2 we do not need it
+        if (cond_1 and candle_is_not_week) or cond_2 or cond_3: # for cond_1 we need body_confirmation, for cond_2 and cond_3 we do not need it
 
             logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
             add_to_break_out_indices_by_level_set(level, idx)
@@ -1611,7 +1551,7 @@ def flatten(obj, prefix=''):
 
 def get_order_ref(event, symbol, alias_for_ref='', unique_run_number=''):
     order_ref = ''
-    portofilio_oreder_ref_alias = 'p250'
+    portofilio_oreder_ref_alias = portfolio_id
     if event.lower() == 'open':
         order_ref += f'OP-{portofilio_oreder_ref_alias}-{symbol}'
     else:
@@ -1656,11 +1596,18 @@ def get_best_option_chain(chains):
 
 def find_expiration_and_strikes_from_ib(symbol, exchange):
     global options_meta_date_dic
-    underlying = Stock(symbol, 'SMART', 'USD')
-    ib.qualifyContracts(underlying)
+    underlying = ib_insync.Stock(symbol, 'SMART', 'USD')
+    logger.info(f"underlying: {underlying}, type: {type(underlying)}, module: {type(underlying).__module__}" )
+    # if app_config['symbols_meta'][symbol].get('primary_exchange'):
+    #     underlying.primaryExchange = app_config['symbols_meta'][symbol]['primary_exchange']
 
-    logger.info(f"underlying: {underlying}")
+    q = ib.qualifyContracts(underlying)
 
+    logger.info(f"underlying: {underlying}:  qualifyContracts: {q}")
+
+    if not q or len(q) == 0:
+        logger.warning(f"@@@@ underlying contract not qualified. {symbol}: {underlying}")
+        return
     #  Request all option chains for this symbol
     chains = ib.reqSecDefOptParams(symbol, '', 'STK', underlying.conId)
 
@@ -1705,7 +1652,7 @@ def find_expiration_and_strikes_from_ib(symbol, exchange):
 def create_option_contract(strike, expiry, right, exchange="CBOE", symbol='SPX', trading_class='SPXW', max_retries=4, wait_between=1.0):
     contracts = []
     # put in the loop
-    contract = Option(
+    contract = ib_insync.Option(
         symbol=symbol,
         lastTradeDateOrContractMonth=expiry,
         strike=strike,
@@ -2035,6 +1982,22 @@ def add_to_capital_allocation_df(data):
     global capital_allocation_df
     capital_allocation_df = pd.concat([capital_allocation_df, pd.DataFrame([data])])
 
+def check_manual_conditions(symbol, right):
+    try:
+        for condition in app_config['live'].get('manual_settings', {}).get(right,{}).get('conditions', []):
+            evaluated_condition = eval(condition)
+            logger.info(f"check_manual_conditions, {symbol} , {right}, condition: {condition}, evaluated_condition: {evaluated_condition} ")
+            if not evaluated_condition:
+                return False
+
+    except Exception as e:
+        logger.error(f"@@@ TODO This is temp .... {e}")
+        logger.error(f"@@@ TODO This is temp .... {traceback.format_exc()}")
+
+    return True
+
+
+
 
 def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
     global application_state
@@ -2080,12 +2043,17 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
         if symbol in app_config['live']['blocked_symbols'][right]:
             logger.warning(f"@@  This symbol is blocked, {symbol}, {app_config['live']['blocked_symbols'][side]}")
             continue
+        if not check_manual_conditions(symbol, right):
+            logger.warning(f"@@  check_manual_conditions failed, {symbol}")
+            continue
+
         mark_score_in_the_chart(market_trend)
 
         if contract_type.lower() == 'equity' and (can_buy or can_sell): # go for buy
             right = 'C' if can_buy else 'P'
             option_contract = prepare_contract(symbol, right=right)
             if option_contract == None:
+                notification_utls.notify_user(app_config, msg=f"@@@@@ prepare_contract returned None. We are not sending order. symbol={symbol}, option_contract={option_contract}")
                 logger.warning(f"@@@@@ We are not sending order. {symbol}, option_contract: {option_contract}")
                 continue
             bid, ask = get_quote_for_option_bid_ask(symbol=symbol, strike=option_contract.strike, right=option_contract.right, expiry=option_contract.lastTradeDateOrContractMonth)
@@ -2304,7 +2272,7 @@ def next_fridays(n=10):
     return result
 
 def get_quote_for_option_bid_ask(symbol, strike, right, expiry, exchange='SMART',max_retries=3, wait_between=1.0 ):
-    option = Option(
+    option = ib_insync.Option(
         symbol=symbol,
         lastTradeDateOrContractMonth=expiry,
         strike=strike,
@@ -2314,11 +2282,13 @@ def get_quote_for_option_bid_ask(symbol, strike, right, expiry, exchange='SMART'
     bid = ask = 0
 
     for attempt in range(1, max_retries + 1):
-        ticker = ib.reqMktData(option, snapshot=True)
+        ticker = ib.reqMktData(option, '', False, False)
+        # ticker = ib.reqMktData(option, snapshot=True)
+
         ib.sleep(0.2)  # Give IB a moment to return data
 
-        bid = ticker.bid  if ticker.bid > 0 else 0
-        ask = ticker.ask  if ticker.ask > 0 else 0
+        bid = ticker.bid if ticker.bid > 0 else 0
+        ask = ticker.ask if ticker.ask > 0 else 0
         last = ticker.last if ticker.last > 0 else 0
         logger.info(f"get_quote_for_option_bid_ask, {symbol}, bid: {bid}, ask:{ask}")
         if bid == 0 or ask == 0:
@@ -2534,7 +2504,7 @@ def close_future_positions(positions, symbol='', close_qty=0, order_ref=''):
     return
 
 def close_all_open_option_positions():
-    update_config_and_save(app_config, 'close_all_open_option_positions', False)
+    update_runtime_config_and_save('close_all_open_option_positions', False)
     option_positions_to_monitor = find_option_positions_to_monitor()
     close_option_positions(option_positions_to_monitor)
 
@@ -2658,7 +2628,7 @@ def check_for_stop_loss_and_take_profit():
     symbols_need_to_be_removed = [] # we dont remove in the loop ..
 
     for symbol, open_trade_info in application_state.get('open_trades_dic', {}).items():
-        logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, " )
+        logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, open order unique_ru_number: {open_trade_info.get('unique_ru_number')}" )
 
         # ###
         # stop loss
@@ -2671,6 +2641,20 @@ def check_for_stop_loss_and_take_profit():
             continue
 
         symbol_df = dfs_map.get(symbol, pd.DataFrame())
+        if symbol_df is None or len(symbol_df) == 0:
+            logger.warning(f"@@@ check_for_stop_loss_and_take_profit(), symbol_df is None or len==0 , {symbol}")
+            continue
+        try:
+            minutes_since_last_record = date_utils.minutes_since_last_record(symbol_df)
+            logger.info(f"@ check_for_stop_loss_and_take_profit(), symbol: {symbol}, minutes_since_last_record: {minutes_since_last_record}")
+            if minutes_since_last_record > 2:
+                logger.warning(f"@@@ check_for_stop_loss_and_take_profit(), minutes_since_last_record >1 , {symbol}, minutes_since_last_record: {minutes_since_last_record}")
+                logger.info(f"@@@ check_for_stop_loss_and_take_profit(), symbol_df[-1:]\n {symbol_df[-1:].to_markdown()}")
+                continue
+        except Exception as e:
+            logger.error(f"@@@@@@ check_for_stop_loss_and_take_profit(), error in date check , {symbol}, e: {e}")
+
+        # TODO check date to make sure that the data is not old
         entry_underlying_price = float(open_trade_info.get('entry_underlying_price', -1))  # used in config ...
         level_used_to_open = float(open_trade_info.get('level_used_to_open', -1)) # used in config ...
         avg_cost_for_1_contract = open_trade_info.get('avg_cost_for_1_contract', -1) # used in config
@@ -2866,7 +2850,7 @@ def send_email(event='order_sent', symbol='', subject='', body=''):
                     f"<br>Later more detail will come ...<br>")
 
         logger.info(f"send_email, recipientse {recipients}, subject: {subject}")
-        email_utils.send_email(recipients, subject=subject, body=body)
+        email_utils.send_email(to_emails=recipients, subject=subject, body=body)
 
     return
 
@@ -2996,7 +2980,7 @@ def call_api_top_step(symbol, side):
 def cancel_open_orders(symbol = ''):
     if not app_config['cancel_open_orders_on_start']:
         return
-    update_config_and_save(app_config, 'cancel_open_orders_on_start', False)
+    update_runtime_config_and_save('cancel_open_orders_on_start', False)
 
     open_orders = ib.reqAllOpenOrders()
     # Cancel all open orders
@@ -3282,12 +3266,14 @@ def detect_a_mark_market_gap(symbol, df):
     if open_today_0930 is not  None and close_yesterday_1600 is not None:
         add_to_drawing_objects_df(symbol=symbol, time_frame='1min', object='rect', color=color, date_1=f'{today} 09:00:00', price_1=close_yesterday_1600,
                                   date_2=f'{today} 09:30:00', price_2=open_today_0930, memo='Market Gap', unique_id=f'{symbol}--MARKET-GAP')
-        application_state.setdefault('market_gaps', {})[symbol] = {
+        application_state.setdefault('symbols', {}).setdefault(symbol, {}).update(
+            {
             'date': str(df['date'].iloc[-1]),
             'open_today_0930': open_today_0930,
             'close_yesterday_1600': close_yesterday_1600,
             'gap_size': gap_size,
-        }
+            }
+        )
     return
 
 
@@ -3827,19 +3813,25 @@ def QQQ_gap_down_in_current_candle():
 
 def populate_levels_into_application_state(symbol, symbols_levels_maps, df):
     global application_state
-    application_state.setdefault('symbols', {})[symbol] = {
+    price = df['close'].iloc[-1]
+    application_state.setdefault('symbols', {}).setdefault(symbol, {}).update({
         'price': df['close'].iloc[-1],
-        'unique_run_number': unique_run_number,
+        'last_unique_run_number': unique_run_number,
         'PDH': symbols_levels_maps.get(symbol,{}).get('PDH', None),
         'PDL': symbols_levels_maps.get(symbol,{}).get('PDL', None),
         'PMH': symbols_levels_maps.get(symbol,{}).get('PMH', None),
         'PML': symbols_levels_maps.get(symbol,{}).get('PML', None),
         '5MH': symbols_levels_maps.get(symbol,{}).get('5MH', None),
-        '5ML': symbols_levels_maps.get(symbol,{}).get('P5ML', None),
-        'HOLD_PDH': False,
-        'HOLD_PDL': False,
+        '5ML': symbols_levels_maps.get(symbol,{}).get('5ML', None),
+        'HOLD_PDH': True if price > symbols_levels_maps.get(symbol,{}).get('PDH', np.nan) else False,
+        'HOLD_PDL': True if price < symbols_levels_maps.get(symbol,{}).get('PDL', np.nan) else False,
+        'HOLD_PMH': True if price > symbols_levels_maps.get(symbol,{}).get('PMH', np.nan) else False,
+        'HOLD_PML': True if price < symbols_levels_maps.get(symbol,{}).get('PML', np.nan) else False,
+        'HOLD_5MH': True if price > symbols_levels_maps.get(symbol, {}).get('5MH', np.nan) else False,
+        'HOLD_5ML': True if price < symbols_levels_maps.get(symbol, {}).get('5ML', np.nan) else False,
+        'HOLD_TEST': True if price < symbols_levels_maps.get(symbol, {}).get('TEST', np.nan) else False,
 
-    }
+    })
 
 if __name__ == "__main__":
     try:
@@ -4086,5 +4078,5 @@ if __name__ == "__main__":
         logger.warning(f"df: \n{df[-5:].to_markdown()}")
 
         if consequence_exception == 3:
-            email_utils.send_email('saeed.bx1@yahoo.com', f"error in {portfolio_id} - {app_config['user_name']}",
+            email_utils.send_email(to_emails='saeed.bx1@yahoo.com', subject=f"error in {portfolio_id} - {app_config['user_name']}",
                                    body=f"Error in {app_config['user_name']} <br>{e}<br><br><br>{traceback.format_exc()}")
