@@ -1972,6 +1972,8 @@ def has_open_order_in_same_group(symbol):
     open_orders = application_state.get('open_trades_dic', {})
     logger.info(f"@ has_open_order_in_same_group, symbol: {symbol}, symbol_group: {symbol_group}, open_orders: {open_orders}")
     for open_order_symbol, open_order_data in open_orders.items():
+        if open_order_data.get('available_quantity', 0) == 0: # if there is no open quantity, skip
+            continue
         open_order_symbol_group = app_config['symbols_meta'].get(open_order_symbol, {}).get('group', 'no-group')
 
         if open_order_symbol_group == symbol_group:
@@ -2647,7 +2649,7 @@ def check_for_stop_loss_and_take_profit():
             logger.warning(f"@@@ check_for_stop_loss_and_take_profit(), symbol_df is None or len==0 , {symbol}")
             continue
         try:
-            minutes_since_last_record = date_utils.minutes_since_last_record(symbol_df)
+            minutes_since_last_record = date_utils.seconds_passed_since_last_record(symbol_df)
             logger.info(f"@ check_for_stop_loss_and_take_profit(), symbol: {symbol}, minutes_since_last_record: {minutes_since_last_record}")
             if minutes_since_last_record > 2:
                 logger.warning(f"@@@ check_for_stop_loss_and_take_profit(), minutes_since_last_record >1 , {symbol}, minutes_since_last_record: {minutes_since_last_record}")

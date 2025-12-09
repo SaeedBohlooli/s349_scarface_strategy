@@ -2645,7 +2645,7 @@ def check_for_stop_loss_and_take_profit():
             logger.warning(f"@@@ check_for_stop_loss_and_take_profit(), symbol_df is None or len==0 , {symbol}")
             continue
         try:
-            minutes_since_last_record = date_utils.minutes_since_last_record(symbol_df)
+            minutes_since_last_record = date_utils.seconds_passed_since_last_record(symbol_df)
             logger.info(f"@ check_for_stop_loss_and_take_profit(), symbol: {symbol}, minutes_since_last_record: {minutes_since_last_record}")
             if minutes_since_last_record > 2:
                 logger.warning(f"@@@ check_for_stop_loss_and_take_profit(), minutes_since_last_record >1 , {symbol}, minutes_since_last_record: {minutes_since_last_record}")
