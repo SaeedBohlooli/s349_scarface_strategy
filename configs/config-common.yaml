@@ -265,7 +265,7 @@ cases:
     long:
       level: levels['5MH']
       conditions:
-        - symbol == 'AMD' and 2 == 5000
+        - symbol == 'TSLA' and 2 == 2
         - mode == 'live'
 
     short:

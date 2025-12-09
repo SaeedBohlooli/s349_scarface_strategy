@@ -1191,7 +1191,7 @@ def add_candle_info_df_to_signals():
     if len(candle_info_df) == 0:
         return
 
-    logger.info(f"@ type(candle_info_df): {type(candle_info_df)}")
+    # logger.info(f"@ type(candle_info_df): {type(candle_info_df)}")
 
     df = candle_info_df
     df = df.drop_duplicates()

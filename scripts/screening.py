@@ -1193,10 +1193,10 @@ def add_candle_info_df_to_signals():
     if len(candle_info_df) == 0:
         return
 
-    logger.info(f"@ type(candle_info_df): {type(candle_info_df)}")
+    # logger.info(f"@ type(candle_info_df): {type(candle_info_df)}")
 
     df = candle_info_df
-    df = df.drop_duplicates()
+    df = df.drop_duplicates(subset=['symbol', 'date', 'price']) # no memo as it has jdon and it thrrwos errror
     # df_grouped = (  # for example multiple retest on one candle
     #     df.groupby(['date', 'price'], as_index=False)
     #     .agg({'memo': lambda x: ' <br> '.join(x)})
@@ -2553,7 +2553,9 @@ def update_for_avg_cost(positions):
 def polish_map_to_show_in_hover(data):
     logger.warning(f"@ {type(data)},  data: {data}, ")
     try:
-        return json.dumps(data).replace(',', ',<br>')
+        # return json.dumps(data).replace(',', ',<br>')
+        return json.dumps(data, default=str).replace(',', ',<br>') # use str for .Object of type int64 is not JSON serializable error
+
     except Exception as e:
         logger.warning(f"@@ we have paring issue ...{e}")
         return {}
@@ -2649,10 +2651,10 @@ def check_for_stop_loss_and_take_profit():
             logger.warning(f"@@@ check_for_stop_loss_and_take_profit(), symbol_df is None or len==0 , {symbol}")
             continue
         try:
-            minutes_since_last_record = date_utils.seconds_passed_since_last_record(symbol_df)
-            logger.info(f"@ check_for_stop_loss_and_take_profit(), symbol: {symbol}, minutes_since_last_record: {minutes_since_last_record}")
-            if minutes_since_last_record > 2:
-                logger.warning(f"@@@ check_for_stop_loss_and_take_profit(), minutes_since_last_record >1 , {symbol}, minutes_since_last_record: {minutes_since_last_record}")
+            seconds_since_last_record = date_utils.seconds_passed_since_last_record(symbol_df)
+            logger.info(f"@ check_for_stop_loss_and_take_profit(), symbol: {symbol}, seconds_since_last_record: {seconds_since_last_record}")
+            if seconds_since_last_record > 65:
+                logger.warning(f"@@@ check_for_stop_loss_and_take_profit(), {symbol}, seconds_since_last_record: {seconds_since_last_record}")
                 logger.info(f"@@@ check_for_stop_loss_and_take_profit(), symbol_df[-1:]\n {symbol_df[-1:].to_markdown()}")
                 continue
         except Exception as e:
