@@ -9,5 +9,5 @@ cd ../trading_core
 git pull
 git status
 
-timeout 10
+timeout 60
 
