@@ -124,10 +124,10 @@ live:
   manual_settings:
     C:
       conditions:
-        - qqq_close > qqq_PDH   # check to make sure qqq_5ML is going to be 1
+        - ( qqq_close > qqq_5MH and symbol != 'TSLA' ) or symbol == 'TSLA'
     P:
       conditions:
-        - qqq_close < qqq_5ML
+        - ( qqq_close < qqq_5ML and symbol != 'TSLA' ) or symbol == 'TSLA'
 
 
 back_test:
