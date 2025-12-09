@@ -132,22 +132,22 @@ live:
 
 back_test:
   data:
-    get_data_from_ib: False  # we have data from 01-01
-    start_date: 2025-11-24
-    end_date: 2025-12-05
+    get_data_from_ib: True  # we have data from 01-01
+    start_date: 2025-12-01
+    end_date: 2025-12-10
     historical_days: 5 D  # don't change this
   exclude_list: ['MNQ']
 #  memo: c_4 TP 1 ATR - BR ver1.2- BR 4 candle- Ent. close to level
 #  memo: case_2_1 TP 1.5 ATR - BR ver1.2- Ent. close to level - no short above PDH
   memo: case_4_1 from PDH once below 5MH
-  cases_to_run: ['case_4_1']
+  cases_to_run: ['case_2_1']
   runs:
     r_today:
       active: true
-      start: 2025-12-01
-      end: 2025-12-03
+      start: 2025-12-08
+      end: 2025-12-09
       memo: Today
-
+  b:
     last_month:
       active: true
       start: 2025-11-01
