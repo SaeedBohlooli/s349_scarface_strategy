@@ -1614,7 +1614,9 @@ def find_expiration_and_strikes_from_ib(symbol, exchange):
         return
     #  Request all option chains for this symbol
     chains = ib.reqSecDefOptParams(symbol, '', 'STK', underlying.conId)
-
+    if chains is None:
+        logger.warning(f"@@@ chans is Null for symbol: {symbol}")
+        return
     # Look at what's available
     # for chain in chains:
     #     logger.info(f"Exchange:{chain.exchange}")
@@ -1627,7 +1629,10 @@ def find_expiration_and_strikes_from_ib(symbol, exchange):
     if symbol in ['QQQ', 'SPY']:
         chain = get_best_option_chain(chains) # we choose the one has more
     else:
-        chain = next(c for c in chains if c.exchange == 'SMART') # leave it ias is ... go with firsto ne
+        chain = next((c for c in chains if c.exchange == 'SMART'), None) # leave it ias is ... go with firsto ne, retruns None if didtn fif
+    if chain is None:
+        logger.warning(f"@@@@ no option chain found for symbol: {symbol} on exchange: {exchange}")
+        return
 
     expiry = sorted(chain.expirations)[0]
     strikes = sorted(chain.strikes)
