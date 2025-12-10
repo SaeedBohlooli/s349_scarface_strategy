@@ -3,7 +3,7 @@ import time
 
 import logging
 import json
-
+import os
 logger = logging.getLogger(__name__)
 
 
@@ -81,6 +81,6 @@ if __name__ == "__main__":
     portfolio_ids = ['p250', 'p250-case-4']
     for portfolio_id in portfolio_ids:
         intermediate_dir = f'../../portfolios/intermediate/{portfolio_id}'
-
-        file_path = f'{intermediate_dir}/85-strikes-nazdaq.csv'
-        dump_a_map_to_file(options_meta_date_dic, file_path )
+        if os.path.exists(intermediate_dir):
+            file_path = f'{intermediate_dir}/85-strikes-nazdaq.csv'
+            dump_a_map_to_file(options_meta_date_dic, file_path )
