@@ -851,6 +851,8 @@ def check_buy_sell_condition(case):
             can_sell = True
 
         logger.info(f"check_buy_sell_condition(), {case}, {symbol}, {can_buy}, {can_sell}")
+        logger.info(f"check_buy_sell_condition(), {case}, can_buy: {can_buy}, {symbol}")
+        logger.info(f"check_buy_sell_condition(), {case}, can_sell: {can_sell}, {symbol}")
 
         long_breakup_idxs = break_out_indices_by_level_set.get(long_level, set())
         long_retest_idxs = retest_indices_by_level_set.get(long_level, set())
@@ -1733,7 +1735,7 @@ def calculate_number_of_option_contracts(strike, ask):
     logger.info(f"calculate_number_of_contracts(), {symbol}, available_capital: {available_capital}, capital_per_trade_percentage: {capital_per_trade_percentage}, max_num_open_trades: {max_num_open_trades}")
 
     capital_per_trade = max(available_capital * capital_per_trade_percentage, 800)  # TODO put in a function
-    num_of_contracts = max(round(capital_per_trade / (ask * 100)), 2)  # TODO we get 2 as min ...
+    num_of_contracts = max(round(capital_per_trade / (ask * 100)), 6)  # TODO we get 2 as min ...
 
     logger.info(f"capital_per_trade: {capital_per_trade}, ask: {ask} strike: {strike}")
     logger.info(f"symbol: {symbol}, num_of_contracts: {num_of_contracts}")
@@ -2561,15 +2563,15 @@ def polish_map_to_show_in_hover(data):
         return {}
     #
 
-def check_mark_revers_candles(symbol):
+def check_mark_revers_candles(symbol, take_profit_alias=None):
     # TODO remove try later ...
     try:
         logger.info(f"check_mark_revers_candles ... {symbol}")
         result = False
-        t1_candle_date = application_state['open_trades_dic'].get(symbol,{}).get('take_profits',{}).get('t1',{}).get('candle_date',None)
-        logger.info(f"check_mark_revers_candles, {symbol}, t1_candle_date: {t1_candle_date}")
+        tp_candle_date = application_state['open_trades_dic'].get(symbol,{}).get('take_profits',{}).get(take_profit_alias,{}).get('candle_date',None)
+        logger.info(f"check_mark_revers_candles, {symbol}, tp_candle_date: {tp_candle_date}")
 
-        if t1_candle_date == None:
+        if tp_candle_date == None:
            return False
 
         right = application_state['open_trades_dic'].get(symbol,{}).get('right', '')
@@ -2590,7 +2592,7 @@ def check_mark_revers_candles(symbol):
         check_date = df['date'].iloc[-1]
         prev_close = df["close"].iloc[-2]
 
-        target_date = pd.Timestamp(t1_candle_date)
+        target_date = pd.Timestamp(tp_candle_date)
 
         df = df[df["date"] >= target_date]
         logger.info(f"@@ check_mark_revers_candles, {symbol}, prev_close: {prev_close}. ")

@@ -19,24 +19,32 @@ stop_losses:
 
 take_profits:
   t1:
-    condition: current_bid > avg_cost_for_1_contract * 1.15 and avg_cost_for_1_contract not in [0,-1] and current_bid not in [0,-1]
-    close_quantity_percentage: 0.5
+    condition: >
+      (current_bid > avg_cost_for_1_contract * 1.15 or current_bid - entry_option_price > 0.20)
+      and avg_cost_for_1_contract not in [0,-1] and current_bid not in [0,-1]
+    close_quantity_percentage: 0.6
+    memo: Taking some profit at 15% or 0.20$ with 4 of 6
 
   t2:
-    condition: current_bid > avg_cost_for_1_contract * 1.30 and avg_cost_for_1_contract not in [0,-1] and current_bid not in [0,-1]
-    close_quantity_percentage: 0.25
+    condition: > 
+      (current_bid > avg_cost_for_1_contract * 1.30 or current_bid - entry_option_price > 0.80)
+      and avg_cost_for_1_contract not in [0,-1] and current_bid not in [0,-1]
+    close_quantity_percentage: 0.20
+    memo: Taking some profit at 30% or 0.80$ with 1 of 6
 
   t3:
-    condition: current_bid > avg_cost_for_1_contract * 1.60 and avg_cost_for_1_contract not in [0,-1] and current_bid not in [0,-1]
+    condition: >
+      (current_bid > avg_cost_for_1_contract * 1.60 )
+      and avg_cost_for_1_contract not in [0,-1] and current_bid not in [0,-1]
     close_quantity_percentage: -1
 
   t4_ev:
     condition: >
-      (right == 'C' and is_executed_take_profits(symbol, take_profit_list=['t1']) and underlying_previous_candle_close < entry_underlying_price)
+      (right == 'C' and is_executed_take_profits(symbol, take_profit_list=['t2']) and underlying_previous_candle_close < entry_underlying_price)
       or
-      (right == 'P' and is_executed_take_profits(symbol, take_profit_list=['t1']) and underlying_previous_candle_close > entry_underlying_price)
+      (right == 'P' and is_executed_take_profits(symbol, take_profit_list=['t2']) and underlying_previous_candle_close > entry_underlying_price)
     close_quantity_percentage: -1
-    memo: This is for even break - if we hit TP1, then we go for break even
+    memo: This is for break even - if we hit TP1, then we go for break even
 
   t5_cr_lv:
     condition: >
@@ -47,7 +55,7 @@ take_profits:
     memo: if we entered below major level and crossing level, we dump some ...
 
   t6_trail_t1:
-    condition: check_mark_revers_candles(symbol)
+    condition: check_mark_revers_candles(symbol,take_profit_alias='t2')
     close_quantity_percentage: -1
     memo: for long after tp1, if we go below last down close candle, then we close the position and vice versa for short
 
@@ -124,7 +132,7 @@ live:
   manual_settings:
     C:
       conditions:
-        - ( qqq_close > qqq_5MH and symbol != 'TSLA' ) or symbol == 'TSLA'
+        - ( qqq_close > qqq_5ML and symbol != 'TSLA' ) or symbol == 'TSLA'
     P:
       conditions:
         - ( qqq_close < qqq_5ML and symbol != 'TSLA' ) or symbol == 'TSLA'
@@ -134,18 +142,18 @@ back_test:
   data:
     get_data_from_ib: True  # we have data from 01-01
     start_date: 2025-12-01
-    end_date: 2025-12-10
+    end_date: 2025-12-12
     historical_days: 5 D  # don't change this
   exclude_list: ['MNQ']
 #  memo: c_4 TP 1 ATR - BR ver1.2- BR 4 candle- Ent. close to level
 #  memo: case_2_1 TP 1.5 ATR - BR ver1.2- Ent. close to level - no short above PDH
   memo: case_4_1 from PDH once below 5MH
-  cases_to_run: ['case_2_1']
+  cases_to_run: ['case_2_1', 'case_4_1']
   runs:
     r_today:
       active: true
-      start: 2025-12-08
-      end: 2025-12-09
+      start: 2025-12-09
+      end: 2025-12-10
       memo: Today
   b:
     last_month:
@@ -215,7 +223,7 @@ chart:
   hours_in_focus: 3
   live:
     start_time: '09:00'
-    end_time: '12:00'
+    end_time: '11:00'
 
 # before_start:
 load_application_state_from_file: true
