@@ -834,7 +834,7 @@ def check_buy_sell_condition(case):
 
         min_required_move_from_level = app_config['symbols_meta'][symbol]['min_required_move_from_level']  # used in config
         price = df['close'].iloc[-1]  # used in config
-        atr_14 = df['atr_14'].iloc[-1]  # used in config
+        atr_14 = df['atr_14'].iloc[-2]  # used in config
 
         logger.debug(f"in check_buy_sell_condition, levels: {levels}")
         evaluated_conditions_map = {}
@@ -3214,7 +3214,7 @@ def mark_atr_to_the_level(side, level, level_name):
     if level == 0:
         return
     date = df['date'].iloc[-1]
-    atr =  df['atr_14'].iloc[-1]
+    atr =  df['atr_14'].iloc[-2]
     if side == 'up':
         p1 = round(level + atr, 2)
     else:
