@@ -2064,7 +2064,7 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
             right = 'C' if can_buy else 'P'
             option_contract = prepare_contract(symbol, right=right)
             if option_contract == None:
-                notification_utls.notify_user(app_config, msg=f"@@@@@ prepare_contract returned None. We are not sending order. symbol={symbol}, option_contract={option_contract}")
+                notification_utls.notify_user(app_config, application_state, msg=f"@@@@@ prepare_contract returned None. We are not sending order. symbol={symbol}, option_contract={option_contract}")
                 logger.warning(f"@@@@@ We are not sending order. {symbol}, option_contract: {option_contract}")
                 continue
             bid, ask = get_quote_for_option_bid_ask(symbol=symbol, strike=option_contract.strike, right=option_contract.right, expiry=option_contract.lastTradeDateOrContractMonth)
@@ -2655,17 +2655,17 @@ def check_for_stop_loss_and_take_profit():
 
         symbol_df = dfs_map.get(symbol, pd.DataFrame())
         if symbol_df is None or len(symbol_df) == 0:
-            logger.warning(f"@@@ check_for_stop_loss_and_take_profit(), symbol_df is None or len==0 , {symbol}")
+            logger.warning(f"@ check_for_stop_loss_and_take_profit(), symbol_df is None or len==0 , {symbol}")
             continue
         try:
             seconds_since_last_record = date_utils.seconds_passed_since_last_record(symbol_df)
             logger.info(f"@ check_for_stop_loss_and_take_profit(), symbol: {symbol}, seconds_since_last_record: {seconds_since_last_record}")
             if seconds_since_last_record > 65:
-                logger.warning(f"@@@ check_for_stop_loss_and_take_profit(), {symbol}, seconds_since_last_record: {seconds_since_last_record}")
-                logger.info(f"@@@ check_for_stop_loss_and_take_profit(), symbol_df[-1:]\n {symbol_df[-1:].to_markdown()}")
+                logger.warning(f"@@ check_for_stop_loss_and_take_profit(), {symbol}, seconds_since_last_record: {seconds_since_last_record}")
+                logger.info(f"@@ check_for_stop_loss_and_take_profit(), symbol_df[-1:]\n {symbol_df[-1:].to_markdown()}")
                 continue
         except Exception as e:
-            logger.error(f"@@@@@@ check_for_stop_loss_and_take_profit(), error in date check , {symbol}, e: {e}")
+            logger.error(f"@@@ check_for_stop_loss_and_take_profit(), error in date check , {symbol}, e: {e}")
 
         # TODO check date to make sure that the data is not old
         entry_underlying_price = float(open_trade_info.get('entry_underlying_price', -1))  # used in config ...
@@ -3163,19 +3163,19 @@ def save_all_csv_files():
         dump_application_state_to_file()
 
     save_list_to_csv(close_pairs, file=df_file_map.get('close_levels_df'), mode='w')
-    df_utils.save_df_to_csv_a_tabular(drawing_objects_df, file_path=df_file_map.get('drawing_objects_df'), mode='w')
-    df_utils.save_df_to_csv_a_tabular(key_levels_df, file_path=df_file_map.get('key_levels_df'), mode='w')
-    df_utils.save_df_to_csv_a_tabular(hover_df, file_path=df_file_map.get('hover_df'), mode='a')
-    df_utils.save_df_to_csv_a_tabular(order_history_df, file_path=df_file_map.get('order_history_df'), mode='a', drop_dupplicates=True)
-    df_utils.save_df_to_csv_a_tabular(stop_loss_history_df, file_path=df_file_map.get('stop_loss_history_df'), mode='a', drop_dupplicates=True)
-    df_utils.save_df_to_csv_a_tabular(take_profit_history_df, file_path=df_file_map.get('take_profit_history_df'), mode='a', drop_dupplicates=True)
-    df_utils.save_df_to_csv_a_tabular(futures_order_history_df, file_path=df_file_map.get('futures_order_history_df'), mode='a', drop_dupplicates=True)
-    df_utils.save_df_to_csv_a_tabular(screening_log_df, file_path=add_unique_run_number_start_end_date(df_file_map.get('screening_log_df')), mode='a', drop_dupplicates=True)
-    df_utils.save_df_to_csv_a_tabular(bid_ask_history_df, file_path=df_file_map.get('bid_ask_history_df'), mode='a', drop_dupplicates=True)
-    df_utils.save_df_to_csv_a_tabular(capital_allocation_df, file_path=df_file_map.get('capital_allocation_df'), mode='a', drop_dupplicates=True, )
-    df_utils.save_df_to_csv_a_tabular(open_close_refs_df, file_path=df_file_map.get('open_close_refs_df'), mode='a', drop_dupplicates=True)
-    df_utils.save_df_to_csv_a_tabular(open_close_refs_pnl_df, file_path=df_file_map.get('open_close_refs_pnl_df'), mode='a', drop_dupplicates=True)
-    df_utils.save_df_to_csv_a_tabular(capital_flow_df, file_path=df_file_map.get('capital_flow_df'), mode='w',) #  drop_dupplicates=True, unique_columns=['event', 'open_order_ref', 'close_order_ref']
+    df_utils.save_df_to_csv(drawing_objects_df, file_path=df_file_map.get('drawing_objects_df'), mode='w', tabular=True)
+    df_utils.save_df_to_csv(key_levels_df, file_path=df_file_map.get('key_levels_df'), mode='w',tabular=True)
+    df_utils.save_df_to_csv(hover_df, file_path=df_file_map.get('hover_df'), mode='a',tabular=True)
+    df_utils.save_df_to_csv(order_history_df, file_path=df_file_map.get('order_history_df'), mode='a', drop_dupplicates=True,tabular=True)
+    df_utils.save_df_to_csv(stop_loss_history_df, file_path=df_file_map.get('stop_loss_history_df'), mode='a', drop_dupplicates=True,tabular=True)
+    df_utils.save_df_to_csv(take_profit_history_df, file_path=df_file_map.get('take_profit_history_df'), mode='a', drop_dupplicates=True,tabular=True)
+    df_utils.save_df_to_csv(futures_order_history_df, file_path=df_file_map.get('futures_order_history_df'), mode='a', drop_dupplicates=True,tabular=True)
+    df_utils.save_df_to_csv(screening_log_df, file_path=add_unique_run_number_start_end_date(df_file_map.get('screening_log_df')), mode='a', drop_dupplicates=True,tabular=True)
+    df_utils.save_df_to_csv(bid_ask_history_df, file_path=df_file_map.get('bid_ask_history_df'), mode='a', drop_dupplicates=True,tabular=True)
+    df_utils.save_df_to_csv(capital_allocation_df, file_path=df_file_map.get('capital_allocation_df'), mode='a', drop_dupplicates=True, tabular=True)
+    df_utils.save_df_to_csv(open_close_refs_df, file_path=df_file_map.get('open_close_refs_df'), mode='a', drop_dupplicates=True,tabular=True)
+    df_utils.save_df_to_csv(open_close_refs_pnl_df, file_path=df_file_map.get('open_close_refs_pnl_df'), mode='a', drop_dupplicates=True, tabular=True)
+    df_utils.save_df_to_csv(capital_flow_df, file_path=df_file_map.get('capital_flow_df'), mode='w',) #  drop_dupplicates=True, unique_columns=['event', 'open_order_ref', 'close_order_ref']
 
     if mode == 'live':
         ib_posttrade.save_ib_dfs(ib_dir,ib)

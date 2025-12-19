@@ -158,9 +158,10 @@ cases:
         - no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
         - check_price_vs_level(side='up', price=price, level=long_level )
         - not is_price_close_to_next_levels_ver_2(side='up', price=price, current_level=long_level, next_levels=['PDH'])
-        - price > application_state['symbols'][symbol]['PDL'] and application_state['symbols']['QQQ']['price'] > application_state['symbols']['QQQ']['PDL']
         - 930 < last_record_hh_mm < 1016 or mode == 'live'
         - abs (price - long_level) < 1.2 * atr_14
+        - price > application_state['symbols'][symbol]['PDL'] and application_state['symbols']['QQQ']['price'] > application_state['symbols']['QQQ']['PDL']
+        - price < levels['PDH'] # avoid going long above PDH - extra safety- if we are above PDH, low change we continue after 5MH breakout
     short:
       level: levels['5ML']
       conditions:
@@ -171,9 +172,10 @@ cases:
         - no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
         - check_price_vs_level(side='down', price=price, level=short_level )
         - not is_price_close_to_next_levels_ver_2(side='down', price=price, current_level=short_level, next_levels=['PDL'])
-        - price < application_state['symbols'][symbol]['PDH'] and application_state['symbols']['QQQ']['price'] < application_state['symbols']['QQQ']['PDH']
         - 930 < last_record_hh_mm < 1016 or  mode == 'live'
         - abs (price - short_level) < 1.2 * atr_14
+        - price < application_state['symbols'][symbol]['PDH'] and application_state['symbols']['QQQ']['price'] < application_state['symbols']['QQQ']['PDH']
+        - price > levels['PDL'] # avoid going short below PDL - extra safety- if we are below PDL, low change we continue after 5ML breakout
 
   case_2_2:
     memo: 5MH and 5ML. using breakout_ver_2. GAPs incorporated  - we decided to HOLD this
@@ -245,8 +247,11 @@ cases:
         - abs (price - long_level) < 1.2 * atr_14
         - levels['PDH'] < levels['5MH']
         - 930 < last_record_hh_mm < 1016 or mode == 'live'
+        - not is_price_close_to_next_levels_ver_2(side='up', price=price, current_level=long_level, next_levels=['PMH'])
+
     short:
       level: levels['PDL']
+      memo: conditon 8 need to be checeked
       conditions:
         - breakout_in_last_x_candles_ver_2(side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level)
         - price_retest(side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True )
@@ -257,6 +262,7 @@ cases:
         - abs (price - long_level) < 1.2 * atr_14
         - levels['PDL'] > levels['5ML']
         - 930 < last_record_hh_mm < 1016 or  mode == 'live'
+        - not is_price_close_to_next_levels_ver_2(side='down', price=price, current_level=short_level, next_levels=['PML'])
 
   case_3:
     memo: This is for Saeed's live test

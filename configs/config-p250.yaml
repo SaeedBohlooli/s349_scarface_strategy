@@ -4,6 +4,41 @@ client_id: 250
 
 logging_level: logging.INFO
 
+ws_port: 6250
+
+flask:
+  port: 5250
+  host: 127.0.0.1
+
+interval_seconds:
+  engine_loop: 120
+
+dirs:
+  results: "../../portfolios/{portfolio_id}/results"
+  ib: "../../portfolios/{portfolio_id}/ib"
+  reports: "../../portfolios/{portfolio_id}/reports"
+  log_dir: "../../portfolios/{portfolio_id}/logs/{date}"
+  intermediate: "../../portfolios/{portfolio_id}/intermediate"
+  ohlc: "../../portfolios/{portfolio_id}/backtest-ohlc"
+  ohlc_archive: "../../portfolios/{portfolio_id}/ohlc-archive"
+  ohlc_w_indicators: "../../portfolios/{portfolio_id}/ohlc-w-indicators"
+  charts: "../../portfolios/{portfolio_id}/charts"
+
+
+files:
+  application_state: "{intermediate}/application_state-test.json"
+  account_info_map: "{intermediate}/account_info_map.json"
+  entry_candidates_details: "{results}/entry_candidates_details.json"
+
+data_saver:
+  default_interval_seconds: 600    # 10 min default
+  intervals:
+    application_state: 600              # 10 min
+    account_info_map: 300               # 5 min
+
+
+
+
 symbols: ['QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR', 'TSLL', 'AMZN', 'MNQ', 'SPY']
 
 
@@ -44,7 +79,7 @@ take_profits:
       or
       (right == 'P' and is_executed_take_profits(symbol, take_profit_list=['t2']) and underlying_previous_candle_close > entry_underlying_price)
     close_quantity_percentage: -1
-    memo: This is for break even - if we hit TP1, then we go for break even
+    memo: This is for break even - if we hit TP2, then we go for break even
 
   t5_cr_lv:
     condition: >
@@ -65,11 +100,11 @@ take_profits:
   #    memo: for long after tp1, if we go below last down close candle, then we close the position and vice versa for short
 
   t10_cl_manual:  # This is for closing everything just NVDA:   1 == 1 and symbol == 'NVDA'
-    condition: 1 == 3 and symbol == 'AAPL'
+    condition: 1 == 2 and symbol == 'AMD'
     close_quantity_percentage: -1
 
   t11_cl_manual:  # This is for closing everything just NVDA:   1 == 1 and symbol == 'NVDA'
-    condition: 1 == 1 and symbol == 'QQQ'
+    condition: 1 == 2 and symbol == 'NVDA'
     close_quantity_percentage: -1
 
 scores:
@@ -132,30 +167,42 @@ live:
   manual_settings:
     C:
       conditions:
-        - ( qqq_close > qqq_5ML and symbol != 'TSLA' ) or symbol == 'TSLA'
+        - 1 == 1
     P:
       conditions:
-        - ( qqq_close < qqq_5ML and symbol != 'TSLA' ) or symbol == 'TSLA'
+        - 1 == 1
+        -
+    symbols:
+      TSLA:
+        C:
+            - 1 == 1  and qqq_close < qqq_5ML
+        P:
+            - 1 == 2
+      NVDA:
+        C:
+            - 1 == 1
+        P:
+            - 1 == 2
 
 
 back_test:
   data:
-    get_data_from_ib: True  # we have data from 01-01
+    get_data_from_ib: False  # we have data from 01-01
     start_date: 2025-12-01
     end_date: 2025-12-12
     historical_days: 5 D  # don't change this
   exclude_list: ['MNQ']
 #  memo: c_4 TP 1 ATR - BR ver1.2- BR 4 candle- Ent. close to level
 #  memo: case_2_1 TP 1.5 ATR - BR ver1.2- Ent. close to level - no short above PDH
-  memo: case_4_1 from PDH once below 5MH
+  memo: case_2_1 and case_4_1
   cases_to_run: ['case_2_1', 'case_4_1']
   runs:
-    r_today:
-      active: true
-      start: 2025-12-09
-      end: 2025-12-10
-      memo: Today
-  b:
+#    r_today:
+#      active: true
+#      start: 2025-12-09
+#      end: 2025-12-10
+#      memo: Today
+
     last_month:
       active: true
       start: 2025-11-01
@@ -204,6 +251,12 @@ back_test:
       end: 2025-11-01
       memo: Oct
 
+
+    2025_11:
+      active: true
+      start: 2025-11-01
+      end: 2025-12-01
+      memo: Nov
 
 
 
