@@ -3,7 +3,7 @@ import logging
 logger = logging.getLogger(__name__)
 from trading_utils import ib_marketdata_async
 
-async def get_market_data(ib, symbol, app_config, application_state, time_frame ='1 day', historical_days= ''):
+async def get_historical_data(ib, symbol, app_config, application_state, time_frame ='1 day', historical_days=''):
     if historical_days == '':
         mode = application_state.get('mode', 'live')
         historical_days = app_config[mode]['historical_days']
@@ -13,7 +13,8 @@ async def get_market_data(ib, symbol, app_config, application_state, time_frame 
         ib,
         symbol,
         time_frame=time_frame,
-        duration=historical_days
+        duration=historical_days,
+        contract_month= app_config['symbols_meta'][symbol].get('contract_month')
     )
 
     if not application_state['is_busy_time']:
