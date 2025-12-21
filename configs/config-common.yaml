@@ -177,6 +177,40 @@ cases:
         - price < application_state['symbols'][symbol]['PDH'] and application_state['symbols']['QQQ']['price'] < application_state['symbols']['QQQ']['PDH']
         - price > levels['PDL'] # avoid going short below PDL - extra safety- if we are below PDL, low change we continue after 5ML breakout
 
+
+  case_2_1_async:
+    memo: 5MH and 5ML breakout_ver_2, no short above PDH, trade close to level. - we running this one
+    can_replace_level: true
+    precondition: all_levels_in(symbol)
+    long:
+      level: levels['5MH']
+      conditions:
+        - breakout_in_last_x_candles_ver_2(symbol, app_config, application_state, df, side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level)
+        - price_retest(side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
+        - is_retest_after_breakout(application_state, symbol, side='up', level=long_level)
+        - check_entry_vs_retest(side='up', level=long_level)
+        - no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
+        - check_price_vs_level(side='up', price=price, level=long_level )
+        - not is_price_close_to_next_levels_ver_2(side='up', price=price, current_level=long_level, next_levels=['PDH'])
+        - 930 < last_record_hh_mm < 1016 or mode == 'live'
+        - abs (price - long_level) < 1.2 * atr_14
+        - price > application_state['symbols'][symbol]['PDL'] and application_state['symbols']['QQQ']['price'] > application_state['symbols']['QQQ']['PDL']
+        - price < levels['PDH'] # avoid going long above PDH - extra safety- if we are above PDH, low change we continue after 5MH breakout
+    short:
+      level: levels['5ML']
+      conditions:
+        - breakout_in_last_x_candles_ver_2(side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level)
+        - price_retest(side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True )
+        - is_retest_after_breakout(side='down', level=short_level)
+        - check_entry_vs_retest(side='down', level=short_level)
+        - no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
+        - check_price_vs_level(side='down', price=price, level=short_level )
+        - not is_price_close_to_next_levels_ver_2(side='down', price=price, current_level=short_level, next_levels=['PDL'])
+        - 930 < last_record_hh_mm < 1016 or  mode == 'live'
+        - abs (price - short_level) < 1.2 * atr_14
+        - price < application_state['symbols'][symbol]['PDH'] and application_state['symbols']['QQQ']['price'] < application_state['symbols']['QQQ']['PDH']
+        - price > levels['PDL'] # avoid going short below PDL - extra safety- if we are below PDL, low change we continue after 5ML breakout
+
   case_2_2:
     memo: 5MH and 5ML. using breakout_ver_2. GAPs incorporated  - we decided to HOLD this
     can_replace_level: true

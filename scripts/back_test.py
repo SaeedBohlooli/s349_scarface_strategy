@@ -888,8 +888,8 @@ def check_buy_sell_condition(case):
     return case, can_buy, can_sell, details_map
 
 
-def is_retest_after_breakout(side='up', level=1):
-    global retest_idx, breakout_idx
+def is_retest_after_breakout(case= None, side='up', level=1):
+    # global retest_idx, breakout_idx
 
     breakout_idxs = break_out_indices_by_level_set.get(level, set())
     retest_idxs = retest_indices_by_level_set.get(level, set())
@@ -898,10 +898,12 @@ def is_retest_after_breakout(side='up', level=1):
         return  False
     if max(retest_idxs) > min(breakout_idxs):
         retest_idx = max(retest_idxs)
+        application_state.setdefault('case_state', {}).setdefault(case, {})['retest_idx'] = retest_idx
+
         valid_breakouts = [b for b in breakout_idxs if b < retest_idx]   # all the breakout idxs that are before retest_idx
         if valid_breakouts:
             breakout_idx = max(valid_breakouts)  # closest (largest) breakout before retest
-
+            application_state.setdefault('case_state', {}).setdefault(case, {})['breakout_idx'] = breakout_idx
         return True
     else:
         return False
@@ -2157,13 +2159,40 @@ def check_buy_sell_result_to_send_order(buy_sell_case_results_list):
 
     return
 
-def create_contract(symbol):
+def create_contract(symbol, contract_month=None):
     if symbol == 'MNQ':
-        contract_month = app_config['symbols_meta'][symbol].get('contract_month', None)
+        if contract_month is None:
+            contract_month = app_config['symbols_meta'][symbol].get('contract_month', None)
     else:
         contract_month = None
     return ib_pricing.create_equity_contract(symbol, contract_month)
 
+from dateutil.relativedelta import relativedelta, FR
+def get_mnq_contract_month_code(dt: datetime.date):
+    """Return the IB contract month in YYYYMM for the MNQ contract active on the given date."""
+
+    quarterly_months = [3, 6, 9, 12]
+    year = dt.year
+
+    # Step 1: Collect expiry dates for this year
+    expiries = []
+    for month in quarterly_months:
+        expiry = datetime.date(year, month, 1) + relativedelta(weekday=FR(3))
+        expiries.append(expiry)
+
+    # Step 2: Find next expiry after date
+    for expiry in expiries:
+        if dt < expiry:
+            contract_year = year
+            contract_month = expiry.month
+            break
+    else:
+        # if date is after December expiry → next March of next year
+        contract_year = year + 1
+        contract_month = 3
+
+    # Step 3: return YYYYMM
+    return f"{contract_year}{contract_month:02d}"
 
 def add_to_order_history_df(data):
     global order_history_df
@@ -2648,7 +2677,7 @@ def check_for_stop_loss_and_take_profit():
 
         symbol_df = dfs_map.get(symbol, pd.DataFrame())
         if symbol_df is None or len(symbol_df) == 0:
-            logger.warning(f"@@@ check_for_stop_loss_and_take_profit(), symbol_df is None or len==0 , {symbol}")
+            logger.warning(f"@ check_for_stop_loss_and_take_profit(), symbol_df is None or len==0 , {symbol}")
             continue
         try:
             seconds_since_last_record = date_utils.seconds_passed_since_last_record(symbol_df)
@@ -3156,19 +3185,19 @@ def save_all_csv_files():
         dump_application_state_to_file()
 
     save_list_to_csv(close_pairs, file=df_file_map.get('close_levels_df'), mode='w')
-    df_utils.save_df_to_csv_a_tabular(drawing_objects_df, file_path=df_file_map.get('drawing_objects_df'), mode='w')
-    df_utils.save_df_to_csv_a_tabular(key_levels_df, file_path=df_file_map.get('key_levels_df'), mode='w')
-    df_utils.save_df_to_csv_a_tabular(hover_df, file_path=df_file_map.get('hover_df'), mode='a')
-    df_utils.save_df_to_csv_a_tabular(order_history_df, file_path=df_file_map.get('order_history_df'), mode='a', drop_dupplicates=True)
-    df_utils.save_df_to_csv_a_tabular(stop_loss_history_df, file_path=df_file_map.get('stop_loss_history_df'), mode='a', drop_dupplicates=True)
-    df_utils.save_df_to_csv_a_tabular(take_profit_history_df, file_path=df_file_map.get('take_profit_history_df'), mode='a', drop_dupplicates=True)
-    df_utils.save_df_to_csv_a_tabular(futures_order_history_df, file_path=df_file_map.get('futures_order_history_df'), mode='a', drop_dupplicates=True)
-    df_utils.save_df_to_csv_a_tabular(screening_log_df, file_path=add_unique_run_number_start_end_date(df_file_map.get('screening_log_df')), mode='a', drop_dupplicates=True)
-    df_utils.save_df_to_csv_a_tabular(bid_ask_history_df, file_path=df_file_map.get('bid_ask_history_df'), mode='a', drop_dupplicates=True)
-    df_utils.save_df_to_csv_a_tabular(capital_allocation_df, file_path=df_file_map.get('capital_allocation_df'), mode='a', drop_dupplicates=True, )
-    df_utils.save_df_to_csv_a_tabular(open_close_refs_df, file_path=df_file_map.get('open_close_refs_df'), mode='a', drop_dupplicates=True)
-    df_utils.save_df_to_csv_a_tabular(open_close_refs_pnl_df, file_path=df_file_map.get('open_close_refs_pnl_df'), mode='a', drop_dupplicates=True)
-    df_utils.save_df_to_csv_a_tabular(capital_flow_df, file_path=df_file_map.get('capital_flow_df'), mode='w',) #  drop_dupplicates=True, unique_columns=['event', 'open_order_ref', 'close_order_ref']
+    df_utils.save_df_to_csv(drawing_objects_df, file_path=df_file_map.get('drawing_objects_df'), mode='w')
+    df_utils.save_df_to_csv(key_levels_df, file_path=df_file_map.get('key_levels_df'), mode='w')
+    df_utils.save_df_to_csv(hover_df, file_path=df_file_map.get('hover_df'), mode='a')
+    df_utils.save_df_to_csv(order_history_df, file_path=df_file_map.get('order_history_df'), mode='a', drop_dupplicates=True)
+    df_utils.save_df_to_csv(stop_loss_history_df, file_path=df_file_map.get('stop_loss_history_df'), mode='a', drop_dupplicates=True)
+    df_utils.save_df_to_csv(take_profit_history_df, file_path=df_file_map.get('take_profit_history_df'), mode='a', drop_dupplicates=True)
+    df_utils.save_df_to_csv(futures_order_history_df, file_path=df_file_map.get('futures_order_history_df'), mode='a', drop_dupplicates=True)
+    df_utils.save_df_to_csv(screening_log_df, file_path=add_unique_run_number_start_end_date(df_file_map.get('screening_log_df')), mode='a', drop_dupplicates=True)
+    df_utils.save_df_to_csv(bid_ask_history_df, file_path=df_file_map.get('bid_ask_history_df'), mode='a', drop_dupplicates=True)
+    df_utils.save_df_to_csv(capital_allocation_df, file_path=df_file_map.get('capital_allocation_df'), mode='a', drop_dupplicates=True, )
+    df_utils.save_df_to_csv(open_close_refs_df, file_path=df_file_map.get('open_close_refs_df'), mode='a', drop_dupplicates=True)
+    df_utils.save_df_to_csv(open_close_refs_pnl_df, file_path=df_file_map.get('open_close_refs_pnl_df'), mode='a', drop_dupplicates=True)
+    df_utils.save_df_to_csv(capital_flow_df, file_path=df_file_map.get('capital_flow_df'), mode='w',) #  drop_dupplicates=True, unique_columns=['event', 'open_order_ref', 'close_order_ref']
 
     if mode == 'live':
         ib_posttrade.save_ib_dfs(ib_dir,ib)
@@ -4003,8 +4032,8 @@ if __name__ == "__main__":
 
                         retest_indices_by_level_set = {}
                         break_out_indices_by_level_set = {}
-                        retest_idx = 0
-                        breakout_idx = 0
+                        # retest_idx = 0
+                        # breakout_idx = 0
 
                         find_add_PMH_PML_levels_to_key_levels_df()
                         find_add_5MH_5ML_levels_to_key_levels_df()
@@ -4056,13 +4085,13 @@ if __name__ == "__main__":
                 save_all_csv_files()
 
             # for 1 run ,sa 1 month
-            df_utils.save_df_to_csv_a_tabular(screening_log_for_run_df,file_path=add_unique_run_number_start_end_date(df_file_map.get('screening_log_for_run_df')), mode='w')
+            df_utils.save_df_to_csv(screening_log_for_run_df,file_path=add_unique_run_number_start_end_date(df_file_map.get('screening_log_for_run_df')), mode='w')
 
             screening_summary_df = summerize_screening_log(screening_log_for_run_df)
-            df_utils.save_df_to_csv_a_tabular(screening_summary_df,file_path=add_unique_run_number_start_end_date(df_file_map.get('screening_summary_df')), mode='w') # for each run ...
-            df_utils.save_df_to_csv_a_tabular(screening_summary_df, file_path=df_file_map.get('screening_summary_df'), mode='a') # adding acumulated ....
+            df_utils.save_df_to_csv(screening_summary_df,file_path=add_unique_run_number_start_end_date(df_file_map.get('screening_summary_df')), mode='w') # for each run ...
+            df_utils.save_df_to_csv(screening_summary_df, file_path=df_file_map.get('screening_summary_df'), mode='a') # adding acumulated ....
             screening_summary_agg_df =  aggregate_screening_log(screening_summary_df)
-            df_utils.save_df_to_csv_a_tabular(screening_summary_agg_df, file_path=df_file_map.get('screening_summary_agg_df'), mode='a')
+            df_utils.save_df_to_csv(screening_summary_agg_df, file_path=df_file_map.get('screening_summary_agg_df'), mode='a')
             screening_summary_for_all_sub_runs_agg_df = pd.concat([screening_summary_for_all_sub_runs_agg_df, screening_summary_agg_df])
 
 
@@ -4072,7 +4101,7 @@ if __name__ == "__main__":
 
         # For set of runs, say few months
         screening_summary_for_all_sub_runs_agg_df = aggregate_screening_log_for_all_sub_runs(screening_summary_for_all_sub_runs_agg_df)
-        df_utils.save_df_to_csv_a_tabular(screening_summary_for_all_sub_runs_agg_df,file_path=df_file_map.get('screening_summary_for_all_sub_runs_agg_df'), mode='a')
+        df_utils.save_df_to_csv(screening_summary_for_all_sub_runs_agg_df,file_path=df_file_map.get('screening_summary_for_all_sub_runs_agg_df'), mode='a')
     except Exception as e:
         logger.warning('-------------------')
         logger.error(f"@@@@ error: {e}")

@@ -88,7 +88,7 @@ class TradingEngine:
                     current_price = await ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol, contract_month=self.app_config.get('symbols_meta', {}).get(symbol, {}).get('contract_month'))
                     self.application_state['symbols'].setdefault(symbol, {})['current_price'] = current_price
 
-                    scanner.check_buy_and_sell_cases(self.app_config, self.application_state, symbol)
+                    scanner.check_buy_and_sell_cases(self.app_config, self.application_state, symbol, self.market_data)
 
                 logger.warning(f"==================== unique_run_number: {unique_run_number}, current_hh_mm_ny: {current_hh_mm_ny}")
                 if ib is None:
