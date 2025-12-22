@@ -148,6 +148,7 @@ closeness_distance_for_case_1: df['atr_14'].iloc[-1] * 2
 
 live:
   cases_to_run: ['case_2_1', 'case_4_1']
+#  cases_to_run: ['case_2_1_async']
   historical_days: 4 D
   capital: 4000
   capital_per_trade_percentage: 0.20

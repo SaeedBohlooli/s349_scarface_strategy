@@ -13,7 +13,7 @@ def check_buy_sell_condition(app_config, application_state, case, symbol, market
     short_level = -1
 
     try:
-        df = market_data.dfs_map(symbol)
+        df = market_data.dfs_map.get(symbol)
         if df is None:
             logger.warning(f"check_buy_sell_condition, no market data for symbol: {symbol}")
             return None
@@ -38,6 +38,8 @@ def check_buy_sell_condition(app_config, application_state, case, symbol, market
         logger.debug(f"in check_buy_sell_condition, levels: {levels}")
         evaluated_conditions_map = {}
         for side in ['long', 'short']:
+            level_alias = app_config['cases'][case][side]['level_alias'] # used in config
+
             for condition in app_config['cases'][case][side]['conditions']:
                 evaluated = eval(condition)
                 logger.info(f"in check_buy_sell_condition, {symbol}, case: {case}, side: {side}, evaluated: {evaluated},  condition: {condition}, ")
@@ -139,7 +141,7 @@ def get_next_level(side, levels, level):
 
 
 
-def breakout_in_last_x_candles_ver_2(symbol, app_config, application_state, df, side='up', idx_list=[-2], level=0):
+def breakout_in_last_x_candles_ver_2(symbol, app_config, application_state, df, side='up', idx_list=[-2], level=0, level_alias=''):
 
     logger.debug(f"in breakout_in_last_x_candles, symbol: {symbol}, idx_list: {idx_list}, level:{level}")
 
@@ -183,6 +185,7 @@ def breakout_in_last_x_candles_ver_2(symbol, app_config, application_state, df, 
             application_state['breakouts'][symbol].setdefault('', []).append({
                 'side': side,
                 'level': level,
+                'level_alias': level_alias,
                 'idx': idx,
                 'time': row['date'],
             })
@@ -209,7 +212,7 @@ def get_retest_indices_by_level_set(application_state, symbol, level):
 
 
 
-def price_retest(symbol, app_config, application_state, df, side='up', idx_list=[-2], level=0, both_sides=False):
+def price_retest(symbol, app_config, application_state, df, side='up', idx_list=[-2], level=0, both_sides=False, level_alias=''):
 
     if level == 0:
         return False
@@ -235,6 +238,7 @@ def price_retest(symbol, app_config, application_state, df, side='up', idx_list=
                 application_state['retests'][symbol].setdefault('', []).append({
                     'side': side,
                     'level': level,
+                    'level_alias': level_alias,
                     'idx': idx,
                     'time': row['date'],
                 })
@@ -246,6 +250,7 @@ def price_retest(symbol, app_config, application_state, df, side='up', idx_list=
                 application_state['retests'][symbol].setdefault('', []).append({
                     'side': side,
                     'level': level,
+                    'level_alias': level_alias,
                     'idx': idx,
                     'time': row['date'],
                 })
@@ -256,6 +261,7 @@ def price_retest(symbol, app_config, application_state, df, side='up', idx_list=
                 application_state['retests'][symbol].setdefault('', []).append({
                     'side': side,
                     'level': level,
+                    'level_alias': level_alias,
                     'idx': idx,
                     'time': row['date'],
                 })
@@ -265,6 +271,7 @@ def price_retest(symbol, app_config, application_state, df, side='up', idx_list=
                 application_state['retests'][symbol].setdefault('', []).append({
                     'side': side,
                     'level': level,
+                    'level_alias': level_alias,
                     'idx': idx,
                     'time': row['date'],
                 })
@@ -273,7 +280,7 @@ def price_retest(symbol, app_config, application_state, df, side='up', idx_list=
 
     return retest
 
-def is_retest_after_breakout(application_state, symbol, side='up', level=1):
+def is_retest_after_breakout(application_state, symbol, side='up', level=1, level_alias=''):
 
     breakout_idxs = get_break_out_indices_by_level_set(application_state, symbol, level)
     retest_idxs = get_retest_indices_by_level_set(application_state, symbol, level)
@@ -282,11 +289,99 @@ def is_retest_after_breakout(application_state, symbol, side='up', level=1):
         return  False
     if max(retest_idxs) > min(breakout_idxs):
         retest_idx = max(retest_idxs)
-        application_state.setdefault('retests_idx', {})['symbol'] = retest_idx
+        application_state.setdefault('retest_idx', {})[symbol] = {'retest_idx': retest_idx, 'level': level, 'level_alias': level_alias}
         valid_breakouts = [b for b in breakout_idxs if b < retest_idx]   # all the breakout idxs that are before retest_idx
         if valid_breakouts:
             breakout_idx = max(valid_breakouts)  # closest (largest) breakout before retest
-            application_state.setdefault('breakouts_idx', {})['symbol'] = breakout_idx
+            application_state.setdefault('breakouts_idx', {})[symbol] = {'breakout_idx' : breakout_idx, 'level': level, 'level_alias': level_alias }
+            application_state.setdefault('breakouts_idx', {})[symbol] = {'breakout_idx' : breakout_idx, 'level': level, 'level_alias': level_alias }
         return True
     else:
         return False
+
+
+def all_levels_in(application_state, symbol):
+    levels = application_state['symbols'].get(symbol, {})
+    required_levels = ['PDH', 'PDL', 'PMH', 'PML', '5MH', '5ML']
+    for rl in required_levels:
+        if rl not in levels:
+            return False
+    return True
+
+
+
+def is_retest_after_breakout(application_state, symbol, side='up', level=1 ):
+
+    breakout_idxs = get_breakout_idx(application_state, symbol, level)
+    retest_idxs = get_retest_idx(application_state, symbol, level)
+
+    if retest_idxs == set() or breakout_idxs == set():
+        return  False
+    if max(retest_idxs) > min(breakout_idxs):
+        retest_idx = max(retest_idxs)
+        valid_breakouts = [b for b in breakout_idxs if b < retest_idx]   # all the breakout idxs that are before retest_idx
+        if valid_breakouts:
+            breakout_idx = max(valid_breakouts)  # closest (largest) breakout before retest
+
+        return True
+    else:
+        return False
+
+
+def get_breakout_idx(application_state, symbol, level):
+    return application_state.get('breakouts_idx', {}).get('symbol', {}).get(symbol, None)
+
+def get_retest_idx(application_state, case, symbol):
+    return application_state.get('retests_idx', {}).get('case', {}).get(symbol, None)
+
+
+def check_entry_vs_retest(application_state, case, symbol, df, side='up', level=1, retest_ohlc=''):
+
+    retest_idx = get_retest_idx(application_state, case, symbol,)
+    breakout_idx = get_breakout_idx(application_state, case, symbol)
+
+    if retest_idx == 0 or breakout_idx == 0:
+        return False
+
+    if side == 'up':
+        ohlc_field = 'high' if retest_ohlc == '' else retest_ohlc
+        if df['high'].iloc[-1] > df[ohlc_field].iloc[retest_idx]:  # clode > retest high
+            return True
+        else:
+            return False
+    else:
+        ohlc_field = 'low' if retest_ohlc == '' else retest_ohlc
+        if df['low'].iloc[-1] < df[ohlc_field].iloc[retest_idx]:
+            return True
+        else:
+            return False
+    return False
+
+
+
+def no_failure_after_breakout(application_state, case, symbol, df, side='up', level=0, ohlc_field='open'):
+    # we want make sure all closes after breakout are above the level.
+    # for up, use 'open'
+    # for down use 'close'
+
+    breakout_idx = get_breakout_idx(application_state, case, symbol)
+
+    if breakout_idx == 0:
+        return False
+
+    i = -1 # the last candle
+    j = breakout_idx # This is index for breakout...
+
+    if j == i:
+        return  False
+
+    start, end = sorted([i, j])  # in case you mix order
+    # say start -5 end -3.  this get -5, -4, -3, -2.  it mean both -5 and -3 is included too.
+    if side == 'up':
+        if (df.iloc[start:][ohlc_field] > level).all(): # all highs are above level
+            return True
+    else:
+        if (df.iloc[start:][ohlc_field] < level).all(): # all opens are less then elvel
+            return True
+
+    return False

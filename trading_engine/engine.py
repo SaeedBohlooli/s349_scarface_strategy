@@ -13,6 +13,8 @@ from trading_core.streamers.config_streamer import ConfigStreamer
 from trading_core.ib_connector import IBConnector
 from trading_core.market_data_store import MarketDataStore
 from trading_core import market_session_guard
+from trading_core import application_state_router
+
 
 from trading_utils import user_request_router
 
@@ -50,8 +52,15 @@ class TradingEngine:
                 unique_run_number_X =  self.runtime.generate_unique_run_number(run_number)
                 day_of_week = self.runtime.now_day_of_week()
                 symbol_number = 0
+                logger.info(f"==================== run_number: {run_number}, unique_run_number_X: {unique_run_number_X}")
 
                 self.application_state['is_busy_time'] = False # TODO: improve this later
+
+                if ib is None:
+                    logger.warning("ib is None... so give a try to reconnect ...")
+                    await asyncio.sleep(3)
+                    continue
+                self.app_config = self.runtime.reload_config()
 
                 is_trade_time = eval(self.app_config['live']['trade_time'])
                 is_busy_time = eval(self.app_config['live'].get('busy_time', '1 == 1'))
@@ -89,13 +98,12 @@ class TradingEngine:
                     self.application_state['symbols'].setdefault(symbol, {})['current_price'] = current_price
 
                     scanner.check_buy_and_sell_cases(self.app_config, self.application_state, symbol, self.market_data)
+                    symbol_end_time = time.time()
+                    symbol_run_spend_time = round(symbol_end_time - symbol_start_time, 2)
+                    logger.warning(f'------------------- {symbol}, {unique_run_number}, symbol_run_spend_time: {symbol_run_spend_time} seconds')
 
-                logger.warning(f"==================== unique_run_number: {unique_run_number}, current_hh_mm_ny: {current_hh_mm_ny}")
-                if ib is None:
-                    logger.warning("ib is None... so give a try to reconnect ...")
-                    await asyncio.sleep(3)
-                    continue
-                self.app_config = self.runtime.reload_config()
+                application_state_router.populate_global_state(application_state=self.application_state)
+
 
                 end_time = time.time()
                 run_time_spent = round(end_time - start_time, 2)

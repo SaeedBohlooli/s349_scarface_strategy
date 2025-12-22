@@ -72,7 +72,7 @@ symbols_meta:
     breakout_confirmation_distance: 2
     chart_entry_offset: 20
     retest_tolerance_multiplier: 3
-    contract_month: 202512
+    contract_month: 202603
     long:
       stop_loss: level_used - ( dynamic_tolerance.get('tolerance', 0) * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1))
       take_profit: df['close'].iloc[-1] + (df['atr_14'].iloc[-2] * 2 )
@@ -181,15 +181,16 @@ cases:
   case_2_1_async:
     memo: 5MH and 5ML breakout_ver_2, no short above PDH, trade close to level. - we running this one
     can_replace_level: true
-    precondition: all_levels_in(symbol)
+    precondition: all_levels_in(application_state, symbol)
     long:
       level: levels['5MH']
+      level_alias: '5MH'
       conditions:
-        - breakout_in_last_x_candles_ver_2(symbol, app_config, application_state, df, side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level)
+        - breakout_in_last_x_candles_ver_2(symbol, app_config, application_state, df, side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level, level_alias=level_alias)
         - price_retest(side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
         - is_retest_after_breakout(application_state, symbol, side='up', level=long_level)
-        - check_entry_vs_retest(side='up', level=long_level)
-        - no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
+        - check_entry_vs_retest(application_state, case, symbol, df, side='up', level=long_level)
+        - no_failure_after_breakout(application_state, case, symbol, df, side='up', ohlc_field='close',level=long_level)
         - check_price_vs_level(side='up', price=price, level=long_level )
         - not is_price_close_to_next_levels_ver_2(side='up', price=price, current_level=long_level, next_levels=['PDH'])
         - 930 < last_record_hh_mm < 1016 or mode == 'live'
