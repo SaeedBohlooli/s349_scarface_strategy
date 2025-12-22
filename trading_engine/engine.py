@@ -23,6 +23,7 @@ from trading_engine import inidicators
 from trading_engine import strategy
 from trading_engine import application_state_helper
 from trading_engine import scanner
+from trading_engine import pricing_helper
 
 from utils import atr_tolerance_helper
 
@@ -53,6 +54,7 @@ class TradingEngine:
                 day_of_week = self.runtime.now_day_of_week()
                 symbol_number = 0
                 logger.info(f"==================== run_number: {run_number}, unique_run_number_X: {unique_run_number_X}")
+                application_state_helper.initialize_application_state_for_run(self.app_config, self.application_state)
 
                 self.application_state['is_busy_time'] = False # TODO: improve this later
 
@@ -66,11 +68,20 @@ class TradingEngine:
                 is_busy_time = eval(self.app_config['live'].get('busy_time', '1 == 1'))
                 is_market_time = eval(self.app_config['live'].get('market_time', '1 == 1'))
 
+                await pricing_helper.subscribe_for_current_price(ib, self.app_config, self.application_state)
+
+
                 for symbol in self.app_config.get('symbols'):
                     symbol_number += 1
                     unique_run_number = f'{unique_run_number_X}--{symbol_number}'
                     logger.warning(f"------------------- {symbol}, {unique_run_number}, {current_hh_mm_ny} ")
                     symbol_start_time = time.time()
+
+                    current_price = await ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol, contract_month=self.app_config.get('symbols_meta', {}).get(symbol,{}).get('contract_month'))
+                    if current_price is None:
+                        current_price = -1.0
+                    self.application_state.setdefault('current_prices', {})[symbol] = current_price
+
                     df = await marketdata_helper.get_historical_data(ib, symbol, self.app_config, self.application_state, time_frame='1m', historical_days='3 D')
                     self.market_data.dfs_map[symbol] = df
                     df = inidicators.popualate_features(df)
@@ -91,13 +102,15 @@ class TradingEngine:
                     are_all_levels_in = strategy.all_levels_in(self.application_state, symbol)
                     if not are_all_levels_in:  # if not in, recalcualte ...
                         # TODO need to be checked, we need to pass that candle... better to calculate every time ..
-                        strategy.find_add_PMH_PML(self.application_state, df, symbol)
-                        strategy.find_add_5MH_5ML(self.application_state, df, symbol)
+                        pass
+                    strategy.find_add_5MH_5ML(self.application_state, df, symbol)
+                    strategy.find_add_PMH_PML(self.application_state, df, symbol)
 
-                    current_price = await ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol, contract_month=self.app_config.get('symbols_meta', {}).get(symbol, {}).get('contract_month'))
-                    self.application_state['symbols'].setdefault(symbol, {})['current_price'] = current_price
+                    logger.info(f"After levels {symbol}, df: \n{df[-4:].to_markdown()}")
 
-                    scanner.check_buy_and_sell_cases(self.app_config, self.application_state, symbol, self.market_data)
+
+
+                    scanner.check_buy_and_sell_cases(ib, self.app_config, self.application_state, symbol, self.market_data)
                     symbol_end_time = time.time()
                     symbol_run_spend_time = round(symbol_end_time - symbol_start_time, 2)
                     logger.warning(f'------------------- {symbol}, {unique_run_number}, symbol_run_spend_time: {symbol_run_spend_time} seconds')

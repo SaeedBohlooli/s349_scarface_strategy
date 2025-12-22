@@ -36,8 +36,8 @@ def calculate_PDL_PDH(df, symbol, day_of_week, application_state):
     logger.info(f"Previous Day RTH High: {day_high}")
     logger.info(f"Previous Day RTH Low: {day_low}" )
 
-    application_state['symbols'].setdefault(symbol, {})['PDH'] = day_high
-    application_state['symbols'].setdefault(symbol, {})['PDL'] = day_low
+    application_state['levels'].setdefault(symbol, {})['PDH'] = day_high
+    application_state['levels'].setdefault(symbol, {})['PDL'] = day_low
     return
 
 
@@ -45,7 +45,7 @@ def all_levels_in(application_state, symbol, levels=['PDL', 'PDH', 'PMH', 'PML',
     # if a level is not there ,will return False
 
     for level in levels:
-        if application_state.get('symbols').get(symbol).get(level) == None:
+        if application_state.get('levels').get(symbol).get(level) == None:
             return False
     return True
 
@@ -55,8 +55,8 @@ def find_add_PMH_PML(application_state, df, symbol):
 
     pml, pmh = find_session_high_and_low(df, start="04:00", end="09:29", wait_until_end_of_period= wait_until_end_of_period)
     if number_utils.is_valid_price(pmh) and number_utils.is_valid_price(pml) and pmh != -1 and pml != -1:
-        application_state['symbols'].setdefault(symbol, {})['PMH'] = pmh
-        application_state['symbols'].setdefault(symbol, {})['PML'] = pml
+        application_state['levels'].setdefault(symbol, {})['PMH'] = pmh
+        application_state['levels'].setdefault(symbol, {})['PML'] = pml
 
 
     return
@@ -96,7 +96,7 @@ def find_add_5MH_5ML(application_state, df, symbol):
 
     x5mh, x5ml = find_session_high_and_low(df, start="09:30", end="09:34", wait_until_end_of_period= wait_until_end_of_period)
     if number_utils.is_valid_price(x5mh) and number_utils.is_valid_price(x5ml) and x5mh != -1 and x5ml != -1:
-        application_state['symbols'].setdefault(symbol, {})['5MH'] = x5mh
-        application_state['symbols'].setdefault(symbol, {})['5ML'] = x5ml
+        application_state['levels'].setdefault(symbol, {})['5MH'] = x5mh
+        application_state['levels'].setdefault(symbol, {})['5ML'] = x5ml
 
     return
