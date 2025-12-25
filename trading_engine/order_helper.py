@@ -1,0 +1,365 @@
+import json
+import logging
+import traceback
+
+import pandas as pd
+
+logger = logging.getLogger(__name__)
+from trading_utils import date_utils
+from trading_utils import notification_utls
+from trading_utils import ib_orders_async
+from trading_utils import ib_contract
+from trading_utils import json_utils
+
+from trading_core.trading_ledger import TradingLedger
+
+from trading_engine import options_helper
+from trading_engine import pricing_helper
+from trading_engine import risk_helper
+from trading_engine import notification_helper
+
+
+async def check_buy_sell_result_to_send_order(app_config, application_state, buy_sell_case_results_list, symbol, ib, df):
+    is_trade_time = eval(app_config['live']['trade_time'])
+
+
+    for buy_sell_case_result in buy_sell_case_results_list:
+
+        logger.debug(f"buy_sell_case_result: {buy_sell_case_result} , type(buy_sell_case_result): {type(buy_sell_case_result)}")
+        case = buy_sell_case_result[0]
+        can_buy = buy_sell_case_result[1]
+        can_sell = buy_sell_case_result[2]
+        details_map = buy_sell_case_result[3]
+        case_result = details_map.get('res_str')
+        long_level = details_map.get('long_level')
+        short_level = details_map.get('short_level')
+        level_used = long_level if can_buy else short_level
+        contract_type = app_config['symbols_meta'][symbol]['contract_type']
+
+        logger.info(f"{symbol}, case: {case}, can_buy: {can_buy}, can_sell: {can_sell}")
+
+        if can_buy == False and can_sell == False: # no sucess ...
+            continue
+        logger.info(f"check_buy_sell_result_to_send_order, {symbol}, can_buy: {can_buy}, can_sell:{can_sell}")
+
+        market_trend = 'up' if can_buy else 'down' #
+        right = 'C' if can_buy else 'P'
+
+        if not app_config['symbols_meta'][symbol]['can_trade']:
+            logger.info(f"We are not trading {symbol}.")
+            continue
+        if not is_trade_time:
+            logger.warning(f"@@ is_trade_time:{is_trade_time}, {symbol}, {app_config['live']['trade_time']}")
+            continue
+        if application_state.get('open_trades_dic', {}).get(symbol,{}).get('available_quantity', 0) != 0:
+            logger.warning(f"@@ You already have open position. Don't be greedy!!!  symbol: {symbol}")
+            continue
+        if number_of_positions_today(symbol) >= app_config['live']['max_num_of_trade_per_symbol_per_day']:
+            logger.warning(f"@@  We already sent enough orders for {symbol} .... number_of_trades_today: {number_of_positions_today(symbol)}")
+            continue
+        if has_open_order_in_same_group(symbol):
+            logger.warning(f"@@  We already have open order in same group {symbol}")
+            continue
+        if symbol in app_config['live']['blocked_symbols'][right]:
+            logger.warning(f"@@  This symbol is blocked, {symbol}, {app_config['live']['blocked_symbols'][side]}")
+            continue
+        if not check_manual_conditions(symbol, right):
+            logger.warning(f"@@  check_manual_conditions failed, {symbol}")
+            continue
+
+        # FIXME mark_score_in_the_chart(market_trend)
+
+        if contract_type.lower() == 'equity' and (can_buy or can_sell): # go for buy
+            right = 'C' if can_buy else 'P'
+            option_contract = options_helper.prepare_option_contract(ib, app_config, application_state, symbol, right=right)
+            if option_contract == None:
+                notification_utls.notify_user(app_config, msg=f"@@@@@ prepare_contract returned None. We are not sending order. symbol={symbol}, option_contract={option_contract}")
+                logger.warning(f"@@@@@ We are not sending order. {symbol}, option_contract: {option_contract}")
+                continue
+            bid, ask, alst = pricing_helper.get_quote_for_option_bid_ask(symbol=symbol, expiry=option_contract.lastTradeDateOrContractMonth, strike=option_contract.strike, right=option_contract.right )
+            if bid == 0 or ask == 0:
+                logger.warning(f"@@@@@ We are not sending order. bid ==0 or ask ==0")
+                continue
+            total_quantity, capital_data = risk_helper.calculate_number_of_option_contracts(option_contract.strike, ask)
+            # application_state.setdefault('risk', {}).setdefault('records', []).append(capital_data)  NO need for now ...
+            add_to_capital_allocation_df(application_state, capital_data)
+            if total_quantity == 0:  # we don't have enough capital
+                logger.warning(f"@@ We dont have enough capital {symbol} ....")
+                continue
+            order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='OPEN', symbol=symbol, side='long', unique_run_number=application_state.get('unique_run_number'), right= right)
+            # send_order(option_contract, total_quantity=total_quantity, order_ref= order_ref)
+            send_order(ib, option_contract, side='long', total_quantity=total_quantity, order_ref=order_ref)
+            data = {
+                'date': f'{date_utils.time_now()}',
+                'symbol': symbol,
+                'side': 'long',
+                'right': right,
+                'starting_quantity':total_quantity,
+                'available_quantity':total_quantity,
+                'entry_underlying_price': df['close'].iloc[-1] ,
+                'entry_bid': bid,
+                'entry_ask': ask,
+                "current_bid": 0,
+                "current_ask": 0,
+                "current_underlying_price": 0,
+                "current_value": 0,
+                "current_pnl": 0,
+                "current_roi": 0,
+                "cost_for_trade": 0,
+                "avg_cost": 0,
+                "avg_cost_for_1_position": 0,
+                "avg_cost_for_1_contract": 0,
+                'strike': option_contract.strike,
+                'expiry': option_contract.lastTradeDateOrContractMonth,
+                'position_type': 'OPTION',
+                'unique_run_number': application_state.get('unique_run_number'),
+                'level_used_to_open': level_used,
+                'level_name': '',
+                'local_symbol': option_contract.localSymbol,
+                'con_id': option_contract.conId,
+                'order_ref': order_ref
+            }
+            application_state.setdefault('open_trades_dic', {})[symbol] = data
+            TradingLedger.add_to_list("signals", (symbol, f'ORDER_SENT',df['close'].iloc[-1],df['date'].iloc[-1], json_utils.polish_map_to_show_in_hover(data)))
+
+            TradingLedger.add_to_dataframe("order_history_df", data)
+
+            add_to_number_of_positions_today(application_state, symbol)
+            notification_helper.send_email(app_config, event='order_sent', symbol=symbol, body=json_utils.polish_map_to_show_in_hover(data))
+            add_order_ref_to_application_state(application_state, open_order_ref=order_ref)
+            add_open_order_to_capital_flow_df(data, capital_data)
+
+        elif contract_type.lower() == 'future' and (can_buy or can_sell):
+            right = 'long' if can_buy else 'short'
+            side = 'long' if can_buy else 'short' # TODO need to be rmeoved ...
+
+
+            contract_month =  app_config['symbols_meta'][symbol]['contract_month']
+            contract = ib_contract.get_cached_contract(ib, symbol, contract_month)
+            stop_loss_price = eval(app_config['symbols_meta'][symbol][side.lower()]['stop_loss'])
+            take_profit_price = eval(app_config['symbols_meta'][symbol][side.lower()]['take_profit'])
+            total_quantity = 1
+            order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='OPEN', symbol=symbol, side='long', unique_run_number=application_state.get('unique_run_number'))
+
+            candle_date = str(df['date'].iloc[-1])
+
+            # result_dic = ib_orders.send_market_order_w_sl_tp(ib, side, contract, stop_loss_price, take_profit_price, total_quantity, order_ref, candle_date)
+            result_dic = await ib_orders_async.send_market_order_w_sl_tp(ib, side, contract, stop_loss_price, take_profit_price, total_quantity, order_ref, candle_date)
+
+            data = {
+                'symbol': symbol,
+                'side': side,
+                'right': right,
+                'position_type': 'FUTURE',
+                'starting_quantity':total_quantity,
+                'available_quantity':total_quantity,
+                'entry_underlying_price': df['close'].iloc[-1],
+                'unique_run_number': application_state.get('unique_run_number'),
+                'level_used_to_open': level_used,
+                'level_name': '',
+                'order_ref': order_ref,
+            }
+            data.update(result_dic)
+            from trading_utils import json_utils
+            json_utils.rint_map_pretty(data, msg = 'after MNQ order ')
+
+            application_state.setdefault('open_trades_dic', {})[symbol] = data
+            # add_to_signlas(symbol, f'ORDER_SENT', df['close'].iloc[-1], df['date'].iloc[-1], polish_map_to_show_in_hover(data) )
+            TradingLedger.add_to_list("signals", (symbol, f'ORDER_SENT',df['close'].iloc[-1],df['date'].iloc[-1], polish_map_to_show_in_hover(data)))
+            # add_to_signlas(symbol, f'STOP_LOSS_SENT', stop_loss_price, df['date'].iloc[-1], polish_map_to_show_in_hover(data) )
+            TradingLedger.add_to_list("signals", (symbol, f'STOP_LOSS_SENT', stop_loss_price, df['date'].iloc[-1], polish_map_to_show_in_hover(data)))
+            # add_to_signlas(symbol, f'TAKE_PROFIT_SENT', take_profit_price, df['date'].iloc[-1], polish_map_to_show_in_hover(data) )
+            TradingLedger.add_to_list("signals", (symbol, f'TAKE_PROFIT_SENT', take_profit_price, df['date'].iloc[-1], polish_map_to_show_in_hover(data)))
+            # add_to_futures_order_history_df("futures_order_history_df, data)
+            TradingLedger.add_to_dataframe("futures_order_history_df", data)
+            add_to_number_of_positions_today(application_state, symbol)
+            # send_email(event='order_sent', symbol=symbol, body=polish_map_to_show_in_hover(data))
+            notification_helper.send_email(app_config, event='order_sent', symbol=symbol, body=polish_map_to_show_in_hover(data))
+            add_order_ref_to_application_state(open_order_ref=order_ref)
+            add_order_ref_to_application_state(open_order_ref=order_ref, close_order_ref=f'{order_ref}-TP')  #TODO need to be passed to the send order ...
+            add_order_ref_to_application_state(open_order_ref=order_ref, close_order_ref=f'{order_ref}-SL')  #TODO need to be passed to the send order ...
+            total_quantity, capital_data = calculate_number_of_future_contracts(symbol) # move it up ...
+            add_to_capital_allocation_df(capital_data)
+            add_open_order_to_capital_flow_df(data, capital_data)
+
+    return
+
+
+
+
+def number_of_positions_today(application_state, symbol):
+    number_of_positions_today = application_state.get('number_of_trades', {}).get(date_utils.get_yyyymmdd(), {}).get(symbol, 0)
+    return number_of_positions_today
+
+
+def has_open_order_in_same_group(app_config, application_state, symbol):
+    symbol_group = app_config['symbols_meta'][symbol].get('group')
+    if symbol_group is None: # no group ...
+        return False
+    open_orders = application_state.get('open_trades_dic', {})
+    logger.info(f"@ has_open_order_in_same_group, symbol: {symbol}, symbol_group: {symbol_group}, open_orders: {open_orders}")
+    for open_order_symbol, open_order_data in open_orders.items():
+        if open_order_data.get('available_quantity', 0) == 0: # if there is no open quantity, skip
+            continue
+        open_order_symbol_group = app_config['symbols_meta'].get(open_order_symbol, {}).get('group', 'no-group')
+
+        if open_order_symbol_group == symbol_group:
+            logger.info(f"has_open_order_in_same_group, found open order in same group, symbol: {symbol}, open_order_symbol: {open_order_symbol}, group: {symbol_group}")
+            return True
+    return False
+
+
+def check_manual_conditions(app_config, symbol, right):
+    try:
+        for condition in app_config['live'].get('manual_settings', {}).get(right,{}).get('conditions', []):
+            evaluated_condition = eval(condition)
+            logger.info(f"check_manual_conditions, {symbol} , {right}, condition: {condition}, evaluated_condition: {evaluated_condition} ")
+            if not evaluated_condition:
+                return False
+
+    except Exception as e:
+        logger.error(f"@@@ TODO This is temp .... {e}")
+        logger.error(f"@@@ TODO This is temp .... {traceback.format_exc()}")
+
+    return True
+
+
+
+def add_to_capital_allocation_df(application_state, data):
+    # capital_allocation_df = pd.concat([capital_allocation_df, pd.DataFrame([data])])
+    application_state.setdefault('capital_allocation', []).append(data)
+
+
+def send_order(ib, contract, side='long', total_quantity=1, order_ref=None): #TODO move to utils ...
+
+    ib_orders_async.submit_option_order_prequalified_contract(ib, q_contract=contract, side=side, total_quantity=total_quantity, order_ref=order_ref)
+    # ib_orders_async.
+    #
+    # order = MarketOrder('BUY', totalQuantity=total_quantity)
+    #
+    # order.orderRef = order_ref
+    # trade = ib.placeOrder(contract, order)
+    # # TODO convert to ib df
+    # trade.fillEvent += ib_posttrade.on_fill
+    # ib.sleep(1)
+    # logger.warning(f"Order sent ....")
+    # logger.warning(f"@@ trade: {trade}")
+    return
+
+
+def polish_map_to_show_in_hover(data):
+    logger.warning(f"@ {type(data)},  data: {data}, ")
+    try:
+        # return json.dumps(data).replace(',', ',<br>')
+        return json.dumps(data, default=str).replace(',', ',<br>') # use str for .Object of type int64 is not JSON serializable error
+
+    except Exception as e:
+        logger.warning(f"@@ we have paring issue ...{e}")
+        return {}
+    #
+
+
+def add_to_number_of_positions_today(application_state, symbol):
+    current_number = number_of_positions_today(symbol)
+    if current_number == 0:
+        application_state.setdefault('number_of_trades', {}).setdefault(application_state.get('trading_date'), {})[symbol] = 1
+    else:
+        application_state.setdefault('number_of_trades', {})[application_state.get('trading_date')][symbol] += 1
+    return
+
+
+def add_order_ref_to_application_state(application_state, open_order_ref='', close_order_ref=''):
+
+    if open_order_ref != '' and close_order_ref == '': # this is for open order ...
+        application_state.setdefault('open_close_refs_map', {})[open_order_ref] = []
+    elif open_order_ref != '' and close_order_ref != '': # this is for close ...
+        entry = {open_order_ref: close_order_ref}
+        application_state.setdefault('open_close_refs_list', []).append(entry) # add to the list ...
+
+        if  not application_state.get('open_close_refs_map', {}).get(open_order_ref): #  opn is not there,sso add it ..
+            application_state.setdefault('open_close_refs_map', {})[open_order_ref] = []
+
+        application_state.get('open_close_refs_map', {}).get(open_order_ref).append(close_order_ref) # now add the close ...
+    else:
+        logger.info(f"@@@ add_order_ref_to_application_state, is not supported, open_order_ref: {open_order_ref}, close_order_ref: {close_order_ref}")
+    data = {
+        'open_order_ref': open_order_ref,
+        'close_order_ref': close_order_ref,
+        'ib_exec_id': ''
+    }
+
+
+    TradingLedger.add_to_dataframe("open_close_refs_df", data)
+
+    return
+
+
+def add_open_order_to_capital_flow_df(data, capital_data):
+    try:
+        d = {
+            'time_stamp': str(date_utils.time_now()),
+            'trade_date' : date_utils.get_yyyymmdd(),
+            'event': 'OPEN_ORDER',
+            'capital_before_event': 0,
+            'cash_flow': -1 * capital_data.get('capital_used'),
+            'capital_after_event': 0,
+            'realized_pnl': 0,
+            'commission': 0,
+            'trade_cost': capital_data.get('capital_used'),
+            'symbol': data.get('symbol'),
+            'unique_run_number': data.get('unique_run_number'),
+            'open_order_ref': data.get('order_ref'),
+            'memo': 'Order opened ...'
+        }
+
+        # capital_flow_df = pd.concat([capital_flow_df, pd.DataFrame([d])])
+        TradingLedger.add_to_dataframe("capital_flow_df", d)
+    except Exception as e:
+    # TODO add
+        logger.error(f"@@@@ add_open_order_to_capital_flow_df e")
+        logger.error(traceback.format_exc())
+
+    return
+
+
+
+def calculate_number_of_future_contracts(app_config, application_state, symbol):
+
+    available_capital = risk_helper.calcualte_availale_capital(app_config, application_state)
+
+    capital_per_trade_percentage = app_config['live']['capital_per_trade_percentage']
+    max_num_open_trades = app_config['live']['max_num_open_trades']
+
+    logger.info(f"calculate_number_of_future_contracts(), {symbol}, available_capital: {available_capital}, capital_per_trade_percentage: {capital_per_trade_percentage}, max_num_open_trades: {max_num_open_trades}")
+
+    capital_per_trade = max(available_capital * capital_per_trade_percentage, 800)  # TODO put in a function
+    num_of_contracts = 1
+
+    logger.info(f"capital_per_trade: {capital_per_trade}")
+    logger.info(f"symbol: {symbol}, num_of_contracts: {num_of_contracts}")
+    if num_of_contracts == 0:
+        logger.warning(f"@@@@ we don't have enough capital ...")
+    capital_used = num_of_contracts * 2500
+    capital_remaining_after_order = available_capital - capital_used
+    open_trades_count_at_entry = risk_helper.calcualte_number_of_open_positions(application_state)
+    # update ...
+    application_state.get('risk')['available_capital'] = capital_remaining_after_order
+
+    data = {
+            'time_stamp': str(date_utils.time_now()),
+            'trade_date': date_utils.get_yyyymmdd(),
+            'symbol': symbol,
+            'unique_run_number': application_state.get('unique_run_number'),
+            'starting_capital': available_capital,
+            'capital_used': capital_used,
+            'capital_remaining_after_order': capital_remaining_after_order,
+            'allowed_capital_per_trade': capital_per_trade,
+            'strike': 0,
+            'ask': 0,
+            'num_of_contracts': num_of_contracts,
+            'daily_loss_so_far': 0,
+            'daily_win_so_far': 0,
+            'open_trades_count_at_entry': open_trades_count_at_entry,
+            'memo': '',
+            }
+    return num_of_contracts, data

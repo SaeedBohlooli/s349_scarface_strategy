@@ -1,0 +1,110 @@
+import logging
+logger = logging.getLogger(__name__)
+from trading_utils import date_utils
+def calculate_number_of_option_contracts(app_config, application_state, symbol, strike, ask):
+
+    available_capital = calcualte_availale_capital(app_config, application_state)
+
+    capital_per_trade_percentage = app_config['live']['capital_per_trade_percentage']
+    max_num_open_trades = app_config['live']['max_num_open_trades']
+
+    # 4000 * 0.2 = 800.00  if the ask = 1,  quantitiy:  8  =  800/( 100  contract * 1 ask)
+    #  num_of_contracts: 4
+    logger.info(f"calculate_number_of_contracts(), {symbol}, available_capital: {available_capital}, capital_per_trade_percentage: {capital_per_trade_percentage}, max_num_open_trades: {max_num_open_trades}")
+
+    capital_per_trade = max(available_capital * capital_per_trade_percentage, 800)  # TODO put in a function
+    num_of_contracts = max(round(capital_per_trade / (ask * 100)), 6)  # TODO we get 2 as min ...
+
+    logger.info(f"capital_per_trade: {capital_per_trade}, ask: {ask} strike: {strike}")
+    logger.info(f"symbol: {symbol}, num_of_contracts: {num_of_contracts}")
+    if num_of_contracts == 0:
+        logger.warning(f"@@@@ we don't have enough capital ...")
+    capital_used = num_of_contracts * 100 * ask
+    capital_remaining_after_order = available_capital - capital_used
+    open_trades_count_at_entry = calcualte_number_of_open_positions(application_state)
+    # update ...
+    application_state.get('risk')['available_capital'] = capital_remaining_after_order
+
+    data = {
+            'time_stamp': str(date_utils.time_now()),
+            'trade_date' : application_state.get('trade_date'),
+            'symbol': symbol,
+            'unique_run_number': application_state.get('unique_run_number'),
+            'starting_capital': available_capital,
+            'capital_used': capital_used,
+            'capital_remaining_after_order': capital_remaining_after_order,
+            'allowed_capital_per_trade': capital_per_trade,
+            'strike': strike,
+            'ask': ask,
+            'num_of_contracts': num_of_contracts,
+            'daily_loss_so_far': 0,
+            'daily_win_so_far': 0,
+            'open_trades_count_at_entry': open_trades_count_at_entry,
+            'memo': '',
+            }
+    return num_of_contracts, data
+
+def calculate_number_of_future_contracts(app_config, application_state, symbol):
+
+    available_capital = calcualte_availale_capital()
+
+    capital_per_trade_percentage = app_config['live']['capital_per_trade_percentage']
+    max_num_open_trades = app_config['live']['max_num_open_trades']
+
+    logger.info(f"calculate_number_of_future_contracts(), {symbol}, available_capital: {available_capital}, capital_per_trade_percentage: {capital_per_trade_percentage}, max_num_open_trades: {max_num_open_trades}")
+
+    capital_per_trade = max(available_capital * capital_per_trade_percentage, 800)  # TODO put in a function
+    num_of_contracts = 1
+
+    logger.info(f"capital_per_trade: {capital_per_trade}")
+    logger.info(f"symbol: {symbol}, num_of_contracts: {num_of_contracts}")
+    if num_of_contracts == 0:
+        logger.warning(f"@@@@ we don't have enough capital ...")
+    capital_used = num_of_contracts * 2500
+    capital_remaining_after_order = available_capital - capital_used
+    open_trades_count_at_entry = calcualte_number_of_open_positions()
+    # update ...
+    application_state.get('risk')['available_capital'] = capital_remaining_after_order
+
+    data = {
+            'time_stamp': str(date_utils.time_now()),
+            'trade_date': application_state.get('trade_date'),
+            'symbol': symbol,
+            'unique_run_number': application_state.get('unique_run_number'),
+            'starting_capital': available_capital,
+            'capital_used': capital_used,
+            'capital_remaining_after_order': capital_remaining_after_order,
+            'allowed_capital_per_trade': capital_per_trade,
+            'strike': 0,
+            'ask': 0,
+            'num_of_contracts': num_of_contracts,
+            'daily_loss_so_far': 0,
+            'daily_win_so_far': 0,
+            'open_trades_count_at_entry': open_trades_count_at_entry,
+            'memo': '',
+            }
+    return num_of_contracts, data
+
+
+def calcualte_availale_capital(app_config, application_state):
+
+    available_capital = application_state.get('risk', {}).get('available_capital', None)
+    if available_capital is None:
+       available_capital = app_config['live']['capital']
+       application_state.setdefault('risk', {}).setdefault('available_capital', available_capital )
+    return available_capital
+
+def calcualte_number_of_open_positions(application_state):
+    """
+    Count open trades across all symbols.
+    A trade is considered open if available_quantity > 0.
+    """
+    open_trades = application_state.get("open_trades_dic", {})
+    count = 0
+
+    for symbol, trade in open_trades.items():
+        if not trade:  # empty dict → skip
+            continue
+        if trade.get("available_quantity", 0) > 0:
+            count += 1
+    return count

@@ -13,7 +13,7 @@ def initialize_application_state(app_config, application_state):
         application_state['symbols'][symbol] = {}
 
     application_state['is_busy_time'] = False
-    # application_state['current_prices'] = {}
+    # application_state['latest_prices'] = {}
     # application_state['current_price'] = {}
 
 

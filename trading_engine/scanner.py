@@ -496,4 +496,4 @@ def get_mode(application_state):
     return application_state.get('mode', 'live')
 
 def get_current_price(ib, application_state, symbol):
-    return application_state.get('current_prices', {}).get(symbol, None)
+    return application_state.get('latest_prices', {}).get(symbol, None)

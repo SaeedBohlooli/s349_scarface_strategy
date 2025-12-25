@@ -80,7 +80,8 @@ if __name__ == "__main__":
 
     portfolio_ids = ['p250', 'p250-case-4']
     for portfolio_id in portfolio_ids:
-        intermediate_dir = f'../../portfolios/intermediate/{portfolio_id}'
+        # intermediate_dir = f'../../portfolios/intermediate/{portfolio_id}'
+        intermediate_dir = f'../../portfolios/{portfolio_id}/intermediate'
         if os.path.exists(intermediate_dir):
-            file_path = f'{intermediate_dir}/85-strikes-nazdaq.csv'
+            file_path = f'{intermediate_dir}/85-strikes-nazdaq.json'
             dump_a_map_to_file(options_meta_date_dic, file_path )
