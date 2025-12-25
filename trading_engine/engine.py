@@ -1,5 +1,6 @@
 from bokeh.models.widgets import indicators
 
+from trading_core.trading_ledger import TradingLedger
 from trading_utils import *
 import logging
 logger = logging.getLogger(__name__)
@@ -14,6 +15,7 @@ from trading_core.ib_connector import IBConnector
 from trading_core.market_data_store import MarketDataStore
 from trading_core import market_session_guard
 from trading_core import application_state_router
+from trading_core import trading_ledger
 
 
 from trading_utils import user_request_router
@@ -50,6 +52,29 @@ class TradingEngine:
         initial_setup = False
         application_state_helper.initialize_application_state(self.app_config, self.application_state)
 
+        hover_df_cols = ['symbol', 'time_frame', 'object', 'color', 'date_1', 'price_1', 'date_2', 'price_2', 'memo', 'unique_id']
+        TradingLedger.set_dataframe_columns("hover_df", hover_df_cols)
+
+        key_levels_cols = ['symbol', 'time_frame', 'key_level', 'price', 'memo', 'unique_id']
+        TradingLedger.set_dataframe_columns("key_levels_df", key_levels_cols)
+
+        capital_flow_cols = ['time_stamp', 'trade_date', 'event', 'capital_before_event', 'cash_flow',
+                             'capital_after_event', 'realized_pnl',
+                             'commission', 'trade_cost', 'is_closed', 'symbol', 'unique_run_number', 'open_order_ref',
+                             'close_order_ref', 'proccesed', 'memo']
+        # TradingLedger.set_dataframe_columns("capital_flow_df", capital_flow_cols)
+        capital_flow_df = FileManager.load_my_df("capital_flow_df")
+        TradingLedger.set_dataframe("capital_flow_df", capital_flow_df)
+
+        # open_close_refs_df = df_utils.load_csv_file(df_file_map.get('open_close_refs_df'))
+        open_close_refs_df = FileManager.load_my_df('open_close_refs_df')
+        TradingLedger.set_dataframe("open_close_refs_df", open_close_refs_df)
+
+
+        # open_close_refs_pnl_df = df_utils.load_csv_file(df_file_map.get('open_close_refs_pnl_df'))
+        open_close_refs_pnl_df = FileManager.load_my_df("open_close_refs_pnl_df")
+        TradingLedger.set_dataframe("open_close_refs_pnl_df", open_close_refs_pnl_df)
+
 
         #
         # options_helper.find_expiration_and_strikes_for_all_from_ib(ib, self.app_config, self.application_state)
@@ -79,14 +104,20 @@ class TradingEngine:
                 is_busy_time = eval(self.app_config['live'].get('busy_time', '1 == 1'))
                 is_market_time = eval(self.app_config['live'].get('market_time', '1 == 1'))
 
-                await pricing_helper.subscribe_for_current_price(ib, self.app_config, self.application_state)
+                self.application_state['is_trade_time'] = is_trade_time
+                self.application_state['is_busy_time'] = is_busy_time
+                self.application_state['is_market_time'] = is_market_time
 
+                if first_run:
+                    await pricing_helper.subscribe_for_current_price(ib, self.app_config, self.application_state)
 
                 for symbol in self.app_config.get('symbols'):
                     symbol_number += 1
-                    unique_run_number = f'{unique_run_number_X}--{symbol_number}'
+                    unique_run_number = f'{unique_run_number_X}-{symbol_number}'
                     logger.warning(f"------------------- {symbol}, {unique_run_number}, {current_hh_mm_ny} ")
                     symbol_start_time = time.time()
+                    self.application_state['up_offset_counter'] = 0
+                    self.application_state['down_offset_counter'] = 0 # TODO need to be handles better
 
                     current_price = await ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol, contract_month=self.app_config.get('symbols_meta', {}).get(symbol,{}).get('contract_month'))
                     if current_price is None:
@@ -108,7 +139,7 @@ class TradingEngine:
                     self.market_data.data_store.setdefault(symbol, {})['dynamic_tolerance'] = dynamic_tolerance
 
                     # Levels
-                    if not self.application_state['symbols'][symbol].get('PDH'):  # PDH is not calculated yet
+                    if not self.application_state['levels'][symbol].get('PDH'):  # PDH is not calculated yet
                         strategy.calculate_PDL_PDH(df,symbol, day_of_week=day_of_week, application_state=self.application_state)
 
                     are_all_levels_in = strategy.all_levels_in(self.application_state, symbol)
@@ -119,8 +150,6 @@ class TradingEngine:
                         strategy.find_add_PMH_PML(self.application_state, df, symbol)
 
                     logger.info(f"After levels {symbol}, df: \n{df[-4:].to_markdown()}")
-
-
 
                     buy_sell_case_results_list = scanner.check_buy_and_sell_cases(ib, self.app_config, self.application_state, symbol, self.market_data)
                     order_helper.check_buy_sell_result_to_send_order(self.app_config, self.application_state, buy_sell_case_results_list, symbol, ib, df)

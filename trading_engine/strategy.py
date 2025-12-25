@@ -45,7 +45,7 @@ def all_levels_in(application_state, symbol, levels=['PDL', 'PDH', 'PMH', 'PML',
     # if a level is not there ,will return False
 
     for level in levels:
-        if application_state.get('levels').get(symbol).get(level) == None:
+        if application_state.get('levels').get(symbol).get(level) is None:
             return False
     return True
 
