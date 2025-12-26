@@ -186,11 +186,11 @@ cases:
       level: levels['5MH']
       level_alias: '5MH'
       conditions:
-        - breakout_in_last_x_candles_ver_2(symbol, app_config, application_state, df, side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level, level_alias=level_alias)
-        - price_retest(app_config, application_state, df, symbol, side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
+        - breakout_in_last_x_candles_ver_2(app_config, application_state, symbol, df, side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level, level_alias=level_alias)
+        - price_retest(app_config, application_state, symbol, df, side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
         - is_retest_after_breakout(application_state, symbol, side='up', level=long_level)
         - check_entry_vs_retest(application_state, case, symbol, df, side='up', level=long_level)
-        - no_failure_after_breakout(application_state, case, symbol, df, side='up', ohlc_field='close',level=long_level)
+        - no_failure_after_breakout(application_state, case, symbol, df, side='up', level=long_level, ohlc_field='close')
         - check_price_vs_level(app_config, symbol, side='up', price=price, level=long_level )
         - not is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='up', price=price, current_level=long_level, next_levels=['PDH'])
         - 930 < get_last_record_hh_mm(df) < 1016 or get_mode(application_state) == 'live'
@@ -201,7 +201,8 @@ cases:
       level: levels['5ML']
       level_alias: '5ML'
       conditions:
-        - 1 == 3
+        - 1 == 1
+        - symbol == 'PLTR'
 #        - breakout_in_last_x_candles_ver_2(side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level)
 #        - price_retest(side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True )
 #        - is_retest_after_breakout(side='down', level=short_level)

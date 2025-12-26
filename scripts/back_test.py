@@ -2803,7 +2803,7 @@ def check_for_stop_loss_and_take_profit():
                 logger.info(f"Sending TP ...{take_profit}")
                 if app_config['symbols_meta'][symbol]['contract_type'] == 'Equity':
                     order_ref = get_order_ref('CLOSE', symbol, alias_for_ref=take_profit, unique_run_number=unique_run_number)
-                    close_option_positions(option_positions_to_monitor, symbol=symbol, close_qty=close_quantity, order_ref=order_ref)
+                    close_option_positions(option_positions_to_monitor, symbol=symbol, qty_to_close=close_quantity, order_ref=order_ref)
                 elif app_config['symbols_meta'][symbol]['contract_type'] == 'Future':
                     order_ref = get_order_ref('CLOSE', symbol, alias_for_ref=take_profit, unique_run_number=unique_run_number)
                     close_future_positions(future_positions_to_monitor, symbol=symbol, close_qty=close_quantity, order_ref=order_ref )

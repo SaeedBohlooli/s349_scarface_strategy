@@ -1,9 +1,12 @@
 import logging
 import traceback
 
+from trading_core.trading_ledger import TradingLedger
+
 logger = logging.getLogger(__name__)
 from trading_utils import ib_contract, ib_pricing_async
 from trading_utils import date_utils
+from trading_engine import chart_helper
 
 def check_buy_sell_condition(ib, app_config, application_state, case, symbol, market_data):
 
@@ -138,10 +141,16 @@ def replace_level_if_needed(application_state, app_config, df, symbol, side, can
     if side == 'up':
         if next_level > level and abs(next_level - level) < closeness_distance:
             logger.info(f"replace_level_if_needed, level is replaced,{symbol}, {side}, level: {level}, next_level: {next_level}, {df['date'].iloc[-1]}")
+            price = chart_helper.get_offseted_price(app_config, application_state,symbol,side='up', price=df['high'].iloc[-1])
+            # add_to_signlas(symbol, 'LEVEL_REPLACED', price, df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}')
+            TradingLedger.add_to_list("signal", (symbol, 'LEVEL_REPLACED', price, df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}') )
             return next_level
     else:
         if next_level < level and abs(next_level - level) < closeness_distance:
             logger.info(f"replace_level_if_needed, level is replaced, {symbol}, {side}, level: {level}, next_level: {next_level}, {df['date'].iloc[-1]}")
+            price = chart_helper.get_offseted_price(app_config,application_state, symbol,'up', df['high'].iloc[-1])
+            # add_to_signlas(symbol, 'LEVEL_REPLACED', price,  df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}')
+            TradingLedger.add_to_list("signal", (symbol, 'LEVEL_REPLACED', price, df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}') )
             return next_level
     return level
 
@@ -157,7 +166,7 @@ def get_next_level(side, level, levels):
 
 
 
-def breakout_in_last_x_candles_ver_2(symbol, app_config, application_state, df, side='up', idx_list=[-2], level=0, level_alias=''):
+def breakout_in_last_x_candles_ver_2(app_config, application_state, symbol, df, side='up', idx_list=[-2], level=0, level_alias=''):
 
     logger.debug(f"in breakout_in_last_x_candles, symbol: {symbol}, idx_list: {idx_list}, level:{level}")
 
@@ -198,12 +207,12 @@ def breakout_in_last_x_candles_ver_2(symbol, app_config, application_state, df, 
 
             logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
 
-            application_state['breakouts'][symbol].append({
+            application_state['breakouts'].setdefault(symbol, []).append({
                 'side': side,
                 'level': level,
                 'level_alias': level_alias,
                 'idx': idx,
-                'time': row['date'],
+                'time': str(row['date']),
             })
             breakout_happened = True
 
@@ -228,14 +237,14 @@ def get_retest_indices_by_level_set(application_state, symbol, level):
 
 
 
-def price_retest(app_config, application_state, df, symbol, side='up', idx_list=[-2], level=0, both_sides=False, level_alias=''):
+def price_retest(app_config, application_state, symbol, df, side='up', idx_list=[-2], level=0, both_sides=False, level_alias=''):
 
     if level == 0:
         return False
 
     # tolerance_amount = app_config['symbols_meta'][symbol]['retest_tolerance_amount']
     # tolerance_amount = dynamic_tolerance.get('tolerance', 0)
-    tolerance_amount = application_state.get('dynamic_tolerance', {}).get(symbol, {}).get('tolerance', 0)
+    tolerance_amount = application_state.get('dynamic_tolerances', {}).get(symbol, {}).get('tolerance', 0)
 
     tolerance_amount = tolerance_amount * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1)
     logger.debug(f"price_retest(), {symbol}, tolerance_amount: {tolerance_amount}")
@@ -251,45 +260,45 @@ def price_retest(app_config, application_state, df, symbol, side='up', idx_list=
         # --- Retest detection ---
         if side == 'up':
             if level > row["low"] and level - row["low"] <= tolerance_amount and row["close"] > level:
-                application_state['retests'][symbol].setdefault('', []).append({
+                application_state['retests'].setdefault(symbol, []).append({
                     'side': side,
                     'level': level,
                     'level_alias': level_alias,
                     'idx': idx,
-                    'time': row['date'],
+                    'time': str(row['date']),
                 })
                 logger.info(f"price_retest(), symbol: {symbol}, level: {level}, date:{df.iloc[idx]['date']} ")
                 retest = True
                 diff = abs(row['low']-level)
 
             if both_sides and abs(level - row["low"]) <= tolerance_amount and row["close"] > level:   # close > level.  low is close to the level in both sides.
-                application_state['retests'][symbol].setdefault('', []).append({
+                application_state['retests'].setdefault(symbol, []).append({
                     'side': side,
                     'level': level,
                     'level_alias': level_alias,
                     'idx': idx,
-                    'time': row['date'],
+                    'time': str(row['date']),
                 })
                 retest = True
                 diff = abs(row['low']-level)
         else:
             if row["high"] > level and row["high"] - level <= tolerance_amount and row["close"] < level:
-                application_state['retests'][symbol].setdefault('', []).append({
+                application_state['retests'].setdefault(symbol, []).append({
                     'side': side,
                     'level': level,
                     'level_alias': level_alias,
                     'idx': idx,
-                    'time': row['date'],
+                    'time': str(row['date']),
                 })
                 retest = True
                 diff = abs(row['high'] - level)
             if both_sides and abs(level - row["high"]) <= tolerance_amount and row["close"] < level:   # close < level.  high is close to the level in both sides.
-                application_state['retests'][symbol].setdefault('', []).append({
+                application_state['retests'].setdefault(symbol, []).append({
                     'side': side,
                     'level': level,
                     'level_alias': level_alias,
                     'idx': idx,
-                    'time': row['date'],
+                    'time': str(row['date']),
                 })
                 retest = True
                 diff = abs(row['high']-level)
@@ -302,15 +311,14 @@ def is_retest_after_breakout(application_state, symbol, side='up', level=1, leve
     retest_idxs = get_retest_indices_by_level_set(application_state, symbol, level)
 
     if retest_idxs == set() or breakout_idxs == set():
-        return  False
+        return False
     if max(retest_idxs) > min(breakout_idxs):
         retest_idx = max(retest_idxs)
         application_state.setdefault('retest_idx', {})[symbol] = {'retest_idx': retest_idx, 'level': level, 'level_alias': level_alias}
         valid_breakouts = [b for b in breakout_idxs if b < retest_idx]   # all the breakout idxs that are before retest_idx
         if valid_breakouts:
             breakout_idx = max(valid_breakouts)  # closest (largest) breakout before retest
-            application_state.setdefault('breakouts_idx', {})[symbol] = {'breakout_idx' : breakout_idx, 'level': level, 'level_alias': level_alias }
-            application_state.setdefault('breakouts_idx', {})[symbol] = {'breakout_idx' : breakout_idx, 'level': level, 'level_alias': level_alias }
+            application_state.setdefault('breakout_idx', {})[symbol] = {'breakout_idx' : breakout_idx, 'level': level, 'level_alias': level_alias }
         return True
     else:
         return False
@@ -346,17 +354,30 @@ def is_retest_after_breakout(application_state, symbol, side='up', level=1 ):
         return False
 
 
-def get_breakout_idx(application_state, symbol, level):
-    return application_state.get('breakouts_idx', {}).get('symbol', {}).get(symbol, None)
+# def get_breakout_idx(application_state, symbol, level):
+#     return application_state.get('breakouts_idx', {}).get('symbol', {}).get(symbol, None)
+#
+# def get_retest_idx(application_state, case, symbol):
+#     return application_state.get('retests_idx', {}).get('case', {}).get(symbol, None)
 
-def get_retest_idx(application_state, case, symbol):
-    return application_state.get('retests_idx', {}).get('case', {}).get(symbol, None)
+def get_breakout_idx(application_state, symbol, level):
+    for breakout_idx in application_state.get('breakout_idx', {}).get(symbol, []):
+        if breakout_idx['level'] == level:
+            return breakout_idx['idx']
+    return None
+
+def get_retest_idx(application_state, symbol, level):
+    for retest_idx in application_state.get('retest_idx', {}).get(symbol, []):
+        if retest_idx['level'] == level:
+            return retest_idx['idx']
+    return None
 
 
 def check_entry_vs_retest(application_state, case, symbol, df, side='up', level=1, retest_ohlc=''):
 
-    retest_idx = get_retest_idx(application_state, case, symbol,)
+    retest_idx = get_retest_idx(application_state, case, symbol)
     breakout_idx = get_breakout_idx(application_state, case, symbol)
+
     if retest_idx is None or breakout_idx is None:
         return False
 
@@ -384,7 +405,7 @@ def no_failure_after_breakout(application_state, case, symbol, df, side='up', le
     # for up, use 'open'
     # for down use 'close'
 
-    breakout_idx = get_breakout_idx(application_state, case, symbol)
+    breakout_idx = get_breakout_idx(application_state, symbol, level)
 
     if breakout_idx is None or breakout_idx == 0:
         return False
@@ -407,7 +428,6 @@ def no_failure_after_breakout(application_state, case, symbol, df, side='up', le
     return False
 
 
-
 def check_price_vs_level(app_config, symbol, side='up', price=0, level=0):
 
     min_required_move_from_level = app_config['symbols_meta'][symbol]['min_required_move_from_level']
@@ -419,13 +439,16 @@ def check_price_vs_level(app_config, symbol, side='up', price=0, level=0):
 
 
 def is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='up', price= 0, current_level=1, next_levels=['PDH']):  # used in the config
-    breakout_idx = application_state.get('breakouts_idx', {}).get('symbol', {}).get(symbol, None)
+
+    breakout_idx = get_breakout_idx(application_state, symbol, current_level)
+
+    if breakout_idx == 0 or breakout_idx is None:
+        return False
     if next_levels is None:
         return False
+
     levels_map = application_state['levels'].get(symbol, {})
     closeness_distance = eval(app_config['closeness_distance'])
-    if breakout_idx == 0:
-        return False
 
     clipped_df = df[breakout_idx:]
     highest_high = clipped_df['high'].max()
@@ -446,42 +469,50 @@ def is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, d
             # next_level is above the current level, price is below next level but very close
             if next_level > current_level and price > current_level and price < next_level and is_close:
                 # add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-1 {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
+                TradingLedger.add_to_list("signal", (symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-1 {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}' , 'red') )
                 return True
 
             # next_level is above the current level, price is above next level
             if next_level > current_level and price > current_level and price > next_level: # This is for once the price passes the next level as well.
                 # add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-2. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
+                TradingLedger.add_to_list("signal", (symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-2. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', 'red') )
                 return True
 
             # next_level is above the current level AND price is above leve AND highest_high after breakout canddle is close to the next level ..
             if next_level > current_level and price > current_level and abs(highest_high - next_level) < closeness_distance:
                 # add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-3. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
+                TradingLedger.add_to_list("signal", (symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-3. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', 'red') )
                 return True
 
             # next_level > current level AND price > c level AND highest high >  next level
             if next_level > current_level and price > current_level and highest_high > next_level:
                 # add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-4. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
+                TradingLedger.add_to_list("signal", (symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-4. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', 'red') )
                 return True
 
         else:
             # next l < c level AND price < c level AND price > next l ...
             if next_level < current_level and price < current_level and price > next_level and is_close:
                 # add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-1. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
+                TradingLedger.add_to_list("signal", (symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-1. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', 'red') )
                 return True
 
 
             if next_level < current_level and price < current_level and price < next_level:  # see PLTR Oct 09-
                 # add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-2. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
+                TradingLedger.add_to_list("signal", (symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-2. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', 'red') )
                 return True
 
             # next_level < current level AND price is below level AND lowest low after breakout canddle is close to the next level ..
             if next_level < current_level and price < current_level and abs(lowest_low - next_level) < closeness_distance:
                 # add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-3. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
+                TradingLedger.add_to_list("signal", (symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-3. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', 'red') )
                 return True
 
             # next_level < current level AND price < c level AND lowest low  <  next level
             if next_level < current_level and price < current_level and lowest_low < next_level:
                 # add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-4. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
+                TradingLedger.add_to_list("signal", (symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-4. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', 'red') )
                 return True
 
 

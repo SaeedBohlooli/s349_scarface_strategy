@@ -1,0 +1,79 @@
+# ============================================================
+# IB APPLICATION (Gateway / TWS)
+# ============================================================
+
+ib_app:
+  type: gateway
+#  port: 4002
+  port: 7597
+  process_name: java
+#  start_script: "C:\\IBC\\startgateway.bat"
+  start_script: "C:\\IBC\\startTWS.bat"
+
+
+# ============================================================
+# WATCHDOG SETTINGS
+# ============================================================
+
+watchdog:
+  check_interval: 60          # seconds between checks
+  min_failures_to_restart: 3  # consecutive failures required
+
+  # ----------------------------------------
+  # HEARTBEAT CONFIGURATION
+  # ----------------------------------------
+  heartbeat:
+    enabled: true
+
+    # Base directory relative to watchdog script
+    # Final paths:
+    #   logs/heartbeat/app_heartbeat.log
+    #   logs/heartbeat/ib_heartbeat.log
+    base_dir: "../../portfolios/p106-1/heartbeat"
+
+    app_file: "app_heartbeat.log"
+    ib_file: "ib_heartbeat.log"
+
+    # FAIL if IB heartbeat is behind app heartbeat
+    # by more than this many seconds
+    max_lag_seconds: 300   # 5 minutes
+
+# ============================================================
+# IB API HEALTH CHECK (USED BY WATCHDOG)
+# ============================================================
+
+ # ----------------------------------
+  # HEALTH EVALUATION LOGIC
+  # ----------------------------------
+  health:
+    # Enable / disable individual checks
+    components:
+      process: true
+      port: False
+      api: False
+      heartbeat: true
+
+    # FAILURE RULES
+    # Each rule is an AND-condition
+    # Any rule triggering => restart
+    #
+    # Equivalent to:
+    # (not port and not api) OR (not heartbeat)
+    failure_rules:
+#      - ["port", "api"]
+      - ["heartbeat"]
+ib_api:
+  client_id: 990              # base clientId (will be offset dynamically)
+  timeout: 3                  # seconds
+
+
+# ============================================================
+# LOGGING
+# ============================================================
+
+logging:
+  base_dir: ../../logs-watchdog
+  file_name: watchdog-ib.log
+  max_bytes: 5242880          # 5 MB
+  backup_count: 20
+  level: DEBUG                 # DEBUG | INFO | WARNING | ERROR

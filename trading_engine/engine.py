@@ -16,9 +16,7 @@ from trading_core.market_data_store import MarketDataStore
 from trading_core import market_session_guard
 from trading_core import application_state_router
 from trading_core import trading_ledger
-
-
-from trading_utils import user_request_router
+from trading_core import ib_heartbeat_loop
 
 from trading_engine import marketdata_helper
 from trading_engine import inidicators
@@ -30,6 +28,10 @@ from trading_engine import options_helper
 from trading_engine import order_helper
 from trading_engine import exit_conditions
 from trading_engine import chart_helper
+from trading_engine import position_helper
+
+from trading_utils import position_router
+from trading_utils import user_request_router
 
 from utils import atr_tolerance_helper
 
@@ -45,12 +47,20 @@ class TradingEngine:
         self.market_data = MarketDataStore()
 
 
-
+    async def do_miscs(self, ib, interval_seconds=60):
+        while True:
+            try:
+                application_state_router.populate_global_state(application_state=self.application_state)
+                await asyncio.sleep(interval_seconds)
+            except Exception as e:
+                logger.warning(f"@@@ Unexpected error in do_mics: {e}")
+                logger.error(f"@@@ error: {traceback.format_exc()}" )
+                await asyncio.sleep(interval_seconds)
 
     async def engine_loop(self, ib):
         run_number = 0
         initial_setup = False
-        application_state_helper.initialize_application_state(self.app_config, self.application_state)
+        await application_state_helper.initialize_application_state(ib, self.app_config, self.application_state)
 
         hover_df_cols = ['symbol', 'time_frame', 'object', 'color', 'date_1', 'price_1', 'date_2', 'price_2', 'memo', 'unique_id']
         TradingLedger.set_dataframe_columns("hover_df", hover_df_cols)
@@ -74,8 +84,7 @@ class TradingEngine:
         # open_close_refs_pnl_df = df_utils.load_csv_file(df_file_map.get('open_close_refs_pnl_df'))
         open_close_refs_pnl_df = FileManager.load_my_df("open_close_refs_pnl_df")
         TradingLedger.set_dataframe("open_close_refs_pnl_df", open_close_refs_pnl_df)
-
-
+        last_candles_visit_map = {}  # {'QQQ': '2025-11-12 23:31:00'}
         #
         # options_helper.find_expiration_and_strikes_for_all_from_ib(ib, self.app_config, self.application_state)
         first_run = True
@@ -137,12 +146,36 @@ class TradingEngine:
                     intraday_rs_df = inidicators.compute_intraday_rs(df, qqq_df)
                     dynamic_tolerance = atr_tolerance_helper.get_dynamic_tolerance(df[:-1].copy(), level=0, min_tick=0.01)  # Drop -1 as it fluctates ans SL triggers ...
                     self.market_data.data_store.setdefault(symbol, {})['dynamic_tolerance'] = dynamic_tolerance
+                    self.application_state.setdefault('dynamic_tolerances', {})[symbol] = dynamic_tolerance
 
                     # Levels
-                    if not self.application_state['levels'][symbol].get('PDH'):  # PDH is not calculated yet
+                    if not self.application_state['levels'].get(symbol, {}).get('PDH'):  # PDH is not calculated yet
                         strategy.calculate_PDL_PDH(df,symbol, day_of_week=day_of_week, application_state=self.application_state)
 
+                    # once per candle per symbol ...
+                    if last_candles_visit_map.get(symbol, None) != df['date'].iloc[-1]:
+                        chart_helper.mark_tolerance_to_the_level(self.app_config, self.application_state, symbol, '5ML', self.market_data)
+                        chart_helper.mark_tolerance_to_the_level(self.app_config, self.application_state, symbol, '5MH', self.market_data)
+
+                        chart_helper.mark_atr_to_the_level(self.application_state, symbol, 'up', '5MH', self.market_data)
+                        chart_helper.mark_atr_to_the_level(self.application_state, symbol, 'down', '5ML', self.market_data)
+                         # (self.application_state,'5MH', self.market_data))
+                        # mark_atr_to_the_level('up', get_levels_map().get('5MH', 0), '5MH')
+                        # mark_atr_to_the_level('down', get_levels_map().get('5ML', 0), '5ML')
+                        chart_helper.add_atr_to_candle_info(symbol, self.market_data)
+                        # add_atr_to_candle_info(dynamic_tolerance)
+
+                        chart_helper.add_rs_relative_to_candle_info(symbol, intraday_rs_df, self.market_data)
+                        # add_rs_relative_to_candle_info(symbol)
+                        # add_open_position_to_candle_info(symbol)
+                        chart_helper.add_open_position_to_candle_info(self.application_state, symbol, self.market_data)
+
                     are_all_levels_in = strategy.all_levels_in(self.application_state, symbol)
+
+                    if are_all_levels_in and self.runtime.should_run_once(f'{symbol}-CLOSED-LEVELS-MARKED'):  # we have all elvels, so mark them ...
+                        chart_helper.mark_close_level(self.app_config, self.application_state, symbol)
+
+
                     if not are_all_levels_in:  # if not in, recalcualte ...
                         # TODO need to be checked, we need to pass that candle... better to calculate every time ..
                         # pass
@@ -152,19 +185,19 @@ class TradingEngine:
                     logger.info(f"After levels {symbol}, df: \n{df[-4:].to_markdown()}")
 
                     buy_sell_case_results_list = scanner.check_buy_and_sell_cases(ib, self.app_config, self.application_state, symbol, self.market_data)
-                    order_helper.check_buy_sell_result_to_send_order(self.app_config, self.application_state, buy_sell_case_results_list, symbol, ib, df)
-                    await exit_conditions.check_for_stop_loss_and_take_profit(self.app_config, self.application_state, symbol, ib, self.market_data)
-
-                    chart_helper.add_buy_a_sell_entries_to_signals(buy_sell_case_results_list, symbol, self.market_data)
+                    await order_helper.check_buy_sell_result_to_send_order(ib, self.app_config, self.application_state, buy_sell_case_results_list, symbol, df)
+                    await exit_conditions.check_for_stop_loss_and_take_profit(ib, self.app_config, self.application_state, self.market_data)
+                    chart_helper.add_buy_a_sell_entries_to_signals(self.app_config, self.application_state, buy_sell_case_results_list, symbol, self.market_data)
                     chart_helper.add_candle_info_df_to_signals()
                     chart_helper.convert_signals_to_hover_df()
 
                     symbol_end_time = time.time()
                     symbol_run_spend_time = round(symbol_end_time - symbol_start_time, 2)
                     logger.warning(f'------------------- {symbol}, {unique_run_number}, symbol_run_spend_time: {symbol_run_spend_time} seconds')
+                    position_helper.update_for_avg_cost(self.application_state)
+                    position_router.update_application_state_for_ib_positions(ib, self.application_state)
 
 
-                application_state_router.populate_global_state(application_state=self.application_state)
 
                 first_run = False
                 end_time = time.time()
@@ -194,9 +227,12 @@ class TradingEngine:
             state_streamer.run(),
             # config_streamer.run(),
             self.engine_loop(ib),
+            self.do_miscs(ib, interval_seconds=60),
 
             # user_request_x.user_request_loop(self.app_config, self.application_state),
-            # self.boot.data_saver_manager.run(ib),
+            self.boot.data_saver_manager.run(ib, interval_sec=60),
+            ib_heartbeat_loop.ib_heartbeat_loop(ib, app_config=self.app_config,application_state=self.application_state, interval_seconds=60),
+
             # market_session_guard.market_session_guard_loop(ib, self.application_state)
         )
 

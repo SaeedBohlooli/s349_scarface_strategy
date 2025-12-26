@@ -1,4 +1,5 @@
 import logging
+import traceback
 
 from trading_core.trading_ledger import TradingLedger
 
@@ -11,7 +12,7 @@ from trading_utils import date_utils
 from trading_utils import json_utils
 from trading_utils import ib_orders_async
 from trading_utils import ib_positions_async
-
+from trading_utils import number_utils
 from trading_engine import notification_helper
 
 
@@ -25,7 +26,8 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
         # stop loss
         # ###
         if not application_state.get('is_busy_time'):
-            logger.info(f"in check_for_stop_loss, {symbol} ,\n{json_utils.print_map_pretty(open_trade_info)}" )
+            logger.info(f"in check_for_stop_loss, {symbol} , {open_trade_info}" )
+            #json_utils.print_map_pretty(open_trade_info)
 
         if open_trade_info.get('available_quantity', 0) == 0:
             logger.info(f"{symbol}, check_for_stop_loss_and_take_profit(), available_quantity: 0")
@@ -69,11 +71,14 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
         expiry = application_state['open_trades_dic'][symbol]['expiry']
         strike = application_state['open_trades_dic'][symbol]['strike']
         right = application_state['open_trades_dic'][symbol]['right']
-        if open_trade_info.get('positions_type') == 'Option':
-            current_bid, current_ask, current_last = ib_pricing_async.get_or_subscribe_option_price(ib, symbol, expiry, strike,right)  # used in config
+        if open_trade_info.get('position_type') == 'OPTION':
+            current_bid, current_ask, current_last = await ib_pricing_async.get_or_subscribe_option_price(ib, symbol, expiry, strike,right)  # used in config
         else:
-            current_bid, current_ask, current_last = ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol, contract_month)  # used in config
+            current_bid, current_ask, current_last = await ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol, contract_month)  # used in config
         # TODO handle Future ...
+        if not number_utils.is_valid_price(current_bid) or not number_utils.is_valid_price(current_ask):
+            logger.warning(f"@@@ check_for_stop_loss_and_take_profit(), symbol: {symbol}, current_bid or current_ask is invalid, current_bid: {current_bid}, current_ask: {current_ask}")
+            continue
 
         # update app status ...
         if app_config['symbols_meta'][symbol]['contract_type'] == 'Equity':
@@ -138,7 +143,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
             TradingLedger.add_to_dataframe('stop_loss_history_df', data)
 
             # add_to_signals(symbol, 'STOP_LOSS_SENT', underlying_current_price, df['date'].iloc[-1], f"STOP_LOSS  <BR> {json_utils.polish_map_to_show_in_hover(data)}")
-            TradingLedger.add_to_list('signals',('STOP_LOSS_SENT', underlying_current_price, symbol_df['date'].iloc[-1], f"STOP_LOSS  <BR> {json_utils.polish_map_to_show_in_hover(data)}"))
+            TradingLedger.add_to_list('signals',(symbol, 'STOP_LOSS_SENT', underlying_current_price, symbol_df['date'].iloc[-1], f"STOP_LOSS  <BR> {json_utils.polish_map_to_show_in_hover(data)}"))
 
             # send_email(event='stop_loss_sent', symbol=symbol, body=polish_map_to_show_in_hover(data))
 
@@ -227,7 +232,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                 # add_to_take_profit_history_df(data)
                 TradingLedger.add_to_dataframe('take_profit_history_df', data)
                 # add_to_signals(symbol, 'TAKE_PROFIT_SENT', underlying_current_price, df['date'].bloc[-1], f"TAKE-PROFIT-{take_profit} <BR>{polish_map_to_show_in_hover(data)}")
-                TradingLedger.add_to_list("signals", ('TAKE_PROFIT_SENT', underlying_current_price, symbol_df['date'].iloc[-1], f"TAKE-PROFIT-{take_profit} <BR>{json_utils.polish_map_to_show_in_hover(data)}"))
+                TradingLedger.add_to_list("signals", (symbol, 'TAKE_PROFIT_SENT', underlying_current_price, symbol_df['date'].iloc[-1], f"TAKE-PROFIT-{take_profit} <BR>{json_utils.polish_map_to_show_in_hover(data)}"))
                 # send_email(event='take_profit_sent', symbol=symbol, body=polish_map_to_show_in_hover(data))
                 notification_helper.send_email(app_config, event='take_profit_sent', symbol=symbol, body=json_utils.polish_map_to_show_in_hover(data))
 
@@ -291,3 +296,102 @@ def archive_open_trade_dic(application_state, symbol):
 def remove_symbol_from_open_trade_dic(application_state, symbol):
     application_state['open_trades_dic'].pop(symbol, None)
     return
+
+
+def is_executed_take_profits(application_state, symbol, take_profit_list=[]): # used in config
+    for tp in take_profit_list:
+        if application_state.get('open_trades_dic',{}).get(symbol,{}).get('take_profits',{}).get(tp, {}) != {}: # it is there
+            return True
+    return False
+
+
+def is_price_crossed_levels(application_state, side='down', symbol='', next_levels=['PDL'], current_price=-1, entry_underlying_price=-1):
+    if next_levels is None:
+        return False
+
+    levels_map = application_state.get('levels', {}).get(symbol, {})
+    for key in next_levels:
+        next_level_price = levels_map.get(key, None)
+        if next_level_price is None:
+            continue  # skip missing levels
+
+        # current_price > the next level AND the open price < next level , so we croessed the level
+        if side == "up" and current_price >  next_level_price and entry_underlying_price < next_level_price:
+            return True
+        if side == "down" and current_price < next_level_price and entry_underlying_price > next_level_price:
+            return True
+
+    return False
+
+
+def check_mark_revers_candles(application_state, symbol, take_profit_alias=None, market_data= None):
+    # TODO remove try later ...
+    try:
+        df = market_data.dfs_map.get(symbol)
+        logger.info(f"check_mark_revers_candles ... {symbol}")
+        result = False
+        tp_candle_date = application_state['open_trades_dic'].get(symbol,{}).get('take_profits',{}).get(take_profit_alias,{}).get('candle_date',None)
+        logger.info(f"check_mark_revers_candles, {symbol}, tp_candle_date: {tp_candle_date}")
+
+        if tp_candle_date == None:
+           return False
+
+        right = application_state['open_trades_dic'].get(symbol,{}).get('right', '')
+        logger.info(f"check_mark_revers_candles, {symbol}, right: {right} ")
+
+
+        if len(df) == 0:
+            logger.warning(f"@@ len(df) is zero")
+            return False
+        logger.info(f"check_mark_revers_candles, {symbol}, df[-5:]\n {df[-5:].to_markdown()}")
+        crossed_ema9 = False
+        df["ema_9"] = df["close"].ewm(span=9, adjust=False).mean()
+        if right == 'C':
+            crossed_ema9 = True if df["close"].iloc[-1] < df["ema_9"].iloc[-1] else False
+        else:
+            crossed_ema9 = True if df["close"].iloc[-1] > df["ema_9"].iloc[-1] else False
+
+        check_date = df['date'].iloc[-1]
+        prev_close = df["close"].iloc[-2]
+
+        target_date = pd.Timestamp(tp_candle_date)
+
+        df = df[df["date"] >= target_date]
+        logger.info(f"@@ check_mark_revers_candles, {symbol}, prev_close: {prev_close}. ")
+        logger.info(f"check_mark_revers_candles, {symbol}, first two \n {df[:2].to_markdown()}")
+        logger.info(f"check_mark_revers_candles, {symbol}, last two \n {df[-2:].to_markdown()}")
+
+        df = df[:-2]                           # cut the latest row and the prev one as we comparing against it ...
+        logger.info(f"@@ check_mark_revers_candles, {symbol}, candles we checking - after cutting last two (need to be verified)\n {df.to_markdown()}")
+        if right == 'C':
+
+            df["is_bearish"] = df["close"] < df["open"]
+            lowest_bearish_low = df.loc[df["is_bearish"], "low"].min()
+
+            result = prev_close < lowest_bearish_low and crossed_ema9
+            logger.info(f"check_mark_revers_candles, {symbol}, lowest_bearish_low: {lowest_bearish_low}, prev_close: {prev_close}, {result}, \n{df.to_markdown()}")
+            if result:
+                logger.info(f"check_mark_revers_candles, {symbol}, The break happened. lowest_bearish_low: {lowest_bearish_low}, prev_close: {prev_close}")
+                # add_to_signlas(symbol, 'LEVEL_REPLACED', df['close'].iloc[-1], check_date, f'Level is break out {check_date}<br> t_date: {target_date} <br>  lowest_bearish_low: {lowest_bearish_low} <br> prev_close: {prev_close}' )
+                TradingLedger.add_to_list("signals",(symbol, 'LEVEL_REPLACED', df['close'].iloc[-1], check_date, f'Level is break out {check_date}<br> t_date: {target_date} <br>  lowest_bearish_low: {lowest_bearish_low} <br> prev_close: {prev_close}' ))
+
+        else:
+
+            df["is_bulish"] = df["close"] > df["open"]
+            highest_bulish_high = df.loc[df["is_bulish"], "high"].max()
+
+            result = prev_close > highest_bulish_high and crossed_ema9
+            logger.info(f"check_mark_revers_candles, {symbol}, highest_bulish_high: {highest_bulish_high}, prev_close: {prev_close}, result: {result}, \n {df.to_markdown()}")
+            if result:
+                logger.info(f"check_mark_revers_candles, {symbol}, The break happened. highest_bulish_high: {highest_bulish_high}, prev_close: {prev_close}")
+                # add_to_signlas(symbol, 'LEVEL_REPLACED', df['close'].iloc[-1], check_date, f'Level is break out {check_date}<br> t_date: {target_date} <br>  highest_bulish_high: {highest_bulish_high} <br> prev_close: {prev_close}' )
+                TradingLedger.add_to_list("signals", (symbol, 'LEVEL_REPLACED', df['close'].iloc[-1], check_date, f'Level is break out {check_date}<br> t_date: {target_date} <br>  highest_bulish_high: {highest_bulish_high} <br> prev_close: {prev_close}' ))
+
+        if result:
+            logger.info(f"check_mark_revers_candles, The break happened. ")
+
+        return result
+    except Exception as e:
+        logger.error(f"@@@ error: {e}")
+        logger.error(traceback.format_exc())
+    return result

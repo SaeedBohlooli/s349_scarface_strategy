@@ -122,7 +122,7 @@ async def orchestrate_expirations_strikes(ib, app_config, application_state):
 async def prepare_option_contract(ib, app_config, application_state, symbol, right='C'):
 
     # underlying_price = get_current_price(symbol)
-    underlying_price = ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol)
+    underlying_price = await ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol)
 
     options_meta_date_dic = application_state.setdefault('options_meta_date_dic', {})
     strikes = options_meta_date_dic.get(f'{symbol}-strikes')
@@ -150,7 +150,7 @@ async def prepare_option_contract(ib, app_config, application_state, symbol, rig
         else:
             strike = otm_puts[-1]
 
-        contract = await ib_contract.get_option_contract_cached(ib, symbol, strike, expiry, right)
+        contract = await ib_contract.get_option_contract_cached(ib, symbol=symbol, strike=strike, expiry=expiry, right=right)
         # contract = create_option_contract(strike=strike, expiry=expiry, right=right,exchange="SMART", symbol=symbol, trading_class='')
         logger.info(f"in prepare_contract, contract: {contract}")
 

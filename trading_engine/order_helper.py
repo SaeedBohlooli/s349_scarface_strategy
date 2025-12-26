@@ -10,6 +10,7 @@ from trading_utils import notification_utls
 from trading_utils import ib_orders_async
 from trading_utils import ib_contract
 from trading_utils import json_utils
+from trading_utils import number_utils
 
 from trading_core.trading_ledger import TradingLedger
 
@@ -19,9 +20,8 @@ from trading_engine import risk_helper
 from trading_engine import notification_helper
 
 
-async def check_buy_sell_result_to_send_order(app_config, application_state, buy_sell_case_results_list, symbol, ib, df):
+async def check_buy_sell_result_to_send_order(ib, app_config, application_state, buy_sell_case_results_list, symbol, df):
     is_trade_time = eval(app_config['live']['trade_time'])
-
 
     for buy_sell_case_result in buy_sell_case_results_list:
 
@@ -54,16 +54,16 @@ async def check_buy_sell_result_to_send_order(app_config, application_state, buy
         if application_state.get('open_trades_dic', {}).get(symbol,{}).get('available_quantity', 0) != 0:
             logger.warning(f"@@ You already have open position. Don't be greedy!!!  symbol: {symbol}")
             continue
-        if number_of_positions_today(symbol) >= app_config['live']['max_num_of_trade_per_symbol_per_day']:
+        if number_of_positions_today(application_state, symbol) >= app_config['live']['max_num_of_trade_per_symbol_per_day']:
             logger.warning(f"@@  We already sent enough orders for {symbol} .... number_of_trades_today: {number_of_positions_today(symbol)}")
             continue
-        if has_open_order_in_same_group(symbol):
+        if has_open_order_in_same_group(app_config, application_state, symbol):
             logger.warning(f"@@  We already have open order in same group {symbol}")
             continue
         if symbol in app_config['live']['blocked_symbols'][right]:
             logger.warning(f"@@  This symbol is blocked, {symbol}, {app_config['live']['blocked_symbols'][side]}")
             continue
-        if not check_manual_conditions(symbol, right):
+        if not check_manual_conditions(app_config, application_state, symbol, right):
             logger.warning(f"@@  check_manual_conditions failed, {symbol}")
             continue
 
@@ -71,16 +71,18 @@ async def check_buy_sell_result_to_send_order(app_config, application_state, buy
 
         if contract_type.lower() == 'equity' and (can_buy or can_sell): # go for buy
             right = 'C' if can_buy else 'P'
-            option_contract = options_helper.prepare_option_contract(ib, app_config, application_state, symbol, right=right)
+            option_contract = await options_helper.prepare_option_contract(ib, app_config, application_state, symbol, right=right)
             if option_contract == None:
-                notification_utls.notify_user(app_config, msg=f"@@@@@ prepare_contract returned None. We are not sending order. symbol={symbol}, option_contract={option_contract}")
+                notification_utls.notify_user(app_config, application_state, msg=f"@@@@@ prepare_contract returned None. We are not sending order. symbol={symbol}, option_contract={option_contract}")
                 logger.warning(f"@@@@@ We are not sending order. {symbol}, option_contract: {option_contract}")
                 continue
-            bid, ask, alst = pricing_helper.get_quote_for_option_bid_ask(symbol=symbol, expiry=option_contract.lastTradeDateOrContractMonth, strike=option_contract.strike, right=option_contract.right )
-            if bid == 0 or ask == 0:
-                logger.warning(f"@@@@@ We are not sending order. bid ==0 or ask ==0")
+            bid, ask, last = await pricing_helper.get_quote_for_option_bid_ask(ib, symbol=symbol, expiry=option_contract.lastTradeDateOrContractMonth, strike=option_contract.strike, right=option_contract.right )
+            if not number_utils.is_valid_price(bid) or not number_utils.is_valid_price(ask):
+
+                logger.warning(f"@@@@@ We are not sending order. bid: {bid} or ask: {ask}")
                 continue
-            total_quantity, capital_data = risk_helper.calculate_number_of_option_contracts(option_contract.strike, ask)
+
+            total_quantity, capital_data = risk_helper.calculate_number_of_option_contracts(app_config, application_state, symbol, option_contract.strike, ask)
             # application_state.setdefault('risk', {}).setdefault('records', []).append(capital_data)  NO need for now ...
             add_to_capital_allocation_df(application_state, capital_data)
             if total_quantity == 0:  # we don't have enough capital
@@ -88,7 +90,7 @@ async def check_buy_sell_result_to_send_order(app_config, application_state, buy
                 continue
             order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='OPEN', symbol=symbol, side='long', unique_run_number=application_state.get('unique_run_number'), right= right)
             # send_order(option_contract, total_quantity=total_quantity, order_ref= order_ref)
-            send_order(ib, option_contract, side='long', total_quantity=total_quantity, order_ref=order_ref)
+            await send_order(ib, option_contract, side='long', total_quantity=total_quantity, order_ref=order_ref)
             data = {
                 'date': f'{date_utils.time_now()}',
                 'symbol': symbol,
@@ -160,8 +162,7 @@ async def check_buy_sell_result_to_send_order(app_config, application_state, buy
                 'order_ref': order_ref,
             }
             data.update(result_dic)
-            from trading_utils import json_utils
-            json_utils.rint_map_pretty(data, msg = 'after MNQ order ')
+            json_utils.print_map_pretty(data, msg = 'after MNQ order ')
 
             application_state.setdefault('open_trades_dic', {})[symbol] = data
             # add_to_signlas(symbol, f'ORDER_SENT', df['close'].iloc[-1], df['date'].iloc[-1], polish_map_to_show_in_hover(data) )
@@ -209,7 +210,7 @@ def has_open_order_in_same_group(app_config, application_state, symbol):
     return False
 
 
-def check_manual_conditions(app_config, symbol, right):
+def check_manual_conditions(app_config, application_state, symbol, right):
     try:
         for condition in app_config['live'].get('manual_settings', {}).get(right,{}).get('conditions', []):
             evaluated_condition = eval(condition)
@@ -230,9 +231,9 @@ def add_to_capital_allocation_df(application_state, data):
     application_state.setdefault('capital_allocation', []).append(data)
 
 
-def send_order(ib, contract, side='long', total_quantity=1, order_ref=None): #TODO move to utils ...
+async def send_order(ib, contract, side='long', total_quantity=1, order_ref=None): #TODO move to utils ...
 
-    ib_orders_async.submit_option_order_prequalified_contract(ib, q_contract=contract, side=side, total_quantity=total_quantity, order_ref=order_ref)
+    await ib_orders_async.submit_option_order_prequalified_contract(ib, q_contract=contract, side=side, total_quantity=total_quantity, order_ref=order_ref)
     # ib_orders_async.
     #
     # order = MarketOrder('BUY', totalQuantity=total_quantity)
@@ -260,7 +261,7 @@ def polish_map_to_show_in_hover(data):
 
 
 def add_to_number_of_positions_today(application_state, symbol):
-    current_number = number_of_positions_today(symbol)
+    current_number = number_of_positions_today(application_state, symbol)
     if current_number == 0:
         application_state.setdefault('number_of_trades', {}).setdefault(application_state.get('trading_date'), {})[symbol] = 1
     else:

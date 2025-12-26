@@ -33,8 +33,8 @@ def calculate_PDL_PDH(df, symbol, day_of_week, application_state):
     day_high = df_rth["high"].max()
     day_low = df_rth["low"].min()
 
-    logger.info(f"Previous Day RTH High: {day_high}")
-    logger.info(f"Previous Day RTH Low: {day_low}" )
+    logger.debug(f"Previous Day RTH High: {day_high}")
+    logger.debug(f"Previous Day RTH Low: {day_low}" )
 
     application_state['levels'].setdefault(symbol, {})['PDH'] = day_high
     application_state['levels'].setdefault(symbol, {})['PDL'] = day_low
