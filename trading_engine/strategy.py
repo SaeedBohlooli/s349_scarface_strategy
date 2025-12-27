@@ -24,8 +24,7 @@ def calculate_PDL_PDH(df, symbol, day_of_week, application_state):
 
     # --- Filter to that day and RTH time window (09:30–16:00) ---
     mask_day = df['date'].dt.normalize() == prev_day
-    mask_time = df['date'].dt.time.between(pd.to_datetime("09:30").time(),
-                                           pd.to_datetime("16:00").time())
+    mask_time = df['date'].dt.time.between(pd.to_datetime("09:30").time(), pd.to_datetime("16:00").time())
 
     df_rth = df[mask_day & mask_time]
 

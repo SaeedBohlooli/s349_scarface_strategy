@@ -87,7 +87,7 @@ class TradingEngine:
         last_candles_visit_map = {}  # {'QQQ': '2025-11-12 23:31:00'}
         #
         # options_helper.find_expiration_and_strikes_for_all_from_ib(ib, self.app_config, self.application_state)
-        first_run = True
+        # first_run = True
         while True:
             try:
                 start_time = time.time()
@@ -106,54 +106,50 @@ class TradingEngine:
                     await asyncio.sleep(3)
                     continue
                 self.app_config = self.runtime.reload_config()
-                if first_run:
+                if self.runtime.should_run_once('OPTIONS-EXPIRATIONS-STRIKES-SETUP'):
                     await options_helper.orchestrate_expirations_strikes(ib, self.app_config, self.application_state)
 
-                is_trade_time = eval(self.app_config['live']['trade_time'])
-                is_busy_time = eval(self.app_config['live'].get('busy_time', '1 == 1'))
-                is_market_time = eval(self.app_config['live'].get('market_time', '1 == 1'))
-
-                self.application_state['is_trade_time'] = is_trade_time
-                self.application_state['is_busy_time'] = is_busy_time
-                self.application_state['is_market_time'] = is_market_time
-
-                if first_run:
+                if self.runtime.should_run_once("SUBSCRIBE-CURRENT-PRICES"):
                     await pricing_helper.subscribe_for_current_price(ib, self.app_config, self.application_state)
 
                 for symbol in self.app_config.get('symbols'):
                     symbol_number += 1
                     unique_run_number = f'{unique_run_number_X}-{symbol_number}'
+                    self.application_state['unique_run_number'] = unique_run_number
                     logger.warning(f"------------------- {symbol}, {unique_run_number}, {current_hh_mm_ny} ")
                     symbol_start_time = time.time()
                     self.application_state['up_offset_counter'] = 0
                     self.application_state['down_offset_counter'] = 0 # TODO need to be handles better
 
+                    # todo i AM NOT SURE WE NEED IT HERE ...
                     current_price = await ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol, contract_month=self.app_config.get('symbols_meta', {}).get(symbol,{}).get('contract_month'))
                     if current_price is None:
                         current_price = -1.0
                     self.application_state.setdefault('latest_prices', {})[symbol] = current_price
 
                     df = await marketdata_helper.get_historical_data(ib, symbol, self.app_config, self.application_state, time_frame='1m', historical_days='3 D')
-                    self.market_data.dfs_map[symbol] = df
                     df = inidicators.popualate_features(df)
                     df = inidicators.populate_volume_ratio(df)
+                    self.market_data.dfs_map[symbol] = df
                     self.market_data.dfs_with_indicators[symbol] = df
-                    if not is_busy_time:
+                    if not self.application_state['is_busy_time']:
                         logger.info(f"{symbol}, df: \n{df[-4:].to_markdown()}")
+
                     last_record_hh_mm = date_utils.get_last_record_hhmm(df)  # TODO is not used anywhere ...
                     qqq_df = self.market_data.dfs_map.get('QQQ')
                     relative_strength_df = inidicators.compute_relative_strength(df, qqq_df, period=20)
                     intraday_rs_df = inidicators.compute_intraday_rs(df, qqq_df)
-                    dynamic_tolerance = atr_tolerance_helper.get_dynamic_tolerance(df[:-1].copy(), level=0, min_tick=0.01)  # Drop -1 as it fluctates ans SL triggers ...
+
+                    dynamic_tolerance = atr_tolerance_helper.get_dynamic_tolerance(df[:-1].copy(), level=0, min_tick=0.01)  # Drop -1 as it fluctuates and SL triggers ...
                     self.market_data.data_store.setdefault(symbol, {})['dynamic_tolerance'] = dynamic_tolerance
                     self.application_state.setdefault('dynamic_tolerances', {})[symbol] = dynamic_tolerance
 
                     # Levels
                     if not self.application_state['levels'].get(symbol, {}).get('PDH'):  # PDH is not calculated yet
-                        strategy.calculate_PDL_PDH(df,symbol, day_of_week=day_of_week, application_state=self.application_state)
+                        strategy.calculate_PDL_PDH(df, symbol, day_of_week=day_of_week, application_state=self.application_state)
 
                     # once per candle per symbol ...
-                    if last_candles_visit_map.get(symbol, None) != df['date'].iloc[-1]:
+                    if self.runtime.should_run_once(f'{symbol}-CANDLE-{str(df["date"].iloc[-1])}'):
                         chart_helper.mark_tolerance_to_the_level(self.app_config, self.application_state, symbol, '5ML', self.market_data)
                         chart_helper.mark_tolerance_to_the_level(self.app_config, self.application_state, symbol, '5MH', self.market_data)
 
@@ -176,30 +172,34 @@ class TradingEngine:
                         chart_helper.mark_close_level(self.app_config, self.application_state, symbol)
 
 
-                    if not are_all_levels_in:  # if not in, recalcualte ...
-                        # TODO need to be checked, we need to pass that candle... better to calculate every time ..
-                        # pass
+                    if not are_all_levels_in:  # if not in, recalculate ...
                         strategy.find_add_5MH_5ML(self.application_state, df, symbol)
                         strategy.find_add_PMH_PML(self.application_state, df, symbol)
 
-                    logger.info(f"After levels {symbol}, df: \n{df[-4:].to_markdown()}")
+                    logger.debug(f"After levels {symbol}, df: \n{df[-4:].to_markdown()}")
 
                     buy_sell_case_results_list = scanner.check_buy_and_sell_cases(ib, self.app_config, self.application_state, symbol, self.market_data)
                     await order_helper.check_buy_sell_result_to_send_order(ib, self.app_config, self.application_state, buy_sell_case_results_list, symbol, df)
+
                     await exit_conditions.check_for_stop_loss_and_take_profit(ib, self.app_config, self.application_state, self.market_data)
+
                     chart_helper.add_buy_a_sell_entries_to_signals(self.app_config, self.application_state, buy_sell_case_results_list, symbol, self.market_data)
                     chart_helper.add_candle_info_df_to_signals()
                     chart_helper.convert_signals_to_hover_df()
 
-                    symbol_end_time = time.time()
-                    symbol_run_spend_time = round(symbol_end_time - symbol_start_time, 2)
-                    logger.warning(f'------------------- {symbol}, {unique_run_number}, symbol_run_spend_time: {symbol_run_spend_time} seconds')
                     position_helper.update_for_avg_cost(self.application_state)
                     position_router.update_application_state_for_ib_positions(ib, self.application_state)
 
+                    symbol_end_time = time.time()
+                    symbol_run_spend_time = round(symbol_end_time - symbol_start_time, 2)
+                    logger.warning(f'------------------- {symbol}, {unique_run_number}, symbol_run_spend_time: {symbol_run_spend_time} seconds')
 
+                    # end while for symbols
 
-                first_run = False
+                if self.runtime.is_due('SAVE-TRADING_LEDGER-STATS', interval_sec=5*60):
+                    self.application_state['TradingLedger.get_all_dataframe_stats'] =TradingLedger.get_all_dataframe_stats()
+                    self.application_state['TradingLedger.get_all_list_stats'] =TradingLedger.get_all_list_stats()
+
                 end_time = time.time()
                 run_time_spent = round(end_time - start_time, 2)
                 logger.warning(f'==================== unique_run_number: {unique_run_number}, run_spent_time: {run_time_spent} seconds, no sleep ...')

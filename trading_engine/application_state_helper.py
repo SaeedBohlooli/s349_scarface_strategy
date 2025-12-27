@@ -43,3 +43,12 @@ def initialize_application_state_for_run(app_config, application_state):
     #     application_state['symbols'][symbol] = {}
     #
     # application_state['is_busy_time'] = False
+
+
+    is_trade_time = eval(app_config['live']['trade_time'])
+    is_busy_time = eval(app_config['live'].get('busy_time', '1 == 1'))
+    is_market_time = eval(app_config['live'].get('market_time', '1 == 1'))
+
+    application_state['is_trade_time'] = is_trade_time
+    application_state['is_busy_time'] = is_busy_time
+    application_state['is_market_time'] = is_market_time
