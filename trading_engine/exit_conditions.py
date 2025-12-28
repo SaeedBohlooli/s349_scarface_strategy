@@ -25,7 +25,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
         # ###
         # stop loss
         # ###
-        if not application_state.get('is_busy_time'):
+        if not application_state.get('should_save'):
             logger.info(f"in check_for_stop_loss, {symbol} , {open_trade_info}" )
             #json_utils.print_map_pretty(open_trade_info)
 

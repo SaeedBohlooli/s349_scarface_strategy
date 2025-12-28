@@ -24,13 +24,31 @@ dirs:
   ohlc: "../../portfolios/{portfolio_id}/backtest-ohlc"
   ohlc_archive: "../../portfolios/{portfolio_id}/ohlc-archive"
   ohlc_w_indicators: "../../portfolios/{portfolio_id}/ohlc-w-indicators"
-  charts: "../../portfolios/{portfolio_id}/charts"
+  charts: "../../portfolios/{portfolio_id}/charts/{date}"
 
 
 files:
   application_state: "{intermediate}/application_state.json"
   account_info_map: "{intermediate}/account_info_map.json"
 
+  drawing_objects_df: "{charts}/10-drawing_objects_df.csv"
+  key_levels_df: "{results}/11-key_levels_df.csv"
+  hover_df: "{charts}/12-hover_df.csv"
+  close_levels_df": '{charts}/13-close_levels_df.csv'
+  screening_log_df: "{charts}/12-screening_log_df.csv"
+  order_history_df: "{results}/13-order_history_df.csv"
+  stop_loss_history_df: "{results}/14-stop_loss_history_df.csv"
+  take_profit_history_df: "{results}/15-take_profit_history_df.csv"
+  futures_order_history_df: "{results}/16-futures_order_history_df.csv"
+  screening_log_for_run_df: "{results}/17-screening_log_for_run_df.csv" # TODO rename
+  screening_summary_df: "{results}/18-screening_summary_df.csv"  # TODO rename
+  bid_ask_history_df: "{results}/19-bid_ask_history_df.csv"  # TODO rename
+  screening_summary_agg_df: "{results}/20-screening_summary_agg_df.csv"  # TODO rename
+  capital_allocation_df: "{results}/21-capital_allocation_df.csv"  # TODO rename
+  open_close_refs_df: "{results}/22-open_close_refs_df.csv"  # TODO rename
+  open_close_refs_pnl_df: "{results}/23-open_close_refs_pnl_df.csv"  # TODO rename
+  capital_flow_df: "{results}/24-capital_flow_df.csv"  # TODO rename
+  screening_summary_for_all_sub_runs_agg_df: "{results}/25-screening_summary_for_all_sub_runs_agg_df.csv"  # TODO rename
 
 
 data_saver:

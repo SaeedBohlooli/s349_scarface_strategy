@@ -2,6 +2,9 @@
 import logging
 logger = logging.getLogger(__name__)
 from trading_utils import ib_marketdata_async
+from trading_utils import df_utils
+
+from trading_core.file_manager import FileManager
 
 async def get_historical_data(ib, symbol, app_config, application_state, time_frame ='1 day', historical_days=''):
     if historical_days == '':
@@ -18,7 +21,33 @@ async def get_historical_data(ib, symbol, app_config, application_state, time_fr
         use_RTH=False
     )
 
-    if not application_state['is_busy_time']:
+    if not application_state['should_save']:
         logger.info(f"in get_market_data, start: \n{df[:2].to_markdown()}")
         logger.info(f"in get_market_data, end: \n{df[-2:].to_markdown()}")
     return df
+
+
+def save_ohlc_for_chart(application_state, market_data):
+    mode = application_state.get('mode', 'live')
+    time_frame = "1 min"
+    for symbol, df in market_data.dfs_with_indicators.items():
+        logger.info(f"in save_ohlc_for_chart, symbol: {symbol}, len(df): {len(df)}")
+        if mode == 'live':
+            df = df[['date','open', 'high', 'low', 'close', 'volume', 'atr_14']]
+            file_name = f"{symbol}-{time_frame.replace(' ', '')}.csv"
+            FileManager.save_my_df(df, dir="charts", file_name=file_name, save_tabular=True, mode='w')
+    return
+
+
+def save_extra_features_df(application_state, symbol, df, relative_strength_df, intraday_rs_df, time_frame='1 min'):
+    mode = application_state.get('mode', 'live')
+    extra_features_df = df.copy()
+    extra_features_df = extra_features_df.merge(relative_strength_df, on='date', how='left')
+    extra_features_df = extra_features_df.merge(intraday_rs_df, on='date', how='left')
+
+    file_name = f"{symbol}-{time_frame.replace(' ', '')}-extra_features_df.csv"
+
+    if mode == 'back_test':
+        extra_features_df = df_utils.cut_df_strating_hour_x_on_last_day(extra_features_df, cutoff_time="09:15")
+
+    FileManager.save_my_df(extra_features_df, dir="charts", file_name=file_name, save_tabular=True, mode='w')

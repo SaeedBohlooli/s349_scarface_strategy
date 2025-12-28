@@ -18,20 +18,18 @@ async def find_expiration_and_strikes_for_all_from_ib(ib, app_config, applicatio
 async def find_expiration_and_strikes_from_ib(ib, application_state, symbol, exchange):
     underlying = Stock(symbol, 'SMART', 'USD')
     logger.info(f"underlying: {underlying}, type: {type(underlying)}, module: {type(underlying).__module__}" )
-    # if app_config['symbols_meta'][symbol].get('primary_exchange'):
-    #     underlying.primaryExchange = app_config['symbols_meta'][symbol]['primary_exchange']
 
     q = await ib_contract.get_cached_contract(ib, symbol)
 
     logger.info(f"underlying: {underlying}:  qualifyContracts: {q}")
 
     if not q :
-        logger.warning(f"@@@@ underlying contract not qualified. {symbol}: {underlying}")
+        logger.warning(f"@@@@ find_expiration_and_strikes_from_ib, underlying contract not qualified. {symbol}: {underlying}")
         return
     #  Request all option chains for this symbol
     chains = await ib.reqSecDefOptParamsAsync(symbol, '', 'STK', q.conId)
     if chains is None:
-        logger.warning(f"@@@ chans is Null for symbol: {symbol}")
+        logger.warning(f"@@@ chains is Null for symbol: {symbol}")
         return
     # Look at what's available
     # for chain in chains:
@@ -46,6 +44,7 @@ async def find_expiration_and_strikes_from_ib(ib, application_state, symbol, exc
         chain = get_best_option_chain(chains) # we choose the one has more
     else:
         chain = next((c for c in chains if c.exchange == 'SMART'), None) # leave it ias is ... go with firsto ne, retruns None if didtn fif
+
     if chain is None:
         logger.warning(f"@@@@ no option chain found for symbol: {symbol} on exchange: {exchange}")
         return
@@ -60,7 +59,6 @@ async def find_expiration_and_strikes_from_ib(ib, application_state, symbol, exc
 
     if symbol in ['NVDA', 'TSLL']:
         logger.debug('hold it here....')
-
 
     return
 
@@ -83,28 +81,27 @@ def get_best_option_chain(chains):
 
 
 async def orchestrate_expirations_strikes(ib, app_config, application_state):
-    intermediate_dir = 'intermediate'
+    # intermediate_dir = 'intermediate'
+    shared_dir = '../../portfolios/shared'
     options_meta_date_dic = application_state.setdefault('options_meta_date_dic', {})
+
     # get from IB. is messy ...
     await find_expiration_and_strikes_for_all_from_ib(ib, app_config, application_state)
     # file_utils.save_a_map_to_file(options_meta_date_dic, file_path=f'{intermediate_dir}/85-strikes-expirations-ib.json')
     FileManager.save_named_json(options_meta_date_dic, file_name='85-strikes-expirations-ib.json', dir='intermediate')
 
     # Mere with Nazadq ...
-    nazdaq_file = f'{intermediate_dir}/85-strikes-nazdaq.json'
-    strikes_from_nazdaq = FileManager.load_named_json(dir='intermediate', file_name='85-strikes-nazdaq.json')
+    nazdaq_file = f'{shared_dir}/85-strikes-nazdaq.json'
+    strikes_from_nazdaq = FileManager.load_named_json(full_path=nazdaq_file)
 
     if strikes_from_nazdaq != {}:
         options_meta_date_dic.update(strikes_from_nazdaq)
-        # file_utils.save_a_map_to_file(options_meta_date_dic, file_path=f'{intermediate_dir}/85-strikes-expirations-ib+nazdaq.json')
         FileManager.save_named_json(options_meta_date_dic, file_name='85-strikes-expirations-ib+nazdaq.json', dir='intermediate')
 
-    adhoc_file = f'{intermediate_dir}/85-strikes-adhoc.json'
-    # strikes_from_adhoc = file_utils.load_json_from_file(adhoc_file)
-    strikes_from_adhoc = FileManager.load_named_json(file_name='85-strikes-adhoc.json', dir='intermediate')
+    adhoc_file = f'{shared_dir}/85-strikes-adhoc.json'
+    strikes_from_adhoc = FileManager.load_named_json(full_path=adhoc_file)
     if strikes_from_adhoc != {}:
         options_meta_date_dic.update(strikes_from_adhoc)
-        # file_utils.save_a_map_to_file(options_meta_date_dic, file_path=f'{intermediate_dir}/85-strikes-expirations-ib+nazdaq+adhoc.json')
         FileManager.save_named_json(options_meta_date_dic, file_name='85-strikes-expirations-ib+nazdaq+adhoc.json', dir='intermediate')
 
     expirations_manually_created = {}
@@ -112,7 +109,6 @@ async def orchestrate_expirations_strikes(ib, app_config, application_state):
         if s not in ['QQQ', 'SPY', 'MNQ']:
             expirations_manually_created[f"{s}-expirations"] = date_utils.next_fridays(10)
     options_meta_date_dic.update(expirations_manually_created)
-    # file_utils.save_a_map_to_file(options_meta_date_dic,file_path=f'{intermediate_dir}/85-strikes-expirations-ib+nazdaq+adhoc+manual.json')
     FileManager.save_named_json(options_meta_date_dic, file_name='85-strikes-expirations-ib+nazdaq+adhoc+manual.json', dir='intermediate')
 
     logger.debug('hold it here ')

@@ -59,7 +59,6 @@ class TradingEngine:
 
     async def engine_loop(self, ib):
         run_number = 0
-        initial_setup = False
         await application_state_helper.initialize_application_state(ib, self.app_config, self.application_state)
 
         hover_df_cols = ['symbol', 'time_frame', 'object', 'color', 'date_1', 'price_1', 'date_2', 'price_2', 'memo', 'unique_id']
@@ -76,18 +75,12 @@ class TradingEngine:
         capital_flow_df = FileManager.load_my_df("capital_flow_df")
         TradingLedger.set_dataframe("capital_flow_df", capital_flow_df)
 
-        # open_close_refs_df = df_utils.load_csv_file(df_file_map.get('open_close_refs_df'))
         open_close_refs_df = FileManager.load_my_df('open_close_refs_df')
         TradingLedger.set_dataframe("open_close_refs_df", open_close_refs_df)
 
-
-        # open_close_refs_pnl_df = df_utils.load_csv_file(df_file_map.get('open_close_refs_pnl_df'))
         open_close_refs_pnl_df = FileManager.load_my_df("open_close_refs_pnl_df")
         TradingLedger.set_dataframe("open_close_refs_pnl_df", open_close_refs_pnl_df)
-        last_candles_visit_map = {}  # {'QQQ': '2025-11-12 23:31:00'}
-        #
-        # options_helper.find_expiration_and_strikes_for_all_from_ib(ib, self.app_config, self.application_state)
-        # first_run = True
+
         while True:
             try:
                 start_time = time.time()
@@ -132,12 +125,12 @@ class TradingEngine:
                     df = inidicators.populate_volume_ratio(df)
                     self.market_data.dfs_map[symbol] = df
                     self.market_data.dfs_with_indicators[symbol] = df
-                    if not self.application_state['is_busy_time']:
+                    if not self.application_state['should_save']:
                         logger.info(f"{symbol}, df: \n{df[-4:].to_markdown()}")
 
                     last_record_hh_mm = date_utils.get_last_record_hhmm(df)  # TODO is not used anywhere ...
                     qqq_df = self.market_data.dfs_map.get('QQQ')
-                    relative_strength_df = inidicators.compute_relative_strength(df, qqq_df, period=20)
+                    relative_strength_df = inidicators.compute_relative_strength(df, qqq_df, period=20) # TODO do we need this
                     intraday_rs_df = inidicators.compute_intraday_rs(df, qqq_df)
 
                     dynamic_tolerance = atr_tolerance_helper.get_dynamic_tolerance(df[:-1].copy(), level=0, min_tick=0.01)  # Drop -1 as it fluctuates and SL triggers ...
@@ -148,6 +141,11 @@ class TradingEngine:
                     if not self.application_state['levels'].get(symbol, {}).get('PDH'):  # PDH is not calculated yet
                         strategy.calculate_PDL_PDH(df, symbol, day_of_week=day_of_week, application_state=self.application_state)
 
+                    are_all_levels_in = strategy.all_levels_in(self.application_state, symbol)
+                    if not are_all_levels_in:  # if not in, recalculate ...
+                        strategy.find_add_5MH_5ML(self.application_state, df, symbol)
+                        strategy.find_add_PMH_PML(self.application_state, df, symbol)
+
                     # once per candle per symbol ...
                     if self.runtime.should_run_once(f'{symbol}-CANDLE-{str(df["date"].iloc[-1])}'):
                         chart_helper.mark_tolerance_to_the_level(self.app_config, self.application_state, symbol, '5ML', self.market_data)
@@ -155,9 +153,6 @@ class TradingEngine:
 
                         chart_helper.mark_atr_to_the_level(self.application_state, symbol, 'up', '5MH', self.market_data)
                         chart_helper.mark_atr_to_the_level(self.application_state, symbol, 'down', '5ML', self.market_data)
-                         # (self.application_state,'5MH', self.market_data))
-                        # mark_atr_to_the_level('up', get_levels_map().get('5MH', 0), '5MH')
-                        # mark_atr_to_the_level('down', get_levels_map().get('5ML', 0), '5ML')
                         chart_helper.add_atr_to_candle_info(symbol, self.market_data)
                         # add_atr_to_candle_info(dynamic_tolerance)
 
@@ -166,15 +161,9 @@ class TradingEngine:
                         # add_open_position_to_candle_info(symbol)
                         chart_helper.add_open_position_to_candle_info(self.application_state, symbol, self.market_data)
 
-                    are_all_levels_in = strategy.all_levels_in(self.application_state, symbol)
 
                     if are_all_levels_in and self.runtime.should_run_once(f'{symbol}-CLOSED-LEVELS-MARKED'):  # we have all elvels, so mark them ...
-                        chart_helper.mark_close_level(self.app_config, self.application_state, symbol)
-
-
-                    if not are_all_levels_in:  # if not in, recalculate ...
-                        strategy.find_add_5MH_5ML(self.application_state, df, symbol)
-                        strategy.find_add_PMH_PML(self.application_state, df, symbol)
+                        chart_helper.mark_close_levels(self.app_config, self.application_state, symbol, df)
 
                     logger.debug(f"After levels {symbol}, df: \n{df[-4:].to_markdown()}")
 
@@ -182,6 +171,12 @@ class TradingEngine:
                     await order_helper.check_buy_sell_result_to_send_order(ib, self.app_config, self.application_state, buy_sell_case_results_list, symbol, df)
 
                     await exit_conditions.check_for_stop_loss_and_take_profit(ib, self.app_config, self.application_state, self.market_data)
+
+                    if not self.application_state['is_busy_time'] and 931 < current_hh_mm_ny and not self.runtime.should_run_once(f'{symbol}-MARK_GAP'):
+                        chart_helper.detect_a_mark_market_gap(symbol, df)  # need to happen one time after 9:30
+
+                    if not self.application_state['should_save'] and self.runtime.is_due(f'{symbol}-EXTRA-FEATURES-DF-SAVE', interval_sec=5*60):
+                        marketdata_helper.save_extra_features_df(self.application_state, symbol, df, relative_strength_df, intraday_rs_df,time_frame='1 min')
 
                     chart_helper.add_buy_a_sell_entries_to_signals(self.app_config, self.application_state, buy_sell_case_results_list, symbol, self.market_data)
                     chart_helper.add_candle_info_df_to_signals()
@@ -199,6 +194,9 @@ class TradingEngine:
                 if self.runtime.is_due('SAVE-TRADING_LEDGER-STATS', interval_sec=5*60):
                     self.application_state['TradingLedger.get_all_dataframe_stats'] =TradingLedger.get_all_dataframe_stats()
                     self.application_state['TradingLedger.get_all_list_stats'] =TradingLedger.get_all_list_stats()
+
+                if not self.application_state['should_save'] and self.runtime.is_due('SAVE_OHLC',interval_sec=2*60):
+                    marketdata_helper.save_ohlc_for_chart(self.application_state, self.market_data)
 
                 end_time = time.time()
                 run_time_spent = round(end_time - start_time, 2)

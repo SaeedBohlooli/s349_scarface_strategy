@@ -1,43 +1,13 @@
 import logging
 
+import pandas as pd
+
 from trading_core.trading_ledger import TradingLedger
 from trading_utils import json_utils
-
+from trading_utils import constants
 
 logger = logging.getLogger(__name__)
 
-def add_miscs():
-#     add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame,  object='dash', color='Blue', price_1=day_high, memo=f'PDH {day_high}', unique_id=f'{symbol}-{time_frame}-PDH' )
-#
-#     add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame,  object='dash', color='Blue', price_1=day_low, memo=f'PDL {day_low}' , unique_id=f'{symbol}-{time_frame}-LDH' )
-#     add_to_key_levels_df(symbol=symbol, time_frame=time_frame, key_level_name='PDH', price=day_high, memo=f'PDH {day_high}')
-#     add_to_key_levels_df(symbol=symbol, time_frame=time_frame, key_level_name='PDL', price=day_low, memo=f'PDH {day_high}')
-#
-#
-#     add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dash', color='Red', price_1=low_for_pre_market, memo=f'PML {low_for_pre_market}', unique_id=f'{symbol}-{time_frame}-PML')
-#     add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dash', color ='Red', price_1=high_for_pre_market, memo=f'PMH {high_for_pre_market}', unique_id=f'{symbol}-{time_frame}-PMH')
-#     add_to_key_levels_df(symbol, time_frame, 'PML', low_for_pre_market, f'PML {low_for_pre_market}')
-#     add_to_key_levels_df(symbol, time_frame, 'PMH', high_for_pre_market, f'PMH {high_for_pre_market}')
-#
-#
-#     add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dot', color='Black', price_1=low_for_5_min, memo=f'5ML {low_for_5_min}', unique_id=f'{symbol}-{time_frame}-5ML')
-#     add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dot', color ='Black', price_1=high_for_5_min, memo=f'5MH {high_for_5_min}', unique_id=f'{symbol}-{time_frame}-5MH')
-#     add_to_key_levels_df(symbol, time_frame, '5ML', low_for_5_min, f'5ML {low_for_5_min}')
-#     add_to_key_levels_df(symbol, time_frame, '5MH', high_for_5_min, f'5MH {high_for_5_min}')
-#
-#
-#
-#
-# # for replacement
-#              price = get_offseted_price('up', df['high'].iloc[-1])
-#              add_to_signlas(symbol, 'LEVEL_REPLACED', price, df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}')
-#
-#
-#             price = get_offseted_price('up', df['high'].iloc[-1])
-#             add_to_signlas(symbol, 'LEVEL_REPLACED', price,  df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}')
-#
-
-    return
 
 def add_buy_a_sell_entries_to_signals(app_config, application_state, buy_sell_case_results_list, symbol, market_data ):
     for buy_sell_case_result in buy_sell_case_results_list:
@@ -323,7 +293,8 @@ def add_open_position_to_candle_info(application_state, symbol, market_data):
 
 
 
-def mark_close_levels(app_config, application_state, symbol):
+def mark_close_levels(app_config, application_state, symbol, df):
+    # df is used in the config file ...
     mode = application_state.get('mode', 'live')
     closeness_distance = eval(app_config['closeness_distance_for_chart'][mode])
     key_levels_list = [l for l in application_state.get('levels', {}).get(symbol, {}).values()]
@@ -340,3 +311,61 @@ def mark_close_levels(app_config, application_state, symbol):
         # close_pairs.append((symbol, l1, l2, memo ))
         TradingLedger.add_to_list("close_levels", (symbol, l1, l2, memo ))
 
+
+def detect_a_mark_market_gap(application_state, symbol, df):
+    df["trade_day"] = df["date"].dt.date
+    unique_days = sorted(df["trade_day"].unique())
+    today = unique_days[-1]
+    yesterday = unique_days[-2] if len(unique_days) >= 2 else unique_days[-1]
+
+    t = pd.Timestamp("09:30").time()
+    res = df.loc[(df["trade_day"] == today) & (df["date"].dt.time == t), "open"]
+    open_today_0930 = res.iloc[-1] if not res.empty else None
+
+    t = pd.Timestamp("16:00").time()
+    res = df.loc[(df["trade_day"] == yesterday) & (df["date"].dt.time == t), "close"]
+    if res.empty:
+        # no close for last day. This happnns only in the MNQ on Mnday. last day which is sunday doesn't have any close
+        # so we consider the last record of yesterday as the close
+        logger.warning(f"@ detect_a_mark_market_gap, no 16:00 close for yesterday {yesterday}, so we take the last record of that day as the close")
+        close_yesterday_1600 = df.loc[df["trade_day"] == yesterday, "close"].iloc[-1]
+    else:
+        close_yesterday_1600 = res.iloc[-1]
+    logger.info(f"{symbol}, open_today_0930: {open_today_0930} , close_yesterday_1600: {close_yesterday_1600}")
+    gap_size = round(open_today_0930 - close_yesterday_1600, 2)
+    color = constants.COLOR_GREEN_TRANSPARENT if gap_size > 0 else constants.COLOR_RED_TRANSPARENT
+
+    if open_today_0930 is not  None and close_yesterday_1600 is not None:
+        add_to_drawing_objects_df(symbol=symbol, time_frame='1min', object='rect', color=color, date_1=f'{today} 09:00:00', price_1=close_yesterday_1600,
+                                  date_2=f'{today} 09:30:00', price_2=open_today_0930, memo='Market Gap', unique_id=f'{symbol}--MARKET-GAP')
+        application_state.setdefault('symbols', {}).setdefault(symbol, {}).update(
+            {
+            'date': str(df['date'].iloc[-1]),
+            'open_today_0930': open_today_0930,
+            'close_yesterday_1600': close_yesterday_1600,
+            'gap_size': gap_size,
+            }
+        )
+    return
+
+
+def add_to_drawing_objects_df(symbol='TSLA', time_frame='1m', object='dash', color='Blue', date_1='', price_1=0, date_2='',price_2=0, memo = '', unique_id='' ):
+    if price_1 != 0 and price_1 != -1:
+        if unique_id == '':
+            unique_id = f"{symbol}--{time_frame}--{price_1}"
+        data = {
+            'symbol':  symbol,
+            'time_frame': time_frame.replace(' ', ''),
+            'object': object,  #  ['solid', 'dot', 'dash', 'longdash', 'dashdot', 'longdashdot']
+            'color': color,
+            'date_1': date_1,
+            'price_1': price_1,
+            'date_2': date_2,
+            'price_2': price_2,
+            'memo': memo,
+            'unique_id': unique_id
+        }
+
+        TradingLedger.add_to_dataframe("drawing_objects_df", data)
+
+    return

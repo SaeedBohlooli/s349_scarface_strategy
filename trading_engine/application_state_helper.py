@@ -1,6 +1,6 @@
 
 from trading_utils import ib_pricing_async, date_utils
-
+from trading_engine import risk_helper
 
 async def initialize_application_state(ib, app_config, application_state):
 
@@ -10,6 +10,9 @@ async def initialize_application_state(ib, app_config, application_state):
     :return:
     """
     application_state['symbols'] = {}
+    application_state['options_meta_date_dic'] = {}
+    application_state['levels'] = {}
+
     for symbol in app_config['symbols']:
         application_state['symbols'][symbol] = {}
         current_price = await ib_pricing_async.get_or_subscribe_symbol_price(
@@ -38,7 +41,6 @@ def initialize_application_state_for_run(app_config, application_state):
     application_state['retests'] = {}
     application_state['breakout_idx'] = {}
     application_state['retest_idx'] = {}
-    application_state['levels'] = {}
     # for symbol in app_config['symbols']:
     #     application_state['symbols'][symbol] = {}
     #
@@ -46,9 +48,16 @@ def initialize_application_state_for_run(app_config, application_state):
 
 
     is_trade_time = eval(app_config['live']['trade_time'])
+    current_hh_mm_ny = date_utils.get_current_hhmm_ny() #used in the config evals
     is_busy_time = eval(app_config['live'].get('busy_time', '1 == 1'))
     is_market_time = eval(app_config['live'].get('market_time', '1 == 1'))
 
     application_state['is_trade_time'] = is_trade_time
     application_state['is_busy_time'] = is_busy_time
     application_state['is_market_time'] = is_market_time
+
+    if is_busy_time and risk_helper.calcualte_number_of_open_positions(application_state) != 0:
+        application_state['should_save'] =  True
+    else:
+        application_state['should_save'] =  False
+

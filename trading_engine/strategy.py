@@ -1,4 +1,7 @@
 import logging
+
+from trading_core.trading_ledger import TradingLedger
+from trading_engine import chart_helper
 logger = logging.getLogger(__name__)
 import pandas as pd
 from trading_utils import number_utils
@@ -37,6 +40,13 @@ def calculate_PDL_PDH(df, symbol, day_of_week, application_state):
 
     application_state['levels'].setdefault(symbol, {})['PDH'] = day_high
     application_state['levels'].setdefault(symbol, {})['PDL'] = day_low
+
+    time_frame = '1 min'
+    chart_helper.add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame,  object='dash', color='Blue', price_1=day_high, memo=f'PDH {day_high}', unique_id=f'{symbol}-{time_frame}-PDH' )
+    chart_helper.add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame,  object='dash', color='Blue', price_1=day_low, memo=f'PDL {day_low}' , unique_id=f'{symbol}-{time_frame}-LDH' )
+    add_to_key_levels_df(symbol=symbol, time_frame=time_frame, key_level_name='PDH', price=day_high, memo=f'PDH {day_high}')
+    add_to_key_levels_df(symbol=symbol, time_frame=time_frame, key_level_name='PDL', price=day_low, memo=f'PDH {day_high}')
+
     return
 
 
@@ -49,13 +59,19 @@ def all_levels_in(application_state, symbol, levels=['PDL', 'PDH', 'PMH', 'PML',
     return True
 
 def find_add_PMH_PML(application_state, df, symbol):
-
+    time_frame = '1 min'
     wait_until_end_of_period = True
 
     pml, pmh = find_session_high_and_low(df, start="04:00", end="09:29", wait_until_end_of_period= wait_until_end_of_period)
     if number_utils.is_valid_price(pmh) and number_utils.is_valid_price(pml) and pmh != -1 and pml != -1:
         application_state['levels'].setdefault(symbol, {})['PMH'] = pmh
         application_state['levels'].setdefault(symbol, {})['PML'] = pml
+
+        chart_helper.add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dash', color='Red', price_1=pml, memo=f'PML {pml}', unique_id=f'{symbol}-{time_frame}-PML')
+        chart_helper.add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dash', color ='Red', price_1=pmh, memo=f'PMH {pmh}', unique_id=f'{symbol}-{time_frame}-PMH')
+
+        add_to_key_levels_df(symbol, time_frame, 'PML', pml, f'PML {pml}')
+        add_to_key_levels_df(symbol, time_frame, 'PMH', pmh, f'PMH {pmh}')
 
 
     return
@@ -92,10 +108,27 @@ def find_session_high_and_low(df, start="09:30", end="09:35", wait_until_end_of_
 def find_add_5MH_5ML(application_state, df, symbol):
 
     wait_until_end_of_period = True
+    time_frame = '1 min'
 
     x5mh, x5ml = find_session_high_and_low(df, start="09:30", end="09:34", wait_until_end_of_period= wait_until_end_of_period)
     if number_utils.is_valid_price(x5mh) and number_utils.is_valid_price(x5ml) and x5mh != -1 and x5ml != -1:
         application_state['levels'].setdefault(symbol, {})['5MH'] = x5mh
         application_state['levels'].setdefault(symbol, {})['5ML'] = x5ml
 
+        chart_helper.add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dot', color='Black', price_1=x5ml, memo=f'5ML {x5ml}', unique_id=f'{symbol}-{time_frame}-5ML')
+        chart_helper.add_to_drawing_objects_df(symbol=symbol, time_frame=time_frame, object='dot', color ='Black', price_1=x5mh, memo=f'5MH {x5mh}', unique_id=f'{symbol}-{time_frame}-5MH')
+
+        add_to_key_levels_df(symbol, time_frame, '5ML', x5ml , f'5ML {x5ml}')
+        add_to_key_levels_df(symbol, time_frame, '5MH', x5mh, f'5MH {x5mh}')
     return
+
+
+def  add_to_key_levels_df(symbol, time_frame, key_level_name, price, memo='', unique_id=''):
+    if price> 0:
+        if unique_id == '':
+            unique_id = f'{symbol}--{time_frame}--{key_level_name}'
+        data = {'symbol': symbol , 'time_frame': time_frame, 'key_level': key_level_name, 'price': price, 'memo' : memo, 'unique_id': unique_id}
+        TradingLedger.add_to_dataframe("key_levels_df",data)
+
+
+
