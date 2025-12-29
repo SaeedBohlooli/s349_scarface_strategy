@@ -25,6 +25,8 @@ async def initialize_application_state(ib, app_config, application_state):
 
     application_state['is_busy_time'] = False
     application_state['trading_date'] = date_utils.get_yyyymmdd()
+    application_state['TradingLedger.get_all_dataframe_stats'] = []
+    application_state['TradingLedger.get_all_list_stats'] = []
 
     # application_state['latest_prices'] = {}
     # application_state['current_price'] = {}
@@ -61,3 +63,10 @@ def initialize_application_state_for_run(app_config, application_state):
     else:
         application_state['should_save'] =  False
 
+    # application_state['should_save'] =  True
+
+
+
+def initialize_application_state_for_symbol_run(app_config, application_state):
+    application_state['up_offset_counter'] = 0
+    application_state['down_offset_counter'] = 0  # TODO need to be handles better

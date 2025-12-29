@@ -186,14 +186,14 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                     order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='CLOSE', symbol=symbol, alias=take_profit, unique_run_number=application_state.get('unique_run_number'))
                     con_id = open_trade_info.get('con_id')
                     # close_option_positions(option_positions_to_monitor, symbol=symbol, close_qty=close_quantity, order_ref=order_ref)
-                    ib_positions_async.close_position_by_con_id(ib, con_id = con_id, order_ref=order_ref )
+                    ib_positions_async.close_position_by_con_id(ib, con_id = con_id, close_qty=close_quantity, order_ref=order_ref )
                 elif app_config['symbols_meta'][symbol]['contract_type'] == 'Future':
                     # order_ref = get_order_ref('CLOSE', symbol, alias_for_ref=take_profit, unique_run_number=unique_run_number)
                     order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='CLOSE', symbol=symbol, alias=take_profit, unique_run_number=application_state.get('unique_run_number'))
 
                     con_id = open_trade_info.get('con_id')
                     # close_future_positions(future_positions_to_monitor, symbol=symbol, close_qty=close_quantity, order_ref=order_ref )
-                    ib_positions_async.close_position_by_con_id(ib, con_id=con_id, order_ref=order_ref)
+                    ib_positions_async.close_position_by_con_id(ib, con_id=con_id, close_qty=close_quantity,order_ref=order_ref)
 
                 else:
                     logger.warning(f"@@@@ TBD")

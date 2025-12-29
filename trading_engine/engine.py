@@ -50,10 +50,11 @@ class TradingEngine:
     async def do_miscs(self, ib, interval_seconds=60):
         while True:
             try:
+                logger.info(f"do_miscs ...")
                 application_state_router.populate_global_state(application_state=self.application_state)
                 await asyncio.sleep(interval_seconds)
             except Exception as e:
-                logger.warning(f"@@@ Unexpected error in do_mics: {e}")
+                logger.warning(f"@@@ Unexpected error in do_miscs: {e}")
                 logger.error(f"@@@ error: {traceback.format_exc()}" )
                 await asyncio.sleep(interval_seconds)
 
@@ -100,10 +101,13 @@ class TradingEngine:
                     continue
                 self.app_config = self.runtime.reload_config()
                 if self.runtime.should_run_once('OPTIONS-EXPIRATIONS-STRIKES-SETUP'):
-                    await options_helper.orchestrate_expirations_strikes(ib, self.app_config, self.application_state)
+                    await options_helper.orchestrate_expirations_strikes(ib, self.app_config, self.application_state, self.market_data)
 
                 if self.runtime.should_run_once("SUBSCRIBE-CURRENT-PRICES"):
                     await pricing_helper.subscribe_for_current_price(ib, self.app_config, self.application_state)
+
+                if self.runtime.is_due("PREPARE_OPTION_CONTRACTS_FOR_LATER_USE", interval_sec=60*10, min_time_hhmm=930):
+                    await options_helper.prepare_option_contracts_for_later_use(ib, self.app_config, self.application_state, self.market_data)
 
                 for symbol in self.app_config.get('symbols'):
                     symbol_number += 1
@@ -111,8 +115,9 @@ class TradingEngine:
                     self.application_state['unique_run_number'] = unique_run_number
                     logger.warning(f"------------------- {symbol}, {unique_run_number}, {current_hh_mm_ny} ")
                     symbol_start_time = time.time()
-                    self.application_state['up_offset_counter'] = 0
-                    self.application_state['down_offset_counter'] = 0 # TODO need to be handles better
+
+                    application_state_helper.initialize_application_state_for_symbol_run(self.app_config, self.application_state)
+
 
                     # todo i AM NOT SURE WE NEED IT HERE ...
                     current_price = await ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol, contract_month=self.app_config.get('symbols_meta', {}).get(symbol,{}).get('contract_month'))
@@ -128,7 +133,6 @@ class TradingEngine:
                     if not self.application_state['should_save']:
                         logger.info(f"{symbol}, df: \n{df[-4:].to_markdown()}")
 
-                    last_record_hh_mm = date_utils.get_last_record_hhmm(df)  # TODO is not used anywhere ...
                     qqq_df = self.market_data.dfs_map.get('QQQ')
                     relative_strength_df = inidicators.compute_relative_strength(df, qqq_df, period=20) # TODO do we need this
                     intraday_rs_df = inidicators.compute_intraday_rs(df, qqq_df)
@@ -154,11 +158,8 @@ class TradingEngine:
                         chart_helper.mark_atr_to_the_level(self.application_state, symbol, 'up', '5MH', self.market_data)
                         chart_helper.mark_atr_to_the_level(self.application_state, symbol, 'down', '5ML', self.market_data)
                         chart_helper.add_atr_to_candle_info(symbol, self.market_data)
-                        # add_atr_to_candle_info(dynamic_tolerance)
 
                         chart_helper.add_rs_relative_to_candle_info(symbol, intraday_rs_df, self.market_data)
-                        # add_rs_relative_to_candle_info(symbol)
-                        # add_open_position_to_candle_info(symbol)
                         chart_helper.add_open_position_to_candle_info(self.application_state, symbol, self.market_data)
 
 
@@ -168,12 +169,12 @@ class TradingEngine:
                     logger.debug(f"After levels {symbol}, df: \n{df[-4:].to_markdown()}")
 
                     buy_sell_case_results_list = scanner.check_buy_and_sell_cases(ib, self.app_config, self.application_state, symbol, self.market_data)
-                    await order_helper.check_buy_sell_result_to_send_order(ib, self.app_config, self.application_state, buy_sell_case_results_list, symbol, df)
+                    await order_helper.check_buy_sell_result_to_send_order(ib, self.app_config, self.application_state, buy_sell_case_results_list, symbol, df, self.market_data)
 
                     await exit_conditions.check_for_stop_loss_and_take_profit(ib, self.app_config, self.application_state, self.market_data)
 
                     if not self.application_state['is_busy_time'] and 931 < current_hh_mm_ny and not self.runtime.should_run_once(f'{symbol}-MARK_GAP'):
-                        chart_helper.detect_a_mark_market_gap(symbol, df)  # need to happen one time after 9:30
+                        chart_helper.detect_a_mark_market_gap(self.application_state, symbol, df)  # need to happen one time after 9:30
 
                     if not self.application_state['should_save'] and self.runtime.is_due(f'{symbol}-EXTRA-FEATURES-DF-SAVE', interval_sec=5*60):
                         marketdata_helper.save_extra_features_df(self.application_state, symbol, df, relative_strength_df, intraday_rs_df,time_frame='1 min')
@@ -200,7 +201,7 @@ class TradingEngine:
 
                 end_time = time.time()
                 run_time_spent = round(end_time - start_time, 2)
-                logger.warning(f'==================== unique_run_number: {unique_run_number}, run_spent_time: {run_time_spent} seconds, no sleep ...')
+                logger.warning(f'==================== unique_run_number: {unique_run_number}, run_spent_time: {run_time_spent} seconds, sleep ... {self.app_config['interval_seconds']['engine_loop']}')
 
                 await asyncio.sleep(self.app_config['interval_seconds']['engine_loop'])
             except Exception as e:
