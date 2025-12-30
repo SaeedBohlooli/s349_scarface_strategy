@@ -80,7 +80,10 @@ def populate_close_orders_in_capital_flow_df():
 
     if len(open_close_refs_pnl_df) ==0:
         return
+
     capital_flow_df = TradingLedger.get_dataframe('capital_flow_df')
+    if len(capital_flow_df) ==0:
+        return
 
     # missing = df2[~df2["order_ref2"].isin(df1["order_ref"])]
     missing = open_close_refs_pnl_df[~open_close_refs_pnl_df["close_order_ref"].isin(capital_flow_df["close_order_ref"])]
@@ -153,7 +156,9 @@ def is_order_ref_open(application_state, open_order_ref):
 
 def recompute_capital_flow_df(start_capital):
     # This method compuutes capital_before_event and capital_after_event
-    df = TradingLedger
+    df = TradingLedger.get_dataframe("capital_flow_df")
+    if len(df) ==0:
+        return
 
     df = df.sort_values('time_stamp').reset_index(drop=True)
 

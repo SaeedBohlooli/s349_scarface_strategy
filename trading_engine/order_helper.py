@@ -211,9 +211,15 @@ def has_open_order_in_same_group(app_config, application_state, symbol):
 
 
 def check_manual_conditions(app_config, application_state, symbol, right):
+
     try:
+        eval_ctx = create_eval_ctx(application_state)
+        application_state['eval_ctx'] = eval_ctx
+
         for condition in app_config['live'].get('manual_settings', {}).get(right,{}).get('conditions', []):
-            evaluated_condition = eval(condition)
+            # evaluated_condition = eval(condition)
+            evaluated_condition = eval(condition, {}, eval_ctx)
+
             logger.info(f"check_manual_conditions, {symbol} , {right}, condition: {condition}, evaluated_condition: {evaluated_condition} ")
             if not evaluated_condition:
                 return False
@@ -364,3 +370,21 @@ def calculate_number_of_future_contracts(app_config, application_state, symbol):
             'memo': '',
             }
     return num_of_contracts, data
+
+
+
+
+def create_eval_ctx(application_state):
+    eval_ctx = {}
+    levels = application_state.get('levels', {})
+
+    for symbol, lvl_map in levels.items():
+        for name, value in lvl_map.items():
+            eval_ctx[
+                f"{symbol}_{name}"] = value  # {'QQQ_PDH': 625.52, 'QQQ_PDL': 623.14, 'QQQ_5MH': 620.57, 'QQQ_5ML': 619.11, 'QQQ_PMH': 624.36, 'QQQ_PML': 618.92}
+
+    for key, val in application_state.get('latest_prices', {}).items():
+        eval_ctx[f"{key}_price"] = val
+
+
+    return eval_ctx

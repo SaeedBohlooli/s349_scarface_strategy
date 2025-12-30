@@ -53,6 +53,8 @@ class TradingEngine:
             try:
                 logger.info(f"do_miscs ...")
                 application_state_router.populate_global_state(application_state=self.application_state)
+                self.application_state["eval_ctx"] = order_helper.create_eval_ctx(self.application_state)
+
                 await asyncio.sleep(interval_seconds)
             except Exception as e:
                 logger.warning(f"@@@ Unexpected error in do_miscs: {e}")
@@ -69,13 +71,15 @@ class TradingEngine:
         key_levels_cols = ['symbol', 'time_frame', 'key_level', 'price', 'memo', 'unique_id']
         TradingLedger.set_dataframe_columns("key_levels_df", key_levels_cols)
 
-        capital_flow_cols = ['time_stamp', 'trade_date', 'event', 'capital_before_event', 'cash_flow',
-                             'capital_after_event', 'realized_pnl',
-                             'commission', 'trade_cost', 'is_closed', 'symbol', 'unique_run_number', 'open_order_ref',
-                             'close_order_ref', 'proccesed', 'memo']
-        # TradingLedger.set_dataframe_columns("capital_flow_df", capital_flow_cols)
         capital_flow_df = FileManager.load_my_df("capital_flow_df")
-        TradingLedger.set_dataframe("capital_flow_df", capital_flow_df)
+        if len(capital_flow_df) ==0:
+            capital_flow_cols = ['time_stamp', 'trade_date', 'event', 'capital_before_event', 'cash_flow',
+                                 'capital_after_event', 'realized_pnl',
+                                 'commission', 'trade_cost', 'is_closed', 'symbol', 'unique_run_number', 'open_order_ref',
+                                 'close_order_ref', 'proccesed', 'memo']
+            TradingLedger.set_dataframe_columns("capital_flow_df", capital_flow_cols)
+        else:
+            TradingLedger.set_dataframe("capital_flow_df", capital_flow_df)
 
         open_close_refs_df = FileManager.load_my_df('open_close_refs_df')
         TradingLedger.set_dataframe("open_close_refs_df", open_close_refs_df)
