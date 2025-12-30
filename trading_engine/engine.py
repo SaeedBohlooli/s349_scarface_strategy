@@ -29,6 +29,7 @@ from trading_engine import order_helper
 from trading_engine import exit_conditions
 from trading_engine import chart_helper
 from trading_engine import position_helper
+from trading_engine import pnl_helper
 
 from trading_utils import position_router
 from trading_utils import user_request_router
@@ -109,6 +110,12 @@ class TradingEngine:
                 if self.runtime.is_due("PREPARE_OPTION_CONTRACTS_FOR_LATER_USE", interval_sec=60*10, min_time_hhmm=930):
                     await options_helper.prepare_option_contracts_for_later_use(ib, self.app_config, self.application_state, self.market_data)
 
+                if not self.application_state['is_busy_time'] and self.runtime.is_due('DO_PNL', interval_sec=5*60):
+                    pnl_helper.populate_open_close_refs_pnl_df()
+                    pnl_helper.populate_close_orders_in_capital_flow_df()
+                    pnl_helper.check_open_orders_in_capital_flow_df(self.application_state)
+                    pnl_helper.recompute_capital_flow_df(4000)
+
                 for symbol in self.app_config.get('symbols'):
                     symbol_number += 1
                     unique_run_number = f'{unique_run_number_X}-{symbol_number}'
@@ -126,6 +133,9 @@ class TradingEngine:
                     self.application_state.setdefault('latest_prices', {})[symbol] = current_price
 
                     df = await marketdata_helper.get_historical_data(ib, symbol, self.app_config, self.application_state, time_frame='1m', historical_days='3 D')
+                    if df is None or len(df) ==0:
+                        logger.warning(f"@@@@@ {symbol}, no data found, skip the symbol for now ...")
+                        continue
                     df = inidicators.popualate_features(df)
                     df = inidicators.populate_volume_ratio(df)
                     self.market_data.dfs_map[symbol] = df

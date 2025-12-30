@@ -913,7 +913,7 @@ def index():
         backtest_date = available_dates[0]
     logger.info(f"backtest_date: {backtest_date}")
     if backtest_date == 'live':
-        charts_dir = f'../../portfolios/charts/{portfolio_id}'
+        charts_dir = f'../../portfolios/{portfolio_id}/charts/2025-12-29'
         mode = 'live'
     else:
         charts_dir = f'../../portfolios/charts-backtest/{backtest_date}/{portfolio_id}'

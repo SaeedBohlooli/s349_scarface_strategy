@@ -110,7 +110,7 @@ def find_add_5MH_5ML(application_state, df, symbol):
     wait_until_end_of_period = True
     time_frame = '1 min'
 
-    x5mh, x5ml = find_session_high_and_low(df, start="09:30", end="09:34", wait_until_end_of_period= wait_until_end_of_period)
+    x5ml, x5mh = find_session_high_and_low(df, start="09:30", end="09:34", wait_until_end_of_period= wait_until_end_of_period)
     if number_utils.is_valid_price(x5mh) and number_utils.is_valid_price(x5ml) and x5mh != -1 and x5ml != -1:
         application_state['levels'].setdefault(symbol, {})['5MH'] = x5mh
         application_state['levels'].setdefault(symbol, {})['5ML'] = x5ml

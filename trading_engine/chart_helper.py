@@ -195,7 +195,7 @@ def convert_signals_to_hover_df():
         hovers_list.append(data)
     if len(hovers_list) > 0:
         # hover_df = pd.concat([hover_df, pd.DataFrame(hovers_list)], ignore_index=True)
-        TradingLedger.add_to_dataframe("hover_df",hovers_list)
+        TradingLedger.add_to_dataframe("hover_df",hovers_list, drop_duplicates=True)
 
         # FIX ME hover_df = hover_df.drop_duplicates(subset=['symbol','object','date_1'],keep='first')
 

@@ -186,14 +186,14 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                     order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='CLOSE', symbol=symbol, alias=take_profit, unique_run_number=application_state.get('unique_run_number'))
                     con_id = open_trade_info.get('con_id')
                     # close_option_positions(option_positions_to_monitor, symbol=symbol, close_qty=close_quantity, order_ref=order_ref)
-                    ib_positions_async.close_position_by_con_id(ib, con_id = con_id, close_qty=close_quantity, order_ref=order_ref )
+                    ib_positions_async.close_position_by_con_id(ib, con_id = con_id, qty_to_close=close_quantity, order_ref=order_ref )
                 elif app_config['symbols_meta'][symbol]['contract_type'] == 'Future':
                     # order_ref = get_order_ref('CLOSE', symbol, alias_for_ref=take_profit, unique_run_number=unique_run_number)
                     order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='CLOSE', symbol=symbol, alias=take_profit, unique_run_number=application_state.get('unique_run_number'))
 
                     con_id = open_trade_info.get('con_id')
                     # close_future_positions(future_positions_to_monitor, symbol=symbol, close_qty=close_quantity, order_ref=order_ref )
-                    ib_positions_async.close_position_by_con_id(ib, con_id=con_id, close_qty=close_quantity,order_ref=order_ref)
+                    ib_positions_async.close_position_by_con_id(ib, con_id=con_id, qty_to_close=close_quantity,order_ref=order_ref)
 
                 else:
                     logger.warning(f"@@@@ TBD")
@@ -252,7 +252,6 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
 
     for s in symbols_need_to_be_removed:
         archive_open_trade_dic(application_state, s)
-
         remove_symbol_from_open_trade_dic(application_state, s)
 
     return
@@ -263,7 +262,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
 
 
 def add_order_ref_to_application_state(application_state, open_order_ref='', close_order_ref=''):
-    # global open_close_refs_df
+
     if open_order_ref != '' and close_order_ref == '': # this is for open order ...
         application_state.setdefault('open_close_refs_map', {})[open_order_ref] = []
     elif open_order_ref != '' and close_order_ref != '': # this is for close ...
@@ -282,12 +281,11 @@ def add_order_ref_to_application_state(application_state, open_order_ref='', clo
         'ib_exec_id': ''
     }
 
-    # open_close_refs_df = pd.concat([open_close_refs_df, pd.DataFrame([data])])
     TradingLedger.add_to_dataframe('open_close_refs_df', data)
     return
 
 def archive_open_trade_dic(application_state, symbol):
-    FileManager.save_named_json(application_state, f"84-{application_state.get('unique_run_number')}-{symbol}",
+    FileManager.save_named_json(application_state, file_name=f"84-{application_state.get('unique_run_number')}-{symbol}.json",
                             dir='intermediate')
     return
 
