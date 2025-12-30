@@ -187,6 +187,7 @@ live:
   blocked_symbols:
     C: ['C']
     P: ['F']
+
   manual_settings:
     C:
       conditions:
@@ -194,6 +195,12 @@ live:
     P:
       conditions:
         - 1 == 1
+#    C:
+#      conditions:
+#        - QQQ_CLOSE > QQQ_5ML AND QQQ_price > QQQ_PDL
+#    P:
+#      conditions:
+#        - QQQ_CLOSE < QQQ_5ML AND QQQ_price < QQQ_PDL
     symbols:
       TSLA:
         C:

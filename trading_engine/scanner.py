@@ -271,7 +271,7 @@ def price_retest(app_config, application_state, symbol, df, side='up', idx_list=
                 retest = True
                 diff = abs(row['low']-level)
 
-            if both_sides and abs(level - row["low"]) <= tolerance_amount and row["close"] > level:   # close > level.  low is close to the level in both sides.
+            elif both_sides and abs(level - row["low"]) <= tolerance_amount and row["close"] > level:   # close > level.  low is close to the level in both sides.
                 application_state['retests'].setdefault(symbol, []).append({
                     'side': side,
                     'level': level,
@@ -292,7 +292,7 @@ def price_retest(app_config, application_state, symbol, df, side='up', idx_list=
                 })
                 retest = True
                 diff = abs(row['high'] - level)
-            if both_sides and abs(level - row["high"]) <= tolerance_amount and row["close"] < level:   # close < level.  high is close to the level in both sides.
+            elif both_sides and abs(level - row["high"]) <= tolerance_amount and row["close"] < level:   # close < level.  high is close to the level in both sides.
                 application_state['retests'].setdefault(symbol, []).append({
                     'side': side,
                     'level': level,

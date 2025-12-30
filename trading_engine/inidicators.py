@@ -63,12 +63,12 @@ def compute_intraday_rs(stock_df: pd.DataFrame, qqq_df: pd.DataFrame):
             return df.loc[mask].iloc[0]['open']
         else:
             # Fallback to first bar of session if not exactly 09:30
-            logger.warning("@@ get_930_open(), df doe not have open for 9:30.")
+            logger.warning("@ get_930_open(), df does not have open for 9:30.")
             tmp_df = df[df['date'].dt.date == latest_date]
             if len(tmp_df) >0:
                 return tmp_df['open'].iloc[-1]
             else:
-                logger.warning("@@ get_930_open(), df doe not have open for same day, so we retrun last recrod")
+                logger.warning("@ get_930_open(), df does not have open for same day, so we we return last record")
                 logger.warning(f"\n{df[-1:].to_markdown()}")
                 return 600 # on Sunday night, MNQ is there but QQQ will start on Monday. so no data for Sunday QQQ. so let's return 600
                 # TODO
