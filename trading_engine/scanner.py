@@ -143,14 +143,14 @@ def replace_level_if_needed(application_state, app_config, df, symbol, side, can
             logger.info(f"replace_level_if_needed, level is replaced,{symbol}, {side}, level: {level}, next_level: {next_level}, {df['date'].iloc[-1]}")
             price = chart_helper.get_offseted_price(app_config, application_state,symbol,side='up', price=df['high'].iloc[-1])
             # add_to_signlas(symbol, 'LEVEL_REPLACED', price, df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}')
-            TradingLedger.add_to_list("signal", (symbol, 'LEVEL_REPLACED', price, df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}') )
+            TradingLedger.add_to_list("signals", (symbol, 'LEVEL_REPLACED', price, df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}') )
             return next_level
     else:
         if next_level < level and abs(next_level - level) < closeness_distance:
             logger.info(f"replace_level_if_needed, level is replaced, {symbol}, {side}, level: {level}, next_level: {next_level}, {df['date'].iloc[-1]}")
             price = chart_helper.get_offseted_price(app_config,application_state, symbol,'up', df['high'].iloc[-1])
             # add_to_signlas(symbol, 'LEVEL_REPLACED', price,  df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}')
-            TradingLedger.add_to_list("signal", (symbol, 'LEVEL_REPLACED', price, df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}') )
+            TradingLedger.add_to_list("signals", (symbol, 'LEVEL_REPLACED', price, df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}') )
             return next_level
     return level
 
@@ -469,50 +469,50 @@ def is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, d
             # next_level is above the current level, price is below next level but very close
             if next_level > current_level and price > current_level and price < next_level and is_close:
                 # add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-1 {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
-                TradingLedger.add_to_list("signal", (symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-1 {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}' , 'red') )
+                TradingLedger.add_to_list("signals", (symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-1 {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}' , 'red') )
                 return True
 
             # next_level is above the current level, price is above next level
             if next_level > current_level and price > current_level and price > next_level: # This is for once the price passes the next level as well.
                 # add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-2. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
-                TradingLedger.add_to_list("signal", (symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-2. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', 'red') )
+                TradingLedger.add_to_list("signals", (symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-2. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', 'red') )
                 return True
 
             # next_level is above the current level AND price is above leve AND highest_high after breakout canddle is close to the next level ..
             if next_level > current_level and price > current_level and abs(highest_high - next_level) < closeness_distance:
                 # add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-3. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
-                TradingLedger.add_to_list("signal", (symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-3. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', 'red') )
+                TradingLedger.add_to_list("signals", (symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-3. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', 'red') )
                 return True
 
             # next_level > current level AND price > c level AND highest high >  next level
             if next_level > current_level and price > current_level and highest_high > next_level:
                 # add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-4. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
-                TradingLedger.add_to_list("signal", (symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-4. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', 'red') )
+                TradingLedger.add_to_list("signals", (symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'up-4. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', 'red') )
                 return True
 
         else:
             # next l < c level AND price < c level AND price > next l ...
             if next_level < current_level and price < current_level and price > next_level and is_close:
                 # add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-1. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
-                TradingLedger.add_to_list("signal", (symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-1. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', 'red') )
+                TradingLedger.add_to_list("signals", (symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-1. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', 'red') )
                 return True
 
 
             if next_level < current_level and price < current_level and price < next_level:  # see PLTR Oct 09-
                 # add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-2. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
-                TradingLedger.add_to_list("signal", (symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-2. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', 'red') )
+                TradingLedger.add_to_list("signals", (symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-2. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', 'red') )
                 return True
 
             # next_level < current level AND price is below level AND lowest low after breakout canddle is close to the next level ..
             if next_level < current_level and price < current_level and abs(lowest_low - next_level) < closeness_distance:
                 # add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-3. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
-                TradingLedger.add_to_list("signal", (symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-3. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', 'red') )
+                TradingLedger.add_to_list("signals", (symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-3. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', 'red') )
                 return True
 
             # next_level < current level AND price < c level AND lowest low  <  next level
             if next_level < current_level and price < current_level and lowest_low < next_level:
                 # add_to_signlas(symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-4. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', color='red')
-                TradingLedger.add_to_list("signal", (symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-4. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', 'red') )
+                TradingLedger.add_to_list("signals", (symbol, 'PRICE_CLODE_TO_LEVEL', price, df['date'].iloc[-1], f'down-4. price: {price}, to: {next_level} <br> {date_utils.get_hhm_mm_of_last_record(df)}', 'red') )
                 return True
 
 
