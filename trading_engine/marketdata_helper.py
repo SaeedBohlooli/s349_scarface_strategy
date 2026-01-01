@@ -21,7 +21,7 @@ async def get_historical_data(ib, symbol, app_config, application_state, time_fr
         use_RTH=False
     )
 
-    if not application_state['should_save']:
+    if not application_state['is_save_time']:
         logger.info(f"in get_market_data, start: \n{df[:2].to_markdown()}")
         logger.info(f"in get_market_data, end: \n{df[-2:].to_markdown()}")
     return df
@@ -30,7 +30,7 @@ async def get_historical_data(ib, symbol, app_config, application_state, time_fr
 def save_ohlc_for_chart(application_state, market_data):
     mode = application_state.get('mode', 'live')
     time_frame = "1 min"
-    for symbol, df in market_data.dfs_with_indicators.items():
+    for symbol, df in market_data.dfs_map.items():
         logger.info(f"in save_ohlc_for_chart, symbol: {symbol}, len(df): {len(df)}")
         if mode == 'live':
             df = df[['date','open', 'high', 'low', 'close', 'volume', 'atr_14']]

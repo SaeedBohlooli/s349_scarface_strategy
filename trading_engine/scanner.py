@@ -20,7 +20,7 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
     short_breakout_idx = 0
     short_retest_idx = 0
     try:
-        df = market_data.dfs_with_indicators.get(symbol)
+        df = market_data.dfs_map.get(symbol)
         if df is None:
             logger.warning(f"check_buy_sell_condition, no market data for symbol: {symbol}")
             return None
@@ -216,6 +216,9 @@ def breakout_in_last_x_candles_ver_2(app_config, application_state, symbol, df, 
             })
             breakout_happened = True
 
+            offseted_price = chart_helper.get_offseted_price(app_config, application_state, symbol, side='up',price=df['high'].iloc[idx])
+            TradingLedger.add_to_list("signals", (symbol, 'BREAKOUT', offseted_price, df['date'].iloc[idx], f"BREAKOUT {level_alias} ... {df['date'].iloc[idx]}... ") )
+
     return breakout_happened
 
 
@@ -260,46 +263,66 @@ def price_retest(app_config, application_state, symbol, df, side='up', idx_list=
         # --- Retest detection ---
         if side == 'up':
             if level > row["low"] and level - row["low"] <= tolerance_amount and row["close"] > level:
-                application_state['retests'].setdefault(symbol, []).append({
+                d = {
                     'side': side,
                     'level': level,
                     'level_alias': level_alias,
                     'idx': idx,
                     'time': str(row['date']),
-                })
+                }
+                application_state['retests'].setdefault(symbol, []).append(d)
+
+                offseted_price = chart_helper.get_offseted_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx])
+                TradingLedger.add_to_list("signals", (symbol, 'RETEST', offseted_price, df['date'].iloc[idx], f"RETEST  {level_alias} ... {df['date'].iloc[idx]}") )
+
                 logger.info(f"price_retest(), symbol: {symbol}, level: {level}, date:{df.iloc[idx]['date']} ")
                 retest = True
                 diff = abs(row['low']-level)
 
             elif both_sides and abs(level - row["low"]) <= tolerance_amount and row["close"] > level:   # close > level.  low is close to the level in both sides.
-                application_state['retests'].setdefault(symbol, []).append({
+                d = {
                     'side': side,
                     'level': level,
                     'level_alias': level_alias,
                     'idx': idx,
                     'time': str(row['date']),
-                })
+                }
+                application_state['retests'].setdefault(symbol, []).append(d)
+
+                offseted_price = chart_helper.get_offseted_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx])
+                TradingLedger.add_to_list("signals", (symbol, 'RETEST', offseted_price, df['date'].iloc[idx], f"RETEST  {level_alias} ... {df['date'].iloc[idx]}") )
+
                 retest = True
                 diff = abs(row['low']-level)
         else:
             if row["high"] > level and row["high"] - level <= tolerance_amount and row["close"] < level:
-                application_state['retests'].setdefault(symbol, []).append({
+                d = {
                     'side': side,
                     'level': level,
                     'level_alias': level_alias,
                     'idx': idx,
                     'time': str(row['date']),
-                })
+                }
+                application_state['retests'].setdefault(symbol, []).append(d)
+
+                offseted_price = chart_helper.get_offseted_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx])
+                TradingLedger.add_to_list("signals", (symbol, 'RETEST', offseted_price, df['date'].iloc[idx], f"RETEST  {level_alias} ... {df['date'].iloc[idx]}") )
+
                 retest = True
                 diff = abs(row['high'] - level)
             elif both_sides and abs(level - row["high"]) <= tolerance_amount and row["close"] < level:   # close < level.  high is close to the level in both sides.
-                application_state['retests'].setdefault(symbol, []).append({
+                d = {
                     'side': side,
                     'level': level,
                     'level_alias': level_alias,
                     'idx': idx,
                     'time': str(row['date']),
-                })
+                }
+                application_state['retests'].setdefault(symbol, []).append(d)
+
+                offseted_price = chart_helper.get_offseted_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx])
+                TradingLedger.add_to_list("signals", (symbol, 'RETEST', offseted_price, df['date'].iloc[idx], f"RETEST  {level_alias} ... {df['date'].iloc[idx]}") )
+
                 retest = True
                 diff = abs(row['high']-level)
 

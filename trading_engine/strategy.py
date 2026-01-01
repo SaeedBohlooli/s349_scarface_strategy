@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 import pandas as pd
 from trading_utils import number_utils
 
-def calculate_PDL_PDH(df, symbol, day_of_week, application_state):
+def calculate_PDL_PDH(application_state, symbol, df, day_of_week):
 
     df = df[['date','open','close', 'high', 'low', 'volume']]
     # filter to that day between 9:30–16:00
@@ -54,7 +54,15 @@ def all_levels_in(application_state, symbol, levels=['PDL', 'PDH', 'PMH', 'PML',
     # if a level is not there ,will return False
 
     for level in levels:
-        if application_state.get('levels').get(symbol).get(level) is None:
+        if application_state.get('levels', {}).get(symbol,{}).get(level) is None:
+            return False
+    return True
+
+def are_levels_in(application_state, symbol, levels=['PDL', 'PDH', 'PMH', 'PML','5MH', '5ML']):
+    # if a level is not there ,will return False
+
+    for level in levels:
+        if application_state.get('levels',{}).get(symbol,{}).get(level) is None:
             return False
     return True
 

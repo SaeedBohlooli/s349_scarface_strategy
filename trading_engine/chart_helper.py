@@ -84,7 +84,16 @@ def add_candle_info_df_to_signals():
     # logger.info(f"@ type(candle_info_df): {type(candle_info_df)}")
 
     df = candle_info_df
-    df = df.drop_duplicates(subset=['symbol', 'date', 'price']) # no memo as it has jdon and it thrrwos errror
+
+# AMZN	2025-12-31 16:06:00-05:00	230.41	case_2_1_async - res_case_2_1_async:<br>1:F,2:F,3:F,4:F,5:F,6:F,7:T,8:T,9:F,10:F,11:T .. set().set() <br>1:F,2:F,3:F,4:F,5:F,6:T,7:T,8:T,9:F,10:T,11:T .. set().set() <br>long_breakout: None, long_retest: None <br>short_breakout: None, short_retest: None <br>16:06
+# AMZN	2025-12-31 16:06:00-05:00	230.41	case_4_1_async - res_case_4_1_async:<br>1:F,2:F,3:F,4:F,5:F,6:F,7:F,8:T,9:T,10:T .. set().set() <br>1:F,2:F,3:F,4:F,5:F,6:F,7:F,8:F,9:T,10:T .. set().set() <br>long_breakout: None, long_retest: None <br>short_breakout: None, short_retest: None <br>16:06
+# AMZN	2025-12-31 16:06:00-05:00	230.41	case_3 - res_case_3:<br>1:F .. set().set() <br>1:F .. set().set() <br>long_breakout: None, long_retest: None <br>short_breakout: None, short_retest: None <br>16:06
+# AMZN	2025-12-31 16:06:00-05:00	230.32	case_2_1_async - res_case_2_1_async:<br>1:F,2:F,3:F,4:F,5:F,6:F,7:T,8:T,9:F,10:F,11:T .. set().set() <br>1:F,2:F,3:F,4:F,5:F,6:T,7:T,8:T,9:F,10:T,11:T .. set().set() <br>long_breakout: None, long_retest: None <br>short_breakout: None, short_retest: None <br>16:06
+# AMZN	2025-12-31 16:06:00-05:00	230.32	case_4_1_async - res_case_4_1_async:<br>1:F,2:F,3:F,4:F,5:F,6:F,7:F,8:T,9:T,10:T .. set().set() <br>1:F,2:F,3:F,4:F,5:F,6:F,7:F,8:F,9:T,10:T .. set().set() <br>long_breakout: None, long_retest: None <br>short_breakout: None, short_retest: None <br>16:06
+# AMZN	2025-12-31 16:06:00-05:00	230.32	case_3 - res_case_3:<br>1:F .. set().set() <br>1:F .. set().set() <br>long_breakout: None, long_retest: None <br>short_breakout: None, short_retest: None <br>16:06
+
+    # drop dups bases on symbol, date, memo  # price is not used as it can be different for the same candle info
+    df = df.drop_duplicates(subset=['symbol', 'date', 'memo'], keep='last') # no memo as it has jdon and it thrrwos errror  # 'price'
     # df_grouped = (  # for example multiple retest on one candle
     #     df.groupby(['date', 'price'], as_index=False)
     #     .agg({'memo': lambda x: ' <br> '.join(x)})
@@ -99,7 +108,7 @@ def add_candle_info_df_to_signals():
     )
 
     for index, row in df_grouped.iterrows():
-        logger.debug(f"add_candle_info_df_to_signals, row:\n{row}")
+        logger.info(f"add_candle_info_df_to_signals, row:\n{row}")
         date = row['date']
         symbol = row['symbol']
         date.strftime('%H:%M')  # just hh:mm from  2025-10-17 10:56:00-04:00
@@ -195,8 +204,8 @@ def convert_signals_to_hover_df():
         hovers_list.append(data)
     if len(hovers_list) > 0:
         # hover_df = pd.concat([hover_df, pd.DataFrame(hovers_list)], ignore_index=True)
-        TradingLedger.add_to_dataframe("hover_df",hovers_list, drop_duplicates=True)
-
+        TradingLedger.add_to_dataframe("hover_df", hovers_list, drop_duplicates=True, subset_for_duplicate=['unique_id'] )
+        # TradingLedger.clear_list("signals")
         # FIX ME hover_df = hover_df.drop_duplicates(subset=['symbol','object','date_1'],keep='first')
 
 
@@ -207,7 +216,7 @@ def mark_tolerance_to_the_level(app_config, application_state, symbol, level_nam
     if level is None:
         logger.warning(f"level {level_name} not found for symbol {symbol}")
         return
-    tolerance = market_data.data_store.get(symbol).get('dynamic_tolerance', {}).get('dynamic_tolerance', 0)
+    tolerance = market_data.data_store.get(symbol).get('dynamic_tolerance', {}).get('tolerance', 0)
 
     p1 = level - tolerance * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1)
     p2 = level + tolerance * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1)
@@ -218,10 +227,8 @@ def mark_tolerance_to_the_level(app_config, application_state, symbol, level_nam
     df = market_data.dfs_map.get(symbol)
     date = df['date'].iloc[-1]
 
-    # add_to_signlas(symbol, f'{level_name}_SMALL_DOT', p1, date, f'tel: {p1}, l: {level} t: {tolerance}', 'yellow' )
     TradingLedger.add_to_list("signals", (symbol, f'{level_name}_SMALL_DOT', p1, date, f'tel: {p1}, l: {level} t: {tolerance}', 'yellow' ))
 
-    # add_to_signlas(symbol, f'{level_name}_SMALL_DOT_1', p2, date, f'tel: {p2}, l: {level} t: {tolerance}' ,'yellow' )
     TradingLedger.add_to_list("signals", (symbol, f'{level_name}_SMALL_DOT_1', p2, date, f'tel: {p2}, l: {level} t: {tolerance}' ,'yellow' ))
 
     return
@@ -240,7 +247,6 @@ def mark_atr_to_the_level(application_state, symbol, side, level_name, market_da
     else:
         p1 = round(level - atr, 2)
 
-    # add_to_signlas(symbol, f'{level_name}_SMALL_DOT_2', p1, date, f'atr_14: p: {p1}, l: {level} atr: {round(atr,2)}', 'red' )
     TradingLedger.add_to_list("signals", (symbol, f'{level_name}_SMALL_DOT_2', p1, date, f'atr_14: p: {p1}, l: {level} atr: {round(atr,2)}', 'red' ))
 
     return
@@ -248,14 +254,11 @@ def mark_atr_to_the_level(application_state, symbol, side, level_name, market_da
 
 def add_atr_to_candle_info(symbol, market_data):
     df = market_data.dfs_map.get(symbol)
-    dynamic_tolerance = market_data.data_store.get(symbol).get('dynamic_tolerance', {}).get('dynamic_tolerance', 0)
+    dynamic_tolerance = market_data.data_store.get(symbol).get('dynamic_tolerance', {}).get('tolerance', 0)
 
     add_to_candle_info_df(symbol, date=df['date'].iloc[-1], price=df['close'].iloc[-1], memo=f'{dynamic_tolerance}')
 
-
     return
-
-
 
 def add_rs_relative_to_candle_info(symbol, intraday_rs_df, market_data):
     if symbol == 'QQQ':

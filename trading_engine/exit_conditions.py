@@ -25,7 +25,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
         # ###
         # stop loss
         # ###
-        if not application_state.get('should_save'):
+        if not application_state.get('is_save_time'):
             logger.info(f"in check_for_stop_loss, {symbol} , {open_trade_info}" )
             #json_utils.print_map_pretty(open_trade_info)
 
@@ -360,14 +360,14 @@ def check_mark_revers_candles(application_state, symbol, take_profit_alias=None,
         logger.info(f"check_mark_revers_candles, {symbol}, last two \n {df[-2:].to_markdown()}")
 
         df = df[:-2]                           # cut the latest row and the prev one as we comparing against it ...
-        logger.info(f"@@ check_mark_revers_candles, {symbol}, candles we checking - after cutting last two (need to be verified)\n {df.to_markdown()}")
+        logger.info(f"@@ check_mark_revers_candles, {symbol}, candles we checking - after cutting last two (need to be verified)\n {df[-5:].to_markdown()}")
         if right == 'C':
 
             df["is_bearish"] = df["close"] < df["open"]
             lowest_bearish_low = df.loc[df["is_bearish"], "low"].min()
 
             result = prev_close < lowest_bearish_low and crossed_ema9
-            logger.info(f"check_mark_revers_candles, {symbol}, lowest_bearish_low: {lowest_bearish_low}, prev_close: {prev_close}, {result}, \n{df.to_markdown()}")
+            logger.info(f"check_mark_revers_candles, {symbol}, lowest_bearish_low: {lowest_bearish_low}, prev_close: {prev_close}, {result}, \n{df[-5:].to_markdown()}")
             if result:
                 logger.info(f"check_mark_revers_candles, {symbol}, The break happened. lowest_bearish_low: {lowest_bearish_low}, prev_close: {prev_close}")
                 # add_to_signlas(symbol, 'LEVEL_REPLACED', df['close'].iloc[-1], check_date, f'Level is break out {check_date}<br> t_date: {target_date} <br>  lowest_bearish_low: {lowest_bearish_low} <br> prev_close: {prev_close}' )
@@ -379,7 +379,7 @@ def check_mark_revers_candles(application_state, symbol, take_profit_alias=None,
             highest_bulish_high = df.loc[df["is_bulish"], "high"].max()
 
             result = prev_close > highest_bulish_high and crossed_ema9
-            logger.info(f"check_mark_revers_candles, {symbol}, highest_bulish_high: {highest_bulish_high}, prev_close: {prev_close}, result: {result}, \n {df.to_markdown()}")
+            logger.info(f"check_mark_revers_candles, {symbol}, highest_bulish_high: {highest_bulish_high}, prev_close: {prev_close}, result: {result}, \n {df[-5:].to_markdown()}")
             if result:
                 logger.info(f"check_mark_revers_candles, {symbol}, The break happened. highest_bulish_high: {highest_bulish_high}, prev_close: {prev_close}")
                 # add_to_signlas(symbol, 'LEVEL_REPLACED', df['close'].iloc[-1], check_date, f'Level is break out {check_date}<br> t_date: {target_date} <br>  highest_bulish_high: {highest_bulish_high} <br> prev_close: {prev_close}' )

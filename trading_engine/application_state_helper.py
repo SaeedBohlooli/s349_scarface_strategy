@@ -34,20 +34,10 @@ async def initialize_application_state(ib, app_config, application_state):
 
 def initialize_application_state_for_run(app_config, application_state):
 
-    """
-
-    :param application_state:
-    :return:
-    """
     application_state['breakouts'] = {}
     application_state['retests'] = {}
     application_state['breakout_idx'] = {}
     application_state['retest_idx'] = {}
-    # for symbol in app_config['symbols']:
-    #     application_state['symbols'][symbol] = {}
-    #
-    # application_state['is_busy_time'] = False
-
 
     is_trade_time = eval(app_config['live']['trade_time'])
     current_hh_mm_ny = date_utils.get_current_hhmm_ny() #used in the config evals
@@ -58,12 +48,10 @@ def initialize_application_state_for_run(app_config, application_state):
     application_state['is_busy_time'] = is_busy_time
     application_state['is_market_time'] = is_market_time
 
-    if is_busy_time and risk_helper.calcualte_number_of_open_positions(application_state) != 0:
-        application_state['should_save'] =  True
+    if is_busy_time or risk_helper.calcualte_number_of_open_positions(application_state) != 0:
+        application_state['is_save_time'] =  False
     else:
-        application_state['should_save'] =  False
-
-    # application_state['should_save'] =  True
+        application_state['is_save_time'] =  True
 
 
 

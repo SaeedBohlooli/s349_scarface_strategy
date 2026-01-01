@@ -6,7 +6,7 @@ logging_level: logging.INFO
 
 ws_port: 6349
 
-flask:
+api_service:
   port: 5349
   host: 127.0.0.1
 
@@ -51,11 +51,11 @@ files:
   screening_summary_for_all_sub_runs_agg_df: "{results}/25-screening_summary_for_all_sub_runs_agg_df.csv"  # TODO rename
 
 
-data_saver:
-  default_interval_seconds: 600    # 10 min default
-  intervals:
-    application_state: 600              # 10 min
-    account_info_map: 300               # 5 min
+#data_saver:
+#  default_interval_seconds: 600    # 10 min default
+#  intervals:
+#    application_state: 600              # 10 min
+#    account_info_map: 300               # 5 min
 
 
 
@@ -305,7 +305,7 @@ chart:
   hours_in_focus: 3
   live:
     start_time: '09:00'
-    end_time: '14:00'
+    end_time: '20:00'
 
 # before_start:
 load_application_state_from_file: true

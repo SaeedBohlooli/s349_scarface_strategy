@@ -1,6 +1,8 @@
 import sys
 import time
 
+from bokeh.colors.named import chartreuse
+
 sys.path.insert(0, f'../')
 import plotly.io as pio
 import plotly.graph_objects as go
@@ -902,23 +904,41 @@ def index():
     mode = app_config['chart']['source']
 
     backtest_base_dir = '../../portfolios/charts-backtest'
-    available_dates = sorted([
+    live_base_dir = f'../../portfolios/{portfolio_id}/charts/'
+
+    available_backtest_dates = sorted([
         d for d in os.listdir(backtest_base_dir)
         if os.path.isdir(os.path.join(backtest_base_dir, d))
     ], reverse=True)  # sort newest first
-    available_dates.insert(0 , 'live') # adding live to bigiinig ...
-    backtest_date = request.args.get('backtest_date') # read from URL
+    # available_backtest_dates.insert(0 , 'live') # adding live to bigiinig ...
+    live_dates = sorted([
+        d for d in os.listdir(live_base_dir)
+        if os.path.isdir(os.path.join(live_base_dir, d))
+    ], reverse=True)  # sort newest first
+
+    available_dates = live_dates + available_backtest_dates
+
+    chart_date = request.args.get('chart_date') # read from URL
     logger.info(f"available_dates {available_dates}")
-    if backtest_date is None:
-        backtest_date = available_dates[0]
-    logger.info(f"backtest_date: {backtest_date}")
-    if backtest_date == 'live':
-        charts_dir = f'../../portfolios/{portfolio_id}/charts/2025-12-29'
+    if chart_date is None:
+        chart_date = available_dates[0]
+
+
+    logger.info(f"chart_date: {chart_date}")
+    if len (chart_date) == 10:  # backtest date format 'YYYYMMDD' or 'YYYY-MM-DD'
+        charts_dir = f'../../portfolios/{portfolio_id}/charts/{chart_date}'
         mode = 'live'
     else:
-        charts_dir = f'../../portfolios/charts-backtest/{backtest_date}/{portfolio_id}'
+        charts_dir = f'../../portfolios/charts-backtest/{chart_date}/{portfolio_id}'
         mode = 'back_test'
-    # time.sleep(1)
+    # if 'chart_date 'live':
+    #     charts_dir = f'../../portfolios/charts-backtest/{chart_date}/{portfolio_id}'
+    #     mode = 'back_test'
+    # else:
+    #     charts_dir = f'../../portfolios/{portfolio_id}/charts/2025-12-29'
+    #     mode = 'live'
+
+# time.sleep(1)
 
     drawing_objects_df = load_file_to_drawing_objects_df()
     hover_df = load_file_to_hover_df()
@@ -956,11 +976,11 @@ def index():
     logger.warning(f'run_spend_time: {run_spend_time} seconds')
 
     logger.info(f"Done! {run_counter}")
-    if backtest_date != '':
+    if chart_date != '':
         return render_template(
             "index.html",
             plots=plots,
-            backtest_date=backtest_date,
+            backtest_date=chart_date,
             available_dates=available_dates  # ✅ must pass this
         )
     else:
