@@ -17,6 +17,7 @@ from trading_core import market_session_guard
 from trading_core import application_state_router
 from trading_core import trading_ledger
 from trading_core import ib_heartbeat_loop
+from trading_core import engine_cycle
 
 from trading_engine import marketdata_helper
 from trading_engine import inidicators
@@ -48,9 +49,12 @@ class TradingEngine:
         self.market_data = MarketDataStore()
 
 
-    async def do_miscs(self, ib, interval_seconds=60):
+    async def do_miscs(self, ib, application_state, interval_seconds=60):
         while True:
             try:
+                if engine_cycle.should_exit(application_state=application_state):
+                    logger.info("[do_miscs] Exiting as requested.")
+                    break
                 logger.info(f"do_miscs ...")
                 application_state_router.populate_global_state(application_state=self.application_state)
                 self.application_state["eval_ctx"] = order_helper.create_eval_ctx(self.application_state)
@@ -96,9 +100,13 @@ class TradingEngine:
                 day_of_week = self.runtime.now_day_of_week()
                 symbol_number = 0
                 logger.info(f"==================== run_number: {run_number}, unique_run_number_X: {unique_run_number_X}")
+                self.runtime.reload_runtime_config()
                 application_state_helper.initialize_application_state_for_run(self.app_config, self.application_state)
 
                 self.application_state['is_busy_time'] = False # TODO: improve this later
+                if engine_cycle.should_exit(application_state=self.application_state):
+                    logger.info("[market_session_guard_loop] Exiting as requested.")
+                    break
 
                 if ib is None:
                     logger.warning("ib is None... so give a try to reconnect ...")
@@ -111,10 +119,13 @@ class TradingEngine:
                 if self.runtime.should_run_once("SUBSCRIBE_FOR_CURRENT_PRICE"):
                     await pricing_helper.subscribe_for_current_price(ib, self.app_config, self.application_state)
 
+                await asyncio.sleep(self.app_config['interval_seconds']['engine_loop'])
+                continue
+
                 if self.runtime.is_due("PREPARE_OPTION_CONTRACTS_FOR_LATER_USE", interval_sec=60*10, min_time_hhmm=930):
                     await options_helper.prepare_option_contracts_for_later_use(ib, self.app_config, self.application_state, self.market_data)
 
-                if not self.application_state['is_busy_time'] and self.runtime.is_due('DO_PNL', interval_sec=5*60):
+                if not self.application_state['is_busy_time'] and self.runtime.is_due('DO_PNL', interval_sec=5*60): # TODO should be not busy_time?!
                     pnl_helper.populate_open_close_refs_pnl_df()
                     pnl_helper.populate_close_orders_in_capital_flow_df()
                     pnl_helper.check_open_orders_in_capital_flow_df(self.application_state)
@@ -136,7 +147,9 @@ class TradingEngine:
                         current_price = -1.0
                     self.application_state.setdefault('latest_prices', {})[symbol] = current_price
 
+                    logger.info(f"Starting get_historical_data for {symbol}")
                     df = await marketdata_helper.get_historical_data(ib, symbol, self.app_config, self.application_state, time_frame='1m', historical_days='3 D')
+                    logger.info(f"Finished get_historical_data for {symbol}")
                     if df is None or len(df) ==0:
                         logger.warning(f"@@@@@ {symbol}, no data found, skip the symbol for now ...")
                         continue
@@ -192,18 +205,16 @@ class TradingEngine:
 
                     await exit_conditions.check_for_stop_loss_and_take_profit(ib, self.app_config, self.application_state, self.market_data)
 
-                    if self.application_state['is_busy_time'] and 931 < current_hh_mm_ny and not self.runtime.should_run_once(f'{symbol}-MARK_GAP'):
+                    if self.application_state['is_save_time'] and 931 < current_hh_mm_ny and not self.runtime.should_run_once(f'{symbol}-MARK_GAP'):
                         chart_helper.detect_a_mark_market_gap(self.application_state, symbol, df)  # need to happen one time after 9:30
 
                     if self.application_state['is_save_time'] and self.runtime.is_due(f'{symbol}-EXTRA-FEATURES-DF-SAVE', interval_sec=5*60):
-                        marketdata_helper.save_extra_features_df(self.application_state, symbol, df, relative_strength_df, intraday_rs_df,time_frame='1 min')
+                        marketdata_helper.save_extra_features_df(self.application_state, symbol, df, relative_strength_df, intraday_rs_df,time_frame='1 min', save_tabular=False)
 
                     chart_helper.add_buy_a_sell_entries_to_signals(self.app_config, self.application_state, buy_sell_case_results_list, symbol, self.market_data)
 
-
-
-                    position_helper.update_for_avg_cost(self.application_state)
-                    position_router.update_application_state_for_ib_positions(ib, self.application_state)
+                    position_helper.update_position_for_avg_cost(self.application_state)  # TODO this is wrong
+                    position_helper.update_position_for_entry_execution_price(self.application_state)
 
                     symbol_end_time = time.time()
                     symbol_run_spend_time = round(symbol_end_time - symbol_start_time, 2)
@@ -220,7 +231,10 @@ class TradingEngine:
                     self.application_state['TradingLedger.get_all_list_stats'] =TradingLedger.get_all_list_stats()
 
                 if self.application_state['is_save_time'] and self.runtime.is_due('SAVE_OHLC',interval_sec=1*60):
-                    marketdata_helper.save_ohlc_for_chart(self.application_state, self.market_data)
+                    marketdata_helper.save_ohlc_for_chart(self.application_state, self.market_data, save_tabular=False)
+
+                if self.runtime.is_due(f'UPDATE-IB-POSITIONS', interval_sec=1*60):
+                    position_router.update_application_state_for_ib_positions(ib, self.application_state)
 
                 end_time = time.time()
                 run_time_spent = round(end_time - start_time, 2)
@@ -240,17 +254,16 @@ class TradingEngine:
         ws_server = await self.ws.start()
 
         state_streamer = StateStreamer(self.app_config, self.application_state, self.ws, interval=5)
-        config_streamer = ConfigStreamer(self.app_config, self.application_state, self.ws, interval=12)
+        config_streamer = ConfigStreamer(self.app_config, self.application_state, self.ws, interval=60)
 
         self.logger.info("WebSocket server is starting...")
 
         await asyncio.gather(
             ws_server,
             state_streamer.run(),
-            # config_streamer.run(),
+            config_streamer.run(),
             self.engine_loop(ib),
-            self.do_miscs(ib, interval_seconds=60),
-
+            self.do_miscs(ib, self.application_state, interval_seconds=60),
             # user_request_x.user_request_loop(self.app_config, self.application_state),
             self.boot.data_saver_manager.run(ib, interval_sec=60),
             ib_heartbeat_loop.ib_heartbeat_loop(ib, app_config=self.app_config,application_state=self.application_state, interval_seconds=60),

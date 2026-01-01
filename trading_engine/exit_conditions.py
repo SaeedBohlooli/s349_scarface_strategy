@@ -20,7 +20,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
     symbols_need_to_be_removed = [] # we dont remove in the loop ..
 
     for symbol, open_trade_info in application_state.get('open_trades_dic', {}).items():
-        logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, open order unique_ru_number: {open_trade_info.get('unique_ru_number')}" )
+        logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, open order unique_ru_number: {open_trade_info.get('unique_run_number')}" )
 
         # ###
         # stop loss

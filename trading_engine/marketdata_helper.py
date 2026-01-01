@@ -27,7 +27,7 @@ async def get_historical_data(ib, symbol, app_config, application_state, time_fr
     return df
 
 
-def save_ohlc_for_chart(application_state, market_data):
+def save_ohlc_for_chart(application_state, market_data, save_tabular=False):
     mode = application_state.get('mode', 'live')
     time_frame = "1 min"
     for symbol, df in market_data.dfs_map.items():
@@ -35,11 +35,11 @@ def save_ohlc_for_chart(application_state, market_data):
         if mode == 'live':
             df = df[['date','open', 'high', 'low', 'close', 'volume', 'atr_14']]
             file_name = f"{symbol}-{time_frame.replace(' ', '')}.csv"
-            FileManager.save_my_df(df, dir="charts", file_name=file_name, save_tabular=True, mode='w')
+            FileManager.save_my_df(df, dir="charts", file_name=file_name, save_tabular=save_tabular, mode='w')
     return
 
 
-def save_extra_features_df(application_state, symbol, df, relative_strength_df, intraday_rs_df, time_frame='1 min'):
+def save_extra_features_df(application_state, symbol, df, relative_strength_df, intraday_rs_df, time_frame='1 min', save_tabular=False):
     mode = application_state.get('mode', 'live')
     extra_features_df = df.copy()
     extra_features_df = extra_features_df.merge(relative_strength_df, on='date', how='left')
@@ -50,4 +50,4 @@ def save_extra_features_df(application_state, symbol, df, relative_strength_df, 
     if mode == 'back_test':
         extra_features_df = df_utils.cut_df_strating_hour_x_on_last_day(extra_features_df, cutoff_time="09:15")
 
-    FileManager.save_my_df(extra_features_df, dir="charts", file_name=file_name, save_tabular=True, mode='w')
+    FileManager.save_my_df(extra_features_df, dir="charts", file_name=file_name, save_tabular=save_tabular, mode='w')
