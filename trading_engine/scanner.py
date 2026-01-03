@@ -61,18 +61,18 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
             can_sell = True
 
         logger.info(f"check_buy_sell_condition(), {case}, {symbol}, {can_buy}, {can_sell}")
-        logger.info(f"check_buy_sell_condition(), {case}, can_buy: {can_buy}, {symbol}")
-        logger.info(f"check_buy_sell_condition(), {case}, can_sell: {can_sell}, {symbol}")
+        logger.info(f"check_buy_sell_condition(), {case}, {symbol}, can_buy: {can_buy}, ")
+        logger.info(f"check_buy_sell_condition(), {case}, {symbol}, can_sell: {can_sell}")
 
-        # long_breakup_idxs = break_out_indices_by_level_set.get(long_level, set())
+        # long_breakout_idxs = break_out_indices_by_level_set.get(long_level, set())
         # long_retest_idxs = retest_indices_by_level_set.get(long_level, set())
-        long_breakup_idxs = get_break_out_indices_by_level_set(application_state, symbol, long_level)
+        long_breakout_idxs = get_break_out_indices_by_level_set(application_state, symbol, long_level)
         long_retest_idxs = get_retest_indices_by_level_set(application_state, symbol, long_level)
 
-        # short_breakup_idxs = break_out_indices_by_level_set.get(short_level, set())
+        # short_breakout_idxs = break_out_indices_by_level_set.get(short_level, set())
         # short_retest_idxs = retest_indices_by_level_set.get(short_level, set())
 
-        short_breakup_idxs = get_break_out_indices_by_level_set(application_state, symbol, short_level)
+        short_breakout_idxs = get_break_out_indices_by_level_set(application_state, symbol, short_level)
         short_retest_idxs = get_retest_indices_by_level_set(application_state, symbol, short_level)
 
         result_long =  ",".join(f"{i + 1}:{val}" for i, val in enumerate(evaluated_conditions_map.get('long', {}).get('valuated_conditions', [])))
@@ -84,11 +84,16 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
         long_retest_idx = get_retest_idx(application_state, symbol, long_level)
         short_retest_idx = get_retest_idx(application_state, symbol, short_level)
 
+        logger.info(f"check_buy_sell_condition(), breakout_idxs, {case}, {symbol}, can_buy: {long_breakout_idxs}, {long_retest_idxs}")
+        logger.info(f"check_buy_sell_condition(), breakout_idxs, {case}, {symbol}, can_sell: {short_breakout_idxs}, {short_retest_idxs}")
+
+        logger.info(f"check_buy_sell_condition(), {case}, {symbol}, can_buy: {long_breakout_idx}, {long_retest_idx}")
+        logger.info(f"check_buy_sell_condition(), {case}, {symbol}, can_sell: {short_breakout_idx}, {short_retest_idx}")
 
         # This is shown in the chart ..
         res_str = (f"res_{case}:<br>"
-                   f"{result_long} .. {long_breakup_idxs}.{long_retest_idxs} <br>"
-                   f"{result_short} .. {short_breakup_idxs}.{short_retest_idxs} <br>"
+                   f"{result_long} .. {long_breakout_idxs}.{long_retest_idxs} <br>"
+                   f"{result_short} .. {short_breakout_idxs}.{short_retest_idxs} <br>"
                    f"long_breakout: {long_breakout_idx}, long_retest: {long_retest_idx} <br>"
                    f"short_breakout: {short_breakout_idx}, short_retest: {short_retest_idx} <br>"
                    f"{df['date'].iloc[-1].strftime('%H:%M')}")
@@ -96,7 +101,7 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
         res_str = res_str.replace('False', 'F')
 
         res_str_log = res_str.replace('<br>', '\n')
-        logger.info(f"\nres_str: {res_str_log}")
+        logger.info(f"res_str:\n{res_str_log}")
     except Exception as e:
         logger.error(f"@ in check_buy_sell_condition: {symbol} {case} error {e}")
         logger.error(traceback.format_exc())
@@ -337,14 +342,16 @@ def is_retest_after_breakout(application_state, symbol, side='up', level=1, leve
         return False
     if max(retest_idxs) > min(breakout_idxs):
         retest_idx = max(retest_idxs)
-        application_state.setdefault('retest_idx', {})[symbol] = {'retest_idx': retest_idx, 'level': level, 'level_alias': level_alias}
+        application_state.setdefault('retest_idx', {}).setdefault(symbol, []).append({'retest_idx': retest_idx, 'level': level, 'level_alias': level_alias})
         valid_breakouts = [b for b in breakout_idxs if b < retest_idx]   # all the breakout idxs that are before retest_idx
         if valid_breakouts:
             breakout_idx = max(valid_breakouts)  # closest (largest) breakout before retest
-            application_state.setdefault('breakout_idx', {})[symbol] = {'breakout_idx' : breakout_idx, 'level': level, 'level_alias': level_alias }
+            application_state.setdefault('breakout_idx', {}).setdefault(symbol, []).append({'breakout_idx' : breakout_idx, 'level': level, 'level_alias': level_alias })
         return True
     else:
         return False
+
+    return False
 
 
 def all_levels_in(application_state, symbol):
@@ -357,24 +364,6 @@ def all_levels_in(application_state, symbol):
 
 
 
-def is_retest_after_breakout(application_state, symbol, side='up', level=1 ):
-
-    breakout_idxs = get_breakout_idx(application_state, symbol, level)
-    retest_idxs = get_retest_idx(application_state, symbol, level)
-    if breakout_idxs is None or retest_idxs is None:
-        return False
-
-    if retest_idxs == set() or breakout_idxs == set():
-        return  False
-    if max(retest_idxs) > min(breakout_idxs):
-        retest_idx = max(retest_idxs)
-        valid_breakouts = [b for b in breakout_idxs if b < retest_idx]   # all the breakout idxs that are before retest_idx
-        if valid_breakouts:
-            breakout_idx = max(valid_breakouts)  # closest (largest) breakout before retest
-
-        return True
-    else:
-        return False
 
 
 # def get_breakout_idx(application_state, symbol, level):
@@ -384,22 +373,23 @@ def is_retest_after_breakout(application_state, symbol, side='up', level=1 ):
 #     return application_state.get('retests_idx', {}).get('case', {}).get(symbol, None)
 
 def get_breakout_idx(application_state, symbol, level):
-    for breakout_idx in application_state.get('breakout_idx', {}).get(symbol, []):
-        if breakout_idx['level'] == level:
-            return breakout_idx['idx']
+   #  application_state.setdefault('breakout_idx', {})[symbol] = {'breakout_idx' : breakout_idx, 'level': level, 'level_alias': level_alias }
+    for entry in application_state.get('breakout_idx', {}).get(symbol, []):
+        if entry['level'] == level:
+            return entry['breakout_idx']
     return None
 
 def get_retest_idx(application_state, symbol, level):
-    for retest_idx in application_state.get('retest_idx', {}).get(symbol, []):
-        if retest_idx['level'] == level:
-            return retest_idx['idx']
+    for entry in application_state.get('retest_idx', {}).get(symbol, []):
+        if entry['level'] == level:
+            return entry['retest_idx']
     return None
 
 
 def check_entry_vs_retest(application_state, case, symbol, df, side='up', level=1, retest_ohlc=''):
 
-    retest_idx = get_retest_idx(application_state, case, symbol)
-    breakout_idx = get_breakout_idx(application_state, case, symbol)
+    retest_idx = get_retest_idx(application_state, symbol, level)
+    breakout_idx = get_breakout_idx(application_state, symbol, level)
 
     if retest_idx is None or breakout_idx is None:
         return False

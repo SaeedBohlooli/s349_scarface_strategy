@@ -119,17 +119,24 @@ class TradingEngine:
                 if self.runtime.should_run_once("SUBSCRIBE_FOR_CURRENT_PRICE"):
                     await pricing_helper.subscribe_for_current_price(ib, self.app_config, self.application_state)
 
-                await asyncio.sleep(self.app_config['interval_seconds']['engine_loop'])
-                continue
-
                 if self.runtime.is_due("PREPARE_OPTION_CONTRACTS_FOR_LATER_USE", interval_sec=60*10, min_time_hhmm=930):
                     await options_helper.prepare_option_contracts_for_later_use(ib, self.app_config, self.application_state, self.market_data)
 
-                if not self.application_state['is_busy_time'] and self.runtime.is_due('DO_PNL', interval_sec=5*60): # TODO should be not busy_time?!
+                if not self.application_state['is_busy_time'] and self.runtime.is_due('DO_PNL', interval_sec=1*60): # TODO should be not busy_time?!
+                    # logger.info(f"Before PnL calculations, capital_flow_df: \n{TradingLedger.get_dataframe('capital_flow_df')[-100:].to_markdown()}")
+                    # for one time only, read capital_flow_df drop all records have event == 'REVERSE_OPEN_ORDER' and save it back.
+                    # do it here, no functuon call
+                    # capital_flow_df = TradingLedger.get_dataframe('capital_flow_df')
+                    # capital_flow_df = capital_flow_df[capital_flow_df['event'] != 'REVERSE_OPEN_ORDER']
+                    # TradingLedger.set_dataframe('capital_flow_df', capital_flow_df)
+                    logger.info(f"After PnL calculations, after drop : \n{TradingLedger.get_dataframe('capital_flow_df')[-100:].to_markdown()}")
+
+
                     pnl_helper.populate_open_close_refs_pnl_df()
                     pnl_helper.populate_close_orders_in_capital_flow_df()
                     pnl_helper.check_open_orders_in_capital_flow_df(self.application_state)
                     pnl_helper.recompute_capital_flow_df(4000)
+
 
                 for symbol in self.app_config.get('symbols'):
                     symbol_number += 1

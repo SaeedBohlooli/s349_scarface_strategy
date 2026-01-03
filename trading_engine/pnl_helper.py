@@ -89,7 +89,7 @@ def populate_close_orders_in_capital_flow_df():
     missing = open_close_refs_pnl_df[~open_close_refs_pnl_df["close_order_ref"].isin(capital_flow_df["close_order_ref"])]
 
     if missing.empty:
-        return capital_flow_df  # nothing to add
+        return   # nothing to add
 
     logger.warning(f"missing: \n{missing.to_markdown()}")
 
@@ -100,7 +100,7 @@ def populate_close_orders_in_capital_flow_df():
     )
 
     rows_to_add_df['time_stamp'] = str(date_utils.time_now())
-    rows_to_add_df['trade_date'] = date_utils.get_yyyy_mm_dd()
+    rows_to_add_df['trade_date'] = date_utils.get_yyyymmdd()
     rows_to_add_df['event'] = 'CLOSE_ORDER'
     rows_to_add_df['cash_flow'] = rows_to_add_df['realized_pnl']
     rows_to_add_df['memo'] = 'Added from IB logs'
@@ -130,7 +130,7 @@ def check_open_orders_in_capital_flow_df(application_state):
         if not is_order_ref_open(application_state, open_order_ref):
             d = {
                 'time_stamp': str(date_utils.time_now()),
-                'trade_date': date_utils.get_yyyy_mm_dd(),
+                'trade_date': date_utils.get_yyyymmdd(),
                 'event': 'REVERSE_OPEN_ORDER',
                 'cash_flow': row['cash_flow'] * -1,
                 'symbol': row['symbol'],
@@ -196,4 +196,5 @@ def recompute_capital_flow_df(start_capital):
             capital = round(capital + cash_flow, 2)
             df.at[i, "capital_after_event"] = capital
 
+    df = df.drop_duplicates()
     TradingLedger.set_dataframe('capital_flow_df', df)

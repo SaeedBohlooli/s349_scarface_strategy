@@ -108,7 +108,7 @@ def add_candle_info_df_to_signals():
     )
 
     for index, row in df_grouped.iterrows():
-        logger.info(f"add_candle_info_df_to_signals, row:\n{row}")
+        logger.debug(f"add_candle_info_df_to_signals, row:\n{row}")
         date = row['date']
         symbol = row['symbol']
         date.strftime('%H:%M')  # just hh:mm from  2025-10-17 10:56:00-04:00
