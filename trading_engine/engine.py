@@ -119,7 +119,7 @@ class TradingEngine:
                 if self.runtime.should_run_once("SUBSCRIBE_FOR_CURRENT_PRICE"):
                     await pricing_helper.subscribe_for_current_price(ib, self.app_config, self.application_state)
 
-                if self.runtime.is_due("PREPARE_OPTION_CONTRACTS_FOR_LATER_USE", interval_sec=60*10, min_time_hhmm=930):
+                if self.runtime.is_due("PREPARE_OPTION_CONTRACTS_FOR_LATER_USE", interval_sec=60*5, min_time_hhmm=930):
                     await options_helper.prepare_option_contracts_for_later_use(ib, self.app_config, self.application_state, self.market_data)
 
                 if not self.application_state['is_busy_time'] and self.runtime.is_due('DO_PNL', interval_sec=1*60): # TODO should be not busy_time?!
@@ -226,6 +226,7 @@ class TradingEngine:
                     symbol_end_time = time.time()
                     symbol_run_spend_time = round(symbol_end_time - symbol_start_time, 2)
                     logger.warning(f'------------------- {symbol}, {unique_run_number}, symbol_run_spend_time: {symbol_run_spend_time} seconds')
+                    self.application_state.setdefault("run_times", {})[symbol] = symbol_run_spend_time
 
                     # end while for symbols
 
@@ -240,12 +241,14 @@ class TradingEngine:
                 if self.application_state['is_save_time'] and self.runtime.is_due('SAVE_OHLC',interval_sec=1*60):
                     marketdata_helper.save_ohlc_for_chart(self.application_state, self.market_data, save_tabular=False)
 
-                if self.runtime.is_due(f'UPDATE-IB-POSITIONS', interval_sec=1*60):
+                if (position_helper.calculate_number_of_open_positions(self.application_state) > 0 or  # either is open positions or ...
+                        self.runtime.is_due(f'UPDATE-IB-POSITIONS', interval_sec=3*60)):
                     position_router.update_application_state_for_ib_positions(ib, self.application_state)
 
                 end_time = time.time()
                 run_time_spent = round(end_time - start_time, 2)
                 logger.warning(f'==================== unique_run_number: {unique_run_number}, run_spent_time: {run_time_spent} seconds, sleep ... {self.app_config['interval_seconds']['engine_loop']}')
+                self.application_state.setdefault("run_times", {})['engine_loop_run_time_spent'] = run_time_spent
 
                 await asyncio.sleep(self.app_config['interval_seconds']['engine_loop'])
             except Exception as e:

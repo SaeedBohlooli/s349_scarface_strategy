@@ -18,6 +18,7 @@ from trading_engine import options_helper
 from trading_engine import pricing_helper
 from trading_engine import risk_helper
 from trading_engine import notification_helper
+from trading_engine import position_helper
 
 
 async def check_buy_sell_result_to_send_order(ib, app_config, application_state, buy_sell_case_results_list, symbol, df, market_data):
@@ -38,7 +39,7 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
 
         logger.info(f"{symbol}, case: {case}, can_buy: {can_buy}, can_sell: {can_sell}")
 
-        if can_buy == False and can_sell == False: # no sucess ...
+        if can_buy == False and can_sell == False: # no success ...
             continue
         logger.info(f"check_buy_sell_result_to_send_order, {symbol}, can_buy: {can_buy}, can_sell:{can_sell}")
 
@@ -78,18 +79,15 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
                 continue
             bid, ask, last = await pricing_helper.get_quote_for_option_bid_ask(ib, symbol=symbol, expiry=option_contract.lastTradeDateOrContractMonth, strike=option_contract.strike, right=option_contract.right )
             if not number_utils.is_valid_price(bid) or not number_utils.is_valid_price(ask):
-
                 logger.warning(f"@@@@@ We are not sending order. bid: {bid} or ask: {ask}")
                 continue
 
             total_quantity, capital_data = risk_helper.calculate_number_of_option_contracts(app_config, application_state, symbol, option_contract.strike, ask)
-            # application_state.setdefault('risk', {}).setdefault('records', []).append(capital_data)  NO need for now ...
             add_to_capital_allocation_df(application_state, capital_data)
             if total_quantity == 0:  # we don't have enough capital
                 logger.warning(f"@@ We dont have enough capital {symbol} ....")
                 continue
             order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='OPEN', symbol=symbol, side='long', unique_run_number=application_state.get('unique_run_number'), right= right)
-            # send_order(option_contract, total_quantity=total_quantity, order_ref= order_ref)
             await send_order(ib, option_contract, side='long', total_quantity=total_quantity, order_ref=order_ref)
             data = {
                 'date': f'{date_utils.time_now()}',
@@ -99,8 +97,8 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
                 'starting_quantity':total_quantity,
                 'available_quantity':total_quantity,
                 'entry_underlying_price': df['close'].iloc[-1] ,
-                'entry_bid': bid,
-                'entry_ask': ask,
+                'entry_bid': bid, #TODO need to be fixed ...
+                'entry_ask': ask, #TODO need to be fixed ...
                 'entry_execution_price': 0,
                 "current_bid": 0,
                 "current_ask": 0,
@@ -146,8 +144,7 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
 
             candle_date = str(df['date'].iloc[-1])
 
-            # result_dic = ib_orders.send_market_order_w_sl_tp(ib, side, contract, stop_loss_price, take_profit_price, total_quantity, order_ref, candle_date)
-            result_dic = await ib_orders_async.send_market_order_w_sl_tp(ib, side, contract, stop_loss_price, take_profit_price, total_quantity, order_ref, candle_date)
+            result_dic = await ib_orders_async.submit_linear_order_with_sl_tp(ib, side, contract, stop_loss_price, take_profit_price, total_quantity, order_ref, candle_date)
 
             data = {
                 'symbol': symbol,
@@ -166,16 +163,11 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
             json_utils.print_map_pretty(data, msg = 'after MNQ order ')
 
             application_state.setdefault('open_trades_dic', {})[symbol] = data
-            # add_to_signlas(symbol, f'ORDER_SENT', df['close'].iloc[-1], df['date'].iloc[-1], polish_map_to_show_in_hover(data) )
             TradingLedger.add_to_list("signals", (symbol, f'ORDER_SENT',df['close'].iloc[-1],df['date'].iloc[-1], polish_map_to_show_in_hover(data)))
-            # add_to_signlas(symbol, f'STOP_LOSS_SENT', stop_loss_price, df['date'].iloc[-1], polish_map_to_show_in_hover(data) )
             TradingLedger.add_to_list("signals", (symbol, f'STOP_LOSS_SENT', stop_loss_price, df['date'].iloc[-1], polish_map_to_show_in_hover(data)))
-            # add_to_signlas(symbol, f'TAKE_PROFIT_SENT', take_profit_price, df['date'].iloc[-1], polish_map_to_show_in_hover(data) )
             TradingLedger.add_to_list("signals", (symbol, f'TAKE_PROFIT_SENT', take_profit_price, df['date'].iloc[-1], polish_map_to_show_in_hover(data)))
-            # add_to_futures_order_history_df("futures_order_history_df, data)
             TradingLedger.add_to_dataframe("futures_order_history_df", data)
             add_to_number_of_positions_today(application_state, symbol)
-            # send_email(event='order_sent', symbol=symbol, body=polish_map_to_show_in_hover(data))
             notification_helper.send_email(app_config, event='order_sent', symbol=symbol, body=polish_map_to_show_in_hover(data))
             add_order_ref_to_application_state(open_order_ref=order_ref)
             add_order_ref_to_application_state(open_order_ref=order_ref, close_order_ref=f'{order_ref}-TP')  #TODO need to be passed to the send order ...
@@ -349,7 +341,7 @@ def calculate_number_of_future_contracts(app_config, application_state, symbol):
         logger.warning(f"@@@@ we don't have enough capital ...")
     capital_used = num_of_contracts * 2500
     capital_remaining_after_order = available_capital - capital_used
-    open_trades_count_at_entry = risk_helper.calcualte_number_of_open_positions(application_state)
+    open_trades_count_at_entry = position_helper.calculate_number_of_open_positions(application_state)
     # update ...
     application_state.get('risk')['available_capital'] = capital_remaining_after_order
 

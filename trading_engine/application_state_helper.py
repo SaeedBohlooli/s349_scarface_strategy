@@ -1,6 +1,9 @@
 
 from trading_utils import ib_pricing_async, date_utils
 from trading_engine import risk_helper
+from trading_engine import position_helper
+
+
 
 async def initialize_application_state(ib, app_config, application_state):
 
@@ -48,7 +51,7 @@ def initialize_application_state_for_run(app_config, application_state):
     application_state['is_busy_time'] = is_busy_time
     application_state['is_market_time'] = is_market_time
 
-    if is_busy_time or risk_helper.calcualte_number_of_open_positions(application_state) != 0:
+    if is_busy_time or position_helper.calculate_number_of_open_positions(application_state) != 0:
         application_state['is_save_time'] =  False
     else:
         application_state['is_save_time'] =  True

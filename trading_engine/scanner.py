@@ -64,13 +64,9 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
         logger.info(f"check_buy_sell_condition(), {case}, {symbol}, can_buy: {can_buy}, ")
         logger.info(f"check_buy_sell_condition(), {case}, {symbol}, can_sell: {can_sell}")
 
-        # long_breakout_idxs = break_out_indices_by_level_set.get(long_level, set())
-        # long_retest_idxs = retest_indices_by_level_set.get(long_level, set())
         long_breakout_idxs = get_break_out_indices_by_level_set(application_state, symbol, long_level)
         long_retest_idxs = get_retest_indices_by_level_set(application_state, symbol, long_level)
 
-        # short_breakout_idxs = break_out_indices_by_level_set.get(short_level, set())
-        # short_retest_idxs = retest_indices_by_level_set.get(short_level, set())
 
         short_breakout_idxs = get_break_out_indices_by_level_set(application_state, symbol, short_level)
         short_retest_idxs = get_retest_indices_by_level_set(application_state, symbol, short_level)
@@ -102,6 +98,13 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
 
         res_str_log = res_str.replace('<br>', '\n')
         logger.info(f"res_str:\n{res_str_log}")
+
+        application_state.setdefault('buy_sell_case_results_details', {}).setdefault(symbol, {})[case] = {
+            'can_buy': can_buy,
+            'can_sell': can_sell,
+            'res_str': res_str,
+        }
+
     except Exception as e:
         logger.error(f"@ in check_buy_sell_condition: {symbol} {case} error {e}")
         logger.error(traceback.format_exc())
@@ -147,14 +150,12 @@ def replace_level_if_needed(application_state, app_config, df, symbol, side, can
         if next_level > level and abs(next_level - level) < closeness_distance:
             logger.info(f"replace_level_if_needed, level is replaced,{symbol}, {side}, level: {level}, next_level: {next_level}, {df['date'].iloc[-1]}")
             price = chart_helper.get_offseted_price(app_config, application_state,symbol,side='up', price=df['high'].iloc[-1])
-            # add_to_signlas(symbol, 'LEVEL_REPLACED', price, df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}')
             TradingLedger.add_to_list("signals", (symbol, 'LEVEL_REPLACED', price, df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}') )
             return next_level
     else:
         if next_level < level and abs(next_level - level) < closeness_distance:
             logger.info(f"replace_level_if_needed, level is replaced, {symbol}, {side}, level: {level}, next_level: {next_level}, {df['date'].iloc[-1]}")
             price = chart_helper.get_offseted_price(app_config,application_state, symbol,'up', df['high'].iloc[-1])
-            # add_to_signlas(symbol, 'LEVEL_REPLACED', price,  df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}')
             TradingLedger.add_to_list("signals", (symbol, 'LEVEL_REPLACED', price, df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}') )
             return next_level
     return level

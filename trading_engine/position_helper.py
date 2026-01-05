@@ -59,3 +59,20 @@ def update_position_for_entry_execution_price(application_state):
 
 
     return
+
+
+
+def calculate_number_of_open_positions(application_state):
+    """
+    Count open trades across all symbols.
+    A trade is considered open if available_quantity > 0.
+    """
+    open_trades = application_state.get("open_trades_dic", {})
+    count = 0
+
+    for symbol, trade in open_trades.items():
+        if not trade:  # empty dict → skip
+            continue
+        if trade.get("available_quantity", 0) > 0:
+            count += 1
+    return count

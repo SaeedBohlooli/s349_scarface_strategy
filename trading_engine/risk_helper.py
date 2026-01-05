@@ -1,6 +1,8 @@
 import logging
 logger = logging.getLogger(__name__)
 from trading_utils import date_utils
+from trading_engine import position_helper
+
 def calculate_number_of_option_contracts(app_config, application_state, symbol, strike, ask):
 
     available_capital = calcualte_availale_capital(app_config, application_state)
@@ -21,7 +23,7 @@ def calculate_number_of_option_contracts(app_config, application_state, symbol, 
         logger.warning(f"@@@@ we don't have enough capital ...")
     capital_used = num_of_contracts * 100 * ask
     capital_remaining_after_order = available_capital - capital_used
-    open_trades_count_at_entry = calcualte_number_of_open_positions(application_state)
+    open_trades_count_at_entry = position_helper.calculate_number_of_open_positions(application_state)
     # update ...
     application_state.get('risk')['available_capital'] = capital_remaining_after_order
 
@@ -62,7 +64,7 @@ def calculate_number_of_future_contracts(app_config, application_state, symbol):
         logger.warning(f"@@@@ we don't have enough capital ...")
     capital_used = num_of_contracts * 2500
     capital_remaining_after_order = available_capital - capital_used
-    open_trades_count_at_entry = calcualte_number_of_open_positions()
+    open_trades_count_at_entry = position_helper.calculate_number_of_open_positions()
     # update ...
     application_state.get('risk')['available_capital'] = capital_remaining_after_order
 
@@ -94,17 +96,3 @@ def calcualte_availale_capital(app_config, application_state):
        application_state.setdefault('risk', {}).setdefault('available_capital', available_capital )
     return available_capital
 
-def calcualte_number_of_open_positions(application_state):
-    """
-    Count open trades across all symbols.
-    A trade is considered open if available_quantity > 0.
-    """
-    open_trades = application_state.get("open_trades_dic", {})
-    count = 0
-
-    for symbol, trade in open_trades.items():
-        if not trade:  # empty dict → skip
-            continue
-        if trade.get("available_quantity", 0) > 0:
-            count += 1
-    return count
