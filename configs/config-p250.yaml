@@ -121,11 +121,11 @@ take_profits:
   #    memo: for long after tp1, if we go below last down close candle, then we close the position and vice versa for short
 
   t10_cl_manual:  # This is for closing everything just NVDA:   1 == 1 and symbol == 'NVDA'
-    condition: 1 == 1 and symbol == 'AMD'
+    condition: 1 == 2 and symbol == 'AMZN'
     close_quantity_percentage: .5
 
   t11_cl_manual:  # This is for closing everything just NVDA:   1 == 1 and symbol == 'NVDA'
-    condition: 1 == 1 and symbol == 'TSLA'
+    condition: 1 == 1 and symbol == 'AMD'
     close_quantity_percentage: -1
 
 scores:

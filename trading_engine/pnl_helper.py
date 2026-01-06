@@ -22,9 +22,19 @@ def populate_open_close_refs_pnl_df():
     ib_dir = FileManager.dirs.ib
 
     executions_df = ib_posttrade.load_ib_df(ib_dir, 'ib_on_fill_fill_df')
+    if len(executions_df) == 0:
+        logger.warning(f"populate_open_close_refs_pnl_df: No executions found in ib_on_fill_fill_df")
+        return
+
     ib_commission_df = ib_posttrade.load_ib_df(ib_dir, 'ib_commission_df')
+    if len(ib_commission_df) == 0:
+        logger.warning(f"populate_open_close_refs_pnl_df: No commission found in ib_commission_df")
+        return
 
     open_close_refs_df = open_close_refs_df[open_close_refs_df['close_order_ref'].notnull()]
+    if len(open_close_refs_df) == 0:
+        logger.warning(f"populate_open_close_refs_pnl_df: No close_order_ref found in open_close_refs_df")
+        return open_close_refs_df
 
     merged_df = open_close_refs_df.merge(
         executions_df[["execution_orderRef", "execution_execId"]],
@@ -38,14 +48,14 @@ def populate_open_close_refs_pnl_df():
 
     missing = merged_df[merged_df["_merge"] == "left_only"].copy()
     if len(missing)> 0:
-        logger.warning(f"@@@ populate_open_close_refs_pnl_df, missing: \n {missing.to_markdown()}")
+        logger.warning(f"@@@ populate_open_close_refs_pnl_df, missing (close_order_ref is not in IB yet.): \n {missing.to_markdown()}")
     merged_df = merged_df.drop(columns=["_merge"])
 
     merged_df = merged_df.drop(columns=["execution_orderRef" ,"ib_exec_id"])
     merged_df = merged_df.rename(columns={
         "execution_execId": "ib_exec_id",
     })
-    logger.info(f"merged_df:\n {merged_df.to_markdown()}")
+    logger.info(f"populate_open_close_refs_pnl_df, (open_close_refs_df joined with ib) merged_df:\n {merged_df.to_markdown()}")
 
 
     # Now we have ib_exec_id, now merge with commission to find the pnl ...
@@ -60,16 +70,18 @@ def populate_open_close_refs_pnl_df():
     )
     missing = merged_df[merged_df["_merge"] == "left_only"].copy()
     if len(missing)> 0:
-        logger.warning(f"@@@ populate_open_close_refs_pnl_df, missing:\n {missing.to_markdown()}")
+        logger.warning(f"@@@ populate_open_close_refs_pnl_df, missing (no record in commission ):\n {missing.to_markdown()}")
     merged_df = merged_df.drop(columns=["_merge"])
 
     merged_df = merged_df.drop(columns=["execId" ])
     merged_df = merged_df.rename(columns={
         "realizedPNL": "realized_pnl",
     })
-    logger.info(f"populate_open_close_refs_pnl_df, merged_df:\n {merged_df.to_markdown()}")
+    logger.info(f"populate_open_close_refs_pnl_df, merged_df (open_close_refs_df + ib + commission):\n {merged_df.to_markdown()}")
 
     open_close_refs_pnl_df = pd.concat([open_close_refs_pnl_df, merged_df])
+
+    open_close_refs_pnl_df = open_close_refs_pnl_df.drop_duplicates()
 
     TradingLedger.set_dataframe('open_close_refs_pnl_df', open_close_refs_pnl_df)
 
@@ -78,20 +90,20 @@ def populate_close_orders_in_capital_flow_df():
 
     open_close_refs_pnl_df = TradingLedger.get_dataframe('open_close_refs_pnl_df')
 
-    if len(open_close_refs_pnl_df) ==0:
+    if len(open_close_refs_pnl_df) == 0:
         return
 
     capital_flow_df = TradingLedger.get_dataframe('capital_flow_df')
     if len(capital_flow_df) ==0:
         return
 
-    # missing = df2[~df2["order_ref2"].isin(df1["order_ref"])]
+    # The ones in open_close_refs_pnl_df which are not in capital_flow_df
     missing = open_close_refs_pnl_df[~open_close_refs_pnl_df["close_order_ref"].isin(capital_flow_df["close_order_ref"])]
 
     if missing.empty:
         return   # nothing to add
 
-    logger.warning(f"missing: \n{missing.to_markdown()}")
+    logger.warning(f"[populate_close_orders_in_capital_flow_df] populate_close_orders_in_capital_flow_df, missing records need to be added : \n{missing.to_markdown()}")
 
     # Build rows to add. These are the one that are NOT in capital_flow_df
     rows_to_add_df = (
@@ -104,11 +116,13 @@ def populate_close_orders_in_capital_flow_df():
     rows_to_add_df['event'] = 'CLOSE_ORDER'
     rows_to_add_df['cash_flow'] = rows_to_add_df['realized_pnl']
     rows_to_add_df['memo'] = 'Added from IB logs'
+
+    logger.warning(f"[populate_close_orders_in_capital_flow_df], final rows going to be added to capital_flow_df. \n{rows_to_add_df.to_markdown()}")
     # Append to df1
     capital_flow_df = pd.concat([capital_flow_df, rows_to_add_df], ignore_index=True)
 
     logger.warning(f"capital_flow_df: \n{capital_flow_df.to_markdown()}")
-
+    capital_flow_df = capital_flow_df.drop_duplicates()
     TradingLedger.set_dataframe( 'capital_flow_df', capital_flow_df)
     return
 
@@ -116,8 +130,12 @@ def populate_close_orders_in_capital_flow_df():
 def check_open_orders_in_capital_flow_df(application_state):
     # This method fndd order which are cloed and put a reverse record
     # in the capital_flow
-    df = TradingLedger.get_dataframe('capital_flow_df')
-    df = df.fillna(0)
+    df = TradingLedger.get_dataframe('capital_flow_df').copy()
+
+    df['is_closed'] = df['is_closed'].apply(
+        lambda v: 'YES' if str(v).upper() == 'YES' else 'NO'
+    )
+    df['memo'] = df['memo'].fillna('')
 
     df = df.sort_values('time_stamp').reset_index(drop=True)
 
@@ -127,23 +145,28 @@ def check_open_orders_in_capital_flow_df(application_state):
             continue
 
         open_order_ref = row['open_order_ref']
-        if not is_order_ref_open(application_state, open_order_ref):
+        if not is_order_ref_open(application_state, open_order_ref): # this order_ref is not open anymore
+            logger.info(f"check_open_orders_in_capital_flow_df, found closed open order_ref: {open_order_ref}, row: {row.to_dict()}")
             d = {
                 'time_stamp': str(date_utils.time_now()),
                 'trade_date': date_utils.get_yyyymmdd(),
                 'event': 'REVERSE_OPEN_ORDER',
                 'cash_flow': row['cash_flow'] * -1,
                 'symbol': row['symbol'],
-                'memo': f'Reverse for {open_order_ref}'
+                'memo': f'Reverse for {open_order_ref}  update: {date_utils.time_now_yyyy_mm_dd_hh_mm_ss()}'
             }
             reverse_records.append(d)
             df.at[i, "is_closed"] = 'YES'
-    # logger.info(f"reverse_recordsL: \n {\n.join(str(n) for n in reverse_records)}")  TODO not working
-    logger.info(f"reverse_recordsL: \n {reverse_records}")
+            # coancat with exisintg memo
+            df.at[i, "memo"] = f"{df.at[i, 'memo']} | Marked closed on {date_utils.time_now_yyyy_mm_dd_hh_mm_ss()}"
+
+
+    logger.info(f"check_open_orders_in_capital_flow_df, df after marking closed:\n {df[-10:].to_markdown()}")
 
     if len(reverse_records) > 0:
+        logger.info(f"check_open_orders_in_capital_flow_df, reverse_records: \n {'\n'.join(str(n) for n in reverse_records)}")  # TODO not working
         df = pd.concat([df, pd.DataFrame(reverse_records)])
-
+    df = df.drop_duplicates()
     TradingLedger.set_dataframe("capital_flow_df", df)
 
 
@@ -162,7 +185,7 @@ def recompute_capital_flow_df(start_capital):
 
     df = df.sort_values('time_stamp').reset_index(drop=True)
 
-    df = df.fillna(0)
+    #df = df.fillna(0)
 
     capital = start_capital
 
@@ -170,7 +193,7 @@ def recompute_capital_flow_df(start_capital):
         capital = start_capital
 
         for i, row in group.iterrows():
-            logger.debug(f"recompute_capital_flow_df , {i} ,{capital}, {row}")
+            logger.info(f"recompute_capital_flow_df , {i} ,{capital}, {row.to_dict()}")
             # 1) assign starting capital
             df.at[i, "capital_before_event"] = capital
 

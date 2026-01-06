@@ -173,7 +173,7 @@ cases:
         - check_price_vs_level(side='down', price=price, level=short_level )
         - not is_price_close_to_next_levels_ver_2(side='down', price=price, current_level=short_level, next_levels=['PDL'])
         - 930 < last_record_hh_mm < 1016 or  mode == 'live'
-        - abs (price - short_level) < 1.2 * atr_14
+        - abs (price - short_level) < 1.2 * atr_14 or 1 == 1
         - price < application_state['symbols'][symbol]['PDH'] and application_state['symbols']['QQQ']['price'] < application_state['symbols']['QQQ']['PDH']
         - price > levels['PDL'] # avoid going short below PDL - extra safety- if we are below PDL, low change we continue after 5ML breakout
 
@@ -194,9 +194,9 @@ cases:
         - check_price_vs_level(app_config, symbol, side='up', price=price, level=long_level )
         - not is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='up', price=price, current_level=long_level, next_levels=['PDH'])
         - 930 < get_last_record_hh_mm(df) < 1016 or get_mode(application_state) == 'live'
-        - abs (price - long_level) < 1.2 * atr_14
-        - price > application_state['levels'][symbol]['PDL'] and get_current_price(ib, application_state, 'QQQ') > application_state['levels']['QQQ']['PDL']
-        - price < levels['PDH'] # avoid going long above PDH - extra safety- if we are above PDH, low change we continue after 5MH breakout
+        - abs (price - long_level) < 1.2 * atr_14 or  1 == 1
+#        - price > application_state['levels'][symbol]['PDL'] and get_current_price(ib, application_state, 'QQQ') > application_state['levels']['QQQ']['PDL']
+#        - price < levels['PDH'] # avoid going long above PDH - extra safety- if we are above PDH, low change we continue after 5MH breakout
     short:
       level: levels['5ML']
       level_alias: '5ML'
@@ -209,9 +209,9 @@ cases:
         - check_price_vs_level(app_config, symbol, side='down', price=price, level=short_level )
         - not is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='down', price=price, current_level=short_level, next_levels=['PDH'])
         - 930 < get_last_record_hh_mm(df) < 1016 or get_mode(application_state) == 'live'
-        - abs (price - short_level) < 1.2 * atr_14
-        - price < application_state['levels'][symbol]['PDH'] and get_current_price(ib, application_state, 'QQQ') < application_state['levels']['QQQ']['PDH']
-        - price > levels['PDL'] # avoid going long above PDH - extra safety- if we are above PDH, low change we continue after 5MH breakout
+        - abs (price - short_level) < 1.2 * atr_14 or 1 == 1
+#        - price < application_state['levels'][symbol]['PDH'] and get_current_price(ib, application_state, 'QQQ') < application_state['levels']['QQQ']['PDH']
+#        - price > levels['PDL'] # avoid going long above PDH - extra safety- if we are above PDH, low change we continue after 5MH breakout
 
   case_2_2:
     memo: 5MH and 5ML. using breakout_ver_2. GAPs incorporated  - we decided to HOLD this
@@ -254,7 +254,7 @@ cases:
         - check_entry_vs_retest(side='up', level=long_level)
         - no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
         - check_price_vs_level(side='up', price=price, level=long_level )
-        - abs (price - long_level) < 1.2 * atr_14
+        - abs (price - long_level) < 1.2 * atr_14 or  1 == 1
         - 930 < last_record_hh_mm < 940
     short:
       level: levels['PDL']
@@ -265,7 +265,7 @@ cases:
         - check_entry_vs_retest(side='down', level=short_level)
         - no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
         - check_price_vs_level(side='down', price=price, level=short_level )
-        - abs (price - short_level) < 1.2 * atr_14
+        - abs (price - short_level) < 1.2 * atr_14 or 1 == 1
         - 930 < last_record_hh_mm < 940
   case_4_1_async:
     memo: From PDH PDL - we running this one
@@ -281,10 +281,10 @@ cases:
         - check_entry_vs_retest(application_state, case, symbol, df, side='up', level=long_level)
         - no_failure_after_breakout(application_state, case, symbol, df, side='up', ohlc_field='close',level=long_level)
         - check_price_vs_level(app_config, symbol, side='up', price=price, level=long_level )
-        - abs (price - long_level) < 1.2 * atr_14
-        - levels['PDH'] < levels['5MH']
+#        - abs (price - long_level) < 1.2 * atr_14 or  1 == 1
+#        - levels['PDH'] < levels['5MH']
         - 930 < get_last_record_hh_mm(df) < 1016 or get_mode(application_state) == 'live'
-        - not is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='up', price=price, current_level=long_level, next_levels=['PMH'])
+#        - not is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='up', price=price, current_level=long_level, next_levels=['PMH'])
 
     short:
       level: levels['PDL']
@@ -297,10 +297,10 @@ cases:
         - check_entry_vs_retest(application_state, case, symbol, df, side='down', level=short_level)
         - no_failure_after_breakout(application_state, case, symbol, df, side='down', ohlc_field='close',level=short_level)
         - check_price_vs_level(app_config, symbol, side='down', price=price, level=short_level )
-        - abs (price - long_level) < 1.2 * atr_14
-        - levels['PDL'] > levels['5ML']
+#        - abs (price - long_level) < 1.2 * atr_14 or  1 == 1
+#        - levels['PDL'] > levels['5ML']
         - 930 < get_last_record_hh_mm(df) < 1016 or  get_mode(application_state) == 'live'
-        - not is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='down', price=price, current_level=short_level, next_levels=['PML'])
+#        - not is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='down', price=price, current_level=short_level, next_levels=['PML'])
 
   case_3:
     memo: This is for Saeed's live test
@@ -310,11 +310,10 @@ cases:
       level: levels['5MH']
       level_alias: '5MH'
       conditions:
-        - symbol == 'AMZN' and 1 == 2
+        - symbol == 'TSLA' and 1 == 2
 
     short:
       level: levels['5ML']
       level_alias: '5ML'
       conditions:
-        - symbol == 'TSLA' and 1 == 2
-
+        - symbol == 'AMD' and 1 == 2

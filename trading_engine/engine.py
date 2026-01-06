@@ -103,7 +103,6 @@ class TradingEngine:
                 self.runtime.reload_runtime_config()
                 application_state_helper.initialize_application_state_for_run(self.app_config, self.application_state)
 
-                self.application_state['is_busy_time'] = False # TODO: improve this later
                 if engine_cycle.should_exit(application_state=self.application_state):
                     logger.info("[market_session_guard_loop] Exiting as requested.")
                     break
@@ -112,6 +111,7 @@ class TradingEngine:
                     logger.warning("ib is None... so give a try to reconnect ...")
                     await asyncio.sleep(3)
                     continue
+
                 self.app_config = self.runtime.reload_config()
                 if self.runtime.should_run_once('ORCHESTRATE_EXPIRATIONS_STRIKES'):
                     await options_helper.orchestrate_expirations_strikes(ib, self.app_config, self.application_state, self.market_data)
@@ -123,19 +123,14 @@ class TradingEngine:
                     await options_helper.prepare_option_contracts_for_later_use(ib, self.app_config, self.application_state, self.market_data)
 
                 if not self.application_state['is_busy_time'] and self.runtime.is_due('DO_PNL', interval_sec=1*60): # TODO should be not busy_time?!
-                    # logger.info(f"Before PnL calculations, capital_flow_df: \n{TradingLedger.get_dataframe('capital_flow_df')[-100:].to_markdown()}")
-                    # for one time only, read capital_flow_df drop all records have event == 'REVERSE_OPEN_ORDER' and save it back.
-                    # do it here, no functuon call
-                    # capital_flow_df = TradingLedger.get_dataframe('capital_flow_df')
-                    # capital_flow_df = capital_flow_df[capital_flow_df['event'] != 'REVERSE_OPEN_ORDER']
-                    # TradingLedger.set_dataframe('capital_flow_df', capital_flow_df)
-                    logger.info(f"After PnL calculations, after drop : \n{TradingLedger.get_dataframe('capital_flow_df')[-100:].to_markdown()}")
-
-
                     pnl_helper.populate_open_close_refs_pnl_df()
                     pnl_helper.populate_close_orders_in_capital_flow_df()
                     pnl_helper.check_open_orders_in_capital_flow_df(self.application_state)
                     pnl_helper.recompute_capital_flow_df(4000)
+
+                    # We need to write to disk with mode= 'w' as we changing some records.
+                    capital_flow_df = TradingLedger.get_dataframe('capital_flow_df')
+                    FileManager.save_my_df(capital_flow_df, "capital_flow_df", mode='w', drop_duplicates=True, save_tabular=True)
 
 
                 for symbol in self.app_config.get('symbols'):
@@ -148,11 +143,11 @@ class TradingEngine:
                     application_state_helper.initialize_application_state_for_symbol_run(self.app_config, self.application_state)
 
 
-                    # todo i AM NOT SURE WE NEED IT HERE ...
-                    current_price = await ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol, contract_month=self.app_config.get('symbols_meta', {}).get(symbol,{}).get('contract_month'))
-                    if current_price is None:
-                        current_price = -1.0
-                    self.application_state.setdefault('latest_prices', {})[symbol] = current_price
+                    if self.runtime.is_due(f'SUBSCRIBE_PRICE-{symbol}', interval_sec=60*2):
+                        current_price = await ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol, contract_month=self.app_config.get('symbols_meta', {}).get(symbol,{}).get('contract_month'))
+                        if current_price is None:
+                            current_price = -1.0
+                        self.application_state.setdefault('latest_prices', {})[symbol] = current_price
 
                     logger.info(f"Starting get_historical_data for {symbol}")
                     df = await marketdata_helper.get_historical_data(ib, symbol, self.app_config, self.application_state, time_frame='1m', historical_days='3 D')

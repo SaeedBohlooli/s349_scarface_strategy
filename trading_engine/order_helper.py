@@ -56,7 +56,7 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
             logger.warning(f"@@ You already have open position. Don't be greedy!!!  symbol: {symbol}")
             continue
         if number_of_positions_today(application_state, symbol) >= app_config['live']['max_num_of_trade_per_symbol_per_day']:
-            logger.warning(f"@@  We already sent enough orders for {symbol} .... number_of_trades_today: {number_of_positions_today(symbol)}")
+            logger.warning(f"@@  We already sent enough orders for {symbol}")
             continue
         if has_open_order_in_same_group(app_config, application_state, symbol):
             logger.warning(f"@@  We already have open order in same group {symbol}")
@@ -306,13 +306,13 @@ def add_open_order_to_capital_flow_df(data, capital_data):
             'realized_pnl': 0,
             'commission': 0,
             'trade_cost': capital_data.get('capital_used'),
+            'is_closed': 'NO',
             'symbol': data.get('symbol'),
             'unique_run_number': data.get('unique_run_number'),
             'open_order_ref': data.get('order_ref'),
-            'memo': 'Order opened ...'
+            'memo': 'Order opened.'
         }
-
-        # capital_flow_df = pd.concat([capital_flow_df, pd.DataFrame([d])])
+        logger.info(f"add_open_order_to_capital_flow_df, data: {d}")
         TradingLedger.add_to_dataframe("capital_flow_df", d)
     except Exception as e:
     # TODO add
