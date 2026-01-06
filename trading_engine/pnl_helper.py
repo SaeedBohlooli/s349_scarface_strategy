@@ -193,7 +193,7 @@ def recompute_capital_flow_df(start_capital):
         capital = start_capital
 
         for i, row in group.iterrows():
-            logger.info(f"recompute_capital_flow_df , {i} ,{capital}, {row.to_dict()}")
+            logger.debug(f"recompute_capital_flow_df , {i} ,{capital}, {row.to_dict()}")
             # 1) assign starting capital
             df.at[i, "capital_before_event"] = capital
 
