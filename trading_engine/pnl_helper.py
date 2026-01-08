@@ -111,7 +111,7 @@ def populate_close_orders_in_capital_flow_df():
         missing[["close_order_ref", "commission", "realized_pnl"]]
     )
 
-    rows_to_add_df['time_stamp'] = str(date_utils.time_now())
+    rows_to_add_df['timestamp'] = str(date_utils.time_now())
     rows_to_add_df['trade_date'] = date_utils.get_yyyymmdd()
     rows_to_add_df['event'] = 'CLOSE_ORDER'
     rows_to_add_df['cash_flow'] = rows_to_add_df['realized_pnl']
@@ -137,7 +137,7 @@ def check_open_orders_in_capital_flow_df(application_state):
     )
     df['memo'] = df['memo'].fillna('')
 
-    df = df.sort_values('time_stamp').reset_index(drop=True)
+    df = df.sort_values('timestamp').reset_index(drop=True)
 
     reverse_records = []
     for i, row in df.iterrows():  #TODO just find the ones we need
@@ -148,7 +148,7 @@ def check_open_orders_in_capital_flow_df(application_state):
         if not is_order_ref_open(application_state, open_order_ref): # this order_ref is not open anymore
             logger.info(f"check_open_orders_in_capital_flow_df, found closed open order_ref: {open_order_ref}, row: {row.to_dict()}")
             d = {
-                'time_stamp': str(date_utils.time_now()),
+                'timestamp': str(date_utils.time_now()),
                 'trade_date': date_utils.get_yyyymmdd(),
                 'event': 'REVERSE_OPEN_ORDER',
                 'cash_flow': row['cash_flow'] * -1,
@@ -183,7 +183,7 @@ def recompute_capital_flow_df(start_capital):
     if len(df) ==0:
         return
 
-    df = df.sort_values('time_stamp').reset_index(drop=True)
+    df = df.sort_values('timestamp').reset_index(drop=True)
 
     #df = df.fillna(0)
 

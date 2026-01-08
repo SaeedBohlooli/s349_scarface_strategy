@@ -28,7 +28,7 @@ def calculate_number_of_option_contracts(app_config, application_state, symbol, 
     application_state.get('risk')['available_capital'] = capital_remaining_after_order
 
     data = {
-            'time_stamp': str(date_utils.time_now()),
+            'timestamp': str(date_utils.time_now()),
             'trade_date' : application_state.get('trade_date'),
             'symbol': symbol,
             'unique_run_number': application_state.get('unique_run_number'),
@@ -69,7 +69,7 @@ def calculate_number_of_future_contracts(app_config, application_state, symbol):
     application_state.get('risk')['available_capital'] = capital_remaining_after_order
 
     data = {
-            'time_stamp': str(date_utils.time_now()),
+            'timestamp': str(date_utils.time_now()),
             'trade_date': application_state.get('trade_date'),
             'symbol': symbol,
             'unique_run_number': application_state.get('unique_run_number'),

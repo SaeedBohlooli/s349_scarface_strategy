@@ -298,7 +298,7 @@ def add_order_ref_to_application_state(application_state, open_order_ref='', clo
 def add_open_order_to_capital_flow_df(data, capital_data):
     try:
         d = {
-            'time_stamp': str(date_utils.time_now()),
+            'timestamp': str(date_utils.time_now()),
             'trade_date' : date_utils.get_yyyymmdd(),
             'event': 'OPEN_ORDER',
             'capital_before_event': 0,
@@ -347,7 +347,7 @@ def calculate_number_of_future_contracts(app_config, application_state, symbol):
     application_state.get('risk')['available_capital'] = capital_remaining_after_order
 
     data = {
-            'time_stamp': str(date_utils.time_now()),
+            'timestamp': str(date_utils.time_now()),
             'trade_date': date_utils.get_yyyymmdd(),
             'symbol': symbol,
             'unique_run_number': application_state.get('unique_run_number'),

@@ -77,7 +77,7 @@ class TradingEngine:
 
         capital_flow_df = FileManager.load_my_df("capital_flow_df")
         if len(capital_flow_df) ==0:
-            capital_flow_cols = ['time_stamp', 'trade_date', 'event', 'capital_before_event', 'cash_flow',
+            capital_flow_cols = ['timestamp', 'trade_date', 'event', 'capital_before_event', 'cash_flow',
                                  'capital_after_event', 'realized_pnl',
                                  'commission', 'trade_cost', 'is_closed', 'symbol', 'unique_run_number', 'open_order_ref',
                                  'close_order_ref', 'proccesed', 'memo']
