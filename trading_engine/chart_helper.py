@@ -21,6 +21,8 @@ def add_buy_a_sell_entries_to_signals(app_config, application_state, buy_sell_ca
         result_map = buy_sell_case_result[3]
 
         res_str = result_map.get('res_str')
+        can_buy_cores = result_map.get('can_buy_cores')
+        can_sell_cores = result_map.get('can_sell_cores')
 
         if case == 'case_1':
             price = df['high'].iloc[-1]
@@ -33,10 +35,16 @@ def add_buy_a_sell_entries_to_signals(app_config, application_state, buy_sell_ca
         if can_buy:
             # add_to_signlas(symbol, f"BUY_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}")
             TradingLedger.add_to_list("signals", (symbol, f"BUY_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}"))
+        elif can_buy_cores:
+            case_color = app_config['cases'][case]['long'].get('color', 'Green')
+            TradingLedger.add_to_list("signals", (symbol, f"BUY_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}", case_color))
 
         if can_sell:
             # add_to_signlas(symbol, f"SELL_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}")
             TradingLedger.add_to_list("signals", (symbol, f"SELL_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}"))
+        elif can_sell_cores:
+            case_color = app_config['cases'][case]['short'].get('color', 'Red')
+            TradingLedger.add_to_list("signals", (symbol, f"SELL_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}", case_color))
 
 
         # add_to_signlas(symbol,  f"SCREENING_{case}", offseted_price, df['date'].iloc[-1], f'{case} - {res_str}')  #
@@ -58,18 +66,21 @@ def get_offseted_price(app_config, application_state, symbol = None, side='up', 
 def get_offset_counter(application_state, side='up', add=True):
     # This is for to see what is the offset for the hover  for the cnalde.
     # resets in every candle ...
-    up_offset_counter = application_state.setdefault('up_offset_counter', 0)
-    down_offset_counter = application_state.setdefault('down_offset_counter', 0)
+    up_offset_counter = application_state.get('up_offset_counter', 0)
+    down_offset_counter = application_state.get('down_offset_counter', 0)
 
     if side == 'up':
         if add:
             up_offset_counter += 1
         up_offset_counter = 1 if up_offset_counter == 0 else up_offset_counter  # return 1 if is 0
+        application_state['up_offset_counter'] = up_offset_counter
+
         return up_offset_counter
     else:
         if add:
             down_offset_counter += 1
         down_offset_counter = 1 if down_offset_counter == 0 else down_offset_counter # return 1 if it is 0
+        application_state['down_offset_counter'] = down_offset_counter
         return down_offset_counter
 
 

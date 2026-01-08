@@ -12,6 +12,8 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
 
     can_buy = False
     can_sell = False
+    can_buy_cores = False
+    can_sell_cores = False
     res_str = ''
     long_level = -1
     short_level = -1
@@ -47,18 +49,33 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
         for side in ['long', 'short']:
             level_alias = app_config['cases'][case][side]['level_alias'] # used in config
             c_i = 0
-            for condition in app_config['cases'][case][side]['conditions']:
+            for condition in app_config['cases'][case][side]['cores']:
                 c_i = c_i + 1
                 logger.info(f"{c_i}) in check_buy_sell_condition, {symbol}, case: {case}, side: {side}, condition: {condition} ")
                 evaluated = eval(condition)
                 logger.info(f"{c_i}) in check_buy_sell_condition, {symbol}, case: {case}, side: {side}, evaluated: {evaluated},  condition: {condition} ")
                 evaluated_conditions_map.setdefault(side, {}).setdefault('valuated_conditions',[]).append(evaluated)
+                evaluated_conditions_map.setdefault(side, {}).setdefault('valuated_conditions_cores',[]).append(evaluated)
+                
+            
+            for condition in app_config['cases'][case][side]['extras']:
+                c_i = c_i + 1
+                logger.info(f"{c_i}) in check_buy_sell_condition, {symbol}, case: {case}, side: {side}, condition: {condition} ")
+                evaluated = eval(condition)
+                logger.info(f"{c_i}) in check_buy_sell_condition, {symbol}, case: {case}, side: {side}, evaluated: {evaluated},  condition: {condition} ")
+                evaluated_conditions_map.setdefault(side, {}).setdefault('valuated_conditions',[]).append(evaluated)
+                evaluated_conditions_map.setdefault(side, {}).setdefault('valuated_conditions_extras',[]).append(evaluated)
 
 
         if all(evaluated_conditions_map.get('long', {}).get('valuated_conditions', [])):
             can_buy = True
         if all(evaluated_conditions_map.get('short', {}).get('valuated_conditions', [])):
             can_sell = True
+
+        if all(evaluated_conditions_map.get('long', {}).get('valuated_conditions_cores', [])):
+            can_buy_cores = True
+        if all(evaluated_conditions_map.get('short', {}).get('valuated_conditions_cores', [])):
+            can_sell_cores = True
 
         logger.info(f"check_buy_sell_condition(), {case}, {symbol}, {can_buy}, {can_sell}")
         logger.info(f"check_buy_sell_condition(), {case}, {symbol}, can_buy: {can_buy}, ")
@@ -112,6 +129,8 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
     details_map = {
         'can_buy': can_buy,
         'can_sell': can_sell,
+        'can_buy_cores': can_buy_cores,
+        'can_sell_cores': can_sell_cores,
         'res_str': res_str,
         'long_level': long_level,
         'short_level': short_level,

@@ -125,7 +125,7 @@ take_profits:
     close_quantity_percentage: .5
 
   t11_cl_manual:  # This is for closing everything just NVDA:   1 == 1 and symbol == 'NVDA'
-    condition: 1 == 1 and symbol == 'AMD'
+    condition: 1 == 2 and symbol == 'AMD'
     close_quantity_percentage: -1
 
 scores:
@@ -305,7 +305,7 @@ chart:
   hours_in_focus: 3
   live:
     start_time: '09:00'
-    end_time: '20:00'
+    end_time: '12:00'
 
 # before_start:
 load_application_state_from_file: true

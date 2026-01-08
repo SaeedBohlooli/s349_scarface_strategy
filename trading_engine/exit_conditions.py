@@ -143,7 +143,8 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
             TradingLedger.add_to_dataframe('stop_loss_history_df', data)
 
             # add_to_signals(symbol, 'STOP_LOSS_SENT', underlying_current_price, df['date'].iloc[-1], f"STOP_LOSS  <BR> {json_utils.polish_map_to_show_in_hover(data)}")
-            TradingLedger.add_to_list('signals',(symbol, 'STOP_LOSS_SENT', underlying_current_price, symbol_df['date'].iloc[-1], f"STOP_LOSS  <BR> {json_utils.polish_map_to_show_in_hover(data)}"))
+            TradingLedger.add_to_list("signals",(symbol, 'STOP_LOSS_SENT', underlying_current_price, symbol_df['date'].iloc[-1], f"STOP_LOSS  <BR> {json_utils.polish_map_to_show_in_hover(data)}"))
+
 
             # send_email(event='stop_loss_sent', symbol=symbol, body=polish_map_to_show_in_hover(data))
 
