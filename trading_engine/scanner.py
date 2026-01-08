@@ -58,7 +58,7 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
                 evaluated_conditions_map.setdefault(side, {}).setdefault('valuated_conditions_cores',[]).append(evaluated)
                 
             
-            for condition in app_config['cases'][case][side]['extras']:
+            for condition in app_config['cases'][case][side].get('extras', []):
                 c_i = c_i + 1
                 logger.info(f"{c_i}) in check_buy_sell_condition, {symbol}, case: {case}, side: {side}, condition: {condition} ")
                 evaluated = eval(condition)
@@ -450,12 +450,12 @@ def no_failure_after_breakout(application_state, case, symbol, df, side='up', le
         return  False
 
     start, end = sorted([i, j])  # in case you mix order
-    # say start -5 end -3.  this get -5, -4, -3, -2.  it mean both -5 and -3 is included too.
+    # say start -5 end -3.  this get -5, -4, -3,  it meanns both -5 and -3 is included too.
     if side == 'up':
-        if (df.iloc[start:][ohlc_field] > level).all(): # all highs are above level
+        if (df.iloc[start:][ohlc_field] >= level).all(): # all highs are above level
             return True
     else:
-        if (df.iloc[start:][ohlc_field] < level).all(): # all opens are less then elvel
+        if (df.iloc[start:][ohlc_field] <= level).all(): # all opens are less then elvel
             return True
 
     return False
