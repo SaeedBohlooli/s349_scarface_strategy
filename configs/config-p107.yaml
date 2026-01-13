@@ -4,10 +4,10 @@ client_id: 250
 
 logging_level: logging.INFO
 
-ws_port: 6349
+ws_port: 6107
 
 api_service:
-  port: 5349
+  port: 5107
   host: 127.0.0.1
 
 interval_seconds:
@@ -51,27 +51,16 @@ files:
   screening_summary_for_all_sub_runs_agg_df: "{results}/25-screening_summary_for_all_sub_runs_agg_df.csv"  # TODO rename
 
 
-#data_saver:
-#  default_interval_seconds: 600    # 10 min default
-#  intervals:
-#    application_state: 600              # 10 min
-#    account_info_map: 300               # 5 min
 
-
-
-
-symbols: ['QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR', 'TSLL', 'AMZN', 'MNQ', 'SPY']
+symbols: ['QQQ', 'AAPL', 'AMZN', 'AMD', 'NVDA', 'PLTR', 'TSLA', 'TSLL', 'MNQ', 'SPY']
 
 
 stop_losses:
   C:
     stop_loss_condition: underlying_previous_candle_close < level_used_to_open - tolerance_amount and underlying_current_price < underlying_previous_candle_close
-#    stop_loss_condition:  symbol == 'AMD' or 1 == 2
 
   P:
     stop_loss_condition: underlying_previous_candle_close > level_used_to_open + tolerance_amount and underlying_current_price > underlying_previous_candle_close
-#    stop_loss_condition:  symbol == 'AMD' or 1 == 1
-
 
 take_profits:
   t1:
@@ -79,14 +68,14 @@ take_profits:
       (current_bid > avg_cost_for_1_contract * 1.15 or current_bid - avg_cost_for_1_contract > 0.20)
       and avg_cost_for_1_contract not in [0,-1] and current_bid not in [0,-1]
     close_quantity_percentage: 0.6
-    memo: Taking some profit at 15% or 0.20$ with 4 of 6
+    memo: Taking some profit at 15% or 0.20 with 4 of 6
 
   t2:
     condition: > 
       (current_bid > avg_cost_for_1_contract * 1.30 or current_bid - avg_cost_for_1_contract > 0.80)
       and avg_cost_for_1_contract not in [0,-1] and current_bid not in [0,-1]
     close_quantity_percentage: 0.20
-    memo: Taking some profit at 30% or 0.80$ with 1 of 6
+    memo: Taking some profit at 30% or 0.80 with 1 of 6
 
   t3:
     condition: >
@@ -195,25 +184,53 @@ live:
     P:
       conditions:
         - 1 == 1
-#    C:
-#      conditions:
-#        - QQQ_CLOSE > QQQ_5ML AND QQQ_price > QQQ_PDL
-#    P:
-#      conditions:
-#        - QQQ_CLOSE < QQQ_5ML AND QQQ_price < QQQ_PDL
+
     symbols:
-      TSLA:
+      QQQ:
         C:
-            - 1 == 1  and qqq_close < qqq_5ML
+          - 1 == 1
         P:
-            - 1 == 2
+          - 1 == 1
+      AAPL:
+        C:
+            - 1 == 1
+        P:
+            - 1 == 1
+      AMD:
+        C:
+            - 1 == 1
+        P:
+            - 1 == 1
       NVDA:
         C:
             - 1 == 1
         P:
-            - 1 == 2
-
-
+            - 1 == 1
+      PLTR:
+        C:
+            - 1 == 1
+        P:
+            - 1 == 1
+      TSLA:
+        C:
+            - 1 == 1
+        P:
+            - 1 == 1
+      TSLL:
+        C:
+            - 1 == 1
+        P:
+            - 1 == 1
+      SPY:
+        C:
+            - 1 == 1
+        P:
+            - 1 == 1
+      MNQ:
+        C:
+            - 1 == 1
+        P:
+            - 1 == 1            -
 back_test:
   data:
     get_data_from_ib: False  # we have data from 01-01
@@ -298,7 +315,7 @@ back_test:
 
 
 chart:
-  port: 53491
+  port: 51071
 #  source: live
   source: back_test
 #  cutoff_in_hours: 0

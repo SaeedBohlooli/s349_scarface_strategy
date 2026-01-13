@@ -218,6 +218,14 @@ def check_manual_conditions(app_config, application_state, symbol, right):
             if not evaluated_condition:
                 return False
 
+        for condition in app_config['live'].get('manual_settings', {}).get('symbols',{}).get(symbol, {}).get(right,[]):
+            # evaluated_condition
+            evaluated_condition = eval(condition, {}, eval_ctx)
+
+            logger.info(f"check_manual_conditions, {symbol} , {right}, condition: {condition}, evaluated_condition: {evaluated_condition} ")
+            if not evaluated_condition:
+                return False
+
     except Exception as e:
         logger.error(f"@@@ TODO This is temp .... {e}")
         logger.error(f"@@@ TODO This is temp .... {traceback.format_exc()}")

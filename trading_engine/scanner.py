@@ -191,7 +191,7 @@ def get_next_level(side, level, levels):
 
 
 
-def breakout_in_last_x_candles_ver_2(app_config, application_state, symbol, df, side='up', idx_list=[-2], level=0, level_alias=''):
+def breakout_in_last_x_candles_ver_2(app_config, application_state, case, symbol, df, side='up', idx_list=[-2], level=0, level_alias=''):
 
     logger.debug(f"in breakout_in_last_x_candles, symbol: {symbol}, idx_list: {idx_list}, level:{level}")
 
@@ -242,7 +242,8 @@ def breakout_in_last_x_candles_ver_2(app_config, application_state, symbol, df, 
             breakout_happened = True
 
             offseted_price = chart_helper.get_offseted_price(app_config, application_state, symbol, side='up',price=df['high'].iloc[idx])
-            TradingLedger.add_to_list("signals", (symbol, 'BREAKOUT', offseted_price, df['date'].iloc[idx], f"BREAKOUT {level_alias} ... {df['date'].iloc[idx]}... ") )
+            case_color = get_case_color(app_config, case)
+            TradingLedger.add_to_list("signals", (symbol, 'BREAKOUT', offseted_price, df['date'].iloc[idx], f"BREAKOUT {level_alias} ... {df['date'].iloc[idx]}... ", case_color) )
 
     return breakout_happened
 
@@ -265,7 +266,7 @@ def get_retest_indices_by_level_set(application_state, symbol, level):
 
 
 
-def price_retest(app_config, application_state, symbol, df, side='up', idx_list=[-2], level=0, both_sides=False, level_alias=''):
+def price_retest(app_config, application_state, case, symbol, df, side='up', idx_list=[-2], level=0, both_sides=False, level_alias=''):
 
     if level == 0:
         return False
@@ -277,6 +278,7 @@ def price_retest(app_config, application_state, symbol, df, side='up', idx_list=
     tolerance_amount = tolerance_amount * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1)
     logger.debug(f"price_retest(), {symbol}, tolerance_amount: {tolerance_amount}")
     retest = False
+    case_color = get_case_color(app_config,case)
 
     for idx in idx_list:
         row = df.iloc[idx]
@@ -298,7 +300,7 @@ def price_retest(app_config, application_state, symbol, df, side='up', idx_list=
                 application_state['retests'].setdefault(symbol, []).append(d)
 
                 offseted_price = chart_helper.get_offseted_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx])
-                TradingLedger.add_to_list("signals", (symbol, 'RETEST', offseted_price, df['date'].iloc[idx], f"RETEST  {level_alias} ... {df['date'].iloc[idx]}") )
+                TradingLedger.add_to_list("signals", (symbol, 'RETEST', offseted_price, df['date'].iloc[idx], f"RETEST  {level_alias} ... {df['date'].iloc[idx]}", case_color) )
 
                 logger.info(f"price_retest(), symbol: {symbol}, level: {level}, date:{df.iloc[idx]['date']} ")
                 retest = True
@@ -315,7 +317,7 @@ def price_retest(app_config, application_state, symbol, df, side='up', idx_list=
                 application_state['retests'].setdefault(symbol, []).append(d)
 
                 offseted_price = chart_helper.get_offseted_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx])
-                TradingLedger.add_to_list("signals", (symbol, 'RETEST', offseted_price, df['date'].iloc[idx], f"RETEST  {level_alias} ... {df['date'].iloc[idx]}") )
+                TradingLedger.add_to_list("signals", (symbol, 'RETEST', offseted_price, df['date'].iloc[idx], f"RETEST  {level_alias} ... {df['date'].iloc[idx]}", case_color) )
 
                 retest = True
                 diff = abs(row['low']-level)
@@ -331,7 +333,7 @@ def price_retest(app_config, application_state, symbol, df, side='up', idx_list=
                 application_state['retests'].setdefault(symbol, []).append(d)
 
                 offseted_price = chart_helper.get_offseted_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx])
-                TradingLedger.add_to_list("signals", (symbol, 'RETEST', offseted_price, df['date'].iloc[idx], f"RETEST  {level_alias} ... {df['date'].iloc[idx]}") )
+                TradingLedger.add_to_list("signals", (symbol, 'RETEST', offseted_price, df['date'].iloc[idx], f"RETEST  {level_alias} ... {df['date'].iloc[idx]}", case_color) )
 
                 retest = True
                 diff = abs(row['high'] - level)
@@ -346,7 +348,7 @@ def price_retest(app_config, application_state, symbol, df, side='up', idx_list=
                 application_state['retests'].setdefault(symbol, []).append(d)
 
                 offseted_price = chart_helper.get_offseted_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx])
-                TradingLedger.add_to_list("signals", (symbol, 'RETEST', offseted_price, df['date'].iloc[idx], f"RETEST  {level_alias} ... {df['date'].iloc[idx]}") )
+                TradingLedger.add_to_list("signals", (symbol, 'RETEST', offseted_price, df['date'].iloc[idx], f"RETEST  {level_alias} ... {df['date'].iloc[idx]}" , case_color) )
 
                 retest = True
                 diff = abs(row['high']-level)
@@ -561,3 +563,7 @@ def get_mode(application_state):
 
 def get_current_price(ib, application_state, symbol):
     return application_state.get('latest_prices', {}).get(symbol, None)
+
+
+def get_case_color(app_config, case):
+    return app_config.get('cases', {}).get(case, {}).get('color', 'black')

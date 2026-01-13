@@ -1,15 +1,15 @@
 control_panel:
-  projectName: 349 Control Panel P
-  browserTitle: 349 Control Panel P
+  projectName: 107 Control Panel P
+  browserTitle: 107 Control Panel P
   # Server ports
   ports:
-    vite: 7349
-    websocket: 6349
-    api: 5349
+    vite: 7107
+    websocket: 6107
+    api: 5107
 
   # WebSocket configuration
   websocket:
-    url: ws://127.0.0.1:6349
+    url: ws://127.0.0.1:6107
     reconnect:
       initialDelay: 1000
       maxDelay: 30000
@@ -17,7 +17,7 @@ control_panel:
 
   # API configuration
   api:
-    baseUrl: http://127.0.0.1:5349
+    baseUrl: http://127.0.0.1:5107
     endpoints:
       sendRequest: /api/send-request
 
@@ -27,5 +27,5 @@ control_panel:
     appConfig: app_config
   # Footer configuration
   footer:
-    text: "Trading Control Panel Dashboard @ ZoiTek.com   2014 - 2025 P"
-    link: "https://zoitek.com"
+    text: "Trading Control Panel Dashboard @ SaeedVikas.com   2014 - 2025 P"
+    link: "https://VikasSaeed.com"

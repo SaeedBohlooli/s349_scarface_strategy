@@ -24,6 +24,8 @@ def add_buy_a_sell_entries_to_signals(app_config, application_state, buy_sell_ca
         can_buy_cores = result_map.get('can_buy_cores')
         can_sell_cores = result_map.get('can_sell_cores')
 
+        case_color = get_case_color(app_config, case)
+
         if case == 'case_1':
             price = df['high'].iloc[-1]
         elif case == 'case_2':
@@ -34,16 +36,14 @@ def add_buy_a_sell_entries_to_signals(app_config, application_state, buy_sell_ca
 
         if can_buy:
             # add_to_signlas(symbol, f"BUY_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}")
-            TradingLedger.add_to_list("signals", (symbol, f"BUY_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}"))
+            TradingLedger.add_to_list("signals", (symbol, f"BUY_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}", case_color))
         elif can_buy_cores:
-            case_color = app_config['cases'][case]['long'].get('color', 'Green')
             TradingLedger.add_to_list("signals", (symbol, f"BUY_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}", case_color))
 
         if can_sell:
             # add_to_signlas(symbol, f"SELL_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}")
-            TradingLedger.add_to_list("signals", (symbol, f"SELL_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}"))
+            TradingLedger.add_to_list("signals", (symbol, f"SELL_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}", case_color))
         elif can_sell_cores:
-            case_color = app_config['cases'][case]['short'].get('color', 'Red')
             TradingLedger.add_to_list("signals", (symbol, f"SELL_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}", case_color))
 
 
@@ -383,3 +383,7 @@ def add_to_drawing_objects_df(symbol='TSLA', time_frame='1m', object='dash', col
         TradingLedger.add_to_dataframe("drawing_objects_df", data)
 
     return
+
+
+def get_case_color(app_config, case):
+    return app_config.get('cases', {}).get(case, {}).get('color', 'black')
