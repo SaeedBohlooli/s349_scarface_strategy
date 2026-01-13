@@ -202,7 +202,7 @@ def simulate_trades(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def main():
-    data_path = "../../portfolios/ohlc/p250/"  # TODO: change path as needed
+    data_path = "../../portfolios/ohlc/p107/"  # TODO: change path as needed
     df = load_data(data_path)
     trades_df = simulate_trades(df)
 

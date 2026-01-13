@@ -36,3 +36,4 @@ dash
 ib_async
 finta
 psutil
+pandas-market-calendars

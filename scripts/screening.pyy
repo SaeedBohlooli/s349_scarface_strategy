@@ -33,7 +33,7 @@ yaml.preserve_quotes = True  # Optional: preserve quotes if any
 yaml.width = 1000 # so will not wrap lines in the yaml file
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--portfolio-id', help="active portfolio", default='p250')
+parser.add_argument('--portfolio-id', help="active portfolio", default='p107')
 args = parser.parse_args()
 portfolio_id = args.portfolio_id
 if portfolio_id == 'p000':

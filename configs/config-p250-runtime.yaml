@@ -1,4 +1,0 @@
-exit: false
-cancel_open_orders_on_start: false
-close_all_open_option_positions: false
-force_write_on_disk: False

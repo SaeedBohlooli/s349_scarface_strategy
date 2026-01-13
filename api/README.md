@@ -315,7 +315,7 @@ curl http://127.0.0.1:5000/api/v1/health
 curl http://127.0.0.1:5000/api/v1/portfolios
 
 # Get file content
-curl http://127.0.0.1:5000/api/v1/files/directory/p250/file.csv
+curl http://127.0.0.1:5000/api/v1/files/directory/p107/file.csv
 ```
 
 ## Troubleshooting

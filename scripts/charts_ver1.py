@@ -32,7 +32,7 @@ import plotly.io as pio
 
 app = Flask(__name__)
 
-portfolio_id = 'p250'
+portfolio_id = 'p107'
 configs_folder = f'../configs'
 config_file = f'{configs_folder}/app-config.yaml'
 portfolio_dir = f'../../portfolios/results/{portfolio_id}'
@@ -899,7 +899,7 @@ def index():
 
     start_time = time.time()
 
-    portfolio_id = 'p250'
+    portfolio_id = 'p107'
     app_config = load_app_config(portfolio_id)
     mode = app_config['chart']['source']
 
@@ -950,13 +950,13 @@ def index():
         logger.info(f"================== {symbol}")
         time_frame = '1min'
 
-        df = load_df_from_ohlc_file(portfolio_id='p250', time_frame=time_frame, symbol=symbol)
+        df = load_df_from_ohlc_file(portfolio_id='p107', time_frame=time_frame, symbol=symbol)
         if len(df) == 0:
             continue
 
         df = cut_df_for_live(df)
 
-        extra_features_df = load_extra_features_df(portfolio_id='p250', time_frame=time_frame, symbol=symbol)
+        extra_features_df = load_extra_features_df(portfolio_id='p107', time_frame=time_frame, symbol=symbol)
         extra_features_df = cut_df_for_live(extra_features_df)
 
         fig1 = draw_w_plotly_w_subplot_1(symbol, chart_title=f'{symbol}-{time_frame}')

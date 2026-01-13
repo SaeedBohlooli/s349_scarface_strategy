@@ -54,15 +54,15 @@ function App({ themeMode, onThemeToggle }: AppProps) {
       setSelectedPortfolio(portfolio);
       
       if (pathParts[2] === "directory") {
-        // Handle /portfolio/p250/directory (base directory view)
+        // Handle /portfolio/p107/directory (base directory view)
         if (pathParts[3]) {
-          // Handle /portfolio/p250/directory/charts (specific directory)
+          // Handle /portfolio/p107/directory/charts (specific directory)
           const directory = pathParts[3];
           setSelectedDirectory(directory);
           setCurrentView("directories");
           
           if (pathParts[4] === "file" && pathParts[5]) {
-            // Handle /portfolio/p250/directory/charts/file/filename.csv
+            // Handle /portfolio/p107/directory/charts/file/filename.csv
             const file = decodeURIComponent(pathParts[5]);
             setSelectedFile(file);
             setCurrentView("file");
@@ -70,7 +70,7 @@ function App({ themeMode, onThemeToggle }: AppProps) {
             setSelectedFile("");
           }
         } else {
-          // /portfolio/p250/directory - base directory view
+          // /portfolio/p107/directory - base directory view
           setSelectedDirectory("");
           setSelectedFile("");
           setCurrentView("directories");
@@ -80,7 +80,7 @@ function App({ themeMode, onThemeToggle }: AppProps) {
         setSelectedFile("");
         setCurrentView("logs");
       } else {
-        // /portfolio/p250 - portfolio selection view
+        // /portfolio/p107 - portfolio selection view
         setSelectedDirectory("");
         setSelectedFile("");
         setCurrentView("portfolios");

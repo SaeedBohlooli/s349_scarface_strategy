@@ -10,7 +10,7 @@ from trading_engine.engine import TradingEngine   # <-- you will create this
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--portfolio-id", required=False,default='p250', help="Portfolio ID for the trading engine")
+    parser.add_argument("--portfolio-id", required=False,default='p107', help="Portfolio ID for the trading engine")
     args = parser.parse_args()
 
     boot = Boot(args.portfolio_id)
