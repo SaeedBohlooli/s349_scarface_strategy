@@ -191,13 +191,16 @@ cases:
         - price_retest(app_config, application_state, case, symbol, df, side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True, level_alias=level_alias)
         - is_retest_after_breakout(application_state, symbol, side='up', level=long_level)
         - check_entry_vs_retest(application_state, case, symbol, df, side='up', level=long_level)
+        # 5
         - no_failure_after_breakout(application_state, case, symbol, df, side='up', level=long_level, ohlc_field='close')
         - check_price_vs_level(app_config, symbol, side='up', price=price, level=long_level )
         - not is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='up', price=price, current_level=long_level, next_levels=['PDH'])
         - 930 < get_last_record_hh_mm(df) < 1016 or get_mode(application_state) == 'live'
       extras:
         - abs (price - long_level) < 1.2 * atr_14
-        - price > application_state['levels'][symbol]['PDL'] and get_current_price(ib, application_state, 'QQQ') > application_state['levels']['QQQ']['PDL']
+        # 10
+        - price > application_state['levels'][symbol]['PDL']
+        - get_current_price(ib, application_state, 'QQQ') > application_state['levels']['QQQ']['PDL']
         - price < levels['PDH'] # avoid going long above PDH - extra safety- if we are above PDH, low change we continue after 5MH breakout
     short:
       level: levels['5ML']
@@ -207,13 +210,16 @@ cases:
         - price_retest(app_config, application_state, case, symbol, df, side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True ,level_alias=level_alias)
         - is_retest_after_breakout(application_state, symbol, side='down', level=short_level)
         - check_entry_vs_retest(application_state, case, symbol, df, side='down', level=short_level)
+        # 5
         - no_failure_after_breakout(application_state, case, symbol, df, side='down', level=short_level, ohlc_field='close')
         - check_price_vs_level(app_config, symbol, side='down', price=price, level=short_level )
         - not is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='down', price=price, current_level=short_level, next_levels=['PDH'])
         - 930 < get_last_record_hh_mm(df) < 1016 or get_mode(application_state) == 'live'
       extras:
         - abs (price - short_level) < 1.2 * atr_14
-        - price < application_state['levels'][symbol]['PDH'] and get_current_price(ib, application_state, 'QQQ') < application_state['levels']['QQQ']['PDH']
+        # 10
+        - price < application_state['levels'][symbol]['PDH']
+        - get_current_price(ib, application_state, 'QQQ') < application_state['levels']['QQQ']['PDH']
         - price > levels['PDL'] # avoid going long above PDH - extra safety- if we are above PDH, low change we continue after 5MH breakout
 
   case_2_2:
@@ -283,12 +289,14 @@ cases:
         - price_retest(app_config, application_state, case, symbol, df, side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True, level_alias=level_alias)
         - is_retest_after_breakout(application_state, symbol, side='up', level=long_level)
         - check_entry_vs_retest(application_state, case, symbol, df, side='up', level=long_level)
+        # 5
         - no_failure_after_breakout(application_state, case, symbol, df, side='up', ohlc_field='close',level=long_level)
         - check_price_vs_level(app_config, symbol, side='up', price=price, level=long_level )
         - levels['PDH'] < levels['5MH']
       extras:
         - abs (price - long_level) < 1.2 * atr_14
         - 930 < get_last_record_hh_mm(df) < 1016 or get_mode(application_state) == 'live'
+        # 10
         - not is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='up', price=price, current_level=long_level, next_levels=['PMH'])
 
     short:

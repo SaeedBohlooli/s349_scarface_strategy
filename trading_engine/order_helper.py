@@ -237,6 +237,8 @@ def check_manual_conditions(app_config, application_state, symbol, right):
 def add_to_capital_allocation_df(application_state, data):
     # capital_allocation_df = pd.concat([capital_allocation_df, pd.DataFrame([data])])
     application_state.setdefault('capital_allocation', []).append(data)
+    TradingLedger.add_to_dataframe("capital_allocation_df", data)
+    return
 
 
 async def send_order(ib, contract, side='long', total_quantity=1, order_ref=None): #TODO move to utils ...

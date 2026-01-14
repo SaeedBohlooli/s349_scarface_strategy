@@ -12,6 +12,7 @@ async def initialize_application_state(ib, app_config, application_state):
     :param application_state:
     :return:
     """
+    application_state['capital_allocation'] = []
     application_state['symbols'] = {}
     application_state['options_meta_date_dic'] = {}
     application_state['levels'] = {}
