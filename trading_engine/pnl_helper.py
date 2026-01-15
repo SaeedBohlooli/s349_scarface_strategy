@@ -164,7 +164,8 @@ def check_open_orders_in_capital_flow_df(application_state):
     logger.info(f"check_open_orders_in_capital_flow_df, df after marking closed:\n {df[-10:].to_markdown()}")
 
     if len(reverse_records) > 0:
-        logger.info(f"check_open_orders_in_capital_flow_df, reverse_records: \n {'\n'.join(str(n) for n in reverse_records)}")  # TODO not working
+        tmp = '\n'.join(str(n) for n in reverse_records)
+        logger.info(f"check_open_orders_in_capital_flow_df, reverse_records: \n {tmp}")  # TODO not working
         df = pd.concat([df, pd.DataFrame(reverse_records)])
     df = df.drop_duplicates()
     TradingLedger.set_dataframe("capital_flow_df", df)
