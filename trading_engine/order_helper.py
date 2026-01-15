@@ -74,7 +74,7 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
             right = 'C' if can_buy else 'P'
             option_contract = await options_helper.prepare_option_contract(ib, app_config, application_state, market_data, symbol, right=right)
             if option_contract == None:
-                notification_utls.notify_user(app_config, application_state, subject= f'Contract is null- {app_config.get('user_name')}', msg=f"@@@@@ prepare_contract returned None. We are not sending order. symbol={symbol}, option_contract={option_contract}")
+                notification_utls.notify_user(app_config, application_state, subject= f"Contract is null- {app_config.get('user_name')}", msg=f"@@@@@ prepare_contract returned None. We are not sending order. symbol={symbol}, option_contract={option_contract}")
                 logger.warning(f"@@@@@ We are not sending order. {symbol}, option_contract: {option_contract}")
                 continue
             bid, ask, last = await pricing_helper.get_quote_for_option_bid_ask(ib, symbol=symbol, expiry=option_contract.lastTradeDateOrContractMonth, strike=option_contract.strike, right=option_contract.right )
@@ -214,7 +214,7 @@ def check_manual_conditions(app_config, application_state, symbol, right):
             # evaluated_condition = eval(condition)
             evaluated_condition = eval(condition, {}, eval_ctx)
 
-            logger.info(f"check_manual_conditions, {symbol} , {right}, condition: {condition}, evaluated_condition: {evaluated_condition} ")
+            logger.info(f"check_manual_conditions, {symbol}, {right}, condition: {condition}, evaluated_condition: {evaluated_condition} ")
             if not evaluated_condition:
                 return False
 
@@ -222,7 +222,7 @@ def check_manual_conditions(app_config, application_state, symbol, right):
             # evaluated_condition
             evaluated_condition = eval(condition, {}, eval_ctx)
 
-            logger.info(f"check_manual_conditions, {symbol} , {right}, condition: {condition}, evaluated_condition: {evaluated_condition} ")
+            logger.info(f"check_manual_conditions, {symbol}, {right}, condition: {condition}, evaluated_condition: {evaluated_condition} ")
             if not evaluated_condition:
                 return False
 
