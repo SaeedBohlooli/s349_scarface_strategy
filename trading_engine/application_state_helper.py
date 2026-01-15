@@ -16,6 +16,11 @@ async def initialize_application_state(ib, app_config, application_state):
     application_state['symbols'] = {}
     application_state['options_meta_date_dic'] = {}
     application_state['levels'] = {}
+    application_state.setdefault('engine', {})['exit_requested'] = False
+    application_state['is_busy_time'] = False
+    application_state['trading_date'] = date_utils.get_yyyymmdd()
+    application_state['TradingLedger.get_all_dataframe_stats'] = []
+    application_state['TradingLedger.get_all_list_stats'] = []
 
     for symbol in app_config['symbols']:
         application_state['symbols'][symbol] = {}
@@ -27,10 +32,6 @@ async def initialize_application_state(ib, app_config, application_state):
 
         application_state.setdefault('latest_prices', {})[symbol] = current_price
 
-    application_state['is_busy_time'] = False
-    application_state['trading_date'] = date_utils.get_yyyymmdd()
-    application_state['TradingLedger.get_all_dataframe_stats'] = []
-    application_state['TradingLedger.get_all_list_stats'] = []
 
     # application_state['latest_prices'] = {}
     # application_state['current_price'] = {}

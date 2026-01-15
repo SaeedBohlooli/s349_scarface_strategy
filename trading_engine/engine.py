@@ -272,7 +272,7 @@ class TradingEngine:
             # user_request_x.user_request_loop(self.app_config, self.application_state),
             self.boot.data_saver_manager.run(ib, interval_sec=60),
             ib_heartbeat_loop.ib_heartbeat_loop(ib, app_config=self.app_config,application_state=self.application_state, interval_seconds=60),
-            market_session_guard.market_session_guard_loop(ib, self.application_state, self.runtime, interval_sec=600)
+            # market_session_guard.market_session_guard_loop(ib, self.application_state, self.runtime, interval_sec=600)
         )
 
 
