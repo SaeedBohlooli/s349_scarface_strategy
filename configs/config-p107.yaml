@@ -115,7 +115,7 @@ take_profits:
     close_quantity_percentage: .5
 
   t11_cl_manual:  # This is for closing everything just NVDA:   1 == 1 and symbol == 'NVDA'
-    condition: 1 == 2 and symbol == 'AMD'
+    condition: 1 == 3 and symbol == 'TSLA'
     close_quantity_percentage: -1
 
 scores:
@@ -179,12 +179,19 @@ live:
     P: ['F']
 
   manual_settings:
+#    C:
+#      conditions:
+#        - QQQ_price > QQQ_PDL
+#    P:
+#      conditions:
+#        -  QQQ_price < QQQ_PDL
+
     C:
       conditions:
-        - QQQ_price > QQQ_PDL
+        - QQQ_price > QQQ_PDH and QQQ_price > QQQ_5ML
     P:
       conditions:
-        -  QQQ_price < QQQ_PDL
+        -  QQQ_price < QQQ_PDH and QQQ_price < QQQ_5ML
 
     symbols:
       QQQ:

@@ -1,0 +1,4 @@
+
+
+#        - qqq['close'].iloc[-2] > qqq['close'].iloc[-3]
+#        - QQQ_close_2 > QQQ_close_3
