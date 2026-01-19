@@ -17,7 +17,7 @@ ib_app:
 
 watchdog:
   check_interval: 60          # seconds between checks
-  min_failures_to_restart: 3  # consecutive failures required
+  min_failures_to_restart: 5  # consecutive failures required
 
   # ----------------------------------------
   # HEARTBEAT CONFIGURATION
@@ -29,7 +29,7 @@ watchdog:
     # Final paths:
     #   logs/heartbeat/app_heartbeat.log
     #   logs/heartbeat/ib_heartbeat.log
-    base_dir: "../../portfolios/p106-1/heartbeat"
+    base_dir: "../../portfolios/p107/heartbeat"
 
     app_file: "app_heartbeat.log"
     ib_file: "ib_heartbeat.log"

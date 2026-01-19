@@ -29,7 +29,7 @@ def calculate_number_of_option_contracts(app_config, application_state, symbol, 
 
     data = {
             'timestamp': str(date_utils.time_now()),
-            'trade_date' : application_state.get('trade_date'),
+            'trade_date' : application_state.get('trading_date'),
             'symbol': symbol,
             'unique_run_number': application_state.get('unique_run_number'),
             'starting_capital': available_capital,
@@ -70,7 +70,7 @@ def calculate_number_of_future_contracts(app_config, application_state, symbol):
 
     data = {
             'timestamp': str(date_utils.time_now()),
-            'trade_date': application_state.get('trade_date'),
+            'trade_date': application_state.get('trading_date'),
             'symbol': symbol,
             'unique_run_number': application_state.get('unique_run_number'),
             'starting_capital': available_capital,

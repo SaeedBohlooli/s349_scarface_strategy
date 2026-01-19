@@ -5,6 +5,7 @@ import pandas as pd
 from trading_core.trading_ledger import TradingLedger
 from trading_utils import json_utils
 from trading_utils import constants
+from trading_utils import date_utils
 
 logger = logging.getLogger(__name__)
 
@@ -346,6 +347,9 @@ def detect_a_mark_market_gap(application_state, symbol, df):
     else:
         close_yesterday_1600 = res.iloc[-1]
     logger.info(f"{symbol}, open_today_0930: {open_today_0930} , close_yesterday_1600: {close_yesterday_1600}")
+    if open_today_0930 is None or close_yesterday_1600 is None:
+        logger.info(f"@ detect_a_mark_market_gap, cannot detect market gap for {symbol}, open_today_0930: {open_today_0930}, close_yesterday_1600: {close_yesterday_1600}")
+        return
     gap_size = round(open_today_0930 - close_yesterday_1600, 2)
     color = constants.COLOR_GREEN_TRANSPARENT if gap_size > 0 else constants.COLOR_RED_TRANSPARENT
 
@@ -358,6 +362,8 @@ def detect_a_mark_market_gap(application_state, symbol, df):
             'open_today_0930': open_today_0930,
             'close_yesterday_1600': close_yesterday_1600,
             'gap_size': gap_size,
+            'update_timestamp': str(date_utils.time_now()),
+
             }
         )
     return
