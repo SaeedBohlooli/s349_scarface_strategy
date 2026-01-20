@@ -1,5 +1,3 @@
-from bokeh.models.widgets import indicators
-
 from trading_core.trading_ledger import TradingLedger
 from trading_utils import *
 import logging
