@@ -189,10 +189,12 @@ live:
 
     C:
       conditions:
-        - QQQ_price > QQQ_5ML
+        - QQQ_price > QQQ_PDL
+        - QQQ_price > QQQ_5ML  and QQQ_price > QQQ_PDL
     P:
       conditions:
-        -  QQQ_price < QQQ_PDL and QQQ_price < QQQ_5ML
+        - QQQ_price < QQQ_PDH
+        - QQQ_price < QQQ_PDL and QQQ_price < QQQ_5ML and QQQ_price < QQQ_PML
 
     symbols:
       QQQ:

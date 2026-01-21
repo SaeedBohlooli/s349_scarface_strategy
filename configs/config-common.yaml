@@ -200,7 +200,7 @@ cases:
         - abs (price - long_level) < 1.2 * atr_14
         # 10
         - price > application_state['levels'][symbol]['PDL']
-        - get_current_price(ib, application_state, 'QQQ') > application_state['levels']['QQQ']['PDL']
+#        - get_current_price(ib, application_state, 'QQQ') > application_state['levels']['QQQ']['PDL']
         - price < levels['PDH'] # avoid going long above PDH - extra safety- if we are above PDH, low change we continue after 5MH breakout
     short:
       level: levels['5ML']
@@ -219,7 +219,7 @@ cases:
         - abs (price - short_level) < 1.2 * atr_14
         # 10
         - price < application_state['levels'][symbol]['PDH']
-        - get_current_price(ib, application_state, 'QQQ') < application_state['levels']['QQQ']['PDH']
+#        - get_current_price(ib, application_state, 'QQQ') < application_state['levels']['QQQ']['PDH']
         - price > levels['PDL'] # avoid going long above PDH - extra safety- if we are above PDH, low change we continue after 5MH breakout
 
   case_2_2:
