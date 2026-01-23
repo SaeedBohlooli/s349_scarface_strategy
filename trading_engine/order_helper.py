@@ -22,6 +22,8 @@ from trading_engine import position_helper
 
 
 async def check_buy_sell_result_to_send_order(ib, app_config, application_state, buy_sell_case_results_list, symbol, df, market_data):
+
+    current_hh_mm_ny = date_utils.get_current_hhmm_ny() # used in config ...
     is_trade_time = eval(app_config['live']['trade_time'])
 
     for buy_sell_case_result in buy_sell_case_results_list:
@@ -55,7 +57,10 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
         if application_state.get('open_trades_dic', {}).get(symbol,{}).get('available_quantity', 0) != 0:
             logger.warning(f"@@ You already have open position. Don't be greedy!!!  symbol: {symbol}")
             continue
-        if number_of_positions_today(application_state, symbol) >= app_config['live']['max_num_of_trade_per_symbol_per_day']:
+        if number_of_positions_today(application_state, symbol) > app_config['risk_gate']['max_num_of_trade_per_symbol_per_day']:
+            logger.warning(f"@@  We already sent enough orders for {symbol}")
+            continue
+        if number_of_total_positions_today(application_state) >= app_config['risk_gate']['max_number_of_trades_per_day']:
             logger.warning(f"@@  We already sent enough orders for {symbol}")
             continue
         if has_open_order_in_same_group(app_config, application_state, symbol):
@@ -64,9 +69,13 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
         if symbol in app_config['live']['blocked_symbols'][right]:
             logger.warning(f"@@  This symbol is blocked, {symbol}, {app_config['live']['blocked_symbols'][side]}")
             continue
+        if number_of_wins(application_state, symbol) >= app_config.get('risk_gate',{}).get('stop_after_wins', 100):
+            logger.warning(f"@@  Today we had enough wins, {symbol}")
+            continue
         if not check_manual_conditions(app_config, application_state, symbol, right):
             logger.warning(f"@@  check_manual_conditions failed, {symbol}")
             continue
+
 
         # FIXME mark_score_in_the_chart(market_trend)
 
@@ -185,6 +194,23 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
 def number_of_positions_today(application_state, symbol):
     number_of_positions_today = application_state.get('number_of_trades', {}).get(date_utils.get_yyyymmdd(), {}).get(symbol, 0)
     return number_of_positions_today
+
+def number_of_total_positions_today(application_state):
+    """
+    Returns total number of trades for a given trading_date
+    across all symbols.
+    "20260114": {
+      "PLTR": 2,
+      "TSLA": 1
+    },
+    """
+    trading_date = date_utils.get_yyyymmdd()
+    number_of_trades = application_state.get("number_of_trades", {})
+    trades_for_day = number_of_trades.get(trading_date)
+    if not trades_for_day:
+        return 0
+    else:
+        return sum(trades_for_day.values())
 
 
 def has_open_order_in_same_group(app_config, application_state, symbol):
@@ -339,9 +365,8 @@ def calculate_number_of_future_contracts(app_config, application_state, symbol):
     available_capital = risk_helper.calcualte_availale_capital(app_config, application_state)
 
     capital_per_trade_percentage = app_config['live']['capital_per_trade_percentage']
-    max_num_open_trades = app_config['live']['max_num_open_trades']
 
-    logger.info(f"calculate_number_of_future_contracts(), {symbol}, available_capital: {available_capital}, capital_per_trade_percentage: {capital_per_trade_percentage}, max_num_open_trades: {max_num_open_trades}")
+    logger.info(f"calculate_number_of_future_contracts(), {symbol}, available_capital: {available_capital}, capital_per_trade_percentage: {capital_per_trade_percentage}")
 
     capital_per_trade = max(available_capital * capital_per_trade_percentage, 800)  # TODO put in a function
     num_of_contracts = 1
@@ -392,3 +417,8 @@ def create_eval_ctx(application_state):
 
 
     return eval_ctx
+
+def number_of_wins(application_state, symbol):
+    trading_date = application_state.get('trading_date')
+    number_of_wins = application_state.get('number_of_wins', {}).get(trading_date, 0)
+    return number_of_wins

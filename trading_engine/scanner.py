@@ -209,12 +209,12 @@ def breakout_in_last_x_candles_ver_2(app_config, application_state, case, symbol
 
         # --- breakout condition ---
         if side == 'up':
-            cond_1 = (row["low"] < level and row["close"] > level + gap)    # The price above level + gap
+            cond_1 = (row["low"] <= level and row["close"] > level + gap)    # The price above level + gap
             cond_2 = (previous["open"] < level and row["close"] > level + gap)  # The prev open is below level and current above the level.
             cond_3 = (previous["open"] < level and row["open"] > level and row["close"] > level)  # The prev open is below level and current open and close are above the level.
 
         else:
-            cond_1 = (row["high"] > level and row["close"] < level - gap)
+            cond_1 = (row["high"] >= level and row["close"] < level - gap)
             cond_2 = (previous["open"] > level and row["close"] < level - gap)
             cond_3 = (previous["open"] > level and row["open"] < level and row["close"] < level)
 

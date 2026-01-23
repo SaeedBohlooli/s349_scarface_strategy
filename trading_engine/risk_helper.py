@@ -8,11 +8,10 @@ def calculate_number_of_option_contracts(app_config, application_state, symbol, 
     available_capital = calcualte_availale_capital(app_config, application_state)
 
     capital_per_trade_percentage = app_config['live']['capital_per_trade_percentage']
-    max_num_open_trades = app_config['live']['max_num_open_trades']
 
-    # 4000 * 0.2 = 800.00  if the ask = 1,  quantitiy:  8  =  800/( 100  contract * 1 ask)
+    # 4000 * 0.2 = 800.00  if the ask = 1,  quantity:  8  =  800/( 100  contract * 1 ask)
     #  num_of_contracts: 4
-    logger.info(f"calculate_number_of_contracts(), {symbol}, available_capital: {available_capital}, capital_per_trade_percentage: {capital_per_trade_percentage}, max_num_open_trades: {max_num_open_trades}")
+    logger.info(f"calculate_number_of_contracts(), {symbol}, available_capital: {available_capital}, capital_per_trade_percentage: {capital_per_trade_percentage}")
 
     capital_per_trade = max(available_capital * capital_per_trade_percentage, 800)  # TODO put in a function
     num_of_contracts = max(round(capital_per_trade / (ask * 100)), 6)  # TODO we get 2 as min ...
@@ -51,9 +50,8 @@ def calculate_number_of_future_contracts(app_config, application_state, symbol):
     available_capital = calcualte_availale_capital()
 
     capital_per_trade_percentage = app_config['live']['capital_per_trade_percentage']
-    max_num_open_trades = app_config['live']['max_num_open_trades']
 
-    logger.info(f"calculate_number_of_future_contracts(), {symbol}, available_capital: {available_capital}, capital_per_trade_percentage: {capital_per_trade_percentage}, max_num_open_trades: {max_num_open_trades}")
+    logger.info(f"calculate_number_of_future_contracts(), {symbol}, available_capital: {available_capital}, capital_per_trade_percentage: {capital_per_trade_percentage} ")
 
     capital_per_trade = max(available_capital * capital_per_trade_percentage, 800)  # TODO put in a function
     num_of_contracts = 1

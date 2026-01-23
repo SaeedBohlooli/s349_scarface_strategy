@@ -158,43 +158,47 @@ closeness_distance_for_chart:
 
 closeness_distance_for_case_1: df['atr_14'].iloc[-2] * 2
 
+risk_gate:
+  stop_after_wins: 1
+  max_number_of_trades_per_day: 2
+  max_num_of_trade_per_symbol_per_day: 2
+
+sizing_rules:
+  x: 1
+
+pre_trade_checks:
+  - check_daily_pnl
+  - check_symbol_trade_count
+  - check_open_positions
+  - x
 live:
 #  cases_to_run: ['case_2_1', 'case_4_1']
   cases_to_run: ['case_2_1_async', 'case_4_1_async', 'case_3']
   historical_days: 4 D
+
   capital: 4000
   capital_per_trade_percentage: 0.20
-
-  max_num_open_trades: 4 # it is not in yet
   num_of_contracts: calculate_number_of_contracts()
-  max_num_of_trade_per_symbol_per_day: 2
-#  max_num_of_trade_per_symbol_per_day: 20
-  max_profit_per_day: 2000 # it will not get into new trade, it is not in yet
-  max_loss_per_day: 1000 # it will not get into new trade ... it is not in yet
-#  trade_time: 930 < current_hh_mm_ny  < 1015 # TODO change to trade_time
-  trade_time: 1 == 1
+
+  trade_time: 930 < current_hh_mm_ny  < 1015 # TODO change to trade_time
+#  trade_time: 1 == 1
   market_time: 930 < current_hh_mm_ny < 1559
   busy_time: 933 < current_hh_mm_ny < 1016  #don't chaneg this,  we are not saving anythng or any test ...
+
+
   blocked_symbols:
     C: ['C']
     P: ['F']
 
   manual_settings:
-#    C:
-#      conditions:
-#        - QQQ_price > QQQ_PDL
-#    P:
-#      conditions:
-#        -  QQQ_price < QQQ_PDL
-
     C:
       conditions:
+        - QQQ_price > QQQ_5ML
         - QQQ_price > QQQ_PDL
-        - QQQ_price > QQQ_5ML  and QQQ_price > QQQ_PDL
     P:
       conditions:
+        - QQQ_price < QQQ_5ML
         - QQQ_price < QQQ_PDH
-        - QQQ_price < QQQ_PDL and QQQ_price < QQQ_5ML and QQQ_price < QQQ_PML
 
     symbols:
       QQQ:
@@ -365,3 +369,5 @@ health_check:
   email_interval_minutes: 10
 
 
+child_configs:
+  - config-manual-settings.yaml

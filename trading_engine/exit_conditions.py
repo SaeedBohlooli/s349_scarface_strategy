@@ -236,7 +236,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                 TradingLedger.add_to_list("signals", (symbol, 'TAKE_PROFIT_SENT', underlying_current_price, symbol_df['date'].iloc[-1], f"TAKE-PROFIT-{take_profit} <BR>{json_utils.polish_map_to_show_in_hover(data)}"))
                 # send_email(event='take_profit_sent', symbol=symbol, body=polish_map_to_show_in_hover(data))
                 notification_helper.send_email(app_config, event='take_profit_sent', symbol=symbol, body=json_utils.polish_map_to_show_in_hover(data))
-
+                increment_wins(application_state, symbol)
                 # This is very import. There was a case that after t1 execution, t2 condition meet also
                 # but the available_quantity was not updates. look at the for iterator. we are updating what we are iterating it ...
                 # DO MOT DELETE THIS. we go out, and we will come back i next .... if break didn't work we need to use return ...
@@ -394,3 +394,14 @@ def check_mark_revers_candles(application_state, symbol, take_profit_alias=None,
         logger.error(f"@@@ error: {e}")
         logger.error(traceback.format_exc())
     return result
+
+
+
+def increment_wins(application_state, symbol):
+    trading_date = application_state.get('trading_date', 'N/A')
+
+    wins_by_day = application_state.setdefault('number_of_wins', {})
+    wins_by_day[trading_date] = wins_by_day.get(trading_date, 0) + 1
+
+    logger.info(f"increment_wins, {trading_date}, number_of_wins: {application_state['number_of_wins'][trading_date]}")
+    return
