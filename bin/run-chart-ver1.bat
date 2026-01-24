@@ -20,3 +20,5 @@ if %errorlevel%==0 (
     echo Starting program %CMD%
     start cmd /k %CMD%
 )
+
+start "" "C:\Program Files\Google\Chrome\Application\chrome.exe" "http://localhost:51071/"

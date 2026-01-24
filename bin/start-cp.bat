@@ -22,3 +22,5 @@ if %errorlevel%==0 (
     cd %DIR%
     start cmd /k "npm run dev"
 )
+
+start "" "C:\Program Files\Google\Chrome\Application\chrome.exe" "http://localhost:7107/"
