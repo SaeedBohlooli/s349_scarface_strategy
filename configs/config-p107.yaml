@@ -162,6 +162,9 @@ risk_gate:
   stop_after_wins: 1
   max_number_of_trades_per_day: 2
   max_num_of_trade_per_symbol_per_day: 2
+#  second_trade_check: no_trade_today or (has_open_trade and tp in ['tp1'])
+#  # we don't go for the second trade if we have one profit trade today already (tp2)
+#  # we have one open trade and we only hit tp1, we are not going to take another trade
 
 sizing_rules:
   x: 1
@@ -195,6 +198,7 @@ live:
       conditions:
         - QQQ_price > QQQ_5ML
         - QQQ_price > QQQ_PDL
+#        - symbol_price > symbol_PDL
     P:
       conditions:
         - QQQ_price < QQQ_5ML
