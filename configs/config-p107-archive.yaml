@@ -145,3 +145,34 @@ cases:
         - check_price_vs_level(side='down', price=price, level=short_level )
         - abs (price - short_level) < 1.2 * atr_14 or 1 == 1
         - 930 < last_record_hh_mm < 940
+
+
+scores:
+  s1:
+    cond: df['VR'].iloc[-1] > 1.2
+    score: 4
+    memo: Enough volume
+  s2:
+    cond: intraday_rs_df['rs_rel'].iloc[-1] > 0
+    score: 1
+    memo: same direction as QQQ
+  s3:
+    cond: intraday_rs_df['stock_pct'].iloc[-1] < 0.015
+    score: 1
+    memo: not running too fast. less then 1.5 percent change
+  s4:
+    cond: qqq_5ML < qqq_df['close'].iloc[-1] < qqq_5MH and qqq_5ML != -1 and qqq_5MH != -1
+    score: -4
+    memo: 5ML < qqq < 5MH
+  s5:
+    cond: qqq_df['close'].iloc[-1] > qqq_5MH and qqq_5MH != -1 and market_trend == 'up'
+    score: 4
+    memo: qqq > 5MH and we going to call
+  s6:
+    cond: qqq_df['close'].iloc[-1] < qqq_5ML and qqq_5ML != -1 and market_trend == 'down'
+    score: 4
+    memo: qqq < 5ML and we going to put
+  s7:
+    cond: 1 == 1
+    score: 0
+    memo: place holder - ver2.0 of scoring.

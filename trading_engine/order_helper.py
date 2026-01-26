@@ -66,8 +66,8 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
         if has_open_order_in_same_group(app_config, application_state, symbol):
             logger.warning(f"@@  We already have open order in same group {symbol}")
             continue
-        if symbol in app_config['live']['blocked_symbols'][right]:
-            logger.warning(f"@@  This symbol is blocked, {symbol}, {app_config['live']['blocked_symbols'][side]}")
+        if symbol in app_config.get('manual_settings',{}).get('blocked_symbols',{})[right]:
+            logger.warning(f"@@  This symbol is blocked, {symbol}, {app_config.get('manual_settings',{}).get('blocked_symbols',{})[right]}")
             continue
         if number_of_wins(application_state, symbol) >= app_config.get('risk_gate',{}).get('stop_after_wins', 100):
             logger.warning(f"@@  Today we had enough wins, {symbol}")
@@ -236,7 +236,7 @@ def check_manual_conditions(app_config, application_state, symbol, right):
         eval_ctx = create_eval_ctx(application_state)
         application_state['eval_ctx'] = eval_ctx
 
-        for condition in app_config['live'].get('manual_settings', {}).get(right,{}).get('conditions', []):
+        for condition in app_config.get('manual_settings', {}).get(right,{}).get('conditions', []):
             # evaluated_condition = eval(condition)
             evaluated_condition = eval(condition, {}, eval_ctx)
 
@@ -244,7 +244,7 @@ def check_manual_conditions(app_config, application_state, symbol, right):
             if not evaluated_condition:
                 return False
 
-        for condition in app_config['live'].get('manual_settings', {}).get('symbols',{}).get(symbol, {}).get(right,[]):
+        for condition in app_config.get('manual_settings', {}).get('symbols',{}).get(symbol, {}).get(right,[]):
             # evaluated_condition
             evaluated_condition = eval(condition, {}, eval_ctx)
 

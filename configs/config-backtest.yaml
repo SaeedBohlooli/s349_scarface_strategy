@@ -1,0 +1,83 @@
+
+
+back_test:
+  data:
+    get_data_from_ib: False  # we have data from 01-01
+    start_date: 2025-12-01
+    end_date: 2025-12-12
+    historical_days: 5 D  # don't change this
+  exclude_list: ['MNQ']
+#  memo: c_4 TP 1 ATR - BR ver1.2- BR 4 candle- Ent. close to level
+#  memo: case_2_1 TP 1.5 ATR - BR ver1.2- Ent. close to level - no short above PDH
+  memo: case_2_1 and case_4_1
+  cases_to_run: ['case_2_1', 'case_4_1']
+  runs:
+#    r_today:
+#      active: true
+#      start: 2025-12-09
+#      end: 2025-12-10
+#      memo: Today
+
+    last_month:
+      active: true
+      start: 2025-11-01
+      end: 2025-12-01
+      memo: last month
+  x:
+    r7:
+      active: true
+      start: 2025-04-01
+      end: 2025-05-01
+      memo: April
+
+    r6:
+      active: true
+      start: 2025-05-01
+      end: 2025-06-01
+      memo: May
+
+    r5:
+      active: true
+      start: 2025-06-01
+      end: 2025-07-01
+      memo:
+
+    r4:
+      active: true
+      start: 2025-07-01
+      end: 2025-08-01
+      memo: July
+
+    r3:
+      active: true
+      start: 2025-08-01
+      end: 2025-09-01
+      memo: Aug
+
+    r2:
+      active: true
+      start: 2025-09-01
+      end: 2025-10-01
+      memo: Sep
+
+    r1:
+      active: true
+      start: 2025-10-01
+      end: 2025-11-01
+      memo: Oct
+
+
+    2025_11:
+      active: true
+      start: 2025-11-01
+      end: 2025-12-01
+      memo: Nov
+
+
+
+  long:
+    stop_loss: level_used - ( dynamic_tolerance.get('tolerance', 0) * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1))
+    take_profit: ( df['open'].iloc[-1] + df['close'].iloc[-1] ) / 2 + (df['atr_14'].iloc[-2] * 1.5 )
+  short:
+    stop_loss: level_used + ( dynamic_tolerance.get('tolerance', 0) * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1))
+    take_profit: ( df['open'].iloc[-1] + df['close'].iloc[-1] ) / 2 - (df['atr_14'].iloc[-2] * 1.5 )
