@@ -47,6 +47,13 @@ symbols_meta:
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 0.5
     retest_tolerance_multiplier: 1
+  MU:
+    can_trade: true
+    contract_type: Equity
+    min_required_move_from_level: 0.25
+    breakout_confirmation_distance: 0.15
+    chart_entry_offset: 0.5
+    retest_tolerance_multiplier: 1
   TSLL:
     group: G1
     can_trade: true

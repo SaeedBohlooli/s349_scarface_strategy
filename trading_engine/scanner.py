@@ -100,8 +100,8 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
         logger.info(f"check_buy_sell_condition(), breakout_idxs, {case}, {symbol}, can_buy: {long_breakout_idxs}, {long_retest_idxs}")
         logger.info(f"check_buy_sell_condition(), breakout_idxs, {case}, {symbol}, can_sell: {short_breakout_idxs}, {short_retest_idxs}")
 
-        logger.info(f"check_buy_sell_condition(), {case}, {symbol}, can_buy: {long_breakout_idx}, {long_retest_idx}")
-        logger.info(f"check_buy_sell_condition(), {case}, {symbol}, can_sell: {short_breakout_idx}, {short_retest_idx}")
+        logger.info(f"check_buy_sell_condition(), idx, {case}, {symbol}, can_buy: {long_breakout_idx}, {long_retest_idx}")
+        logger.info(f"check_buy_sell_condition(), idx, {case}, {symbol}, can_sell: {short_breakout_idx}, {short_retest_idx}")
 
         # This is shown in the chart ..
         res_str = (f"res_{case}:<br>"

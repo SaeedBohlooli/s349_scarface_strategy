@@ -2,12 +2,15 @@ manual_settings:
   C:
     conditions:
       - QQQ_price > QQQ_5ML
-      - QQQ_price > QQQ_PDL
-#        - symbol_price > symbol_PDL
+      - QQQ_price > QQQ_PML
+#      - QQQ_price > QQQ_PDL
   P:
     conditions:
-      - QQQ_price < QQQ_5ML
-      - QQQ_price < QQQ_PDL
+      - 1 == 2
+#      - QQQ_price < QQQ_PML
+#      -
+#      - QQQ_price < QQQ_PDL
+#      -
 
   symbols:
     QQQ:

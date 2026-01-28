@@ -120,7 +120,7 @@ class TradingEngine:
                 if self.runtime.is_due("PREPARE_OPTION_CONTRACTS_FOR_LATER_USE", interval_sec=60*5, min_time_hhmm=930):
                     await options_helper.prepare_option_contracts_for_later_use(ib, self.app_config, self.application_state, self.market_data)
 
-                if not self.application_state['is_busy_time'] and self.runtime.is_due('DO_PNL', interval_sec=1*60): # TODO should be not busy_time?!
+                if not self.application_state['is_busy_time'] and self.runtime.is_due('DO_PNL', interval_sec=5*60): # TODO should be not busy_time?!
                     pnl_helper.populate_open_close_refs_pnl_df()
                     pnl_helper.populate_close_orders_in_capital_flow_df()
                     pnl_helper.check_open_orders_in_capital_flow_df(self.application_state)
