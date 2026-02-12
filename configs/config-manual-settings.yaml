@@ -1,17 +1,41 @@
 manual_settings:
   C:
     conditions:
-      - QQQ_price > QQQ_5ML
-      - QQQ_price > QQQ_PML
+#      - QQQ_price > QQQ_5MH
+#      - QQQ_price > QQQ_5ML
+#      - QQQ_price > 602
+#      - QQQ_price > QQQ_PML
 #      - QQQ_price > QQQ_PDL
+      - QQQ_price > QQQ_PDH
   P:
     conditions:
-      - 1 == 2
-#      - QQQ_price < QQQ_PML
-#      -
+#      - QQQ_price < QQQ_PMH
+      - QQQ_price < QQQ_PML
 #      - QQQ_price < QQQ_PDL
-#      -
-
+      - QQQ_price < QQQ_5ML
+#      - 1 == -1
+#manual_settings:
+##  C:
+##    conditions:
+##      - QQQ_price > QQQ_5ML
+##      - QQQ_price > QQQ_PML
+###      - QQQ_price > QQQ_PDL
+##  P:
+##    conditions:
+###      - 1 == 2
+##      - QQQ_price < QQQ_PML
+###      -
+##      - QQQ_price < QQQ_5ML
+###      -
+#
+#  C:
+#      conditions:
+#        - QQQ_price > 626
+#        - QQQ_price > QQQ_5ML
+#  P:
+#      conditions:
+#        - QQQ_price < 626
+#        - QQQ_price < QQQ_5ML
   symbols:
     QQQ:
       C:
@@ -61,5 +85,5 @@ manual_settings:
 
 
   blocked_symbols:
-    C: ['C']
-    P: ['F']
+    C: ['MU']
+    P: ['MU']

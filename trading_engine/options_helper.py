@@ -117,6 +117,11 @@ async def orchestrate_expirations_strikes(ib, app_config, application_state, mar
     options_meta_date_dic.update(expirations_manually_created)
     FileManager.save_named_json(options_meta_date_dic, file_name='85-strikes-expirations-ib+nazdaq+adhoc+manual.json', dir='intermediate')
 
+    extended_strikes = extend_all_strikes(options_meta_date_dic, 10)
+    options_meta_date_dic.update(extended_strikes)
+
+    FileManager.save_named_json(options_meta_date_dic, file_name='85-strikes-expirations-ib+nazdaq+adhoc+manual+extend.json', dir='intermediate')
+
     logger.debug('hold it here ')
     return
 
@@ -219,3 +224,36 @@ async def prepare_option_contract_for_later_use_for_symbol(ib, app_config, appli
 
 
     return True
+
+
+def extend_all_strikes(data: dict, n: int = 5) -> dict:
+    for key, strikes in data.items():
+        if not key.endswith("-strikes"):
+            continue
+
+        if not strikes or len(strikes) < 2:
+            continue  # skip invalid entries safely
+
+        strikes = sorted(strikes)
+
+        # infer step size
+        diffs = [
+            round(strikes[i + 1] - strikes[i], 10)
+            for i in range(len(strikes) - 1)
+            if strikes[i + 1] > strikes[i]
+        ]
+
+        if not diffs:
+            continue
+
+        step = min(diffs)
+
+        start = strikes[0]
+        end = strikes[-1]
+
+        lower = [round(start - step * i, 10) for i in range(n, 0, -1)]
+        upper = [round(end + step * i, 10) for i in range(1, n + 1)]
+
+        data[key] = lower + strikes + upper
+
+    return data

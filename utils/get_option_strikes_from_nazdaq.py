@@ -52,7 +52,7 @@ def get_strikes(symbol):
         return strikes
 
     except Exception as e:
-        print(f"{symbol}: ❌ Error → {e}")
+        print(f"{symbol}:  Error {e}")
         print(data)
         return []
 
