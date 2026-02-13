@@ -256,8 +256,8 @@ class TradingEngine:
 
         ws_server = await self.ws.start()
 
-        state_streamer = StateStreamer(self.app_config, self.application_state, self.ws, interval=5)
-        config_streamer = ConfigStreamer(self.app_config, self.application_state, self.ws, interval=60)
+        state_streamer = StateStreamer(self.app_config, self.application_state, self.ws, interval_sec=5)
+        config_streamer = ConfigStreamer(self.app_config, self.application_state, self.ws, interval_sec=60)
 
         self.logger.info("WebSocket server is starting...")
 
