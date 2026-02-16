@@ -67,14 +67,14 @@ stop_losses:
 take_profits:
   t1:
     condition: >
-      (current_bid > avg_cost_for_1_contract * 1.15 or current_bid - avg_cost_for_1_contract > 0.20)
+      (current_bid > avg_cost_for_1_contract * 1.15 or current_bid - avg_cost_for_1_contract > 0.30)
       and avg_cost_for_1_contract not in [0,-1] and current_bid not in [0,-1]
     close_quantity_percentage: 0.6
     memo: Taking some profit at 15% or 0.20 with 4 of 6
 
   t2:
     condition: > 
-      (current_bid > avg_cost_for_1_contract * 1.30 or current_bid - avg_cost_for_1_contract > 0.80)
+      (current_bid > avg_cost_for_1_contract * 1.30 or current_bid - avg_cost_for_1_contract > 0.70)
       and avg_cost_for_1_contract not in [0,-1] and current_bid not in [0,-1]
     close_quantity_percentage: 0.20
     memo: Taking some profit at 30% or 0.80 with 1 of 6

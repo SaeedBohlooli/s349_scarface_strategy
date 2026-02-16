@@ -18,7 +18,7 @@ symbols_meta:
     min_required_move_from_level: 0.25
     breakout_confirmation_distance: 0.15
     chart_entry_offset: 1
-    retest_tolerance_multiplier: 1.8
+    retest_tolerance_multiplier: 1.3
   AAPL:
     can_trade: true
     contract_type: Equity
