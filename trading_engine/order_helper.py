@@ -21,7 +21,7 @@ from trading_engine import notification_helper
 from trading_engine import position_helper
 
 
-async def check_buy_sell_result_to_send_order(ib, app_config, application_state, buy_sell_case_results_list, symbol, df, market_data):
+async def check_buy_sell_result_to_send_order(ib, app_config, application_state, buy_sell_case_results_list, symbol, df, market_data, runtime):
 
     current_hh_mm_ny = date_utils.get_current_hhmm_ny() # used in config ...
     is_trade_time = eval(app_config['live']['trade_time'])
@@ -74,6 +74,8 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
             continue
         if not check_manual_conditions(app_config, application_state, symbol, right):
             logger.warning(f"@@  check_manual_conditions failed, {symbol}")
+            if runtime.should_run_once(f"manual-condition-failed-{symbol}-{str(df['date'].iloc[-1])}"):
+                TradingLedger.add_to_list("signals", (symbol, f"MANUAL_CONDITION_FAILED", df['high'].iloc[-1], df['date'].iloc[-1], f"{case} - ", 'YELLOW'))
             continue
 
 
