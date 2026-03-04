@@ -4,12 +4,12 @@ cd /opt/u107_level_driven_algo/bin-bash || exit 1
 source ../venv/bin/activate
 
 PORTFOLIO_ID="p107"
-SCRIPT_PATH="../main/main.py"
-COMMAND="${SCRIPT_PATH}  --portfolio-id=$PORTFOLIO_ID"
-PROCESS_MATCH="trading_api_service.py --portfolio-id=${PORTFOLIO_ID}"
+SCRIPT_PATH="npm run dev -- --host 0.0.0.0"
+COMMAND="${SCRIPT_PATH}"
+PROCESS_MATCH="npm"
 
 LOG_DIR="../../portfolios/${PORTFOLIO_ID}/logs"
-LOG_FILE="$LOG_DIR/main.log"
+LOG_FILE="$LOG_DIR/control-panel.log"
 
 mkdir -p "$LOG_DIR"
 
@@ -28,7 +28,7 @@ fi
 echo "Process not running. Starting..."
 echo $COMMAND
 
-nohup python $COMMAND >> "$LOG_FILE" 2>&1 &
+$COMMAND >> "$LOG_FILE" 2>&1 &
 
 NEW_PID=$!
 echo "Started trading_api with PID: $NEW_PID"
