@@ -6,7 +6,7 @@ source ../venv/bin/activate
 PORTFOLIO_ID="p107"
 SCRIPT_PATH="../scripts/charts_ver1.py"
 COMMAND="${SCRIPT_PATH}  --portfolio-id=$PORTFOLIO_ID"
-PROCESS_MATCH="trading_api_service.py --portfolio-id=${PORTFOLIO_ID}"
+PROCESS_MATCH="charts_ver1.py"
 
 LOG_DIR="../../portfolios/${PORTFOLIO_ID}/logs"
 LOG_FILE="$LOG_DIR/charts_ver1.log"

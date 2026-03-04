@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
-cd /opt/u107_level_driven_algo/bin-bash || exit 1
-source ../venv/bin/activate
+cd /opt/u107_level_driven_algo/ui-control-panel/ui-dashboard/ 
 
 PORTFOLIO_ID="p107"
 SCRIPT_PATH="npm run dev -- --host 0.0.0.0"
