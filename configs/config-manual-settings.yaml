@@ -10,7 +10,7 @@ manual_settings:
       C:
           - 1 == 1
       P:
-          - 1 == 2
+          - 1 == 8
     AMD:
       C:
           - 1 == 2
@@ -37,6 +37,9 @@ manual_settings:
       P:
           - TSLA_price < 400
 
-  blocked_symbols:
+  xblocked_symbols:
     C: ['MU']
     P: ['MU']
+  blocked_symbols:
+    C: [ 'MU' ]
+    P: [ 'MU' ]

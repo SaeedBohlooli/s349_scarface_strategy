@@ -133,3 +133,49 @@ def view_file():
 
     return jsonify(packet), 200
 
+
+@app_bp.route("/api/save-file", methods=["POST"])
+def save_file():
+    logger.info(f"[save_file] Received request to save file with args: {request.args}")
+    data = request.json
+    logger.info(f"[save_file] Received data: {data}")
+    file_name = data.get("file_name")
+    content = data.get("content")
+
+    logger.info(pprint(data))
+
+    base_dir = "../configs"   # change to your path
+    file_path = os.path.join(base_dir, file_name)
+
+
+    try:
+        # content = json.loads(content)
+        content = yaml.safe_load(content)
+        logger.info(pprint(content))
+        with open(file_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(
+                content,
+                f,
+                sort_keys=False,  # important for config readability
+                allow_unicode=True
+            )
+
+        logger.info(f"[save_file] Saved JSON to {file_path}")
+
+        packet = {
+            "type": "config_file_content",
+            "file_name": file_name,
+            "timestamp": date_utils.time_now_yyyy_mm_dd_hh_mm_ss(),
+            "status": "ok"
+        }
+
+        return jsonify(packet), 200
+
+    except Exception as e:
+        logger.exception("[save_file] Failed saving file")
+
+        return jsonify({
+            "type": "config_file_content",
+            "status": "error",
+            "message": str(e)
+        }), 500

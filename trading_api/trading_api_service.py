@@ -16,7 +16,7 @@ from trading_core.directory_manager import DirectoryManager
 from trading_core.broker import broker_bp
 
 # project-specific endpoints
-from order_history_api import app_bp
+from app_api_routes import app_bp
 
 
 def create_app(portfolio_id):
