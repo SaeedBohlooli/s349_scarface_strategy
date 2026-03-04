@@ -1,57 +1,26 @@
 manual_settings:
   C:
     conditions:
-#      - QQQ_price > QQQ_5MH
-#      - QQQ_price > QQQ_5ML
-#      - QQQ_price > 602
-#      - QQQ_price > QQQ_PML
-#      - QQQ_price > QQQ_PDL
-      - QQQ_price > QQQ_PDH
+      - QQQ_price >  QQQ_5MH
   P:
     conditions:
-#      - QQQ_price < QQQ_PMH
       - QQQ_price < QQQ_PML
-#      - QQQ_price < QQQ_PDL
-      - QQQ_price < QQQ_5ML
-#      - 1 == -1
-#manual_settings:
-##  C:
-##    conditions:
-##      - QQQ_price > QQQ_5ML
-##      - QQQ_price > QQQ_PML
-###      - QQQ_price > QQQ_PDL
-##  P:
-##    conditions:
-###      - 1 == 2
-##      - QQQ_price < QQQ_PML
-###      -
-##      - QQQ_price < QQQ_5ML
-###      -
-#
-#  C:
-#      conditions:
-#        - QQQ_price > 626
-#        - QQQ_price > QQQ_5ML
-#  P:
-#      conditions:
-#        - QQQ_price < 626
-#        - QQQ_price < QQQ_5ML
   symbols:
-    QQQ:
-      C:
-        - 1 == 1
-      P:
-        - 1 == 1
     AAPL:
       C:
           - 1 == 1
       P:
-          - 1 == 1
+          - 1 == 2
     AMD:
       C:
-          - 1 == 1
+          - 1 == 2
       P:
           - 1 == 1
+    AMZN:
+      C:
+        - 1 == 1
+      P:
+        - 1 == 1
     NVDA:
       C:
           - 1 == 1
@@ -61,28 +30,12 @@ manual_settings:
       C:
           - 1 == 1
       P:
-          - 1 == 1
+          - 1 == 2
     TSLA:
       C:
           - 1 == 1
       P:
-          - 1 == 1
-    TSLL:
-      C:
-          - 1 == 1
-      P:
-          - 1 == 1
-    SPY:
-      C:
-          - 1 == 1
-      P:
-          - 1 == 1
-    MNQ:
-      C:
-          - 1 == 1
-      P:
-          - 1 == 1            -
-
+          - TSLA_price < 400
 
   blocked_symbols:
     C: ['MU']

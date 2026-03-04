@@ -4,8 +4,7 @@ control_panel:
   # Server ports
   ports:
     vite: 7107
-    websocket: 6107
-    api: 5107
+
 
   # WebSocket configuration
   websocket:
