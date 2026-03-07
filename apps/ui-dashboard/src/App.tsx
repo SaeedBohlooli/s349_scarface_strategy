@@ -38,73 +38,55 @@ function App({ themeMode, onThemeToggle }: AppProps) {
     view?: string;
   }>();
 
-  // Initialize state from URL params
   const [selectedPortfolio, setSelectedPortfolio] = useState<string>(params.portfolioId || "");
-  const [selectedDirectory, setSelectedDirectory] = useState<string>(params.directory || "");
-  const [selectedFile, setSelectedFile] = useState<string>(params.file || "");
+  const [browsePath, setBrowsePath] = useState<string>("");
+  const [selectedFilePath, setSelectedFilePath] = useState<string>("");
   const [currentView, setCurrentView] = useState<ViewState>(
     (params.view as ViewState) || "portfolios"
   );
 
-  // Sync state with URL params on mount and route changes
+  // Sync state from URL: /portfolio/id | /portfolio/id/browse[/path] | /portfolio/id/file/path | /portfolio/id/logs
   useEffect(() => {
     const pathParts = location.pathname.split("/").filter(Boolean);
     if (pathParts[0] === "portfolio" && pathParts[1]) {
       const portfolio = pathParts[1];
       setSelectedPortfolio(portfolio);
-      
-      if (pathParts[2] === "directory") {
-        // Handle /portfolio/p107/directory (base directory view)
-        if (pathParts[3]) {
-          // Handle /portfolio/p107/directory/charts (specific directory)
-          const directory = pathParts[3];
-          setSelectedDirectory(directory);
-          setCurrentView("directories");
-          
-          if (pathParts[4] === "file" && pathParts[5]) {
-            // Handle /portfolio/p107/directory/charts/file/filename.csv
-            const file = decodeURIComponent(pathParts[5]);
-            setSelectedFile(file);
-            setCurrentView("file");
-          } else {
-            setSelectedFile("");
-          }
-        } else {
-          // /portfolio/p107/directory - base directory view
-          setSelectedDirectory("");
-          setSelectedFile("");
-          setCurrentView("directories");
-        }
+
+      if (pathParts[2] === "browse") {
+        setSelectedFilePath("");
+        setCurrentView("directories");
+        setBrowsePath(pathParts.slice(3).map((p) => decodeURIComponent(p)).join("/"));
+      } else if (pathParts[2] === "file") {
+        setCurrentView("file");
+        setSelectedFilePath(pathParts.slice(3).map((p) => decodeURIComponent(p)).join("/"));
+        setBrowsePath("");
       } else if (pathParts[2] === "logs") {
-        setSelectedDirectory("");
-        setSelectedFile("");
+        setSelectedFilePath("");
+        setBrowsePath("");
         setCurrentView("logs");
       } else {
-        // /portfolio/p107 - portfolio selection view
-        setSelectedDirectory("");
-        setSelectedFile("");
+        setBrowsePath("");
+        setSelectedFilePath("");
         setCurrentView("portfolios");
       }
     } else if (pathParts[0] === "calculator") {
       setSelectedPortfolio("");
-      setSelectedDirectory("");
-      setSelectedFile("");
+      setBrowsePath("");
+      setSelectedFilePath("");
       setCurrentView("calculator");
     } else {
-      // Root path - home/portfolio selection
       setSelectedPortfolio("");
-      setSelectedDirectory("");
-      setSelectedFile("");
+      setBrowsePath("");
+      setSelectedFilePath("");
       setCurrentView("portfolios");
     }
   }, [location.pathname]);
 
   const handlePortfolioChange = (portfolioId: string) => {
-    // Only navigate if portfolio actually changed
     if (selectedPortfolio !== portfolioId) {
       setSelectedPortfolio(portfolioId);
-      setSelectedDirectory("");
-      setSelectedFile("");
+      setBrowsePath("");
+      setSelectedFilePath("");
       navigate(`/portfolio/${portfolioId}`);
       setCurrentView("portfolios");
     }
@@ -117,37 +99,34 @@ function App({ themeMode, onThemeToggle }: AppProps) {
     }
   };
 
-  const handleFileClick = (directory: string, file: string) => {
+  const handleBrowsePathChange = (newPath: string) => {
+    setBrowsePath(newPath);
+    const encoded = newPath ? newPath.split("/").map(encodeURIComponent).join("/") : "";
+    navigate(encoded ? `/portfolio/${selectedPortfolio}/browse/${encoded}` : `/portfolio/${selectedPortfolio}/browse`);
+    setCurrentView("directories");
+  };
+
+  const handleFileClick = (filePath: string) => {
     if (selectedPortfolio) {
-      setSelectedDirectory(directory);
-      setSelectedFile(file);
-      navigate(`/portfolio/${selectedPortfolio}/directory/${directory}/file/${encodeURIComponent(file)}`);
+      setSelectedFilePath(filePath);
+      const encoded = filePath.split("/").map(encodeURIComponent).join("/");
+      navigate(`/portfolio/${selectedPortfolio}/file/${encoded}`);
       setCurrentView("file");
     }
   };
 
   const handleHomeClick = () => {
     if (selectedPortfolio) {
-      // If we have a portfolio selected, go to portfolio home page
-      setSelectedDirectory("");
-      setSelectedFile("");
+      setBrowsePath("");
+      setSelectedFilePath("");
       navigate(`/portfolio/${selectedPortfolio}`);
       setCurrentView("portfolios");
     } else {
-      // Otherwise go to root
       setSelectedPortfolio("");
-      setSelectedDirectory("");
-      setSelectedFile("");
+      setBrowsePath("");
+      setSelectedFilePath("");
       navigate("/");
       setCurrentView("portfolios");
-    }
-  };
-
-  const handleDirectoryClick = () => {
-    if (selectedPortfolio && selectedDirectory) {
-      setSelectedFile("");
-      navigate(`/portfolio/${selectedPortfolio}/directory/${selectedDirectory}`);
-      setCurrentView("directories");
     }
   };
 
@@ -155,9 +134,7 @@ function App({ themeMode, onThemeToggle }: AppProps) {
     const items: Array<{ label: string; onClick?: () => void }> = [];
 
     if (currentView === "calculator") {
-      items.push({
-        label: "Risk & Reward Calculator",
-      });
+      items.push({ label: "Risk & Reward Calculator" });
       return items;
     }
 
@@ -165,39 +142,30 @@ function App({ themeMode, onThemeToggle }: AppProps) {
       items.push({
         label: selectedPortfolio,
         onClick: () => {
-          // Navigate to portfolio home page
-          setSelectedDirectory("");
-          setSelectedFile("");
+          setBrowsePath("");
+          setSelectedFilePath("");
           navigate(`/portfolio/${selectedPortfolio}`);
           setCurrentView("portfolios");
         },
       });
     }
 
-    if (selectedDirectory && currentView === "file") {
-      // Show directory as "directory({name})" for file view - make it clickable
-      items.push({
-        label: `directory(${selectedDirectory})`,
-        onClick: () => {
-          // Navigate to directory page
-          if (selectedPortfolio) {
-            setSelectedFile("");
-            navigate(`/portfolio/${selectedPortfolio}/directory/${selectedDirectory}`);
+    if (currentView === "file" && selectedFilePath) {
+      const segments = selectedFilePath.split("/");
+      const fileName = segments.pop() || selectedFilePath;
+      const dirPath = segments.join("/");
+      if (dirPath) {
+        items.push({
+          label: dirPath,
+          onClick: () => {
+            setSelectedFilePath("");
+            const enc = dirPath.split("/").map(encodeURIComponent).join("/");
+            navigate(enc ? `/portfolio/${selectedPortfolio}/browse/${enc}` : `/portfolio/${selectedPortfolio}/browse`);
             setCurrentView("directories");
-          }
-        },
-      });
-    } else if (selectedDirectory && currentView === "directories") {
-      // For directories view, show the directory name
-      items.push({
-        label: selectedDirectory,
-      });
-    }
-
-    if (selectedFile) {
-      items.push({
-        label: selectedFile,
-      });
+          },
+        });
+      }
+      items.push({ label: fileName });
     }
 
     return items;
@@ -256,7 +224,8 @@ function App({ themeMode, onThemeToggle }: AppProps) {
                       <Button
                         variant="outlined"
                         onClick={() => {
-                          navigate(`/portfolio/${selectedPortfolio}/directory`);
+                          setBrowsePath("");
+                          navigate(`/portfolio/${selectedPortfolio}/browse`);
                           setCurrentView("directories");
                         }}
                       >
@@ -289,47 +258,29 @@ function App({ themeMode, onThemeToggle }: AppProps) {
 
             {currentView === "directories" && selectedPortfolio && (
               <Box>
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    mb: 2,
-                  }}
-                >
-                  <Box>
-                    <Typography variant="h4" component="h1" gutterBottom>
-                      Directories
-                    </Typography>
-                    <Typography
-                      variant="body1"
-                      color="text.secondary"
-                      paragraph
-                    >
-                      Portfolio: {selectedPortfolio}
-                    </Typography>
-                  </Box>
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+                  <Typography variant="h4" component="h1" gutterBottom>
+                    Browse
+                  </Typography>
                   <Button variant="outlined" onClick={handleLogsClick}>
                     View Logs
                   </Button>
                 </Box>
                 <DirectoriesView
                   portfolioId={selectedPortfolio}
+                  currentPath={browsePath}
+                  onPathChange={handleBrowsePathChange}
                   onFileClick={handleFileClick}
                 />
               </Box>
             )}
 
-            {currentView === "file" &&
-              selectedPortfolio &&
-              selectedDirectory &&
-              selectedFile && (
-                <FileContentView
-                  directory={selectedDirectory}
-                  portfolioId={selectedPortfolio}
-                  fileName={selectedFile}
-                />
-              )}
+            {currentView === "file" && selectedPortfolio && selectedFilePath && (
+              <FileContentView
+                portfolioId={selectedPortfolio}
+                filePath={selectedFilePath}
+              />
+            )}
 
             {currentView === "logs" && selectedPortfolio && (
               <Box>
@@ -346,7 +297,11 @@ function App({ themeMode, onThemeToggle }: AppProps) {
                   </Typography>
                   <Button
                     variant="outlined"
-                    onClick={() => setCurrentView("directories")}
+                    onClick={() => {
+                      setBrowsePath("");
+                      navigate(`/portfolio/${selectedPortfolio}/browse`);
+                      setCurrentView("directories");
+                    }}
                   >
                     View Directories
                   </Button>

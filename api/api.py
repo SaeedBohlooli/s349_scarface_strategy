@@ -361,15 +361,105 @@ def csv_to_json(csv_file_path):
         ("count", len(data))
     ])
 
+def _portfolio_base_path():
+    """Absolute path to data_folder (portfolios root)."""
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), config['data_folder']))
+
+
+def _resolve_portfolio_path(portfolio_id, relative_path=""):
+    """
+    Resolve path under portfolio. relative_path is optional (e.g. '' or 'logs' or 'logs/2024').
+    Returns (abs_path, error_response). error_response is None if valid.
+    """
+    base = _portfolio_base_path()
+    if not relative_path or relative_path.strip() == "":
+        resolved = os.path.join(base, portfolio_id)
+    else:
+        # Normalize and disallow path traversal
+        parts = [p for p in relative_path.replace("\\", "/").split("/") if p and p != "."]
+        if any(p == ".." for p in parts):
+            return None, (jsonify({"error": "Invalid path"}), 400)
+        resolved = os.path.join(base, portfolio_id, *parts)
+    resolved_abs = os.path.abspath(resolved)
+    portfolio_dir_abs = os.path.abspath(os.path.join(base, portfolio_id))
+    if not resolved_abs.startswith(portfolio_dir_abs + os.sep) and resolved_abs != portfolio_dir_abs:
+        return None, (jsonify({"error": "Invalid path"}), 400)
+    return resolved_abs, None
+
+
 @app.route(f"/api/{config['app']['api_version']}/health", methods=["GET"], strict_slashes=False)
 def health():
     return jsonify({"status": "ok"})
+
+
+# Browse: list directories and files under a path inside a portfolio
+@app.route(f"/api/{config['app']['api_version']}/browse/<portfolio_id>", methods=["GET"], strict_slashes=False)
+def browse(portfolio_id):
+    """
+    List directories and files under portfolio_id, optionally under a subpath.
+    Query param: path (optional), e.g. '' or 'logs' or 'logs/2024'.
+    Returns: { path, relativePath, directories: string[], files: string[] }
+    """
+    relative_path = request.args.get("path", default="", type=str).strip()
+    resolved, err = _resolve_portfolio_path(portfolio_id, relative_path)
+    if err:
+        return err
+    if not os.path.exists(resolved):
+        return jsonify({"error": f"Path not found: {resolved}"}), 404
+    if not os.path.isdir(resolved):
+        return jsonify({"error": f"Path is not a directory: {resolved}"}), 400
+    try:
+        dirs_list = get_cached_directory_listing(resolved)
+        files_list = get_cached_file_listing(resolved, filter_txt_csv=True)
+    except PermissionError:
+        return jsonify({"error": f"Permission denied accessing: {resolved}"}), 403
+    except Exception as e:
+        return jsonify({"error": f"Error reading directory: {str(e)}"}), 500
+    return jsonify({
+        "path": resolved,
+        "relativePath": relative_path,
+        "directories": sorted(dirs_list),
+        "files": sorted(files_list),
+    })
+
+
+# Get file content by portfolio and relative path (e.g. charts/data.csv or logs/2024/app.log)
+@app.route(f"/api/{config['app']['api_version']}/content/<portfolio_id>", methods=["GET"], strict_slashes=False)
+def content_by_path(portfolio_id):
+    """
+    Get file content. Query param: path (required), e.g. 'charts/file.csv' or 'logs/2024/app.log'.
+    """
+    file_relative = request.args.get("path", default="", type=str).strip()
+    if not file_relative:
+        return jsonify({"error": "Query parameter 'path' is required"}), 400
+    resolved, err = _resolve_portfolio_path(portfolio_id, file_relative)
+    if err:
+        return err
+    if not os.path.exists(resolved):
+        return jsonify({"error": f"File not found: {resolved}"}), 404
+    if not os.path.isfile(resolved):
+        return jsonify({"error": f"Path is not a file: {resolved}"}), 400
+    try:
+        if resolved.endswith(".json"):
+            result = get_cached_file_content(resolved, "json")
+        elif resolved.endswith(".csv"):
+            result = get_cached_file_content(resolved, "csv")
+        else:
+            result = get_cached_file_content(resolved, "raw")
+        return jsonify(result)
+    except FileNotFoundError:
+        return jsonify({"error": f"File not found: {resolved}"}), 404
+    except json.JSONDecodeError as e:
+        return jsonify({"error": f"Invalid JSON file: {str(e)}"}), 400
+    except Exception as e:
+        return jsonify({"error": f"Error reading file: {str(e)}"}), 500
 
 
 # Get all directories under the portfolios folder
 @app.route(f"/api/{config['app']['api_version']}/directories", methods=["GET"], strict_slashes=False)
 def directories():
     portfolios_abs_path = os.path.abspath(os.path.join(os.path.dirname(__file__), config['data_folder']))
+    print(portfolios_abs_path)
     
     # Check if the path exists
     if not os.path.exists(portfolios_abs_path):
@@ -394,7 +484,7 @@ def directories():
 # Get portfolios look for results directory and return all the directories under it
 @app.route(f"/api/{config['app']['api_version']}/portfolios", methods=["GET"], strict_slashes=False)
 def portfolios():
-    portfolios_abs_path = os.path.abspath(os.path.join(os.path.dirname(__file__), config['data_folder'], 'results'))
+    portfolios_abs_path = os.path.abspath(os.path.join(os.path.dirname(__file__), config['data_folder']))
     
     if not os.path.exists(portfolios_abs_path):
         return jsonify({"error": f"Portfolios folder not found: {portfolios_abs_path}"}), 404
@@ -412,8 +502,8 @@ def portfolios():
 # get all files under a directory and portfolio id
 @app.route(f"/api/{config['app']['api_version']}/files/<directory>/<portfolio_id>", methods=["GET"], strict_slashes=False)
 def files(directory, portfolio_id):
-    files_abs_path = os.path.abspath(os.path.join(os.path.dirname(__file__), config['data_folder'], directory, portfolio_id))
-    
+    files_abs_path = os.path.abspath(os.path.join(os.path.dirname(__file__), config['data_folder'], portfolio_id))
+    print('files path:', files_abs_path)
     # Check if the path exists
     if not os.path.exists(files_abs_path):
         return jsonify({"error": f"Directory not found: {files_abs_path}"}), 404
@@ -439,7 +529,7 @@ def files(directory, portfolio_id):
 @app.route(f"/api/{config['app']['api_version']}/files/<directory>/<portfolio_id>/<file>", methods=["GET"], strict_slashes=False)
 def file_content(directory, portfolio_id, file):
     file_abs_path = os.path.abspath(os.path.join(os.path.dirname(__file__), config['data_folder'], directory, portfolio_id, file))
-    
+    print('/files/<directory>/<portfolio_id>/<file>:', file_abs_path)
     if not os.path.exists(file_abs_path):
         return jsonify({"error": f"File not found: {file_abs_path}"}), 404
     
@@ -462,23 +552,22 @@ def file_content(directory, portfolio_id, file):
 
 # ==================== LOGS ROUTES ====================
 
-# Get all directories under logs folder for a portfolio
+# Get all directories under logs folder for a portfolio (logs live under portfolio_id/logs)
 @app.route(f"/api/{config['app']['api_version']}/logs/directories/<portfolio_id>", methods=["GET"], strict_slashes=False)
 def log_directories(portfolio_id):
     """
     Get all directories under logs folder for a specific portfolio.
+    Path: data_folder/portfolio_id/logs
     Returns directories that will be used as dropdown options.
     """
-    logs_abs_path = os.path.abspath(os.path.join(os.path.dirname(__file__), config['data_folder'], 'logs', portfolio_id))
+    logs_abs_path, err = _resolve_portfolio_path(portfolio_id, "logs")
+    if err:
+        return err
     
-    # Check if the path exists
     if not os.path.exists(logs_abs_path):
         return jsonify({"error": f"Logs folder not found: {logs_abs_path}"}), 404
-    
-    # Check if it's actually a directory
     if not os.path.isdir(logs_abs_path):
         return jsonify({"error": f"Path is not a directory: {logs_abs_path}"}), 400
-    
     try:
         directories_list = get_cached_directory_listing(logs_abs_path)
     except PermissionError:
@@ -492,16 +581,16 @@ def log_directories(portfolio_id):
     })
 
 
-# Get all files in a specific log directory
+# Get all files in a specific log directory (path: portfolio_id/logs/log_directory)
 @app.route(f"/api/{config['app']['api_version']}/logs/files/<portfolio_id>/<log_directory>", methods=["GET"], strict_slashes=False)
 def log_files(portfolio_id, log_directory):
     """
     Get all files in a specific log directory for a portfolio.
-    Returns list of log files that can be viewed.
+    Path: data_folder/portfolio_id/logs/log_directory
     """
-    log_dir_abs_path = os.path.abspath(os.path.join(os.path.dirname(__file__), config['data_folder'], 'logs', portfolio_id, log_directory))
-    
-    # Check if the path exists
+    log_dir_abs_path, err = _resolve_portfolio_path(portfolio_id, "logs/" + log_directory)
+    if err:
+        return err
     if not os.path.exists(log_dir_abs_path):
         return jsonify({"error": f"Log directory not found: {log_dir_abs_path}"}), 404
     
@@ -522,19 +611,21 @@ def log_files(portfolio_id, log_directory):
     })
 
 
-# Get log file content with pagination
+# Get log file content with pagination (path: portfolio_id/logs/log_directory/file)
 @app.route(f"/api/{config['app']['api_version']}/logs/content/<portfolio_id>/<log_directory>/<file>", methods=["GET"], strict_slashes=False)
 def log_content(portfolio_id, log_directory, file):
     """
     Get log file content with pagination support.
+    Path: data_folder/portfolio_id/logs/log_directory/file
     Query parameters:
     - page: Page number (default: 1)
     - per_page: Number of lines per page (default: 1000)
     - search: Optional search query to filter lines
     - context_lines: Number of context lines before/after matches (default: 5, only used with search)
     """
-    file_abs_path = os.path.abspath(os.path.join(os.path.dirname(__file__), config['data_folder'], 'logs', portfolio_id, log_directory, file))
-    
+    file_abs_path, err = _resolve_portfolio_path(portfolio_id, "logs/" + log_directory + "/" + file)
+    if err:
+        return err
     if not os.path.exists(file_abs_path):
         return jsonify({"error": f"Log file not found: {file_abs_path}"}), 404
     
@@ -686,19 +777,21 @@ def log_content(portfolio_id, log_directory, file):
         })
 
 
-# Search across all files in a log directory
+# Search across all files in a log directory (path: portfolio_id/logs/log_directory)
 @app.route(f"/api/{config['app']['api_version']}/logs/search/<portfolio_id>/<log_directory>", methods=["GET"], strict_slashes=False)
 def log_directory_search(portfolio_id, log_directory):
     """
     Search across all log files in a directory.
+    Path: data_folder/portfolio_id/logs/log_directory
     Query parameters:
     - search: Search query (required)
     - page: Page number (default: 1)
     - per_page: Number of results per page (default: 50)
     - context_lines: Number of context lines before/after matches (default: 5)
     """
-    log_dir_abs_path = os.path.abspath(os.path.join(os.path.dirname(__file__), config['data_folder'], 'logs', portfolio_id, log_directory))
-    
+    log_dir_abs_path, err = _resolve_portfolio_path(portfolio_id, "logs/" + log_directory)
+    if err:
+        return err
     if not os.path.exists(log_dir_abs_path):
         return jsonify({"error": f"Log directory not found: {log_dir_abs_path}"}), 404
     

@@ -17,6 +17,14 @@ export interface FilesResponse {
   files: string[];
 }
 
+/** Response from browse endpoint: lists both directories and files under a path */
+export interface BrowseResponse {
+  path: string;
+  relativePath: string;
+  directories: string[];
+  files: string[];
+}
+
 export interface FileContentResponse {
   data: unknown; // Can be array, object, or any JSON structure
   count: number;

@@ -116,16 +116,8 @@ export default function DataTable({
     );
   }
 
-  // Calculate height dynamically based on current page size
   const rowHeight = isCompact ? 36 : 52;
-  const headerHeight = isCompact ? 36 : 56;
-  const footerHeight = 56; // Pagination footer height (increased to ensure visibility)
-  // Calculate rows on current page
-  const startRow = paginationModel.page * paginationModel.pageSize;
-  const endRow = Math.min(startRow + paginationModel.pageSize, filteredRows.length);
-  const rowsOnCurrentPage = endRow - startRow;
-  // Dynamic height: show actual rows on page (up to pageSize) + footer
-  const tableHeight = (rowHeight * rowsOnCurrentPage) + headerHeight + footerHeight;
+  const footerHeight = 56;
 
   return (
     <Box sx={{ width: "100%" }}>
@@ -152,90 +144,82 @@ export default function DataTable({
           </IconButton>
         </Tooltip>
       </Box>
-      <DataGrid
-        rows={filteredRows}
-        columns={columns}
-        pagination={true}
-        pageSizeOptions={[25, 50, 100, 200]}
-        paginationModel={paginationModel}
-        onPaginationModelChange={setPaginationModel}
-        disableRowSelectionOnClick
-        getRowHeight={() => rowHeight}
-        disableVirtualization={true}
+      <Box
         sx={{
-          height: "auto",
-          minHeight: `${tableHeight}px`,
+          height: "min(500px, calc(100vh - 280px))",
+          minHeight: 300,
+          overflow: "hidden",
           width: "100%",
-          "& .MuiDataGrid-root": {
-            border: "none",
-            display: "flex",
-            flexDirection: "column",
-            height: "auto !important",
-          },
-          "& .MuiDataGrid-cell": {
-            fontSize: isCompact ? "0.75rem" : "0.875rem",
-            padding: isCompact ? "6px 8px" : "8px 16px",
-            lineHeight: isCompact ? "1.2" : "1.5",
-            display: "flex",
-            alignItems: "center",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          },
-          "& .MuiDataGrid-columnHeaders": {
-            fontSize: isCompact ? "0.75rem" : "0.875rem",
-            fontWeight: 600,
-            padding: isCompact ? "6px 8px" : "8px 16px",
-            lineHeight: isCompact ? "1.2" : "1.5",
-          },
-          "& .MuiDataGrid-columnHeader": {
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "flex-start",
-          },
-          "& .MuiDataGrid-columnHeaderTitle": {
-            textAlign: "left",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          },
-          "& .MuiDataGrid-root": {
-            minWidth: "fit-content",
-          },
-          "& .MuiDataGrid-virtualScroller": {
-            overflow: "visible !important",
-          },
-          "& .MuiDataGrid-main": {
-            overflow: "visible !important",
-            flex: "1 1 auto",
-            display: "flex",
-            flexDirection: "column",
-            height: "auto !important",
-          },
-          "& .MuiDataGrid-container--top": {
-            overflow: "visible",
-          },
-          "& .MuiDataGrid-container--bottom": {
-            overflow: "visible",
-          },
-          "& .MuiDataGrid-footerContainer": {
-            borderTop: "1px solid",
-            borderColor: "divider",
-            display: "flex !important",
-            minHeight: `${footerHeight}px`,
-            flexShrink: 0,
-          },
-          "& .MuiDataGrid-row": {
-            maxHeight: `${rowHeight}px !important`,
-            minHeight: `${rowHeight}px !important`,
-          },
-          "& .MuiDataGrid-cellContent": {
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          },
         }}
-      />
+      >
+        <DataGrid
+          rows={filteredRows}
+          columns={columns}
+          pagination={true}
+          pageSizeOptions={[25, 50, 100, 200]}
+          paginationModel={paginationModel}
+          onPaginationModelChange={setPaginationModel}
+          disableRowSelectionOnClick
+          getRowHeight={() => rowHeight}
+          sx={{
+            height: "100%",
+            width: "100%",
+            "& .MuiDataGrid-main": {
+              overflow: "auto",
+            },
+            "& .MuiDataGrid-virtualScroller": {
+              overflow: "auto",
+            },
+            "& .MuiDataGrid-virtualScrollerContent": {
+              minWidth: "max-content",
+            },
+            "& .MuiDataGrid-cell": {
+              fontSize: isCompact ? "0.75rem" : "0.875rem",
+              padding: isCompact ? "6px 8px" : "8px 16px",
+              lineHeight: isCompact ? "1.2" : "1.5",
+              display: "flex",
+              alignItems: "center",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            },
+            "& .MuiDataGrid-columnHeaders": {
+              fontSize: isCompact ? "0.75rem" : "0.875rem",
+              fontWeight: 600,
+              padding: isCompact ? "6px 8px" : "8px 16px",
+              lineHeight: isCompact ? "1.2" : "1.5",
+              minWidth: "max-content",
+            },
+            "& .MuiDataGrid-columnHeader": {
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "flex-start",
+            },
+            "& .MuiDataGrid-columnHeaderTitle": {
+              textAlign: "left",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            },
+            "& .MuiDataGrid-footerContainer": {
+              borderTop: "1px solid",
+              borderColor: "divider",
+              display: "flex !important",
+              minHeight: `${footerHeight}px`,
+              flexShrink: 0,
+            },
+            "& .MuiDataGrid-row": {
+              maxHeight: `${rowHeight}px !important`,
+              minHeight: `${rowHeight}px !important`,
+            },
+            "& .MuiDataGrid-cellContent": {
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            },
+          }}
+        />
+      </Box>
       {fileName && (
         <Box sx={{ mt: 1 }}>
           <Typography variant="body2" color="text.secondary">

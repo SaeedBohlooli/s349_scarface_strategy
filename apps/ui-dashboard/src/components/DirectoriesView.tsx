@@ -1,171 +1,195 @@
 import { useState, useEffect } from 'react'
-import { Grid, Card, CardContent, Typography, List, ListItem, ListItemButton, Box, IconButton, Tooltip } from '@mui/material'
+import {
+  Grid,
+  Card,
+  CardContent,
+  Typography,
+  List,
+  ListItem,
+  ListItemButton,
+  Box,
+  IconButton,
+  Tooltip,
+  Breadcrumbs,
+  Link,
+} from '@mui/material'
 import RefreshIcon from '@mui/icons-material/Refresh'
-import { getDirectories, getFiles } from '../services/api'
+import FolderIcon from '@mui/icons-material/Folder'
+import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile'
+import { getBrowse } from '../services/api'
 import type { ApiError } from '../types/api'
-import { IGNORED_DIRECTORIES } from '../config/appConfig'
 import LoadingSpinner from './LoadingSpinner'
 import ApiErrorAlert from './ApiErrorAlert'
 
 interface DirectoriesViewProps {
   portfolioId: string
-  onFileClick: (directory: string, file: string) => void
+  /** Current path under portfolio (e.g. '' or 'logs' or 'logs/2024') */
+  currentPath: string
+  /** Called when user selects a directory (navigate into it) */
+  onPathChange: (newPath: string) => void
+  /** Called when user selects a file (open file view) */
+  onFileClick: (filePath: string) => void
 }
 
-interface DirectoryFiles {
-  [directory: string]: {
-    files: string[]
-    loading: boolean
-    error: ApiError | null
-  }
-}
-
-export default function DirectoriesView({ portfolioId, onFileClick }: DirectoriesViewProps) {
-  const [directories, setDirectories] = useState<string[]>([])
-  const [directoryFiles, setDirectoryFiles] = useState<DirectoryFiles>({})
+export default function DirectoriesView({
+  portfolioId,
+  currentPath,
+  onPathChange,
+  onFileClick,
+}: DirectoriesViewProps) {
+  const [data, setData] = useState<{ directories: string[]; files: string[] } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<ApiError | null>(null)
 
   useEffect(() => {
     if (portfolioId) {
-      loadDirectories()
+      loadBrowse()
     }
-  }, [portfolioId])
+  }, [portfolioId, currentPath])
 
-  const loadDirectories = async () => {
+  const loadBrowse = async () => {
     try {
       setLoading(true)
       setError(null)
-      const response = await getDirectories()
-      // Filter out ignored directories
-      const filteredDirectories = response.directories.filter(
-        (dir) => !IGNORED_DIRECTORIES.includes(dir as typeof IGNORED_DIRECTORIES[number])
-      )
-      setDirectories(filteredDirectories)
-      
-      // Load files for each directory
-      filteredDirectories.forEach((dir) => {
-        loadFilesForDirectory(dir)
+      const response = await getBrowse(portfolioId, currentPath)
+      setData({
+        directories: response.directories,
+        files: response.files,
       })
     } catch (err) {
       setError(err as ApiError)
+      setData(null)
     } finally {
       setLoading(false)
     }
   }
 
-  const loadFilesForDirectory = async (directory: string) => {
-    setDirectoryFiles((prev) => ({
-      ...prev,
-      [directory]: { files: [], loading: true, error: null },
-    }))
+  const pathSegments = currentPath ? currentPath.split('/').filter(Boolean) : []
 
-    try {
-      const response = await getFiles(directory, portfolioId)
-      setDirectoryFiles((prev) => ({
-        ...prev,
-        [directory]: { files: response.files, loading: false, error: null },
-      }))
-    } catch (err) {
-      setDirectoryFiles((prev) => ({
-        ...prev,
-        [directory]: { files: [], loading: false, error: err as ApiError },
-      }))
-    }
+  const handleDirectoryClick = (name: string) => {
+    const newPath = currentPath ? `${currentPath}/${name}` : name
+    onPathChange(newPath)
   }
 
-  // Sort directories whenever directoryFiles changes
-  useEffect(() => {
-    setDirectories((prevDirs) => {
-      // Check if all directories have finished loading
-      const allLoaded = prevDirs.every(
-        (dir) => !directoryFiles[dir]?.loading
-      )
-      
-      if (!allLoaded) {
-        // Don't sort while still loading
-        return prevDirs
-      }
-      
-      // Sort: non-empty directories first, empty at the end
-      return [...prevDirs].sort((a, b) => {
-        const aFiles = directoryFiles[a]?.files?.length || 0
-        const bFiles = directoryFiles[b]?.files?.length || 0
-        
-        // Non-empty directories first
-        if (aFiles > 0 && bFiles === 0) return -1
-        if (aFiles === 0 && bFiles > 0) return 1
-        
-        // If both empty or both non-empty, maintain alphabetical order
-        return a.localeCompare(b)
-      })
-    })
-  }, [directoryFiles])
+  const handleFileClick = (name: string) => {
+    const filePath = currentPath ? `${currentPath}/${name}` : name
+    onFileClick(filePath)
+  }
 
   if (loading) {
-    return <LoadingSpinner message="Loading directories..." />
+    return <LoadingSpinner message="Loading..." />
   }
 
   if (error) {
-    return <ApiErrorAlert error={error} onRetry={loadDirectories} title="Failed to load directories" />
+    return (
+      <ApiErrorAlert
+        error={error}
+        onRetry={loadBrowse}
+        title="Failed to load directory"
+      />
+    )
   }
+
+  if (!data) {
+    return null
+  }
+
+  const { directories, files } = data
+  const hasItems = directories.length > 0 || files.length > 0
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-        <Tooltip title="Refresh directories and files">
-          <IconButton
-            size="small"
-            onClick={loadDirectories}
-            disabled={loading}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+        <Breadcrumbs aria-label="breadcrumb" sx={{ flexWrap: 'wrap' }}>
+          <Link
+            component="button"
+            variant="body2"
+            underline="hover"
+            onClick={() => onPathChange('')}
+            sx={{ cursor: 'pointer' }}
           >
+            {portfolioId}
+          </Link>
+          {pathSegments.map((segment, i) => {
+            const pathUpToHere = pathSegments.slice(0, i + 1).join('/')
+            const isLast = i === pathSegments.length - 1
+            return isLast ? (
+              <Typography key={pathUpToHere} variant="body2" color="text.primary">
+                {segment}
+              </Typography>
+            ) : (
+              <Link
+                key={pathUpToHere}
+                component="button"
+                variant="body2"
+                underline="hover"
+                onClick={() => onPathChange(pathUpToHere)}
+                sx={{ cursor: 'pointer' }}
+              >
+                {segment}
+              </Link>
+            )
+          })}
+        </Breadcrumbs>
+        <Tooltip title="Refresh">
+          <IconButton size="small" onClick={loadBrowse} disabled={loading}>
             <RefreshIcon />
           </IconButton>
         </Tooltip>
       </Box>
-      <Grid container spacing={3}>
-      {directories.map((directory) => {
-        const dirData = directoryFiles[directory] || { files: [], loading: false, error: null }
-        
-        return (
-          <Grid item xs={12} md={4} key={directory}>
-            <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  {directory}
-                </Typography>
-                {dirData.loading ? (
-                  <LoadingSpinner message="Loading files..." size={24} />
-                ) : dirData.error ? (
-                  <ApiErrorAlert
-                    error={dirData.error}
-                    onRetry={() => loadFilesForDirectory(directory)}
-                    title="Failed to load files"
-                  />
-                ) : dirData.files.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary">
-                    No files available
+
+      {!hasItems ? (
+        <Typography color="text.secondary">No directories or files here.</Typography>
+      ) : (
+        <Grid container spacing={2}>
+          {directories.length > 0 && (
+            <Grid item xs={12} md={files.length > 0 ? 6 : 12}>
+              <Card sx={{ height: '100%' }}>
+                <CardContent>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Directories
                   </Typography>
-                ) : (
                   <List dense>
-                    {dirData.files.map((file) => (
-                      <ListItem key={file} disablePadding>
-                        <ListItemButton onClick={() => onFileClick(directory, file)}>
-                          <Typography variant="body2" noWrap sx={{ width: '100%' }}>
-                            {file}
+                    {directories.map((name) => (
+                      <ListItem key={name} disablePadding>
+                        <ListItemButton onClick={() => handleDirectoryClick(name)}>
+                          <FolderIcon sx={{ mr: 1, color: 'action.active', fontSize: 20 }} />
+                          <Typography variant="body2" noWrap sx={{ flex: 1 }}>
+                            {name}
                           </Typography>
                         </ListItemButton>
                       </ListItem>
                     ))}
                   </List>
-                )}
-              </CardContent>
-            </Card>
-          </Grid>
-        )
-      })}
-      </Grid>
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+          {files.length > 0 && (
+            <Grid item xs={12} md={directories.length > 0 ? 6 : 12}>
+              <Card sx={{ height: '100%' }}>
+                <CardContent>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Files
+                  </Typography>
+                  <List dense>
+                    {files.map((name) => (
+                      <ListItem key={name} disablePadding>
+                        <ListItemButton onClick={() => handleFileClick(name)}>
+                          <InsertDriveFileIcon sx={{ mr: 1, color: 'action.active', fontSize: 20 }} />
+                          <Typography variant="body2" noWrap sx={{ flex: 1 }}>
+                            {name}
+                          </Typography>
+                        </ListItemButton>
+                      </ListItem>
+                    ))}
+                  </List>
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+        </Grid>
+      )}
     </Box>
   )
 }
-

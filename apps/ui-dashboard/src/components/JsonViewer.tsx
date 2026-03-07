@@ -159,6 +159,10 @@ export default function JsonViewer({
           <Box sx={{ p: 2, textAlign: "center", color: "text.secondary" }}>
             No results found for "{searchQuery}"
           </Box>
+        ) : filteredData === null || filteredData === undefined ? (
+          <Box sx={{ p: 2, textAlign: "center", color: "text.secondary" }}>
+            No content to display
+          </Box>
         ) : (
           <JsonView
             value={filteredData as object}

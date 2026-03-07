@@ -5,6 +5,7 @@ import type {
   FilesResponse,
   FileContentResponse,
   ApiError,
+  BrowseResponse,
   LogDirectoriesResponse,
   LogFilesResponse,
   LogContentResponse,
@@ -72,7 +73,45 @@ export async function getDirectories(): Promise<DirectoryResponse> {
 }
 
 /**
- * Get files for a specific directory and portfolio
+ * Browse a path inside a portfolio (list directories and files).
+ * path is relative to portfolio root, e.g. '' or 'logs' or 'logs/2024'.
+ */
+export async function getBrowse(
+  portfolioId: string,
+  path: string = ''
+): Promise<BrowseResponse> {
+  try {
+    const params = path ? { path } : {}
+    const response = await apiClient.get<BrowseResponse>(
+      `/api/${API_VERSION}/browse/${portfolioId}`,
+      { params }
+    )
+    return response.data
+  } catch (error) {
+    throw handleApiError(error)
+  }
+}
+
+/**
+ * Get file content by portfolio and relative path (e.g. charts/data.csv or logs/2024/app.log)
+ */
+export async function getContentByPath(
+  portfolioId: string,
+  filePath: string
+): Promise<FileContentResponse> {
+  try {
+    const response = await apiClient.get<FileContentResponse>(
+      `/api/${API_VERSION}/content/${portfolioId}`,
+      { params: { path: filePath } }
+    )
+    return response.data
+  } catch (error) {
+    throw handleApiError(error)
+  }
+}
+
+/**
+ * Get files for a specific directory and portfolio (legacy; prefer getBrowse)
  */
 export async function getFiles(
   directory: string,
