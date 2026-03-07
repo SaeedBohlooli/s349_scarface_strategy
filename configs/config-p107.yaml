@@ -54,7 +54,7 @@ files:
 
 
 
-symbols: ['QQQ', 'AAPL', 'AMZN', 'AMD', 'NVDA', 'PLTR', 'TSLA', 'MU' , 'MNQ', 'SPY']
+symbols: ['QQQ', 'AAPL', 'AMD', 'AMZN', 'NVDA', 'PLTR', 'TSLA', 'MU' , 'MNQ', 'SPY']
 
 
 stop_losses:
@@ -147,7 +147,7 @@ pre_trade_checks:
   - x
 live:
 #  cases_to_run: ['case_2_1', 'case_4_1']
-  cases_to_run: ['case_2_1_async', 'case_4_1_async', 'case_3']
+  cases_to_run: ['case_2_2', 'case_4_2']
   historical_days: 4 D
 
   capital: 4000
@@ -155,7 +155,6 @@ live:
   num_of_contracts: calculate_number_of_contracts()
 
   trade_time: 930 < current_hh_mm_ny  < 1015 # TODO change to trade_time
-#  trade_time: 1 == 1
   market_time: 930 < current_hh_mm_ny < 1559
   busy_time: 933 < current_hh_mm_ny < 1016  #don't chaneg this,  we are not saving anythng or any test ...
 
@@ -172,7 +171,6 @@ chart:
 
 # before_start:
 load_application_state_from_file: true
-run_should_take_seconds: 20
 
 user_name: saeed
 
@@ -188,7 +186,6 @@ notification:
 
 email:
   send_email: true
-#  recipients: vikaskaler.bnr@gmail.com , saeed.bx1@yahoo.com
   recipients: saeed.bx1@yahoo.com,vikaskaler.bnr@gmail.com
 
 health_check:
