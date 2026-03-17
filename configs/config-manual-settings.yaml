@@ -1,45 +1,43 @@
 manual_settings:
   C:
     conditions:
-      - QQQ_price >  QQQ_5MH
+    - QQQ_price >  QQQ_PDL or QQQ_price > QQQ_5ML
   P:
     conditions:
-      - QQQ_price < QQQ_PML
+    - QQQ_price < QQQ_5ML
+  blocked_symbols:
+    C:
+    - MU
+    P:
+    - MU
   symbols:
     AAPL:
       C:
-          - 1 == 1
+      - 1 == 2
       P:
-          - 1 == 8
+      - 1 == 1
     AMD:
       C:
-          - 1 == 2
+      - 1 == 2
       P:
-          - 1 == 1
+      - 1 == 1
     AMZN:
       C:
-        - 1 == 1
+      - 1 == 2
       P:
-        - 1 == 1
+      - 1 == 1
     NVDA:
       C:
-          - 1 == 1
+      - 1 == 1
       P:
-          - 1 == 1
+      - 1 == 1
     PLTR:
       C:
-          - 1 == 1
+      - 1 == 1
       P:
-          - 1 == 2
+      - 1 == 1
     TSLA:
       C:
-          - 1 == 1
+      - 1 == 2
       P:
-          - TSLA_price < 400
-
-  xblocked_symbols:
-    C: ['MU']
-    P: ['MU']
-  blocked_symbols:
-    C: [ 'MU' ]
-    P: [ 'MU' ]
+      - 1 == 1
