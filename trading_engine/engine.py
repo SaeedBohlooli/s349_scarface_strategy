@@ -16,6 +16,7 @@ from trading_core import application_state_router
 from trading_core import trading_ledger
 from trading_core import ib_heartbeat_loop
 from trading_core import engine_cycle
+from trading_core import user_request_loop
 
 from trading_engine import marketdata_helper
 from trading_engine import inidicators
@@ -269,6 +270,9 @@ class TradingEngine:
             self.do_miscs(ib, self.application_state, interval_seconds=60),
             # user_request_x.user_request_loop(self.app_config, self.application_state),
             self.boot.data_saver_manager.run(ib, interval_sec=60),
+            user_request_loop.fetch_user_request_loop(self.app_config, self.application_state, interval_sec=5),
+            user_request_loop.process_common_user_request_loop(ib, self.app_config, self.application_state,interval_sec=5),
+
             ib_heartbeat_loop.ib_heartbeat_loop(ib, app_config=self.app_config,application_state=self.application_state, interval_seconds=60),
             # market_session_guard.market_session_guard_loop(ib, self.application_state, self.runtime, interval_sec=600)
         )

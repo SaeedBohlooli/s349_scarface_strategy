@@ -158,18 +158,18 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
         # ###
         # Take profit
         # ###
-        for take_profit in app_config['take_profits']:
-            logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, take_profit: {take_profit}")
+        for take_profit_lable in app_config['take_profits']:
+            logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, take_profit_lable: {take_profit_lable}")
             if application_state['open_trades_dic'][symbol].get('available_quantity',0) == 0:
-                logger.info(f"{symbol}, {take_profit}, check_for_stop_loss_and_take_profit(), available_quantity is 0 ")
+                logger.info(f"{symbol}, {take_profit_lable}, check_for_stop_loss_and_take_profit(), available_quantity is 0 ")
                 continue
 
 
-            if application_state['open_trades_dic'][symbol].get('take_profits',{}).get(take_profit,None ) is not None:
-                logger.info(f"{symbol}, TP already is executed ... {take_profit}")
+            if application_state['open_trades_dic'][symbol].get('take_profits',{}).get(take_profit_lable,None ) is not None:
+                logger.info(f"{symbol}, TP already is executed ... {take_profit_lable}")
                 continue
-            take_profit_condition = app_config['take_profits'][take_profit].get('condition', '1 == 2')
-            close_quantity_percentage = app_config['take_profits'][take_profit].get('close_quantity_percentage', 0)
+            take_profit_condition = app_config['take_profits'][take_profit_lable].get('condition', '1 == 2')
+            close_quantity_percentage = app_config['take_profits'][take_profit_lable].get('close_quantity_percentage', 0)
 
             take_profit_condition_evaluated = eval(take_profit_condition)
 
@@ -183,17 +183,16 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
             logger.info(f"available_quantity: {available_quantity}, close_quantity_percentage: {close_quantity_percentage}, close_quantity: {close_quantity}, start_quantity:{start_quantity}")
             logger.info(f"take_profit_condition: {take_profit_condition}, take_profit_condition_evaluated: {take_profit_condition_evaluated}")
             order_ref = ''
+            order_closed = False
+            forced_exit = False
             if take_profit_condition_evaluated and available_quantity > 0 and close_quantity != 0 and close_quantity <= available_quantity :
-                logger.info(f"Sending TP ...{take_profit}")
+                logger.info(f"Sending TP ...{take_profit_lable}")
                 if app_config['symbols_meta'][symbol]['contract_type'] == 'Equity':
-                    # order_ref = get_order_ref('CLOSE', symbol, alias_for_ref=take_profit, unique_run_number=unique_run_number)
-                    order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='CLOSE', symbol=symbol, alias=take_profit, unique_run_number=application_state.get('unique_run_number'))
+                    order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='CLOSE', symbol=symbol, alias=take_profit_lable, unique_run_number=application_state.get('unique_run_number'))
                     con_id = open_trade_info.get('con_id')
-                    # close_option_positions(option_positions_to_monitor, symbol=symbol, close_qty=close_quantity, order_ref=order_ref)
                     ib_positions_async.close_position_by_con_id(ib, con_id = con_id, qty_to_close=close_quantity, order_ref=order_ref )
                 elif app_config['symbols_meta'][symbol]['contract_type'] == 'Future':
-                    # order_ref = get_order_ref('CLOSE', symbol, alias_for_ref=take_profit, unique_run_number=unique_run_number)
-                    order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='CLOSE', symbol=symbol, alias=take_profit, unique_run_number=application_state.get('unique_run_number'))
+                    order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='CLOSE', symbol=symbol, alias=take_profit_lable, unique_run_number=application_state.get('unique_run_number'))
 
                     con_id = open_trade_info.get('con_id')
                     # close_future_positions(future_positions_to_monitor, symbol=symbol, close_qty=close_quantity, order_ref=order_ref )
@@ -201,7 +200,21 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
 
                 else:
                     logger.warning(f"@@@@ TBD")
+                order_closed = True
 
+            for x in application_state.get('forced_exits', []):
+                if x.get('symbol') == symbol and not 'SENT_TO_IB' in x.get('status')  :
+                    logger.info(f"Forced exit for {symbol}  is found in application_state, so we will execute the exit as well ...")
+                    order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='CLOSE', symbol=symbol, alias=f"FORCED_EXIT", unique_run_number=application_state.get('unique_run_number'))
+                    con_id = open_trade_info.get('contract_id')
+                    close_quantity = x.get('quantity', available_quantity) # if quantity is not provided we will close all ...
+                    ib_positions_async.close_position_by_con_id(ib, con_id=con_id, qty_to_close=close_quantity, order_ref=order_ref)
+                    order_closed = True
+                    forced_exit = True
+                    take_profit_lable = 'tp_forced_exit'
+                    x['status'] += '|SENT_TO_IB'
+
+            if order_closed:
                 application_state['open_trades_dic'][symbol]['available_quantity'] = available_quantity - close_quantity
 
                 data = {
@@ -212,7 +225,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                     'tp_u_run_number': application_state.get('unique_run_number'),
                     'order_ref': order_ref,
                 }
-                application_state['open_trades_dic'][symbol].setdefault('take_profits', {})[take_profit] = data
+                application_state['open_trades_dic'][symbol].setdefault('take_profits', {})[take_profit_lable] = data
 
                 data = {
                     'symbol': symbol,
@@ -223,7 +236,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                     'current_ask': current_ask,
                     'underlying_current_price': underlying_current_price,
                     'available_quantity_b4': available_quantity,
-                    'take_profit_case': take_profit,
+                    'take_profit_case': take_profit_lable,
                     'take_profit_condition': take_profit_condition,
                     'close_quantity': close_quantity,
                     'candle_date': str(symbol_df['date'].iloc[-1]),
@@ -235,8 +248,8 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                 add_order_ref_to_application_state(application_state, open_order_ref=open_trade_info.get('order_ref'), close_order_ref=order_ref)
                 # add_to_take_profit_history_df(data)
                 TradingLedger.add_to_dataframe('take_profit_history_df', data)
-                # add_to_signals(symbol, 'TAKE_PROFIT_SENT', underlying_current_price, df['date'].bloc[-1], f"TAKE-PROFIT-{take_profit} <BR>{polish_map_to_show_in_hover(data)}")
-                TradingLedger.add_to_list("signals", (symbol, 'TAKE_PROFIT_SENT', underlying_current_price, symbol_df['date'].iloc[-1], f"TAKE-PROFIT-{take_profit} <BR>{json_utils.polish_map_to_show_in_hover(data)}"))
+                # add_to_signals(symbol, 'TAKE_PROFIT_SENT', underlying_current_price, df['date'].bloc[-1], f"TAKE-PROFIT-{take_profit_lable} <BR>{polish_map_to_show_in_hover(data)}")
+                TradingLedger.add_to_list("signals", (symbol, 'TAKE_PROFIT_SENT', underlying_current_price, symbol_df['date'].iloc[-1], f"TAKE-PROFIT-{take_profit_lable} <BR>{json_utils.polish_map_to_show_in_hover(data)}"))
                 # send_email(event='take_profit_sent', symbol=symbol, body=polish_map_to_show_in_hover(data))
                 notification_helper.send_email(app_config, event='take_profit_sent', symbol=symbol, body=json_utils.polish_map_to_show_in_hover(data))
                 increment_wins(application_state, symbol)
@@ -246,7 +259,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                 break
 
             else:
-                logger.warning(f"{symbol}, {take_profit} TP condition didn't meet ...  ")
+                logger.warning(f"{symbol}, {take_profit_lable} TP condition didn't meet ...  ")
 
 
         # check to clean up

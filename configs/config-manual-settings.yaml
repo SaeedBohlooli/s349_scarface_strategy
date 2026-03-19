@@ -1,7 +1,7 @@
 manual_settings:
   C:
     conditions:
-    - QQQ_price >  QQQ_PDL or QQQ_price > QQQ_5ML
+      - QQQ_price >  QQQ_5MH and QQQ_price > QQQ_PMH
   P:
     conditions:
     - QQQ_price < QQQ_5ML
@@ -13,17 +13,17 @@ manual_settings:
   symbols:
     AAPL:
       C:
-      - 1 == 2
+      - 1 == 1
       P:
       - 1 == 1
     AMD:
       C:
-      - 1 == 2
+      - 1 == 1
       P:
       - 1 == 1
     AMZN:
       C:
-      - 1 == 2
+      - 1 == 1
       P:
       - 1 == 1
     NVDA:
@@ -38,6 +38,6 @@ manual_settings:
       - 1 == 1
     TSLA:
       C:
-      - 1 == 2
+      - 1 == 1
       P:
       - 1 == 1

@@ -7,7 +7,7 @@ timeout 10
 
 
 start cmd /k "cd ..\api && call ..\venv\Scripts\activate && python api.py"
-
+:: http://localhost:8107/
 
 timeout 50
 
