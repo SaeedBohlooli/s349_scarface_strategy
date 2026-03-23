@@ -206,7 +206,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                 if x.get('symbol') == symbol and not 'SENT_TO_IB' in x.get('status')  :
                     logger.info(f"Forced exit for {symbol}  is found in application_state, so we will execute the exit as well ...")
                     order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='CLOSE', symbol=symbol, alias=f"FORCED_EXIT", unique_run_number=application_state.get('unique_run_number'))
-                    con_id = open_trade_info.get('contract_id')
+                    con_id = x.get('contract_id')
                     close_quantity = x.get('quantity', available_quantity) # if quantity is not provided we will close all ...
                     ib_positions_async.close_position_by_con_id(ib, con_id=con_id, qty_to_close=close_quantity, order_ref=order_ref)
                     order_closed = True
