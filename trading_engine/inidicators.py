@@ -22,6 +22,44 @@ def popualate_features(df):
     return df
 
 
+def populate_emas(df, periods=[9, 21]):
+    for p in periods:
+        df[f'ema_{p}'] = df['close'].ewm(span=p, adjust=False).mean()
+    return df
+
+def populate_vwap(df):
+    """
+    Compute intraday VWAP, resetting at 09:30 each day.
+    Requires 'date', 'high', 'low', 'close', 'volume' columns.
+    """
+    df = df.copy()
+    df['_date_parsed'] = pd.to_datetime(df['date'])
+    df['_trade_date'] = df['_date_parsed'].dt.date
+
+    # Identify session start: first bar at or after 09:30 each day
+    session_mask = df['_date_parsed'].dt.time >= pd.Timestamp("09:30").time()
+
+    # Typical price
+    df['_tp'] = (df['high'] + df['low'] + df['close']) / 3.0
+    df['_tp_vol'] = df['_tp'] * df['volume']
+
+    # Cumulative sums reset at each new trading day's 09:30
+    # We create a session group: increments when we cross 09:30
+    is_session_start = session_mask & (~session_mask.shift(1, fill_value=False))
+    df['_session_group'] = is_session_start.cumsum()
+
+    # Only compute VWAP for RTH bars
+    df['_cum_tp_vol'] = df.groupby('_session_group')['_tp_vol'].cumsum()
+    df['_cum_vol'] = df.groupby('_session_group')['volume'].cumsum()
+
+    df['vwap'] = np.where(df['_cum_vol'] > 0, df['_cum_tp_vol'] / df['_cum_vol'], np.nan)
+
+    # Clean up temp columns
+    df.drop(columns=[c for c in df.columns if c.startswith('_')], inplace=True)
+
+    return df
+
+
 def compute_relative_strength(stock_df: pd.DataFrame, qqq_df: pd.DataFrame, period: int = 20):
     # Ensure aligned timeframes
     merged = pd.merge(stock_df[['date', 'close']], qqq_df[['date', 'close']], on='date', suffixes=('_stock', '_qqq'))

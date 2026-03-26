@@ -30,6 +30,7 @@ from trading_engine import exit_conditions
 from trading_engine import chart_helper
 from trading_engine import position_helper
 from trading_engine import pnl_helper
+from trading_engine import scoring_helper
 
 from trading_utils import position_router
 from trading_utils import user_request_router
@@ -73,6 +74,16 @@ class TradingEngine:
 
         key_levels_cols = ['symbol', 'time_frame', 'key_level', 'price', 'memo', 'unique_id']
         TradingLedger.set_dataframe_columns("key_levels_df", key_levels_cols)
+
+        scoring_df_cols = [
+            'timestamp', 'symbol',
+            'rs_delta_ema', 'rs_roc', 'ema_9', 'ema_21', 'vwap', 'atr_14',
+            'level_distance', 'breakout_recency',
+            'rs_delta_score', 'rs_roc_score', 'ema_alignment_score', 'vwap_position_score',
+            'level_distance_score', 'breakout_recency_score',
+            'composite_score', 'rank', 'is_leader', 'is_laggard'
+        ]
+        TradingLedger.set_dataframe_columns("scoring_df", scoring_df_cols)
 
         capital_flow_df = FileManager.load_my_df("capital_flow_df")
         if len(capital_flow_df) ==0:
@@ -132,15 +143,18 @@ class TradingEngine:
                     FileManager.save_my_df(capital_flow_df, "capital_flow_df", mode='w', drop_duplicates=True, save_tabular=True)
 
 
+                # ========== PASS 1: Gather data, indicators, levels, RS for all symbols ==========
+                intraday_rs_map = {}  # symbol -> intraday_rs_df (needed in pass 2 for charting)
+                relative_strength_map = {}  # symbol -> relative_strength_df
+
                 for symbol in self.app_config.get('symbols'):
                     symbol_number += 1
                     unique_run_number = f'{unique_run_number_X}-{symbol_number}'
                     self.application_state['unique_run_number'] = unique_run_number
-                    logger.warning(f"------------------- {symbol}, {unique_run_number}, {current_hh_mm_ny} ")
+                    logger.warning(f"------- PASS1 --- {symbol}, {unique_run_number}, {current_hh_mm_ny} ")
                     symbol_start_time = time.time()
 
                     application_state_helper.initialize_application_state_for_symbol_run(self.app_config, self.application_state)
-
 
                     if self.runtime.is_due(f'SUBSCRIBE_PRICE-{symbol}', interval_sec=60*2):
                         current_price = await ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol, contract_month=self.app_config.get('symbols_meta', {}).get(symbol,{}).get('contract_month'))
@@ -156,13 +170,24 @@ class TradingEngine:
                         continue
                     df = inidicators.popualate_features(df)
                     df = inidicators.populate_volume_ratio(df)
+                    df = inidicators.populate_emas(df, periods=self.app_config.get('scoring', {}).get('ema_periods', [9, 21]))
+                    df = inidicators.populate_vwap(df)
                     self.market_data.dfs_map[symbol] = df
                     if self.application_state['is_save_time']:
                         logger.info(f"{symbol}, df: \n{df[-4:].to_markdown()}")
 
                     qqq_df = self.market_data.dfs_map.get('QQQ')
-                    relative_strength_df = inidicators.compute_relative_strength(df, qqq_df, period=20) # TODO do we need this
+                    relative_strength_df = inidicators.compute_relative_strength(df, qqq_df, period=20)
                     intraday_rs_df = inidicators.compute_intraday_rs(df, qqq_df)
+                    relative_strength_map[symbol] = relative_strength_df
+                    intraday_rs_map[symbol] = intraday_rs_df
+
+                    # Store RS data for scoring
+                    if len(intraday_rs_df) > 0 and len(relative_strength_df) > 0:
+                        self.application_state.setdefault('rs_data', {})[symbol] = {
+                            'rs_delta_ema': intraday_rs_df['rs_delta_ema'].iloc[-1] if 'rs_delta_ema' in intraday_rs_df.columns else 0.0,
+                            'rs_roc': relative_strength_df['rs_roc'].iloc[-1] if 'rs_roc' in relative_strength_df.columns else 0.0,
+                        }
 
                     if self.runtime.should_run_once(f'{symbol}-DYNAMIC-TOLERANCE-CALCULATION-{str(df["date"].iloc[-1])}'): # telrance for last closed candle
                         dynamic_tolerance = atr_tolerance_helper.get_dynamic_tolerance(df[:-1].copy(), level=0, min_tick=0.01)  # Drop -1 as it fluctuates and SL triggers ...
@@ -180,6 +205,30 @@ class TradingEngine:
                     if not strategy.all_levels_in(self.application_state, symbol, ['PMH', 'PML']):  # if not in, recalculate ...
                         strategy.find_add_PMH_PML(self.application_state, df, symbol)
 
+                    symbol_end_time = time.time()
+                    symbol_run_spend_time = round(symbol_end_time - symbol_start_time, 2)
+                    logger.info(f'------- PASS1 --- {symbol}, {unique_run_number}, pass1_time: {symbol_run_spend_time}s')
+                    self.application_state.setdefault("run_times", {})[f'{symbol}_pass1'] = symbol_run_spend_time
+
+                # ========== SCORING: Rank all symbols after pass 1 ==========
+                scoring_helper.compute_symbol_scores(self.app_config, self.application_state, self.market_data)
+
+                # ========== PASS 2: Scan, order decisions, exits, charting ==========
+                symbol_number = 0
+                for symbol in self.app_config.get('symbols'):
+                    symbol_number += 1
+                    unique_run_number = f'{unique_run_number_X}-{symbol_number}'
+                    self.application_state['unique_run_number'] = unique_run_number
+                    logger.warning(f"------- PASS2 --- {symbol}, {unique_run_number}, {current_hh_mm_ny} ")
+                    symbol_start_time = time.time()
+
+                    df = self.market_data.dfs_map.get(symbol)
+                    if df is None or len(df) == 0:
+                        continue
+
+                    intraday_rs_df = intraday_rs_map.get(symbol)
+                    relative_strength_df = relative_strength_map.get(symbol)
+
                     are_all_levels_in = strategy.all_levels_in(self.application_state, symbol)
 
                     # once per candle per symbol ...
@@ -192,7 +241,8 @@ class TradingEngine:
 
                         chart_helper.add_atr_to_candle_info(symbol, self.market_data)
 
-                        chart_helper.add_rs_relative_to_candle_info(symbol, intraday_rs_df, self.market_data)
+                        if intraday_rs_df is not None:
+                            chart_helper.add_rs_relative_to_candle_info(symbol, intraday_rs_df, self.market_data)
                         chart_helper.add_open_position_to_candle_info(self.application_state, symbol, self.market_data)
 
 
@@ -219,10 +269,10 @@ class TradingEngine:
 
                     symbol_end_time = time.time()
                     symbol_run_spend_time = round(symbol_end_time - symbol_start_time, 2)
-                    logger.warning(f'------------------- {symbol}, {unique_run_number}, symbol_run_spend_time: {symbol_run_spend_time} seconds')
+                    logger.warning(f'------- PASS2 --- {symbol}, {unique_run_number}, pass2_time: {symbol_run_spend_time} seconds')
                     self.application_state.setdefault("run_times", {})[symbol] = symbol_run_spend_time
 
-                    # end while for symbols
+                    # end pass 2 for symbols
 
                 if self.runtime.is_due('SAVE-SIGNALS', interval_sec=3 * 60):
                     chart_helper.add_candle_info_df_to_signals()

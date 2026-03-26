@@ -97,6 +97,23 @@ symbols_meta:
 
 
 
+scoring:
+  enabled: true
+  gate_enabled: true    # false = compute scores for observation but don't block orders
+  weights:
+    rs_delta: 0.25
+    rs_roc: 0.20
+    ema_alignment: 0.20
+    vwap_position: 0.15
+    level_distance: 0.10
+    breakout_recency: 0.10
+  ema_periods: [9, 21]
+  leader_threshold: 60        # composite score >= 60 to qualify as leader (for longs)
+  laggard_threshold: 40       # composite score <= 40 to qualify as laggard (for shorts)
+  top_n: 3                    # alternative: top N symbols qualify
+  use_threshold: true         # true = threshold mode, false = top_n mode
+
+
 cases:
   case_2_1_async:
     memo: 5MH and 5ML breakout_ver_2, no short above PDH, trade close to level. - we running this one
@@ -261,7 +278,7 @@ cases:
     short:
       level: levels['PDL']
       level_alias: 'PDL'
-      memo: conditon 8 need to be checeked
+      memo: condition 8 need to be checked
       cores:
         - breakout_in_last_x_candles_ver_2(app_config, application_state, case, symbol, df, side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level, level_alias=level_alias)
         - price_retest(app_config, application_state, case, symbol, df, side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True, level_alias=level_alias)

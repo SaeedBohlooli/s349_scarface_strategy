@@ -19,6 +19,7 @@ from trading_engine import pricing_helper
 from trading_engine import risk_helper
 from trading_engine import notification_helper
 from trading_engine import position_helper
+from trading_engine import scoring_helper
 
 
 async def check_buy_sell_result_to_send_order(ib, app_config, application_state, buy_sell_case_results_list, symbol, df, market_data, runtime):
@@ -78,8 +79,14 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
                 TradingLedger.add_to_list("signals", (symbol, f"MANUAL_CONDITION_FAILED", df['high'].iloc[-1], df['date'].iloc[-1], f"{case} - ", 'YELLOW'))
             continue
 
-
-        # FIXME mark_score_in_the_chart(market_trend)
+        # Scoring gate: for longs, symbol must be a leader; for shorts, must be a laggard
+        side_for_scoring = 'long' if can_buy else 'short'
+        scoring_passes, scoring_reason = scoring_helper.passes_scoring_gate(app_config, application_state, symbol, side_for_scoring)
+        if not scoring_passes:
+            logger.warning(f"@@  scoring gate failed, {symbol}, {side_for_scoring}: {scoring_reason}")
+            if runtime.should_run_once(f"scoring-gate-failed-{symbol}-{str(df['date'].iloc[-1])}"):
+                TradingLedger.add_to_list("signals", (symbol, f"SCORING_GATE_FAILED", df['high'].iloc[-1], df['date'].iloc[-1], f"{case} - {scoring_reason}", 'ORANGE'))
+            continue
 
         if contract_type.lower() == 'equity' and (can_buy or can_sell): # go for buy
             right = 'C' if can_buy else 'P'

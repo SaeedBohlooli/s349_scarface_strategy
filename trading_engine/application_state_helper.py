@@ -44,6 +44,8 @@ def initialize_application_state_for_run(app_config, application_state):
     application_state['retests'] = {}
     application_state['breakout_idx'] = {}
     application_state['retest_idx'] = {}
+    application_state['scoring'] = {}
+    application_state['rs_data'] = {}
 
     current_hh_mm_ny = date_utils.get_current_hhmm_ny() #used in the config evals for trade_time
     is_trade_time = eval(app_config['live']['trade_time'])
