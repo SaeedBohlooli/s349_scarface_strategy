@@ -184,12 +184,14 @@ def passes_scoring_gate(app_config, application_state, symbol, side):
     scoring_config = app_config.get('scoring', {})
 
     if not scoring_config.get('enabled', False) or not scoring_config.get('gate_enabled', False):
+        logger.info(f"SCORING GATE | {symbol} | {side} | SKIPPED (enabled={scoring_config.get('enabled')}, gate_enabled={scoring_config.get('gate_enabled')})")
         return True, ''
 
     scoring = application_state.get('scoring', {})
     symbol_score = scoring.get(symbol)
 
     if symbol_score is None:
+        logger.info(f"SCORING GATE | {symbol} | {side} | PASS (no scoring data available)")
         return True, 'no scoring data available'
 
     composite = symbol_score.get('composite_score', 50)
@@ -197,14 +199,27 @@ def passes_scoring_gate(app_config, application_state, symbol, side):
     is_leader = symbol_score.get('is_leader', False)
     is_laggard = symbol_score.get('is_laggard', False)
 
+    raw = symbol_score.get('raw', {})
+    logger.info(f"SCORING GATE | {symbol} | {side} | composite={composite}, rank={rank}, "
+                f"is_leader={is_leader}, is_laggard={is_laggard} | "
+                f"rs_d={symbol_score.get('rs_delta_score', '?'):.0f}, rs_roc={symbol_score.get('rs_roc_score', '?'):.0f}, "
+                f"ema={symbol_score.get('ema_alignment_score', '?'):.0f}, vwap={symbol_score.get('vwap_position_score', '?'):.0f}, "
+                f"lvl={symbol_score.get('level_distance_score', '?'):.0f}, bkout={symbol_score.get('breakout_recency_score', '?'):.0f}")
+
     if side == 'long':
         if is_leader:
+            logger.info(f"SCORING GATE | {symbol} | {side} | PASS (leader, score={composite} >= {scoring_config.get('leader_threshold', 60)})")
             return True, ''
-        return False, f'not a leader (score={composite}, rank={rank})'
+        reason = f'not a leader (score={composite}, rank={rank})'
+        logger.info(f"SCORING GATE | {symbol} | {side} | FAIL ({reason})")
+        return False, reason
     elif side == 'short':
         if is_laggard:
+            logger.info(f"SCORING GATE | {symbol} | {side} | PASS (laggard, score={composite} <= {scoring_config.get('laggard_threshold', 40)})")
             return True, ''
-        return False, f'not a laggard (score={composite}, rank={rank})'
+        reason = f'not a laggard (score={composite}, rank={rank})'
+        logger.info(f"SCORING GATE | {symbol} | {side} | FAIL ({reason})")
+        return False, reason
 
     return True, ''
 

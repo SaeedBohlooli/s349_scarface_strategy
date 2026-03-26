@@ -150,7 +150,10 @@ class TradingEngine:
                 # ========== HTF: Refresh higher timeframe levels periodically ==========
                 htf_interval = self.app_config.get('htf', {}).get('refresh_interval_sec', 15 * 60)
                 if self.app_config.get('htf', {}).get('enabled', False) and self.runtime.is_due('HTF_REFRESH', interval_sec=htf_interval, min_time_hhmm=925):
+                    logger.warning(f"========== HTF REFRESH START ==========")
                     await htf_helper.refresh_htf_levels(ib, self.app_config, self.application_state, self.market_data)
+                    chart_helper.draw_htf_levels_on_chart(self.app_config, self.application_state)
+                    logger.warning(f"========== HTF REFRESH DONE ==========")
 
                 # ========== PASS 1: Gather data, indicators, levels, RS for all symbols ==========
                 intraday_rs_map = {}  # symbol -> intraday_rs_df (needed in pass 2 for charting)
@@ -220,6 +223,7 @@ class TradingEngine:
                     self.application_state.setdefault("run_times", {})[f'{symbol}_pass1'] = symbol_run_spend_time
 
                 # ========== SCORING: Rank all symbols after pass 1 ==========
+                logger.warning(f"========== SCORING: computing symbol scores ==========")
                 scoring_helper.compute_symbol_scores(self.app_config, self.application_state, self.market_data)
 
                 # ========== PASS 2: Scan, order decisions, exits, charting ==========

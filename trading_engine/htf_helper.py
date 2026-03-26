@@ -79,6 +79,7 @@ def check_htf_clearance(app_config, application_state, symbol, side, entry_price
     """
     htf_config = app_config.get('htf', {})
     if not htf_config.get('enabled', False) or not htf_config.get('use_htf_entry', False):
+        logger.info(f"HTF CLEARANCE | {symbol} | {side} | SKIPPED (enabled={htf_config.get('enabled')}, use_htf_entry={htf_config.get('use_htf_entry')})")
         return True, '', None
 
     min_clearance_atr = htf_config.get('min_clearance_atr', 1.0)
@@ -88,27 +89,31 @@ def check_htf_clearance(app_config, application_state, symbol, side, entry_price
     # Get ATR from scoring or market data
     atr = _get_symbol_atr(application_state, symbol)
     if atr <= 0:
+        logger.info(f"HTF CLEARANCE | {symbol} | {side} | PASS (no ATR available)")
         return True, 'no ATR available', None
 
     if side == 'long':
-        # Collect all resistance levels above entry
         blocking_levels = _collect_levels_above(htf_levels, entry_price, 'resistance', timeframe_weights)
     else:
-        # Collect all support levels below entry
         blocking_levels = _collect_levels_below(htf_levels, entry_price, 'support', timeframe_weights)
 
+    logger.info(f"HTF CLEARANCE | {symbol} | {side} | entry={entry_price:.2f}, atr={atr:.2f}, min_clearance={min_clearance_atr} ATR, "
+                f"blocking_levels={[(l['timeframe'], l['price'], round(l['distance']/atr, 1)) for l in blocking_levels[:5]]}")
+
     if not blocking_levels:
+        logger.info(f"HTF CLEARANCE | {symbol} | {side} | PASS (no blocking levels)")
         return True, '', None
 
-    # Find nearest level (weighted by timeframe importance)
-    nearest = blocking_levels[0]  # already sorted by distance
+    nearest = blocking_levels[0]
     distance_in_atr = nearest['distance'] / atr
 
     if distance_in_atr < min_clearance_atr:
         reason = (f"HTF {nearest['timeframe']} {'resistance' if side == 'long' else 'support'} "
                   f"at {nearest['price']:.2f} is only {distance_in_atr:.1f} ATR away")
+        logger.info(f"HTF CLEARANCE | {symbol} | {side} | FAIL | {reason}")
         return False, reason, nearest['price']
 
+    logger.info(f"HTF CLEARANCE | {symbol} | {side} | PASS | nearest={nearest['timeframe']} at {nearest['price']:.2f} ({distance_in_atr:.1f} ATR away)")
     return True, '', nearest['price']
 
 
@@ -122,6 +127,7 @@ def compute_dynamic_take_profits(app_config, application_state, symbol, side, en
     """
     htf_config = app_config.get('htf', {})
     if not htf_config.get('enabled', False) or not htf_config.get('use_htf_tp', False):
+        logger.info(f"HTF DYNAMIC TP | {symbol} | {side} | SKIPPED (enabled={htf_config.get('enabled')}, use_htf_tp={htf_config.get('use_htf_tp')})")
         return []
 
     htf_levels = application_state.get('htf_levels', {}).get(symbol, {})
@@ -131,6 +137,7 @@ def compute_dynamic_take_profits(app_config, application_state, symbol, side, en
 
     atr = _get_symbol_atr(application_state, symbol)
     if atr <= 0:
+        logger.info(f"HTF DYNAMIC TP | {symbol} | {side} | SKIPPED (no ATR)")
         return []
 
     if side == 'long':
@@ -138,23 +145,33 @@ def compute_dynamic_take_profits(app_config, application_state, symbol, side, en
     else:
         target_levels = _collect_levels_below(htf_levels, entry_price, 'support', timeframe_weights)
 
+    logger.info(f"HTF DYNAMIC TP | {symbol} | {side} | entry={entry_price:.2f}, atr={atr:.2f}, "
+                f"candidates={[(l['timeframe'], l['price'], round(l['distance']/atr, 2)) for l in target_levels[:6]]}")
+
     # Filter: levels must be at least min_tp_distance_atr away
+    before_filter = len(target_levels)
     target_levels = [l for l in target_levels if l['distance'] / atr >= min_tp_distance_atr]
+    logger.info(f"HTF DYNAMIC TP | {symbol} | {side} | after min_distance filter ({min_tp_distance_atr} ATR): {len(target_levels)}/{before_filter} levels")
 
     if not target_levels:
+        logger.info(f"HTF DYNAMIC TP | {symbol} | {side} | NO TPs (no qualifying levels)")
         return []
 
     # Assign close percentages to nearest levels
     dynamic_tps = []
     for i, level in enumerate(target_levels[:len(tp_close_pcts)]):
         close_pct = tp_close_pcts[i] if i < len(tp_close_pcts) else -1
-        dynamic_tps.append({
+        tp = {
             'price': level['price'],
             'close_pct': close_pct,
             'source': f"{level['timeframe']} {'resistance' if side == 'long' else 'support'}",
             'label': f'htf_tp{i + 1}',
             'distance_atr': round(level['distance'] / atr, 2),
-        })
+        }
+        dynamic_tps.append(tp)
+        pct_label = f"{int(close_pct * 100)}%" if close_pct > 0 else "runner"
+        logger.info(f"HTF DYNAMIC TP | {symbol} | {side} | TP{i+1}: {level['price']:.2f} ({level['timeframe']}) "
+                     f"| {tp['distance_atr']} ATR away | close {pct_label}")
 
     return dynamic_tps
 

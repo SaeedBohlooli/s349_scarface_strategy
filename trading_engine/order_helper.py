@@ -21,6 +21,7 @@ from trading_engine import notification_helper
 from trading_engine import position_helper
 from trading_engine import scoring_helper
 from trading_engine import htf_helper
+from trading_engine import chart_helper
 
 
 async def check_buy_sell_result_to_send_order(ib, app_config, application_state, buy_sell_case_results_list, symbol, df, market_data, runtime):
@@ -49,53 +50,92 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
 
         market_trend = 'up' if can_buy else 'down' #
         right = 'C' if can_buy else 'P'
-
-        if not app_config['symbols_meta'][symbol]['can_trade']:
-            logger.info(f"We are not trading {symbol}.")
-            continue
-        if not is_trade_time:
-            logger.warning(f"@@ is_trade_time:{is_trade_time}, {symbol}, {app_config['live']['trade_time']}")
-            continue
-        if application_state.get('open_trades_dic', {}).get(symbol,{}).get('available_quantity', 0) != 0:
-            logger.warning(f"@@ You already have open position. Don't be greedy!!!  symbol: {symbol}")
-            continue
-        if number_of_positions_today(application_state, symbol) > app_config['risk_gate']['max_num_of_trade_per_symbol_per_day']:
-            logger.warning(f"@@  We already sent enough orders for {symbol}")
-            continue
-        if number_of_total_positions_today(application_state) >= app_config['risk_gate']['max_number_of_trades_per_day']:
-            logger.warning(f"@@  We already sent enough orders for {symbol}")
-            continue
-        if has_open_order_in_same_group(app_config, application_state, symbol):
-            logger.warning(f"@@  We already have open order in same group {symbol}")
-            continue
-        if symbol in app_config.get('manual_settings',{}).get('blocked_symbols',{})[right]:
-            logger.warning(f"@@  This symbol is blocked, {symbol}, {app_config.get('manual_settings',{}).get('blocked_symbols',{})[right]}")
-            continue
-        if number_of_wins(application_state, symbol) >= app_config.get('risk_gate',{}).get('stop_after_wins', 100):
-            logger.warning(f"@@  Today we had enough wins, {symbol}")
-            continue
-        if not check_manual_conditions(app_config, application_state, symbol, right):
-            logger.warning(f"@@  check_manual_conditions failed, {symbol}")
-            if runtime.should_run_once(f"manual-condition-failed-{symbol}-{str(df['date'].iloc[-1])}"):
-                TradingLedger.add_to_list("signals", (symbol, f"MANUAL_CONDITION_FAILED", df['high'].iloc[-1], df['date'].iloc[-1], f"{case} - ", 'YELLOW'))
-            continue
-
-        # Scoring gate: for longs, symbol must be a leader; for shorts, must be a laggard
         side_for_scoring = 'long' if can_buy else 'short'
-        scoring_passes, scoring_reason = scoring_helper.passes_scoring_gate(app_config, application_state, symbol, side_for_scoring)
-        if not scoring_passes:
-            logger.warning(f"@@  scoring gate failed, {symbol}, {side_for_scoring}: {scoring_reason}")
-            if runtime.should_run_once(f"scoring-gate-failed-{symbol}-{str(df['date'].iloc[-1])}"):
-                TradingLedger.add_to_list("signals", (symbol, f"SCORING_GATE_FAILED", df['high'].iloc[-1], df['date'].iloc[-1], f"{case} - {scoring_reason}", 'ORANGE'))
-            continue
-
-        # HTF clearance gate: check if there's enough room to nearest HTF resistance/support
         entry_price = df['close'].iloc[-1]
+
+        # ========== Gate evaluation: check all gates and build a diary entry ==========
+        blocked_by = None  # first gate that blocks
+        gate_diary = []    # collects all gate results for the hover text
+
+        # --- Risk gates ---
+        if not app_config['symbols_meta'][symbol]['can_trade']:
+            blocked_by = blocked_by or 'can_trade=false'
+            gate_diary.append('can_trade: BLOCKED')
+        else:
+            gate_diary.append('can_trade: OK')
+
+        if not is_trade_time:
+            blocked_by = blocked_by or 'not_trade_time'
+            gate_diary.append(f'trade_time: BLOCKED ({app_config["live"]["trade_time"]})')
+        else:
+            gate_diary.append('trade_time: OK')
+
+        if application_state.get('open_trades_dic', {}).get(symbol,{}).get('available_quantity', 0) != 0:
+            blocked_by = blocked_by or 'open_position'
+            gate_diary.append('open_position: BLOCKED')
+        else:
+            gate_diary.append('open_position: OK')
+
+        if number_of_positions_today(application_state, symbol) > app_config['risk_gate']['max_num_of_trade_per_symbol_per_day']:
+            blocked_by = blocked_by or 'max_trades_symbol'
+            gate_diary.append('max_trades_symbol: BLOCKED')
+
+        if number_of_total_positions_today(application_state) >= app_config['risk_gate']['max_number_of_trades_per_day']:
+            blocked_by = blocked_by or 'max_trades_day'
+            gate_diary.append('max_trades_day: BLOCKED')
+
+        if has_open_order_in_same_group(app_config, application_state, symbol):
+            blocked_by = blocked_by or 'same_group'
+            gate_diary.append('same_group: BLOCKED')
+
+        # --- Manual conditions ---
+        rs_overrides = app_config.get('scoring', {}).get('rs_overrides_manual', False) and app_config.get('scoring', {}).get('enabled', False)
+        if rs_overrides:
+            gate_diary.append('manual: SKIPPED (rs_overrides)')
+        else:
+            if symbol in app_config.get('manual_settings',{}).get('blocked_symbols',{}).get(right, []):
+                blocked_by = blocked_by or 'blocked_symbol'
+                gate_diary.append(f'blocked_symbol: BLOCKED ({right})')
+            elif not check_manual_conditions(app_config, application_state, symbol, right):
+                blocked_by = blocked_by or 'manual_conditions'
+                gate_diary.append('manual_conditions: BLOCKED')
+            else:
+                gate_diary.append('manual_conditions: OK')
+
+        if number_of_wins(application_state, symbol) >= app_config.get('risk_gate',{}).get('stop_after_wins', 100):
+            blocked_by = blocked_by or 'max_wins'
+            gate_diary.append('max_wins: BLOCKED')
+
+        # --- Scoring gate ---
+        scoring_passes, scoring_reason = scoring_helper.passes_scoring_gate(app_config, application_state, symbol, side_for_scoring)
+        score_info = application_state.get('scoring', {}).get(symbol, {})
+        composite_score = score_info.get('composite_score', '?')
+        rank = score_info.get('rank', '?')
+        if not scoring_passes:
+            blocked_by = blocked_by or 'scoring'
+            gate_diary.append(f'scoring: BLOCKED (score={composite_score}, rank={rank}, {scoring_reason})')
+        else:
+            gate_diary.append(f'scoring: OK (score={composite_score}, rank={rank})')
+
+        # --- HTF clearance gate ---
         htf_clear, htf_reason, htf_nearest = htf_helper.check_htf_clearance(app_config, application_state, symbol, side_for_scoring, entry_price)
         if not htf_clear:
-            logger.warning(f"@@  HTF clearance failed, {symbol}, {side_for_scoring}: {htf_reason}")
-            if runtime.should_run_once(f"htf-clearance-failed-{symbol}-{str(df['date'].iloc[-1])}"):
-                TradingLedger.add_to_list("signals", (symbol, f"HTF_BLOCKED", df['high'].iloc[-1], df['date'].iloc[-1], f"{case} - {htf_reason}", 'RED'))
+            blocked_by = blocked_by or 'htf_clearance'
+            gate_diary.append(f'htf: BLOCKED ({htf_reason})')
+        else:
+            gate_diary.append(f'htf: OK (nearest={htf_nearest})')
+
+        # ========== Emit setup diary signal ==========
+        diary_text = f'{case} | {side_for_scoring} | price={entry_price:.2f}<br>' + '<br>'.join(gate_diary)
+
+        if blocked_by:
+            if runtime.should_run_once(f"setup-diary-{symbol}-{str(df['date'].iloc[-1])}"):
+                # Color by the blocking gate
+                diary_color = {'manual_conditions': 'YELLOW', 'blocked_symbol': 'YELLOW',
+                               'scoring': 'ORANGE', 'htf_clearance': 'RED'}.get(blocked_by, '#888888')
+                TradingLedger.add_to_list("signals", (symbol, f"SETUP_BLOCKED", df['high'].iloc[-1], df['date'].iloc[-1], diary_text, diary_color))
+
+            logger.warning(f"@@  SETUP BLOCKED for {symbol} by {blocked_by}")
             continue
 
         # Store dynamic TPs from HTF levels if enabled (used by exit_conditions)
@@ -103,6 +143,7 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
         if htf_dynamic_tps:
             application_state.setdefault('htf_dynamic_tps', {})[symbol] = htf_dynamic_tps
             logger.info(f"HTF dynamic TPs for {symbol}: {htf_dynamic_tps}")
+            chart_helper.draw_dynamic_tps_on_chart(application_state, symbol, entry_price, side_for_scoring)
 
         if contract_type.lower() == 'equity' and (can_buy or can_sell): # go for buy
             right = 'C' if can_buy else 'P'

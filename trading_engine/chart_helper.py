@@ -184,6 +184,9 @@ def convert_signals_to_hover_df():
         elif 'ENTRY_case_3' in event:  # this is for buy sell entry
             obj = event
             clr = 'Blue'
+        elif 'SETUP_BLOCKED' in event:
+            obj = '⛔'
+            clr = 'Red'
         elif 'CANDLE_INFO' in event:  # this is for buy sell entry
             obj = event
             clr = 'Orange'
@@ -389,6 +392,90 @@ def add_to_drawing_objects_df(symbol='TSLA', time_frame='1m', object='dash', col
         TradingLedger.add_to_dataframe("drawing_objects_df", data)
 
     return
+
+
+def draw_htf_levels_on_chart(app_config, application_state):
+    """Draw only the nearest resistance + nearest support HTF level per symbol on the price chart."""
+    htf_levels = application_state.get('htf_levels', {})
+    timeframe_weights = app_config.get('htf', {}).get('timeframe_weights', {'1D': 1.0, '4H': 0.8, '30m': 0.6, '15m': 0.4})
+    latest_prices = application_state.get('latest_prices', {})
+
+    # Remove all previous HTF drawing objects before redrawing
+    drawing_df = TradingLedger.get_dataframe("drawing_objects_df")
+    if len(drawing_df) > 0 and 'unique_id' in drawing_df.columns:
+        mask = drawing_df['unique_id'].str.contains('--HTF-', na=False)
+        if mask.any():
+            TradingLedger.set_dataframe("drawing_objects_df", drawing_df[~mask].reset_index(drop=True))
+            logger.info(f"HTF chart | cleared {mask.sum()} old HTF drawing objects")
+
+    for symbol, tf_map in htf_levels.items():
+        current_price = latest_prices.get(symbol)
+        if not current_price or current_price <= 0:
+            continue
+
+        # Collect all levels across all timeframes
+        resistance_candidates = []
+        support_candidates = []
+
+        for tf, levels in tf_map.items():
+            weight = timeframe_weights.get(tf, 0.5)
+            for price in levels.get('resistance', []):
+                if price > current_price:
+                    resistance_candidates.append({'price': price, 'tf': tf, 'weight': weight, 'distance': price - current_price})
+            for price in levels.get('support', []):
+                if price < current_price:
+                    support_candidates.append({'price': price, 'tf': tf, 'weight': weight, 'distance': current_price - price})
+
+        # Sort: nearest first, break ties by higher timeframe weight
+        resistance_candidates.sort(key=lambda x: (x['distance'], -x['weight']))
+        support_candidates.sort(key=lambda x: (x['distance'], -x['weight']))
+
+        # Draw only the nearest 1 per side
+        if resistance_candidates:
+            lvl = resistance_candidates[0]
+            add_to_drawing_objects_df(
+                symbol=symbol, time_frame='1min', object='longdash',
+                color='#FF4444', price_1=lvl['price'],
+                memo=f'HTF R {lvl["tf"]} {lvl["price"]:.2f}',
+                unique_id=f'{symbol}--HTF-R'
+            )
+
+        if support_candidates:
+            lvl = support_candidates[0]
+            add_to_drawing_objects_df(
+                symbol=symbol, time_frame='1min', object='longdash',
+                color='#00AA00', price_1=lvl['price'],
+                memo=f'HTF S {lvl["tf"]} {lvl["price"]:.2f}',
+                unique_id=f'{symbol}--HTF-S'
+            )
+
+        logger.info(f"HTF chart | {symbol} @ {current_price:.2f}: "
+                     f"R={resistance_candidates[0]['price']:.2f} ({resistance_candidates[0]['tf']}) " if resistance_candidates else f"HTF chart | {symbol}: no R, "
+                     f"S={support_candidates[0]['price']:.2f} ({support_candidates[0]['tf']})" if support_candidates else "no S")
+
+
+def draw_dynamic_tps_on_chart(application_state, symbol, entry_price, side):
+    """Draw dynamic TP levels on the price chart after an order is sent."""
+    dynamic_tps = application_state.get('htf_dynamic_tps', {}).get(symbol, [])
+    if not dynamic_tps:
+        return
+
+    for tp in dynamic_tps:
+        tp_price = tp['price']
+        label = tp['label']
+        source = tp['source']
+        close_pct = tp['close_pct']
+        pct_label = f"{int(close_pct * 100)}%" if close_pct > 0 else "runner"
+
+        add_to_drawing_objects_df(
+            symbol=symbol, time_frame='1min', object='longdashdot',
+            color='#00DD00' if side == 'long' else '#DD0000',
+            price_1=tp_price,
+            memo=f'TP {label} {tp_price:.2f} ({pct_label} | {source})',
+            unique_id=f'{symbol}--DYN-TP-{label}-{tp_price:.2f}'
+        )
+
+    logger.info(f"Dynamic TPs drawn for {symbol}: {[tp['price'] for tp in dynamic_tps]}")
 
 
 def get_case_color(app_config, case):

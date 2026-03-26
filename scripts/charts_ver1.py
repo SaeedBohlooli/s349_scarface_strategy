@@ -127,9 +127,9 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
     # df.set_index('date', inplace=True)
 
     # Create a subplot: (2 rows, shared x-axis)
-    fig = make_subplots(rows=8, cols=1, shared_xaxes=True,
+    fig = make_subplots(rows=9, cols=1, shared_xaxes=True,
                         vertical_spacing=0.04,
-                        row_heights=[0.65, 0.05, 0.05, 0.10, 0.04, 0.04, 0.04, 0.04],
+                        row_heights=[0.55, 0.05, 0.05, 0.10, 0.04, 0.04, 0.04, 0.04, 0.06],
                         subplot_titles=(f'{symbol}',
                                         f'Volume Ratio {symbol}',
                                         f'Relative Strength Relative {symbol}',
@@ -137,7 +137,7 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
                                         f'Check ... {symbol}',
                                         f'ATR-{symbol}',
                                         f'Volume-{symbol}',
-
+                                        f'Composite Score {symbol}',
                                         )
                         )
 
@@ -322,46 +322,58 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
         name='Vol SMA 20'
     ), row=row_in_chart, col=1)
 
+    # Composite Score
+    row_in_chart += 1
+    if len(scoring_df) > 0 and symbol in scoring_df['symbol'].values:
+        sym_scores = scoring_df[scoring_df['symbol'] == symbol].copy()
+        sym_scores = sym_scores.sort_values('timestamp')
+
+        fig.add_trace(go.Scatter(
+            x=sym_scores['timestamp'],
+            y=sym_scores['composite_score'],
+            line=dict(color='#00AAFF', width=2),
+            name='Composite Score',
+            hovertext=[f"Score: {s:.1f} | Rank: {r}" for s, r in zip(sym_scores['composite_score'], sym_scores['rank'])],
+            hoverinfo='text',
+        ), row=row_in_chart, col=1)
+
+        # Leader threshold line
+        leader_thresh = app_config.get('scoring', {}).get('leader_threshold', 60)
+        fig.add_trace(go.Scatter(
+            x=sym_scores['timestamp'],
+            y=[leader_thresh] * len(sym_scores),
+            mode='lines', line=dict(color='green', dash='dot', width=1),
+            name=f'Leader ({leader_thresh})', showlegend=False
+        ), row=row_in_chart, col=1)
+
+        # Laggard threshold line
+        laggard_thresh = app_config.get('scoring', {}).get('laggard_threshold', 40)
+        fig.add_trace(go.Scatter(
+            x=sym_scores['timestamp'],
+            y=[laggard_thresh] * len(sym_scores),
+            mode='lines', line=dict(color='red', dash='dot', width=1),
+            name=f'Laggard ({laggard_thresh})', showlegend=False
+        ), row=row_in_chart, col=1)
+
     fig.update_layout(
         title=f'{chart_title}',
         width=1900,
         height=1400,
         xaxis=dict(
-            range=[start_time, end_time],  # limit slider to last 4 hours
-            rangeslider=dict(
-                visible=False,
-            ),
-
+            range=[start_time, end_time],
+            rangeslider=dict(visible=False),
         ),
-        xaxis2=dict(
-            range=[start_time, end_time],  # 👈 sets visible window
-            rangeslider=dict(visible=False)  # ATR row
-        ),
-        xaxis3=dict(
-            range=[start_time, end_time],  # 👈 sets visible window
-            rangeslider=dict(visible=False)  # Volume row
-        ),
-        xaxis4=dict(
-            range=[start_time, end_time],  # 👈 sets visible window
-            rangeslider=dict(visible=False)  # Volume row
-        ),
-        xaxis5=dict(
-            range=[start_time, end_time],  # 👈 sets visible window
-            rangeslider=dict(visible=False)
-        ),
-        xaxis6=dict(
-            range=[start_time, end_time],  # 👈 sets visible window
-            rangeslider=dict(visible=False)
-        ),
-        xaxis7=dict(
-            range=[start_time, end_time],  # 👈 sets visible window
-            rangeslider=dict(visible=True,
-                    thickness=0.07  # makes it smaller so it doesn’t overlap ATR
-                    )
+        xaxis2=dict(range=[start_time, end_time], rangeslider=dict(visible=False)),
+        xaxis3=dict(range=[start_time, end_time], rangeslider=dict(visible=False)),
+        xaxis4=dict(range=[start_time, end_time], rangeslider=dict(visible=False)),
+        xaxis5=dict(range=[start_time, end_time], rangeslider=dict(visible=False)),
+        xaxis6=dict(range=[start_time, end_time], rangeslider=dict(visible=False)),
+        xaxis7=dict(range=[start_time, end_time], rangeslider=dict(visible=False)),
+        xaxis8=dict(
+            range=[start_time, end_time],
+            rangeslider=dict(visible=True, thickness=0.07)
         )
     )
-
-    x = 0
 
     fig.update_yaxes(title_text="Price", row=1, col=1, title_standoff=20, automargin=True)
     fig.update_yaxes(title_text="ATR", row=2, col=1, title_standoff=20, automargin=True)
@@ -370,6 +382,7 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
     fig.update_yaxes(title_text="RS", row=5, col=1, title_standoff=20, automargin=True)
     fig.update_yaxes(title_text="RS Rel", row=6, col=1, title_standoff=20, automargin=True)
     fig.update_yaxes(title_text="Volume Ratio", row=7, col=1, title_standoff=20, automargin=True)
+    fig.update_yaxes(title_text="Score", row=8, col=1, title_standoff=20, automargin=True)
 
     # Optional: rotate x-axis labels
 
@@ -622,9 +635,13 @@ def load_df_from_ohlc_file(portfolio_id='p700', symbol='TSLA', time_frame='1min'
 def load_file_to_drawing_objects_df():
     file = f'{get_charts_dir(portfolio_id)}/10-drawing_objects_df.csv'
     logger.info(f"reading file: {file}")
-    df = pd.read_csv(file)
-    logger.info(f"drawing_objects_df:\n{df[-3:].to_markdown()}")
-    return df
+    if os.path.exists(file):
+        df = pd.read_csv(file)
+        logger.info(f"drawing_objects_df:\n{df[-3:].to_markdown()}")
+        return df
+    else:
+        logger.warning(f"drawing_objects_df file not found: {file}")
+        return pd.DataFrame()
 
 def load_file_to_hover_df():
     file = f'{get_charts_dir(portfolio_id)}/12-hover_df.csv'
@@ -644,6 +661,19 @@ def load_file_to_close_levels_df():
         logger.info(f"load_file_to_close_levels_df:\n{df[-3:].to_markdown()}")
         return df
     else:
+        return pd.DataFrame()
+
+def load_scoring_df():
+    results_dir = f'../../portfolios/{portfolio_id}/results'
+    file = f'{results_dir}/26-scoring_df.csv'
+    if os.path.exists(file):
+        logger.info(f"reading scoring file: {file}")
+        df = pd.read_csv(file)
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        logger.info(f"scoring_df: {len(df)} rows")
+        return df
+    else:
+        logger.warning(f"scoring_df not found: {file}")
         return pd.DataFrame()
 
 
@@ -888,6 +918,7 @@ charts_dir = ''
 chart_rows = 2
 df = pd.DataFrame()
 extra_features_df = pd.DataFrame()
+scoring_df = pd.DataFrame()
 mode = 'live'  # live or back_test
 @app.route('/')
 def index():
@@ -895,6 +926,7 @@ def index():
     global df
     global extra_features_df
     global close_levels_df
+    global scoring_df
     global mode
 
     start_time = time.time()
@@ -943,6 +975,7 @@ def index():
     drawing_objects_df = load_file_to_drawing_objects_df()
     hover_df = load_file_to_hover_df()
     close_levels_df = load_file_to_close_levels_df()
+    scoring_df = load_scoring_df()
     plots = []
     logger.info(f"================== call from client run_counter: {run_counter}")
 
@@ -992,4 +1025,5 @@ def index():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=int(app_config['chart']['port']))
+    # app.run(debug=True, host='0.0.0.0', port=int(app_config['chart']['port']))
+    app.run(debug=True, host='0.0.0.0', port=51072)

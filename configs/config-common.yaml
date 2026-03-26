@@ -72,20 +72,20 @@ symbols_meta:
     retest_tolerance_multiplier: 2
     exchange: CBOE
     expiry_offset: 1
-  MNQ:
-    can_trade: false
-    contract_type: Future
-    min_required_move_from_level: 5
-    breakout_confirmation_distance: 2
-    chart_entry_offset: 20
-    retest_tolerance_multiplier: 3
-    contract_month: 202606
-    long:
-      stop_loss: level_used - ( dynamic_tolerance.get('tolerance', 0) * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1))
-      take_profit: df['close'].iloc[-1] + (df['atr_14'].iloc[-2] * 2 )
-    short:
-      stop_loss: level_used + ( dynamic_tolerance.get('tolerance', 0) * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1))
-      take_profit: df['close'].iloc[-1] - (df['atr_14'].iloc[-2] * 2 )
+  #  MNQ:
+  #    can_trade: false
+  #    contract_type: Future
+  #    min_required_move_from_level: 5
+  #    breakout_confirmation_distance: 2
+  #    chart_entry_offset: 20
+  #    retest_tolerance_multiplier: 3
+  #    contract_month: 202606
+  #    long:
+  #      stop_loss: level_used - ( dynamic_tolerance.get('tolerance', 0) * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1))
+  #      take_profit: df['close'].iloc[-1] + (df['atr_14'].iloc[-2] * 2 )
+  #    short:
+  #      stop_loss: level_used + ( dynamic_tolerance.get('tolerance', 0) * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1))
+  #      take_profit: df['close'].iloc[-1] - (df['atr_14'].iloc[-2] * 2 )
   AMZN:
     can_trade: true
     contract_type: Equity
@@ -94,31 +94,27 @@ symbols_meta:
     chart_entry_offset: 0.5
     retest_tolerance_multiplier: 1
 
-
-
-
 htf:
   enabled: true
-  use_htf_entry: true       # false = compute HTF levels but don't block entries
-  use_htf_tp: true          # false = compute HTF levels but use config % TPs only
-  refresh_interval_sec: 900  # 15 minutes
-  timeframes: ['1D', '4H', '30m', '15m']
+  use_htf_entry: true # false = compute HTF levels but don't block entries
+  use_htf_tp: true # false = compute HTF levels but use config % TPs only
+  refresh_interval_sec: 900 # 15 minutes
+  timeframes: ["1D", "4H", "30m", "15m"]
   timeframe_weights:
     1D: 1.0
     4H: 0.8
     30m: 0.6
     15m: 0.4
-  swing_lookback: 5          # bars on each side to confirm a swing high/low
-  min_reversal_atr: 0.3      # minimum move after swing to confirm it (in ATR multiples)
-  zone_merge_atr: 0.5        # merge levels within this ATR distance into one zone
-  min_clearance_atr: 1.0     # entry blocked if nearest HTF level < this ATR distance
-  min_tp_distance_atr: 0.3   # HTF TP level must be at least this far from entry
-  tp_close_percentages: [0.60, 0.20, -1]  # close % at each HTF TP level (nearest to furthest)
-
+  swing_lookback: 5 # bars on each side to confirm a swing high/low
+  min_reversal_atr: 0.3 # minimum move after swing to confirm it (in ATR multiples)
+  zone_merge_atr: 0.5 # merge levels within this ATR distance into one zone
+  min_clearance_atr: 1.0 # entry blocked if nearest HTF level < this ATR distance
+  min_tp_distance_atr: 0.3 # HTF TP level must be at least this far from entry
+  tp_close_percentages: [0.60, 0.20, -1] # close % at each HTF TP level (nearest to furthest)
 
 scoring:
   enabled: true
-  gate_enabled: true    # false = compute scores for observation but don't block orders
+  gate_enabled: true # false = compute scores for observation but don't block orders
   weights:
     rs_delta: 0.25
     rs_roc: 0.20
@@ -127,11 +123,11 @@ scoring:
     level_distance: 0.10
     breakout_recency: 0.10
   ema_periods: [9, 21]
-  leader_threshold: 60        # composite score >= 60 to qualify as leader (for longs)
-  laggard_threshold: 40       # composite score <= 40 to qualify as laggard (for shorts)
-  top_n: 3                    # alternative: top N symbols qualify
-  use_threshold: true         # true = threshold mode, false = top_n mode
-
+  leader_threshold: 50 # composite score >= 60 to qualify as leader (for longs)
+  laggard_threshold: 40 # composite score <= 40 to qualify as laggard (for shorts)
+  top_n: 3 # alternative: top N symbols qualify
+  use_threshold: true # true = threshold mode, false = top_n mode
+  rs_overrides_manual: true # true = RS scoring replaces manual_settings (bias + per-symbol conditions + blocked_symbols)
 
 cases:
   case_2_1_async:
@@ -141,7 +137,7 @@ cases:
     color: blue
     long:
       level: levels['5MH']
-      level_alias: '5MH'
+      level_alias: "5MH"
       cores:
         - breakout_in_last_x_candles_ver_2(app_config, application_state, case, symbol, df, side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level, level_alias=level_alias)
         - price_retest(app_config, application_state, case, symbol, df, side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True, level_alias=level_alias)
@@ -156,11 +152,11 @@ cases:
         - abs (price - long_level) < 1.2 * atr_14
         # 10
         - price > application_state['levels'][symbol]['PDL']
-#        - get_current_price(ib, application_state, 'QQQ') > application_state['levels']['QQQ']['PDL']
+        #        - get_current_price(ib, application_state, 'QQQ') > application_state['levels']['QQQ']['PDL']
         - price < levels['PDH'] # avoid going long above PDH - extra safety- if we are above PDH, low change we continue after 5MH breakout
     short:
       level: levels['5ML']
-      level_alias: '5ML'
+      level_alias: "5ML"
       cores:
         - breakout_in_last_x_candles_ver_2(app_config, application_state, case, symbol, df, side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level, level_alias=level_alias)
         - price_retest(app_config, application_state, case, symbol, df, side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True ,level_alias=level_alias)
@@ -175,7 +171,7 @@ cases:
         - abs (price - short_level) < 1.2 * atr_14
         # 10
         - price < application_state['levels'][symbol]['PDH']
-#        - get_current_price(ib, application_state, 'QQQ') < application_state['levels']['QQQ']['PDH']
+        #        - get_current_price(ib, application_state, 'QQQ') < application_state['levels']['QQQ']['PDH']
         - price > levels['PDL'] # avoid going long above PDH - extra safety- if we are above PDH, low change we continue after 5MH breakout
 
   case_2_2:
@@ -185,7 +181,7 @@ cases:
     color: blue
     long:
       level: levels['5MH']
-      level_alias: '5MH'
+      level_alias: "5MH"
       cores:
         - breakout_in_last_x_candles_ver_3(app_config, application_state, case, symbol, df, side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level, level_alias=level_alias)
         - price_retest(app_config, application_state, case, symbol, df, side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True, level_alias=level_alias)
@@ -206,7 +202,7 @@ cases:
 
     short:
       level: levels['5ML']
-      level_alias: '5ML'
+      level_alias: "5ML"
       cores:
         - breakout_in_last_x_candles_ver_3(app_config, application_state, case, symbol, df, side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level, level_alias=level_alias)
         - price_retest(app_config, application_state, case, symbol, df, side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True ,level_alias=level_alias)
@@ -224,7 +220,6 @@ cases:
         # avoid going long above PDH - extra safety- if we are above PDH, low change we continue after 5MH breakout
         - price > levels['PDL'] or get_current_price(ib, application_state, 'QQQ') < application_state['levels']['QQQ']['5ML']
 
-
   case_4_1_async:
     memo: From PDH PDL - we running this one
     can_replace_level: false
@@ -232,7 +227,7 @@ cases:
     color: green
     long:
       level: levels['PDH']
-      level_alias: 'PDH'
+      level_alias: "PDH"
       cores:
         - breakout_in_last_x_candles_ver_2(app_config, application_state, case, symbol, df, side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level, level_alias=level_alias)
         - price_retest(app_config, application_state, case, symbol, df, side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True, level_alias=level_alias)
@@ -252,7 +247,7 @@ cases:
 
     short:
       level: levels['PDL']
-      level_alias: 'PDL'
+      level_alias: "PDL"
       memo: conditon 8 need to be checeked
       cores:
         - breakout_in_last_x_candles_ver_3(app_config, application_state, case, symbol, df, side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level, level_alias=level_alias)
@@ -277,7 +272,7 @@ cases:
     color: green
     long:
       level: levels['PDH']
-      level_alias: 'PDH'
+      level_alias: "PDH"
       cores:
         - breakout_in_last_x_candles_ver_3(app_config, application_state, case, symbol, df, side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level, level_alias=level_alias)
         - price_retest(app_config, application_state, case, symbol, df, side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True, level_alias=level_alias)
@@ -296,7 +291,7 @@ cases:
 
     short:
       level: levels['PDL']
-      level_alias: 'PDL'
+      level_alias: "PDL"
       memo: condition 8 need to be checked
       cores:
         - breakout_in_last_x_candles_ver_2(app_config, application_state, case, symbol, df, side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level, level_alias=level_alias)
@@ -321,14 +316,14 @@ cases:
     color: black
     long:
       level: levels['5MH']
-      level_alias: '5MH'
+      level_alias: "5MH"
       cores:
         - symbol == 'TSLA' and 1 == 2
       extras:
         - 1 == 1
     short:
       level: levels['5ML']
-      level_alias: '5ML'
+      level_alias: "5ML"
       cores:
         - symbol == 'AMD' and 1 == 2
       extras:
