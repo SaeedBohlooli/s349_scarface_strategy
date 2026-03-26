@@ -97,6 +97,25 @@ symbols_meta:
 
 
 
+htf:
+  enabled: true
+  use_htf_entry: true       # false = compute HTF levels but don't block entries
+  use_htf_tp: true          # false = compute HTF levels but use config % TPs only
+  refresh_interval_sec: 900  # 15 minutes
+  timeframes: ['1D', '4H', '30m', '15m']
+  timeframe_weights:
+    1D: 1.0
+    4H: 0.8
+    30m: 0.6
+    15m: 0.4
+  swing_lookback: 5          # bars on each side to confirm a swing high/low
+  min_reversal_atr: 0.3      # minimum move after swing to confirm it (in ATR multiples)
+  zone_merge_atr: 0.5        # merge levels within this ATR distance into one zone
+  min_clearance_atr: 1.0     # entry blocked if nearest HTF level < this ATR distance
+  min_tp_distance_atr: 0.3   # HTF TP level must be at least this far from entry
+  tp_close_percentages: [0.60, 0.20, -1]  # close % at each HTF TP level (nearest to furthest)
+
+
 scoring:
   enabled: true
   gate_enabled: true    # false = compute scores for observation but don't block orders

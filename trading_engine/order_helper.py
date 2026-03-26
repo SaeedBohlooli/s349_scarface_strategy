@@ -20,6 +20,7 @@ from trading_engine import risk_helper
 from trading_engine import notification_helper
 from trading_engine import position_helper
 from trading_engine import scoring_helper
+from trading_engine import htf_helper
 
 
 async def check_buy_sell_result_to_send_order(ib, app_config, application_state, buy_sell_case_results_list, symbol, df, market_data, runtime):
@@ -87,6 +88,21 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
             if runtime.should_run_once(f"scoring-gate-failed-{symbol}-{str(df['date'].iloc[-1])}"):
                 TradingLedger.add_to_list("signals", (symbol, f"SCORING_GATE_FAILED", df['high'].iloc[-1], df['date'].iloc[-1], f"{case} - {scoring_reason}", 'ORANGE'))
             continue
+
+        # HTF clearance gate: check if there's enough room to nearest HTF resistance/support
+        entry_price = df['close'].iloc[-1]
+        htf_clear, htf_reason, htf_nearest = htf_helper.check_htf_clearance(app_config, application_state, symbol, side_for_scoring, entry_price)
+        if not htf_clear:
+            logger.warning(f"@@  HTF clearance failed, {symbol}, {side_for_scoring}: {htf_reason}")
+            if runtime.should_run_once(f"htf-clearance-failed-{symbol}-{str(df['date'].iloc[-1])}"):
+                TradingLedger.add_to_list("signals", (symbol, f"HTF_BLOCKED", df['high'].iloc[-1], df['date'].iloc[-1], f"{case} - {htf_reason}", 'RED'))
+            continue
+
+        # Store dynamic TPs from HTF levels if enabled (used by exit_conditions)
+        htf_dynamic_tps = htf_helper.compute_dynamic_take_profits(app_config, application_state, symbol, side_for_scoring, entry_price)
+        if htf_dynamic_tps:
+            application_state.setdefault('htf_dynamic_tps', {})[symbol] = htf_dynamic_tps
+            logger.info(f"HTF dynamic TPs for {symbol}: {htf_dynamic_tps}")
 
         if contract_type.lower() == 'equity' and (can_buy or can_sell): # go for buy
             right = 'C' if can_buy else 'P'

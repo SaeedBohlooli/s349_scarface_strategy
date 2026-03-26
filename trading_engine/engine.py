@@ -31,6 +31,7 @@ from trading_engine import chart_helper
 from trading_engine import position_helper
 from trading_engine import pnl_helper
 from trading_engine import scoring_helper
+from trading_engine import htf_helper
 
 from trading_utils import position_router
 from trading_utils import user_request_router
@@ -84,6 +85,9 @@ class TradingEngine:
             'composite_score', 'rank', 'is_leader', 'is_laggard'
         ]
         TradingLedger.set_dataframe_columns("scoring_df", scoring_df_cols)
+
+        htf_levels_df_cols = ['timestamp', 'symbol', 'timeframe', 'level_type', 'price']
+        TradingLedger.set_dataframe_columns("htf_levels_df", htf_levels_df_cols)
 
         capital_flow_df = FileManager.load_my_df("capital_flow_df")
         if len(capital_flow_df) ==0:
@@ -142,6 +146,11 @@ class TradingEngine:
                     capital_flow_df = TradingLedger.get_dataframe('capital_flow_df')
                     FileManager.save_my_df(capital_flow_df, "capital_flow_df", mode='w', drop_duplicates=True, save_tabular=True)
 
+
+                # ========== HTF: Refresh higher timeframe levels periodically ==========
+                htf_interval = self.app_config.get('htf', {}).get('refresh_interval_sec', 15 * 60)
+                if self.app_config.get('htf', {}).get('enabled', False) and self.runtime.is_due('HTF_REFRESH', interval_sec=htf_interval, min_time_hhmm=925):
+                    await htf_helper.refresh_htf_levels(ib, self.app_config, self.application_state, self.market_data)
 
                 # ========== PASS 1: Gather data, indicators, levels, RS for all symbols ==========
                 intraday_rs_map = {}  # symbol -> intraday_rs_df (needed in pass 2 for charting)

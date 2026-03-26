@@ -51,6 +51,7 @@ files:
   capital_flow_df: "{results}/24-capital_flow_df.csv"  # TODO rename
   screening_summary_for_all_sub_runs_agg_df: "{results}/25-screening_summary_for_all_sub_runs_agg_df.csv"  # TODO rename
   scoring_df: "{results}/26-scoring_df.csv"
+  htf_levels_df: "{results}/27-htf_levels_df.csv"
   test_df: "{results}/99-test_df.csv"
 
 

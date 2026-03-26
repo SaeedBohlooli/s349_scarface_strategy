@@ -158,6 +158,97 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
         # ###
         # Take profit
         # ###
+
+        # HTF dynamic TPs: check if we should use level-based TPs instead of config %
+        use_htf_tp = app_config.get('htf', {}).get('enabled', False) and app_config.get('htf', {}).get('use_htf_tp', False)
+        htf_dynamic_tps = application_state.get('htf_dynamic_tps', {}).get(symbol, [])
+
+        if use_htf_tp and htf_dynamic_tps and application_state['open_trades_dic'][symbol].get('available_quantity', 0) > 0:
+            for htf_tp in htf_dynamic_tps:
+                htf_label = htf_tp['label']
+                htf_price = htf_tp['price']
+                htf_close_pct = htf_tp['close_pct']
+
+                if application_state['open_trades_dic'][symbol].get('available_quantity', 0) == 0:
+                    break
+                if application_state['open_trades_dic'][symbol].get('take_profits', {}).get(htf_label, None) is not None:
+                    logger.info(f"{symbol}, HTF TP already executed ... {htf_label}")
+                    continue
+
+                # For longs: underlying must reach above the HTF level
+                # For shorts: underlying must reach below the HTF level
+                htf_tp_triggered = False
+                if right == 'C' and underlying_current_price >= htf_price:
+                    htf_tp_triggered = True
+                elif right == 'P' and underlying_current_price <= htf_price:
+                    htf_tp_triggered = True
+
+                if htf_tp_triggered:
+                    if htf_close_pct == -1:
+                        close_quantity = available_quantity
+                    else:
+                        close_quantity = round(start_quantity * htf_close_pct)
+                        close_quantity = max(1, close_quantity)
+
+                    if close_quantity > 0 and close_quantity <= available_quantity:
+                        logger.info(f"HTF TP triggered: {symbol} {htf_label} at {htf_price} ({htf_tp['source']})")
+                        take_profit_lable = htf_label
+                        take_profit_condition = f"HTF level {htf_tp['source']} at {htf_price}"
+
+                        if app_config['symbols_meta'][symbol]['contract_type'] == 'Equity':
+                            order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='CLOSE', symbol=symbol, alias=htf_label, unique_run_number=application_state.get('unique_run_number'))
+                            con_id = open_trade_info.get('con_id')
+                            ib_positions_async.close_position_by_con_id(ib, con_id=con_id, qty_to_close=close_quantity, order_ref=order_ref)
+                        elif app_config['symbols_meta'][symbol]['contract_type'] == 'Future':
+                            order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='CLOSE', symbol=symbol, alias=htf_label, unique_run_number=application_state.get('unique_run_number'))
+                            con_id = open_trade_info.get('con_id')
+                            ib_positions_async.close_position_by_con_id(ib, con_id=con_id, qty_to_close=close_quantity, order_ref=order_ref)
+                        else:
+                            continue
+
+                        application_state['open_trades_dic'][symbol]['available_quantity'] = available_quantity - close_quantity
+                        available_quantity = application_state['open_trades_dic'][symbol]['available_quantity']
+
+                        data = {
+                            'status': 'SENT',
+                            'available_quantity_b4': available_quantity + close_quantity,
+                            'close_quantity': close_quantity,
+                            'candle_date': str(symbol_df['date'].iloc[-1]),
+                            'tp_u_run_number': application_state.get('unique_run_number'),
+                            'order_ref': order_ref,
+                        }
+                        application_state['open_trades_dic'][symbol].setdefault('take_profits', {})[htf_label] = data
+
+                        data = {
+                            'symbol': symbol,
+                            'right': application_state['open_trades_dic'][symbol].get('right'),
+                            'strike': application_state['open_trades_dic'][symbol].get('strike'),
+                            'expiry': application_state['open_trades_dic'][symbol].get('expiry'),
+                            'current_bid': current_bid,
+                            'current_ask': current_ask,
+                            'underlying_current_price': underlying_current_price,
+                            'available_quantity_b4': available_quantity + close_quantity,
+                            'take_profit_case': htf_label,
+                            'take_profit_condition': f"HTF {htf_tp['source']} at {htf_price}",
+                            'close_quantity': close_quantity,
+                            'candle_date': str(symbol_df['date'].iloc[-1]),
+                            'tp_u_run_number': application_state.get('unique_run_number'),
+                            'order_ref': order_ref,
+                            'local_symbol': application_state['open_trades_dic'][symbol].get('local_symbol'),
+                            'con_id': application_state['open_trades_dic'][symbol].get('con_id'),
+                        }
+                        add_order_ref_to_application_state(application_state, open_order_ref=open_trade_info.get('order_ref'), close_order_ref=order_ref)
+                        TradingLedger.add_to_dataframe('take_profit_history_df', data)
+                        TradingLedger.add_to_list("signals", (symbol, 'TAKE_PROFIT_SENT', underlying_current_price, symbol_df['date'].iloc[-1], f"HTF-TP-{htf_label} <BR>{json_utils.polish_map_to_show_in_hover(data)}"))
+                        notification_helper.send_email(app_config, event='take_profit_sent', symbol=symbol, body=json_utils.polish_map_to_show_in_hover(data))
+                        increment_wins(application_state, symbol)
+                        break  # one TP at a time
+
+            # If HTF TPs consumed all quantity, skip config-based TPs
+            if application_state['open_trades_dic'][symbol].get('available_quantity', 0) == 0:
+                continue
+
+        # Config-based take profits (original logic, also used as fallback)
         for take_profit_lable in app_config['take_profits']:
             logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, take_profit_lable: {take_profit_lable}")
             if application_state['open_trades_dic'][symbol].get('available_quantity',0) == 0:
