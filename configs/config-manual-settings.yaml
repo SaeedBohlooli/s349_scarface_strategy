@@ -1,10 +1,10 @@
 manual_settings:
-  C:
-    conditions:
-      - QQQ_price >  QQQ_PDH
+  enable_auto_tp: true
+  conditions:
+      - QQQ_price >  QQQ_5MH
   P:
     conditions:
-      - QQQ_price < QQQ_PDH and QQQ_price > QQQ_5ML
+      - QQQ_price < QQQ_5MH and QQQ_price < QQQ_PDL
   blocked_symbols:
     C:
       - MU
@@ -13,31 +13,33 @@ manual_settings:
   symbols:
     AAPL:
       C:
-        - AAPL_price > AAPL_PMH
+        - 1 == 1
       P:
-        - AAPL_price < AAPL_PDL
+        - 1 == 1
+      tp1: true
+      tp2: true
     AMD:
       C:
-        - 1 == 1
+        - AMD_price > AMD_PDL
       P:
-        - 1 == 1
+        - AMD_price < AMD_PDL
     AMZN:
       C:
-        - AMZN_price > AMZN_PDH
+        - AMZN_price > AMZN_PDL
       P:
-        - 1 == 1
+        - AMZN_price < AMZN_PDL
     NVDA:
       C:
-        - 1 == 1
+        - NVDA_price > NVDA_PDL
       P:
-        - 1 == 1
+        - NVDA_price < NVDA_PDL
     PLTR:
       C:
-        - 1 == 1
+        - PLTR_price > PLTR_PDL
       P:
-        - 1 == 1
+        - PLTR_price < PLTR_PDL
     TSLA:
       C:
-        - TSLA_price > 401.2
+        - TSLA_price > TSLA_PDL
       P:
-        - 1 == 1
+        - TSLA_price < TSLA_PDL

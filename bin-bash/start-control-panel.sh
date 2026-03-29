@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-cd /opt/u107_level_driven_algo/ui-control-panel/ui-dashboard/ 
+cd /Users/kalerv/zynfosoft/u107_level_driven_algo/ui-control-panel/ui-dashboard/
 
 PORTFOLIO_ID="p107"
 SCRIPT_PATH="npm run dev -- --host 0.0.0.0"

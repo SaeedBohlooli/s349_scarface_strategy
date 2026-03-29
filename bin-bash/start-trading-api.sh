@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-cd /opt/u107_level_driven_algo/bin-bash || exit 1
-source ../venv/bin/activate
+cd /Users/kalerv/zynfosoft/u107_level_driven_algo/bin-bash || exit 1
+#source ../venv/bin/activate
 
 PORTFOLIO_ID="p107"
 SCRIPT_PATH="../trading_api/trading_api_service.py"
