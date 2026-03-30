@@ -133,6 +133,9 @@ risk_gate:
   stop_after_wins: 1
   max_number_of_trades_per_day: 2
   max_num_of_trade_per_symbol_per_day: 2
+#  stop_after_wins: 10
+#  max_number_of_trades_per_day: 20
+#  max_num_of_trade_per_symbol_per_day: 20
 #  second_trade_check: no_trade_today or (has_open_trade and tp in ['tp1'])
 #  # we don't go for the second trade if we have one profit trade today already (tp2)
 #  # we have one open trade and we only hit tp1, we are not going to take another trade
@@ -151,11 +154,16 @@ live:
 #  cases_to_run: ['case_3']
   historical_days: 4 D
 
-  capital: 4000
-  capital_per_trade_percentage: 0.20
-  num_of_contracts: calculate_number_of_contracts()
+  capital: 5000
+  max_exposure_per_trade: 2000
+  max_exposure_for_all_trades: 10000  # not used
+  capital_per_trade_percentage: 0.20 # not used
+  min_position_size: 6 #
+  min_contract_entry_price: 0.1
+#  num_of_contracts: calculate_number_of_contracts()
 
   trade_time: 930 < current_hh_mm_ny  < 1015 # TODO change to trade_time
+#  trade_time: 930 < current_hh_mm_ny  < 1559 # TODO change to trade_time
   market_time: 930 < current_hh_mm_ny < 1559
   busy_time: 933 < current_hh_mm_ny < 1016  #don't chaneg this,  we are not saving anythng or any test ...
 
