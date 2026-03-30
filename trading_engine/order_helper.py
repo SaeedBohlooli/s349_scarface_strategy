@@ -85,7 +85,7 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
             right = 'C' if can_buy else 'P'
             option_contract = await options_helper.prepare_option_contract(ib, app_config, application_state, market_data, symbol, right=right)
             if option_contract == None:
-                notification_utls.notify_user(app_config, application_state, subject= f"Contract is null- {app_config.get('user_name')}", msg=f"@@@@@ prepare_contract returned None. We are not sending order. symbol={symbol}, option_contract={option_contract}")
+                notification_utls.notify_user(app_config, application_state, subject= f"Contract is null- {symbol} - {app_config.get('user_name')}", msg=f"@@@@@ prepare_contract returned None. We are not sending order. symbol={symbol}, option_contract={option_contract}")
                 logger.warning(f"@@@@@ We are not sending order. {symbol}, option_contract: {option_contract}")
                 continue
             bid, ask, last = await pricing_helper.get_quote_for_option_bid_ask(ib, symbol=symbol, expiry=option_contract.lastTradeDateOrContractMonth, strike=option_contract.strike, right=option_contract.right )
@@ -98,6 +98,7 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
             add_to_capital_allocation_df(application_state, capital_data)
             if total_quantity == 0:  # we don't have enough capital
                 logger.warning(f"@@ We dont have enough capital {symbol} ....")
+                TradingLedger.add_to_list("signals", (symbol, f"NOT_ENOUGH_CAPITAL", df['high'].iloc[-1], df['date'].iloc[-1], f"NOT_ENOUGH_CAPITAL", 'YELLOW'))
                 continue
             order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='OPEN', symbol=symbol, side='long', unique_run_number=application_state.get('unique_run_number'), right= right)
             await send_order(ib, option_contract, side='long', total_quantity=total_quantity, order_ref=order_ref)

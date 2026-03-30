@@ -13,8 +13,22 @@ def calculate_number_of_option_contracts(app_config, application_state, symbol, 
     #  num_of_contracts: 4
     logger.info(f"calculate_number_of_contracts(), {symbol}, available_capital: {available_capital}, capital_per_trade_percentage: {capital_per_trade_percentage}")
 
-    capital_per_trade = max(available_capital * capital_per_trade_percentage, 800)  # TODO put in a function
-    num_of_contracts = max(round(capital_per_trade / (ask * 100)), 6)  # TODO we get 2 as min ...
+    max_exposure_per_trade = int(app_config['live'].get('max_exposure_per_trade', 800))
+    min_position_size = int(app_config['live'].get('min_position_size', 6))
+    min_contract_entry_price = app_config['live'].get('min_contract_entry_price', 0.5)
+
+    # capital_per_trade = min(available_capital * capital_per_trade_percentage, max_exposure_per_trade)  # TODO put in a function
+    capital_per_trade = max_exposure_per_trade
+
+    num_of_contracts = round(capital_per_trade / (ask * 100))
+
+    if ask < min_contract_entry_price:
+        logger.warning(f"@@@@ ask price {ask} is below the minimum contract entry price {min_contract_entry_price} ...")
+        num_of_contracts = 0
+
+    if num_of_contracts < min_position_size:
+        logger.warning(f"@@@@ we don't have enough capital ...{num_of_contracts} contracts is below the minimum position size {min_position_size} ...")
+        num_of_contracts = 0
 
     logger.info(f"capital_per_trade: {capital_per_trade}, ask: {ask} strike: {strike}")
     logger.info(f"symbol: {symbol}, num_of_contracts: {num_of_contracts}")
