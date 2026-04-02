@@ -5,6 +5,7 @@ from ib_async import *
 from trading_engine import pricing_helper
 from trading_core.file_manager import FileManager
 from trading_utils import date_utils
+from trading_utils import global_state
 from trading_utils import ib_contract
 from trading_utils import ib_pricing_async
 
@@ -110,24 +111,56 @@ async def orchestrate_expirations_strikes(ib, app_config, application_state, mar
         options_meta_date_dic.update(strikes_from_adhoc)
         FileManager.save_named_json(options_meta_date_dic, file_name='85-strikes-expirations-ib+nazdaq+adhoc.json', dir='intermediate')
 
+    # Weekly expirations: last NYSE day Mon–Fri each week (Friday or Thursday if Fri is closed).
+    weekly_exps = date_utils.next_weekly_equity_expiration_dates(10)
     expirations_manually_created = {}
     for s in app_config['symbols']:
         if s not in ['QQQ', 'SPY', 'MNQ']:
-            expirations_manually_created[f"{s}-expirations"] = date_utils.next_fridays(10)
+            expirations_manually_created[f"{s}-expirations"] = list(weekly_exps)
     options_meta_date_dic.update(expirations_manually_created)
     FileManager.save_named_json(options_meta_date_dic, file_name='85-strikes-expirations-ib+nazdaq+adhoc+manual.json', dir='intermediate')
 
     extended_strikes = extend_all_strikes(options_meta_date_dic, 10)
     options_meta_date_dic.update(extended_strikes)
 
-    for key, tokens in options_meta_date_dic.items():
-        if key.endswith('expirations'):
-            options_meta_date_dic[key]='20260402'
-
     FileManager.save_named_json(options_meta_date_dic, file_name='85-strikes-expirations-ib+nazdaq+adhoc+manual+extend.json', dir='intermediate')
 
     logger.debug('hold it here ')
     return
+
+def _pick_preferred_expiry(expiry_list, expiry_offset=0):
+    """
+    Pick expiry by index from the curated list (weekly list or IB chain).
+    Coerces str → single-element list; returns yyyymmdd string for IB/cache keys.
+    """
+    if expiry_list is None:
+        return None
+    if isinstance(expiry_list, str):
+        expiry_list = [expiry_list]
+    if not expiry_list:
+        return None
+
+    idx = max(0, min(expiry_offset, len(expiry_list) - 1))
+    return str(expiry_list[idx])
+
+
+def _log_option_contract_cache_for_symbol(symbol: str, label: str = "prepare_option_contract") -> None:
+    keys = [
+        k for k in global_state.option_contract_cache.keys()
+        if k and len(k) >= 1 and k[0] == symbol
+    ]
+    keys.sort(key=lambda x: (x[1] if len(x) > 1 else "", x[2] if len(x) > 2 else 0, x[3] if len(x) > 3 else ""))
+    max_show = 50
+    if not keys:
+        logger.info(f"[{label}] option_contract_cache: no entries for {symbol}")
+        return
+    if len(keys) <= max_show:
+        logger.info(f"[{label}] option_contract_cache for {symbol} ({len(keys)} entries): {keys}")
+    else:
+        logger.info(
+            f"[{label}] option_contract_cache for {symbol}: {len(keys)} entries, "
+            f"first {max_show}={keys[:max_show]}"
+        )
 
 
 async def prepare_option_contract(ib, app_config, application_state, market_data, symbol, right='C'):
@@ -146,29 +179,72 @@ async def prepare_option_contract(ib, app_config, application_state, market_data
     #     "20251212"
     # ]
     expiry_offset = app_config['symbols_meta'][symbol].get('expiry_offset', 0) # 0 means first one ... for QQQ/SPY we get the seond one ...
+    expiry = _pick_preferred_expiry(expiry_list, expiry_offset)
+    ex_head = list(expiry_list[:5]) if isinstance(expiry_list, list) else expiry_list
+    ex_count = len(expiry_list) if isinstance(expiry_list, list) else "n/a"
+    logger.info(
+        f"[prepare_option_contract] symbol={symbol} right={right} underlying_price={underlying_price} "
+        f"expiry_list_head={ex_head} expiry_chosen={expiry} expiry_offset={expiry_offset} (count={ex_count})"
+    )
+    _log_option_contract_cache_for_symbol(symbol)
 
-    expiry = expiry_list[expiry_offset] if expiry_list else None
     if strikes is None:
-        logger.warning(f"@@@@@ prepare_contract, strikes is None. {symbol}, {right}, underlying_price: {underlying_price}")
+        related_keys = sorted(k for k in options_meta_date_dic.keys() if symbol in k)
+        logger.warning(
+            f"@@@@@ prepare_contract, strikes is None. {symbol}, {right}, underlying_price: {underlying_price}; "
+            f"options_meta_date_dic keys matching symbol: {related_keys}"
+        )
         return  None
+    if len(strikes) == 0:
+        logger.warning(
+            f"[prepare_option_contract] strikes is empty list for {symbol}; "
+            f"expiry_list={expiry_list} expiry_chosen={expiry}"
+        )
+        return None
     # --- Categorize ---
     itm_calls = [s for s in strikes if s < underlying_price]
     otm_calls = [s for s in strikes if s > underlying_price]
     itm_puts = [s for s in strikes if s > underlying_price]
     otm_puts = [s for s in strikes if s < underlying_price]
+
+    s_min, s_max = min(strikes), max(strikes)
+    head = strikes[:12] if len(strikes) > 24 else strikes
+    tail = strikes[-12:] if len(strikes) > 24 else []
+    logger.info(
+        f"[prepare_option_contract] strikes n={len(strikes)} range=[{s_min}, {s_max}] "
+        f"head={head}{' ... tail=' + str(tail) if tail else ''} | "
+        f"otm_calls_n={len(otm_calls)} otm_puts_n={len(otm_puts)} "
+        f"otm_calls_first5={otm_calls[:5]} otm_puts_last5={otm_puts[-5:]}"
+    )
     if len(otm_calls) !=0 and len(otm_puts) != 0:
         if right == 'C':
             strike = otm_calls[0]
         else:
             strike = otm_puts[-1]
 
-        contract = await ib_contract.get_option_contract_cached(ib, symbol=symbol, strike=strike, expiry=expiry, right=right)
+        logger.info(
+            f"[prepare_option_contract] qualifying Option symbol={symbol} strike={strike} expiry={expiry} right={right}"
+        )
+        try:
+            contract = await ib_contract.get_option_contract_cached(
+                ib, symbol=symbol, strike=strike, expiry=expiry, right=right
+            )
+        except Exception as e:
+            logger.error(
+                f"[prepare_option_contract] get_option_contract_cached failed "
+                f"symbol={symbol} strike={strike} expiry={expiry} right={right}: {e}",
+                exc_info=True,
+            )
+            return None
         logger.info(f"in prepare_contract, contract: {contract}")
 
         return contract
 
     else:
-        logger.error (f"@@@@ prepare_contract(), we have issue, {symbol}, underlying_price: {underlying_price}, expiry: {expiry}, strikes: {strikes}")
+        logger.error (
+            f"@@@@ prepare_contract(), we have issue, {symbol}, underlying_price: {underlying_price}, expiry: {expiry}, strikes: {strikes}; "
+            f"n_otm_calls={len(otm_calls)} n_otm_puts={len(otm_puts)}"
+        )
 
         return None
 
@@ -198,11 +274,28 @@ async def prepare_option_contract_for_later_use_for_symbol(ib, app_config, appli
     #     "20251212"
     # ]
     expiry_offset = app_config['symbols_meta'][symbol].get('expiry_offset', 0) # 0 means first one ... for QQQ/SPY we get the seond one ...
+    expiry = _pick_preferred_expiry(expiry_list, expiry_offset)
+    ex_head = list(expiry_list[:5]) if isinstance(expiry_list, list) else expiry_list
+    ex_count = len(expiry_list) if isinstance(expiry_list, list) else "n/a"
+    logger.info(
+        f"[prepare_option_contract_for_later_use] symbol={symbol} right={right} underlying_price={underlying_price} "
+        f"expiry_list_head={ex_head} expiry_chosen={expiry} (count={ex_count})"
+    )
+    _log_option_contract_cache_for_symbol(symbol, label="prepare_option_contract_for_later_use")
 
-    expiry = expiry_list[expiry_offset] if expiry_list else None
     if strikes is None:
-        logger.warning(f"@@@@@ prepare_contract, strikes is None. {symbol}, {right}, underlying_price: {underlying_price}")
+        related_keys = sorted(k for k in options_meta_date_dic.keys() if symbol in k)
+        logger.warning(
+            f"@@@@@ prepare_contract, strikes is None. {symbol}, {right}, underlying_price: {underlying_price}; "
+            f"options_meta_date_dic keys matching symbol: {related_keys}"
+        )
         return  False
+    if len(strikes) == 0:
+        logger.warning(
+            f"[prepare_option_contract_for_later_use] strikes is empty list for {symbol}; "
+            f"expiry_list={expiry_list} expiry_chosen={expiry}"
+        )
+        return False
 
     # --- Categorize ---
     # itm_calls = [s for s in strikes if s < underlying_price]
@@ -210,7 +303,11 @@ async def prepare_option_contract_for_later_use_for_symbol(ib, app_config, appli
     # itm_puts = [s for s in strikes if s > underlying_price]
     otm_puts = [s for s in strikes if s < underlying_price]
     if len(otm_calls) ==0 or len(otm_puts) == 0:
-        logger.info("@@@ prepare_option_contract_for_later_use_for_symbol, not enough otm options, so skip for later use.")
+        logger.info(
+            f"@@@ prepare_option_contract_for_later_use_for_symbol, not enough otm options, skip. "
+            f"symbol={symbol} underlying={underlying_price} expiry={expiry} "
+            f"n_strikes={len(strikes) if strikes else 0} n_otm_calls={len(otm_calls)} n_otm_puts={len(otm_puts)}"
+        )
         return False
 
     for i in [1,2, 3]: # try first three otm strikes
@@ -220,7 +317,15 @@ async def prepare_option_contract_for_later_use_for_symbol(ib, app_config, appli
         else:
             strike = otm_puts[-i]   # take the last X otm puts   -1 , -2, -3
 
-        contract = await ib_contract.get_option_contract_cached(ib, symbol=symbol, strike=strike, expiry=expiry, right=right)
+        try:
+            contract = await ib_contract.get_option_contract_cached(ib, symbol=symbol, strike=strike, expiry=expiry, right=right)
+        except Exception as e:
+            logger.error(
+                f"[prepare_option_contract_for_later_use] get_option_contract_cached failed "
+                f"symbol={symbol} strike={strike} expiry={expiry} right={right}: {e}",
+                exc_info=True,
+            )
+            continue
         logger.info(f"in prepare_contract, contract: {contract}")
         if contract is not None:
             await ib_pricing_async.subscribe_contracts_to_market_data(ib, [contract])
