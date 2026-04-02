@@ -287,7 +287,7 @@ cases:
       level: levels['5MH']
       level_alias: '5MH'
       cores:
-        - symbol == 'TSLA' and 1 == 2
+        - symbol == 'TSLA' and 1 == 1
       extras:
         - 1 == 1
     short:
