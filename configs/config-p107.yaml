@@ -12,6 +12,8 @@ api_service:
 
 interval_seconds:
   engine_loop: .1
+  open_trades_streamer: 1
+  contract_strikes_streamer: 1
 
 dirs:
   default: "../../portfolios/{portfolio_id}/default"
@@ -54,7 +56,7 @@ files:
 
 
 
-symbols: ['QQQ', 'AAPL', 'AMD', 'AMZN', 'NVDA', 'PLTR', 'TSLA', 'MU' , 'MNQ', 'SPY']
+symbols: ['QQQ', 'AAPL', 'AMD', 'AMZN', 'NVDA', 'PLTR', 'TSLA', 'MU', 'SPY']
 
 
 stop_losses:
@@ -150,8 +152,8 @@ pre_trade_checks:
   - x
 live:
 #  cases_to_run: ['case_2_1', 'case_4_1']
-  cases_to_run: ['case_2_2', 'case_4_2']
-#  cases_to_run: ['case_3']
+#  cases_to_run: ['case_2_2', 'case_4_2']
+  cases_to_run: ['case_2_2','case_3']
   historical_days: 4 D
 
   capital: 5000
@@ -162,7 +164,7 @@ live:
   min_contract_entry_price: 0.1
 #  num_of_contracts: calculate_number_of_contracts()
 
-  trade_time: 930 < current_hh_mm_ny  < 1015 # TODO change to trade_time
+  trade_time: 930 < current_hh_mm_ny  < 1515 # TODO change to trade_time
 #  trade_time: 930 < current_hh_mm_ny  < 1559 # TODO change to trade_time
   market_time: 930 < current_hh_mm_ny < 1559
   busy_time: 933 < current_hh_mm_ny < 1016  #don't chaneg this,  we are not saving anythng or any test ...

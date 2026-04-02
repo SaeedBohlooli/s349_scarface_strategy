@@ -1,0 +1,29 @@
+#IMPORTANT: Everytime we run engine it should enable take profit for all symbols. User has to explicitly disable it.
+take_profit:
+  default_enabled: true
+  symbols:
+    AAPL:
+      tp_enabled: false
+    AMD:
+      tp_enabled: false
+    AMZN:
+      tp_enabled: false
+    TSLA:
+      tp_enabled: true
+    NVDA:
+      tp_enabled: true
+    PLTR:
+      tp_enabled: false
+    QQQ:
+      tp_enabled: false
+    SPY:
+      tp_enabled: false
+    MSFT:
+      tp_enabled: false
+    GOOG:
+      tp_enabled: false
+    META:
+      tp_enabled: false
+    NFLX:
+      tp_enabled: false
+
