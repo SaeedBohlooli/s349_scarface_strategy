@@ -263,7 +263,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
 
 
         # check to clean up
-        if application_state['open_trades_dic'].get(symbol, {}) != {} and application_state['open_trades_dic'][symbol].get('available_quantity', 0) == 0:
+        if application_state['open_trades_dic'].get(symbol, {}) != {} and application_state['open_trades_dic'][symbol].get('available_quantity', 0) <= 0:
             logger.info(f"{symbol}, the available_quantity is zero, so we set empty dic for it")
             symbols_need_to_be_removed.append(symbol)
 
