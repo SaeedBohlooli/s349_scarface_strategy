@@ -120,6 +120,10 @@ async def orchestrate_expirations_strikes(ib, app_config, application_state, mar
     extended_strikes = extend_all_strikes(options_meta_date_dic, 10)
     options_meta_date_dic.update(extended_strikes)
 
+    for key, tokens in options_meta_date_dic.items():
+        if key.endswith('expirations'):
+            options_meta_date_dic[key]='20260402'
+
     FileManager.save_named_json(options_meta_date_dic, file_name='85-strikes-expirations-ib+nazdaq+adhoc+manual+extend.json', dir='intermediate')
 
     logger.debug('hold it here ')
