@@ -12,6 +12,11 @@ api_service:
 
 interval_seconds:
   engine_loop: .1
+  open_trades_streamer: 1
+  contract_strikes_streamer: 1
+  contract_strikes_force_emit: 15
+  quote_cache_streamer: 1
+  quote_cache_force_emit: 15
 
 dirs:
   default: "../../portfolios/{portfolio_id}/default"
@@ -26,7 +31,6 @@ dirs:
   ohlc_w_indicators: "../../portfolios/{portfolio_id}/ohlc-w-indicators"
   charts: "../../portfolios/{portfolio_id}/charts/{date}"
 
-
 files:
   application_state: "{intermediate}/application_state.json"
   account_info_map: "{intermediate}/account_info_map.json"
@@ -34,7 +38,7 @@ files:
   drawing_objects_df: "{charts}/10-drawing_objects_df.csv"
   key_levels_df: "{results}/11-key_levels_df.csv"
   hover_df: "{charts}/12-hover_df.csv"
-  close_levels_df": '{charts}/13-close_levels_df.csv'
+  close_levels_df": "{charts}/13-close_levels_df.csv"
   candle_info_df: "{charts}/14-candle_info_df.csv"
   screening_log_df: "{charts}/12-screening_log_df.csv"
   order_history_df: "{results}/13-order_history_df.csv"
@@ -42,20 +46,17 @@ files:
   take_profit_history_df: "{results}/15-take_profit_history_df.csv"
   futures_order_history_df: "{results}/16-futures_order_history_df.csv"
   screening_log_for_run_df: "{results}/17-screening_log_for_run_df.csv" # TODO rename
-  screening_summary_df: "{results}/18-screening_summary_df.csv"  # TODO rename
-  bid_ask_history_df: "{results}/19-bid_ask_history_df.csv"  # TODO rename
-  screening_summary_agg_df: "{results}/20-screening_summary_agg_df.csv"  # TODO rename
-  capital_allocation_df: "{results}/21-capital_allocation_df.csv"  # TODO rename
-  open_close_refs_df: "{results}/22-open_close_refs_df.csv"  # TODO rename
-  open_close_refs_pnl_df: "{results}/23-open_close_refs_pnl_df.csv"  # TODO rename
-  capital_flow_df: "{results}/24-capital_flow_df.csv"  # TODO rename
-  screening_summary_for_all_sub_runs_agg_df: "{results}/25-screening_summary_for_all_sub_runs_agg_df.csv"  # TODO rename
+  screening_summary_df: "{results}/18-screening_summary_df.csv" # TODO rename
+  bid_ask_history_df: "{results}/19-bid_ask_history_df.csv" # TODO rename
+  screening_summary_agg_df: "{results}/20-screening_summary_agg_df.csv" # TODO rename
+  capital_allocation_df: "{results}/21-capital_allocation_df.csv" # TODO rename
+  open_close_refs_df: "{results}/22-open_close_refs_df.csv" # TODO rename
+  open_close_refs_pnl_df: "{results}/23-open_close_refs_pnl_df.csv" # TODO rename
+  capital_flow_df: "{results}/24-capital_flow_df.csv" # TODO rename
+  screening_summary_for_all_sub_runs_agg_df: "{results}/25-screening_summary_for_all_sub_runs_agg_df.csv" # TODO rename
   test_df: "{results}/99-test_df.csv"
 
-
-
-symbols: ['QQQ', 'AAPL', 'AMD', 'AMZN', 'NVDA', 'PLTR', 'TSLA', 'MU' , 'MNQ', 'SPY']
-
+symbols: ["QQQ", "AAPL", "AMD", "AMZN", "NVDA", "PLTR", "TSLA", "MU", "SPY"]
 
 stop_losses:
   C:
@@ -73,7 +74,7 @@ take_profits:
     memo: Taking some profit at 15% or 0.20 with 4 of 6
 
   t2:
-    condition: > 
+    condition: >
       (current_bid > avg_cost_for_1_contract * 1.30 or current_bid - avg_cost_for_1_contract > 0.70)
       and avg_cost_for_1_contract not in [0,-1] and current_bid not in [0,-1]
     close_quantity_percentage: 0.20
@@ -106,26 +107,24 @@ take_profits:
     close_quantity_percentage: -1
     memo: for long after tp1, if we go below last down close candle, then we close the position and vice versa for short
 
-#  t6_trail_w_ema_9:
+  #  t6_trail_w_ema_9:
   #    condition: symbol_df['close'].iloc[-1] < symbol_df['ema_9'].iloc[-1]  # for long after tp1, if we go below ema 9, then we close the position and vice versa for short
   #    close_quantity_percentage: -1
   #    memo: for long after tp1, if we go below last down close candle, then we close the position and vice versa for short
 
-  t10_cl_manual:  # This is for closing everything just NVDA:   1 == 1 and symbol == 'NVDA'
+  t10_cl_manual: # This is for closing everything just NVDA:   1 == 1 and symbol == 'NVDA'
     condition: 1 == 2 and symbol == 'AMZN'
     close_quantity_percentage: .5
 
-  t11_cl_manual:  # This is for closing everything just NVDA:   1 == 1 and symbol == 'NVDA'
+  t11_cl_manual: # This is for closing everything just NVDA:   1 == 1 and symbol == 'NVDA'
     condition: 1 == 3 and symbol == 'TSLA'
     close_quantity_percentage: -1
-
-
 
 closeness_distance: df['atr_14'].iloc[-2]
 
 closeness_distance_for_chart:
   live: df['atr_14'].tail(10).mean()
-  back_test: df.loc[ (df['date'].dt.time == pd.to_datetime('10:00').time()), 'atr_14' ].mean()  # for BT, we need to get for 10:00 as for BT we don't go candle base...
+  back_test: df.loc[ (df['date'].dt.time == pd.to_datetime('10:00').time()), 'atr_14' ].mean() # for BT, we need to get for 10:00 as for BT we don't go candle base...
 
 closeness_distance_for_case_1: df['atr_14'].iloc[-2] * 2
 
@@ -149,34 +148,33 @@ pre_trade_checks:
   - check_open_positions
   - x
 live:
-#  cases_to_run: ['case_2_1', 'case_4_1']
-  cases_to_run: ['case_2_2', 'case_4_2']
-#  cases_to_run: ['case_3']
+  #  cases_to_run: ['case_2_1', 'case_4_1']
+  #  cases_to_run: ['case_2_2', 'case_4_2']
+  cases_to_run: ["case_3"]
   historical_days: 4 D
 
   capital: 5000
   max_exposure_per_trade: 2000
-  max_exposure_for_all_trades: 10000  # not used
+  max_exposure_for_all_trades: 10000 # not used
   capital_per_trade_percentage: 0.20 # not used
   min_position_size: 6 #
   min_contract_entry_price: 0.1
-#  num_of_contracts: calculate_number_of_contracts()
+  #  num_of_contracts: calculate_number_of_contracts()
 
-  trade_time: 930 < current_hh_mm_ny  < 1015 # TODO change to trade_time
-#  trade_time: 930 < current_hh_mm_ny  < 1559 # TODO change to trade_time
+  trade_time: 930 < current_hh_mm_ny  < 1515 # TODO change to trade_time
+  #  trade_time: 930 < current_hh_mm_ny  < 1559 # TODO change to trade_time
   market_time: 930 < current_hh_mm_ny < 1559
-  busy_time: 933 < current_hh_mm_ny < 1016  #don't chaneg this,  we are not saving anythng or any test ...
-
+  busy_time: 933 < current_hh_mm_ny < 1016 #don't chaneg this,  we are not saving anythng or any test ...
 
 chart:
   port: 51071
-#  source: live
+  #  source: live
   source: back_test
-#  cutoff_in_hours: 0
+  #  cutoff_in_hours: 0
   hours_in_focus: 3
   live:
-    start_time: '09:00'
-    end_time: '12:00'
+    start_time: "09:00"
+    end_time: "12:00"
 
 # before_start:
 load_application_state_from_file: true
@@ -189,7 +187,7 @@ notification:
     - 1 == 1
   recipients: saeed.bx1@yahoo.com
   severity:
-    high: ['email']
+    high: ["email"]
     medium: []
     low: []
 
@@ -204,7 +202,6 @@ health_check:
   email_hours: 920 < current_hh_mm_ny < 1030
   email_recipients: saeed.bx1@yahoo.com
   email_interval_minutes: 10
-
 
 child_configs:
   - config-manual-settings.yaml

@@ -94,9 +94,6 @@ symbols_meta:
     chart_entry_offset: 0.5
     retest_tolerance_multiplier: 1
 
-
-
-
 cases:
   case_2_1_async:
     memo: 5MH and 5ML breakout_ver_2, no short above PDH, trade close to level. - we running this one
@@ -105,7 +102,7 @@ cases:
     color: blue
     long:
       level: levels['5MH']
-      level_alias: '5MH'
+      level_alias: "5MH"
       cores:
         - breakout_in_last_x_candles_ver_2(app_config, application_state, case, symbol, df, side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level, level_alias=level_alias)
         - price_retest(app_config, application_state, case, symbol, df, side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True, level_alias=level_alias)
@@ -120,11 +117,11 @@ cases:
         - abs (price - long_level) < 1.2 * atr_14
         # 10
         - price > application_state['levels'][symbol]['PDL']
-#        - get_current_price(ib, application_state, 'QQQ') > application_state['levels']['QQQ']['PDL']
+        #        - get_current_price(ib, application_state, 'QQQ') > application_state['levels']['QQQ']['PDL']
         - price < levels['PDH'] # avoid going long above PDH - extra safety- if we are above PDH, low change we continue after 5MH breakout
     short:
       level: levels['5ML']
-      level_alias: '5ML'
+      level_alias: "5ML"
       cores:
         - breakout_in_last_x_candles_ver_2(app_config, application_state, case, symbol, df, side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level, level_alias=level_alias)
         - price_retest(app_config, application_state, case, symbol, df, side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True ,level_alias=level_alias)
@@ -139,7 +136,7 @@ cases:
         - abs (price - short_level) < 1.2 * atr_14
         # 10
         - price < application_state['levels'][symbol]['PDH']
-#        - get_current_price(ib, application_state, 'QQQ') < application_state['levels']['QQQ']['PDH']
+        #        - get_current_price(ib, application_state, 'QQQ') < application_state['levels']['QQQ']['PDH']
         - price > levels['PDL'] # avoid going long above PDH - extra safety- if we are above PDH, low change we continue after 5MH breakout
 
   case_2_2:
@@ -149,7 +146,7 @@ cases:
     color: blue
     long:
       level: levels['5MH']
-      level_alias: '5MH'
+      level_alias: "5MH"
       cores:
         - breakout_in_last_x_candles_ver_3(app_config, application_state, case, symbol, df, side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level, level_alias=level_alias)
         - price_retest(app_config, application_state, case, symbol, df, side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True, level_alias=level_alias)
@@ -170,7 +167,7 @@ cases:
 
     short:
       level: levels['5ML']
-      level_alias: '5ML'
+      level_alias: "5ML"
       cores:
         - breakout_in_last_x_candles_ver_3(app_config, application_state, case, symbol, df, side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level, level_alias=level_alias)
         - price_retest(app_config, application_state, case, symbol, df, side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True ,level_alias=level_alias)
@@ -188,7 +185,6 @@ cases:
         # avoid going long above PDH - extra safety- if we are above PDH, low change we continue after 5MH breakout
         - price > levels['PDL'] or get_current_price(ib, application_state, 'QQQ') < application_state['levels']['QQQ']['5ML']
 
-
   case_4_1_async:
     memo: From PDH PDL - we running this one
     can_replace_level: false
@@ -196,7 +192,7 @@ cases:
     color: green
     long:
       level: levels['PDH']
-      level_alias: 'PDH'
+      level_alias: "PDH"
       cores:
         - breakout_in_last_x_candles_ver_2(app_config, application_state, case, symbol, df, side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level, level_alias=level_alias)
         - price_retest(app_config, application_state, case, symbol, df, side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True, level_alias=level_alias)
@@ -216,7 +212,7 @@ cases:
 
     short:
       level: levels['PDL']
-      level_alias: 'PDL'
+      level_alias: "PDL"
       memo: conditon 8 need to be checeked
       cores:
         - breakout_in_last_x_candles_ver_3(app_config, application_state, case, symbol, df, side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level, level_alias=level_alias)
@@ -241,7 +237,7 @@ cases:
     color: green
     long:
       level: levels['PDH']
-      level_alias: 'PDH'
+      level_alias: "PDH"
       cores:
         - breakout_in_last_x_candles_ver_3(app_config, application_state, case, symbol, df, side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level, level_alias=level_alias)
         - price_retest(app_config, application_state, case, symbol, df, side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True, level_alias=level_alias)
@@ -260,7 +256,7 @@ cases:
 
     short:
       level: levels['PDL']
-      level_alias: 'PDL'
+      level_alias: "PDL"
       memo: conditon 8 need to be checeked
       cores:
         - breakout_in_last_x_candles_ver_2(app_config, application_state, case, symbol, df, side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level, level_alias=level_alias)
@@ -285,15 +281,15 @@ cases:
     color: black
     long:
       level: levels['5MH']
-      level_alias: '5MH'
+      level_alias: "5MH"
       cores:
-        - symbol == 'TSLA' and 1 == 2
+        - symbol == 'AMD' and 1 == 1
       extras:
         - 1 == 1
     short:
-      level: levels['5ML']
-      level_alias: '5ML'
+      level: levels['PDL']
+      level_alias: "PDL"
       cores:
-        - symbol == 'AMD' and 1 == 2
+        - symbol == 'TSLA' and 1 == 1
       extras:
         - 1 == 1

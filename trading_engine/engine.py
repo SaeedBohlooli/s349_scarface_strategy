@@ -9,6 +9,9 @@ from trading_core.ws_server import WSServer
 from trading_core.file_manager import FileManager
 from trading_core.streamers.state_streamer import StateStreamer
 from trading_core.streamers.config_streamer import ConfigStreamer
+from trading_core.streamers.open_trades_streamer import OpenTradesStreamer
+from trading_core.streamers.contract_strikes_streamer import ContractStrikesStreamer
+from trading_core.streamers.quote_cache_streamer import QuoteCacheStreamer
 from trading_core.ib_connector import IBConnector
 from trading_core.market_data_store import MarketDataStore
 from trading_core import market_session_guard
@@ -257,8 +260,32 @@ class TradingEngine:
 
         ws_server = await self.ws.start()
 
-        state_streamer = StateStreamer(self.app_config, self.application_state, self.ws, interval_sec=5)
+        # Keep existing application_state cadence unchanged unless explicitly configured.
+        state_interval_sec = self.app_config.get("interval_seconds", {}).get("application_state_streamer", 5)
+        state_streamer = StateStreamer(self.app_config, self.application_state, self.ws, interval_sec=state_interval_sec)
         config_streamer = ConfigStreamer(self.app_config, self.application_state, self.ws, interval_sec=60)
+        open_trades_interval_sec = self.app_config.get("interval_seconds", {}).get("open_trades_streamer", 1)
+        contract_strikes_interval_sec = self.app_config.get("interval_seconds", {}).get("contract_strikes_streamer", 1)
+        quote_cache_interval_sec = self.app_config.get("interval_seconds", {}).get("quote_cache_streamer", 1)
+
+        open_trades_streamer = OpenTradesStreamer(
+            self.app_config,
+            self.application_state,
+            self.ws,
+            interval_sec=open_trades_interval_sec,
+        )
+        contract_strikes_streamer = ContractStrikesStreamer(
+            self.app_config,
+            self.application_state,
+            self.ws,
+            interval_sec=contract_strikes_interval_sec,
+        )
+        quote_cache_streamer = QuoteCacheStreamer(
+            self.app_config,
+            self.application_state,
+            self.ws,
+            interval_sec=quote_cache_interval_sec,
+        )
 
         self.logger.info("WebSocket server is starting...")
 
@@ -266,6 +293,9 @@ class TradingEngine:
             ws_server,
             state_streamer.run(),
             config_streamer.run(),
+            open_trades_streamer.run(),
+            contract_strikes_streamer.run(),
+            quote_cache_streamer.run(),
             self.engine_loop(ib),
             self.do_miscs(ib, self.application_state, interval_seconds=60),
             # user_request_x.user_request_loop(self.app_config, self.application_state),
@@ -276,5 +306,4 @@ class TradingEngine:
             ib_heartbeat_loop.ib_heartbeat_loop(ib, app_config=self.app_config,application_state=self.application_state, interval_seconds=60),
             # market_session_guard.market_session_guard_loop(ib, self.application_state, self.runtime, interval_sec=600)
         )
-
 
