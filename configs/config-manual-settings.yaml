@@ -1,7 +1,7 @@
 manual_settings:
   C:
     conditions:
-      - QQQ_price >  QQQ_5MH and QQQ_price > QQQ_PMH
+    - QQQ_price > QQQ_5MH
   P:
     conditions:
     - QQQ_price < QQQ_5ML
