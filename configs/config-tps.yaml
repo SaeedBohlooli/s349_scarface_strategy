@@ -3,27 +3,27 @@ take_profit:
   default_enabled: true
   symbols:
     AAPL:
-      tp_enabled: false
+      tp_enabled: true
     AMD:
-      tp_enabled: false
+      tp_enabled: true
     AMZN:
-      tp_enabled: false
+      tp_enabled: true
     TSLA:
       tp_enabled: true
     NVDA:
       tp_enabled: true
     PLTR:
-      tp_enabled: false
+      tp_enabled: true
     QQQ:
-      tp_enabled: false
+      tp_enabled: true
     SPY:
-      tp_enabled: false
+      tp_enabled: true
     MSFT:
-      tp_enabled: false
+      tp_enabled: true
     GOOG:
-      tp_enabled: false
+      tp_enabled: true
     META:
-      tp_enabled: false
+      tp_enabled: true
     NFLX:
-      tp_enabled: false
+      tp_enabled: true
 
