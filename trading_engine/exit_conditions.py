@@ -78,6 +78,8 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
             current_bid, current_ask, current_last = await ib_pricing_async.get_or_subscribe_option_price(ib, symbol, expiry, strike,right)  # used in config
         else:
             current_bid, current_ask, current_last = await ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol, contract_month)  # used in config
+        mid_price = (current_bid + current_ask) / 2
+
         # TODO handle Future ...
         if not number_utils.is_valid_price(current_bid) or not number_utils.is_valid_price(current_ask):
             logger.warning(f"@@@ check_for_stop_loss_and_take_profit(), symbol: {symbol}, current_bid or current_ask is invalid, current_bid: {current_bid}, current_ask: {current_ask}")
@@ -90,6 +92,9 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
             application_state['open_trades_dic'][symbol]['current_underlying_price'] = underlying_current_price
             application_state['open_trades_dic'][symbol]['current_value'] = round( current_ask * application_state['open_trades_dic'][symbol]['starting_quantity'] * 100 , 3)
             application_state['open_trades_dic'][symbol]['current_pnl'] = round(application_state['open_trades_dic'][symbol].get('current_value', 0) - application_state['open_trades_dic'][symbol].get('cost_for_trade', 0) , 2)
+            application_state['open_trades_dic'][symbol]['current_estimated_unrealized_pnl'] = round(( mid_price - application_state['open_trades_dic'][symbol].get('entry_execution_price', 0)) * available_quantity  , 2)
+            application_state['open_trades_dic'][symbol]['current_estimated_realized_pnl'] = calculate_estimated_realized_pnl(open_trade_info)
+
             avg_cost_for_1_contract = application_state['open_trades_dic'][symbol].get('avg_cost_for_1_contract', 1)
             if avg_cost_for_1_contract != 0: # not decide by 0
                 application_state['open_trades_dic'][symbol]['current_roi'] = round(application_state['open_trades_dic'][symbol]['current_bid'] / avg_cost_for_1_contract - 1, 3)
@@ -226,12 +231,16 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
 
             if order_closed:
                 application_state['open_trades_dic'][symbol]['available_quantity'] = available_quantity - close_quantity
-
+                entry_execution_price = open_trade_info['entry_execution_price']
+                take_profit_estimated_pnl = (mid_price - entry_execution_price) * close_quantity * 100
                 data = {
                     'status': 'SENT',
                     'available_quantity_b4' : available_quantity,
                     'close_quantity': close_quantity,
                     'candle_date': str(symbol_df['date'].iloc[-1]),
+                    'take_profit_estimated_pnl': take_profit_estimated_pnl,
+                    'current_bid': current_bid,
+                    'current_ask': current_ask,
                     'tp_u_run_number': application_state.get('unique_run_number'),
                     'order_ref': order_ref,
                 }
@@ -248,6 +257,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                     'available_quantity_b4': available_quantity,
                     'take_profit_case': take_profit_lable,
                     'take_profit_condition': take_profit_condition,
+                    'take_profit_estimated_pnl': take_profit_estimated_pnl,
                     'close_quantity': close_quantity,
                     'candle_date': str(symbol_df['date'].iloc[-1]),
                     'tp_u_run_number': application_state.get('unique_run_number'),
@@ -432,3 +442,9 @@ def increment_wins(application_state, symbol):
 
     logger.info(f"increment_wins, {trading_date}, number_of_wins: {application_state['number_of_wins'][trading_date]}")
     return
+
+def calculate_estimated_realized_pnl(open_trade_info):
+    estimated_realized_pnl = 0
+    for tp in open_trade_info.get('take_profits',[]):
+        estimated_realized_pnl += tp.get('take_profit_estimated_pnl')
+    return estimated_realized_pnl
