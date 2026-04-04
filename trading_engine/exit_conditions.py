@@ -91,7 +91,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
             application_state['open_trades_dic'][symbol]['current_ask'] = current_ask
             application_state['open_trades_dic'][symbol]['current_underlying_price'] = underlying_current_price
             application_state['open_trades_dic'][symbol]['current_value'] = round( current_ask * application_state['open_trades_dic'][symbol]['starting_quantity'] * 100 , 3)
-            application_state['open_trades_dic'][symbol]['current_pnl'] = round(application_state['open_trades_dic'][symbol].get('current_value', 0) - application_state['open_trades_dic'][symbol].get('cost_for_trade', 0) , 2)
+            # application_state['open_trades_dic'][symbol]['current_pnl'] = round(application_state['open_trades_dic'][symbol].get('current_value', 0) - application_state['open_trades_dic'][symbol].get('cost_for_trade', 0) , 2)
             application_state['open_trades_dic'][symbol]['current_estimated_unrealized_pnl'] = round(( mid_price - application_state['open_trades_dic'][symbol].get('entry_execution_price', 0)) * available_quantity  , 2)
             application_state['open_trades_dic'][symbol]['current_estimated_realized_pnl'] = calculate_estimated_realized_pnl(open_trade_info)
 
@@ -102,9 +102,10 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
         else: # it is future ...
             application_state['open_trades_dic'][symbol]['current_bid'] = current_bid
             application_state['open_trades_dic'][symbol]['current_ask'] = current_ask
+
             application_state['open_trades_dic'][symbol]['current_underlying_price'] = underlying_current_price
             application_state['open_trades_dic'][symbol]['current_value'] = underlying_current_price * 1 # TODO available...
-            application_state['open_trades_dic'][symbol]['current_pnl'] = round(application_state['open_trades_dic'][symbol]['current_underlying_price'] - application_state['open_trades_dic'][symbol].get('entry_underlying_price', 0), 2)
+            # application_state['open_trades_dic'][symbol]['current_pnl'] = round(application_state['open_trades_dic'][symbol]['current_underlying_price'] - application_state['open_trades_dic'][symbol].get('entry_underlying_price', 0), 2)
             application_state['open_trades_dic'][symbol]['current_roi'] = round(application_state['open_trades_dic'][symbol]['current_underlying_price'] / application_state['open_trades_dic'][symbol].get('entry_underlying_price', 1) - 1, 3)
 
 
