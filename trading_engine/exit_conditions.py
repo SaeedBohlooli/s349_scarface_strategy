@@ -153,7 +153,9 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
 
             notification_helper.send_email(app_config, event='stop_loss_sent', symbol=symbol, body=json_utils.polish_map_to_show_in_hover(data))
 
-
+        if app_config.get('take_profit_poilicy',{}).get('symbols',{}).get('tp_enabled', True) == False:
+            logger.warning(f"{symbol} TP condition is disabled in the take_profit_poilicy config")
+            continue
 
         # ###
         # Take profit
@@ -263,6 +265,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
 
 
         # check to clean up
+        # TODO Need to be moved out of the loop
         if application_state['open_trades_dic'].get(symbol, {}) != {} and application_state['open_trades_dic'][symbol].get('available_quantity', 0) <= 0:
             logger.info(f"{symbol}, the available_quantity is zero, so we set empty dic for it")
             symbols_need_to_be_removed.append(symbol)

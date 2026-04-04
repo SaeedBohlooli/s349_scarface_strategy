@@ -33,6 +33,7 @@ from trading_engine import exit_conditions
 from trading_engine import chart_helper
 from trading_engine import position_helper
 from trading_engine import pnl_helper
+from trading_engine import user_request_helper
 
 from trading_utils import position_router
 from trading_utils import user_request_router
@@ -205,6 +206,7 @@ class TradingEngine:
                     logger.debug(f"After levels {symbol}, df: \n{df[-4:].to_markdown()}")
 
                     buy_sell_case_results_list = scanner.check_buy_and_sell_cases(ib, self.app_config, self.application_state, symbol, self.market_data)
+                    buy_sell_case_results_list = order_helper.add_case_manual_order_to_buy_sell_case_results_list(self.application_state, symbol, buy_sell_case_results_list)
                     await order_helper.check_buy_sell_result_to_send_order(ib, self.app_config, self.application_state, buy_sell_case_results_list, symbol, df, self.market_data, self.runtime)
 
                     await exit_conditions.check_for_stop_loss_and_take_profit(ib, self.app_config, self.application_state, self.market_data)
@@ -302,6 +304,7 @@ class TradingEngine:
             self.boot.data_saver_manager.run(ib, interval_sec=60),
             user_request_loop.fetch_user_request_loop(self.app_config, self.application_state, interval_sec=5),
             user_request_loop.process_common_user_request_loop(ib, self.app_config, self.application_state,interval_sec=5),
+            user_request_helper.process_app_user_request_loop(ib, self.app_config, self.application_state,interval_sec=1),
 
             ib_heartbeat_loop.ib_heartbeat_loop(ib, app_config=self.app_config,application_state=self.application_state, interval_seconds=60),
             # market_session_guard.market_session_guard_loop(ib, self.application_state, self.runtime, interval_sec=600)

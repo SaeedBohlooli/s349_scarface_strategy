@@ -3,8 +3,9 @@ logger = logging.getLogger(__name__)
 from trading_utils import date_utils
 from trading_engine import position_helper
 
-def calculate_number_of_option_contracts(app_config, application_state, symbol, strike, ask):
+def calculate_number_of_option_contracts(app_config, application_state, symbol, strike, ask, user_defined_quantity):
 
+    memo = ''
     available_capital = calcualte_availale_capital(app_config, application_state)
 
     capital_per_trade_percentage = app_config['live']['capital_per_trade_percentage']
@@ -20,15 +21,20 @@ def calculate_number_of_option_contracts(app_config, application_state, symbol, 
     # capital_per_trade = min(available_capital * capital_per_trade_percentage, max_exposure_per_trade)  # TODO put in a function
     capital_per_trade = max_exposure_per_trade
 
-    num_of_contracts = round(capital_per_trade / (ask * 100))
 
-    if ask < min_contract_entry_price:
-        logger.warning(f"@@@@ ask price {ask} is below the minimum contract entry price {min_contract_entry_price} ...")
-        num_of_contracts = 0
+    if user_defined_quantity == 0: # we calcualte it ...
+        num_of_contracts = round(capital_per_trade / (ask * 100))
 
-    if num_of_contracts < min_position_size:
-        logger.warning(f"@@@@ we don't have enough capital ...{num_of_contracts} contracts is below the minimum position size {min_position_size} ...")
-        num_of_contracts = 0
+        if ask < min_contract_entry_price:
+            logger.warning(f"@@@@ ask price {ask} is below the minimum contract entry price {min_contract_entry_price} ...")
+            num_of_contracts = 0
+
+        if num_of_contracts < min_position_size:
+            logger.warning(f"@@@@ we don't have enough capital ...{num_of_contracts} contracts is below the minimum position size {min_position_size} ...")
+            num_of_contracts = 0
+    else:
+        num_of_contracts = user_defined_quantity
+        memo += 'case_manual'
 
     logger.info(f"capital_per_trade: {capital_per_trade}, ask: {ask} strike: {strike}")
     logger.info(f"symbol: {symbol}, num_of_contracts: {num_of_contracts}")
@@ -55,7 +61,7 @@ def calculate_number_of_option_contracts(app_config, application_state, symbol, 
             'daily_loss_so_far': 0,
             'daily_win_so_far': 0,
             'open_trades_count_at_entry': open_trades_count_at_entry,
-            'memo': '',
+            'memo': memo
             }
     return num_of_contracts, data
 
