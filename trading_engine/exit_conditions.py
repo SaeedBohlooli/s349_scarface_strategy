@@ -51,6 +51,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
         entry_underlying_price = float(open_trade_info.get('entry_underlying_price', -1))  # used in config ...
         level_used_to_open = float(open_trade_info.get('level_used_to_open', -1)) # used in config ...
         avg_cost_for_1_contract = open_trade_info.get('avg_cost_for_1_contract', -1) # used in config
+        case = open_trade_info.get('case') #
         right = application_state['open_trades_dic'][symbol].get('right', '') # used in config
         side = application_state['open_trades_dic'][symbol].get('side') # used in config
         level_used_to_open = application_state['open_trades_dic'][symbol]['level_used_to_open'] # used in config
@@ -58,6 +59,8 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
         tolerance_amount = dynamic_tolerance.get('tolerance', 0)  # used in config
         start_quantity = application_state.get('open_trades_dic', {}).get(symbol, {}).get('starting_quantity', 0) # used in config
         available_quantity = application_state.get('open_trades_dic', {}).get(symbol, {}).get('available_quantity', 0)  # used in config
+
+        skip_stop_loss = True if case == "case_manual" else False
 
         from trading_utils import ib_pricing_async
         contract_month = app_config.get('symbols_meta', {}).get(symbol,{}).get('contract_month')
@@ -105,7 +108,12 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
         logger.info(f"current_bid: {current_bid}, current_ask: {current_ask}, avg_cost_for_1_contract: {avg_cost_for_1_contract}")
 
         stop_loss_condition = app_config.get('stop_losses').get(right,{}).get('stop_loss_condition', ' 1 == 2')
-        stop_loss_condition_evaluated = eval(stop_loss_condition)
+
+        if skip_stop_loss:
+            stop_loss_condition_evaluated = False
+        else:
+            stop_loss_condition_evaluated = eval(stop_loss_condition)
+
 
         logger.info(f"symbol {symbol}, stop_loss_condition: {stop_loss_condition}, stop_loss_condition_evaluated: {stop_loss_condition_evaluated}")
 
@@ -153,8 +161,8 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
 
             notification_helper.send_email(app_config, event='stop_loss_sent', symbol=symbol, body=json_utils.polish_map_to_show_in_hover(data))
 
-        if app_config.get('take_profit_poilicy',{}).get('symbols',{}).get('tp_enabled', True) == False:
-            logger.warning(f"{symbol} TP condition is disabled in the take_profit_poilicy config")
+        if app_config.get('take_profit_policy',{}).get('symbols',{}).get(symbol,{}).get('tp_enabled', True) == False:
+            logger.warning(f"{symbol} TP condition is disabled in the take_profit_policy config")
             continue
 
         # ###
@@ -264,8 +272,8 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                 logger.warning(f"{symbol}, {take_profit_lable} TP condition didn't meet ...  ")
 
 
-        # check to clean up
-        # TODO Need to be moved out of the loop
+
+    for symbol, open_trade_info in application_state.get('open_trades_dic', {}).items():
         if application_state['open_trades_dic'].get(symbol, {}) != {} and application_state['open_trades_dic'][symbol].get('available_quantity', 0) <= 0:
             logger.info(f"{symbol}, the available_quantity is zero, so we set empty dic for it")
             symbols_need_to_be_removed.append(symbol)

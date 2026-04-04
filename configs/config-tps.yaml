@@ -1,5 +1,5 @@
 #IMPORTANT: Everytime we run engine it should enable take profit for all symbols. User has to explicitly disable it.
-take_profit_poilicy:
+take_profit_policy:
   default_enabled: true
   symbols:
     AAPL:
