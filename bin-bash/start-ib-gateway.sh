@@ -3,7 +3,6 @@
 cd /opt/ibc || exit 1
 
 PORTFOLIO_ID="p107"
-SCRIPT_PATH="../trading_api/trading_api_service.py"
 COMMAND="xvfb-run -a ./gatewaystart.sh  -inline"
 PROCESS_MATCH="gatewaystart.sh"
 

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
-cd /opt/u107_level_driven_algo/bin-bash || exit 1
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR" || exit 1
+
 source ../venv/bin/activate
 
 PORTFOLIO_ID="p107"
