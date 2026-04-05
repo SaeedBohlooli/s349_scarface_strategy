@@ -34,6 +34,7 @@ def add_case_manual_order_to_buy_sell_case_results_list(application_state, symbo
         order_type = user_request.get('order_type', 'Option')
         strike = float(user_request.get('strike', 0))
         expiry = int(user_request.get('expiry', ''))
+        user_defined_stop_loss = float(user_request.get('stop_loss', 0)) # if there is stop loss in the user request, we should not send it
 
         can_buy = True if side == 'long' else False
         can_sell = True if side == 'short' else False
@@ -42,7 +43,8 @@ def add_case_manual_order_to_buy_sell_case_results_list(application_state, symbo
             'long_level': None,
             'short_level': None,
             'right': right,
-            'quantity': quantity
+            'quantity': quantity,
+            'user_defined_stop_loss': user_defined_stop_loss
         }
         res = (case, can_buy, can_sell, details_map)
         buy_sell_case_results_list.append(res)

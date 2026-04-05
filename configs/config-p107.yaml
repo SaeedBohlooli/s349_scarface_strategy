@@ -149,8 +149,8 @@ pre_trade_checks:
   - x
 live:
   #  cases_to_run: ['case_2_1', 'case_4_1']
-  #  cases_to_run: ['case_2_2', 'case_4_2']
-  cases_to_run: ["case_3"]
+  cases_to_run: ['case_2_2', 'case_4_2']
+#  cases_to_run: ["case_3"]
   historical_days: 4 D
 
   capital: 5000
