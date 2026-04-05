@@ -22,23 +22,7 @@ from app_api_routes import app_bp
 def create_app(portfolio_id):
     app = Flask(__name__)
 
-    CORS(
-        app,
-        resources={r"/api/*": {"origins": [
-            "http://18.118.228.170:7107",  #CP
-            "http://localhost:7107",
-            "http://127.0.0.1:7107",
-            "http://18.118.228.170:7108",   # XUI
-            "http://localhost:7108",
-            "http://127.0.0.1:5108",
-            "http://18.118.228.170:5108",   # XUI API
-            "http://localhost:5108",
-            "http://127.0.0.1:5108"
-        ]}},
-        supports_credentials=True,
-        allow_headers=["Content-Type", "Authorization"],
-        methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    )
+    CORS(app)
 
     # Shared endpoints
     app.register_blueprint(broker_bp)
