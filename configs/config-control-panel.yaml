@@ -8,7 +8,7 @@ control_panel:
 
   # WebSocket configuration
   websocket:
-    url: ws://0.0.0.0:6107
+    url: ws://127.0.0.1:6107
     reconnect:
       initialDelay: 1000
       maxDelay: 30000
@@ -16,7 +16,7 @@ control_panel:
 
   # API configuration
   api:
-    baseUrl: http://0.0.0.0:5107
+    baseUrl: http://127.0.0.1:5107
     endpoints:
       sendRequest: /api/send-request
 
