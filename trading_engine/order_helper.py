@@ -77,7 +77,7 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
         short_level = details_map.get('short_level')
         level_used = long_level if can_buy else short_level
         contract_type = app_config['symbols_meta'][symbol]['contract_type']
-        skip_check = True if case == 'case_manual' else False
+        do_check = True if case != 'case_manual' else False
         user_defined_quantity = 0 if case == 'case_manual' else int(details_map.get('quantity', 0))
 
         market_trend = 'up' if can_buy else 'down' #
@@ -86,28 +86,28 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
         if not app_config['symbols_meta'][symbol]['can_trade']:
             logger.info(f"We are not trading {symbol}.")
             continue
-        if skip_check and not is_trade_time:
+        if do_check and not is_trade_time:
             logger.warning(f"@@ is_trade_time:{is_trade_time}, {symbol}, {app_config['live']['trade_time']}")
             continue
         if application_state.get('open_trades_dic', {}).get(symbol,{}).get('available_quantity', 0) != 0:
             logger.warning(f"@@ You already have open position. Don't be greedy!!!  symbol: {symbol}")
             continue
-        if skip_check and number_of_positions_today(application_state, symbol) > app_config['risk_gate']['max_num_of_trade_per_symbol_per_day']:
+        if do_check and number_of_positions_today(application_state, symbol) > app_config['risk_gate']['max_num_of_trade_per_symbol_per_day']:
             logger.warning(f"@@  We already sent enough orders for {symbol}")
             continue
-        if skip_check and number_of_total_positions_today(application_state) >= app_config['risk_gate']['max_number_of_trades_per_day']:
+        if do_check and number_of_total_positions_today(application_state) >= app_config['risk_gate']['max_number_of_trades_per_day']:
             logger.warning(f"@@  We already sent enough orders for {symbol}")
             continue
-        if skip_check and has_open_order_in_same_group(app_config, application_state, symbol):
+        if do_check and has_open_order_in_same_group(app_config, application_state, symbol):
             logger.warning(f"@@  We already have open order in same group {symbol}")
             continue
-        if skip_check and symbol in app_config.get('manual_settings',{}).get('blocked_symbols',{})[right]:
+        if do_check and symbol in app_config.get('manual_settings',{}).get('blocked_symbols',{})[right]:
             logger.warning(f"@@  This symbol is blocked, {symbol}, {app_config.get('manual_settings',{}).get('blocked_symbols',{})[right]}")
             continue
-        if skip_check and  number_of_wins(application_state, symbol) >= app_config.get('risk_gate',{}).get('stop_after_wins', 100):
+        if do_check and  number_of_wins(application_state, symbol) >= app_config.get('risk_gate',{}).get('stop_after_wins', 100):
             logger.warning(f"@@  Today we had enough wins, {symbol}")
             continue
-        if skip_check and not check_manual_conditions(app_config, application_state, symbol, right):
+        if do_check and not check_manual_conditions(app_config, application_state, symbol, right):
             logger.warning(f"@@  check_manual_conditions failed, {symbol}")
             if runtime.should_run_once(f"manual-condition-failed-{symbol}-{str(df['date'].iloc[-1])}"):
                 TradingLedger.add_to_list("signals", (symbol, f"MANUAL_CONDITION_FAILED", df['high'].iloc[-1], df['date'].iloc[-1], f"{case} - ", 'YELLOW'))
