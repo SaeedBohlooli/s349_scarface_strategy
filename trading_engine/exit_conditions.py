@@ -49,7 +49,6 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
 
         # TODO check date to make sure that the data is not old
         entry_underlying_price = float(open_trade_info.get('entry_underlying_price', -1))  # used in config ...
-        level_used_to_open = float(open_trade_info.get('level_used_to_open', -1)) # used in config ...
         avg_cost_for_1_contract = open_trade_info.get('avg_cost_for_1_contract', -1) # used in config
         case = open_trade_info.get('case') #
         right = application_state['open_trades_dic'][symbol].get('right', '') # used in config
