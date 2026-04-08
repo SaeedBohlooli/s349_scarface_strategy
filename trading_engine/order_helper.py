@@ -34,18 +34,18 @@ def add_case_manual_order_to_buy_sell_case_results_list(application_state, symbo
         side = user_request.get('side', 'long')
         side = 'long' if side.lower() in ('long', 'buy') else 'short'
         right = user_request.get('right', 'C')
-        right = 'C' if right.lower() in ('C', 'call') else 'P'
+        right = 'C' if right.lower() in ('c', 'call') else 'P'
         order_type = user_request.get('order_type', 'Option')
         strike = float(user_request.get('strike', 0))
         expiry = int(user_request.get('expiry', 0))
         user_defined_stop_loss = float(user_request.get('stop_loss', 0)) # if there is stop loss in the user request, we should not send it
 
-        can_buy = True if side == 'long' else False
-        can_sell = True if side == 'short' else False
+        can_buy = True if right == 'C' else False
+        can_sell = True if right == 'P' else False
         details_map = {
             'res_str': f"Manual order from user request, quantity: {quantity}, side: {side}, order_type: {order_type}, strike: {strike}, expiry: {expiry}",
-            'long_level': None,
-            'short_level': None,
+            'long_level': 0,
+            'short_level': 0,
             'right': right,
             'quantity': quantity,
             'user_defined_stop_loss': user_defined_stop_loss
