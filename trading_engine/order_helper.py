@@ -76,8 +76,8 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
 
         details_map = buy_sell_case_result[3]
         case_result = details_map.get('res_str')
-        long_level = details_map.get('long_level')
-        short_level = details_map.get('short_level')
+        long_level = details_map.get('long_level', 0)
+        short_level = details_map.get('short_level', 0)
         level_used = long_level if can_buy else short_level
         contract_type = app_config['symbols_meta'][symbol]['contract_type']
         do_check = True if case != 'case_manual' else False
