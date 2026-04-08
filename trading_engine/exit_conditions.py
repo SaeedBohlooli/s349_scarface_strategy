@@ -446,6 +446,8 @@ def increment_wins(application_state, symbol):
 
 def calculate_estimated_realized_pnl(open_trade_info):
     estimated_realized_pnl = 0
-    for tp in open_trade_info.get('take_profits',[]):
-        estimated_realized_pnl += tp.get('take_profit_estimated_pnl')
+
+    for name, tp in open_trade_info.get('take_profits', {}).items():
+        estimated_realized_pnl += tp.get('take_profit_estimated_pnl',0)
+
     return estimated_realized_pnl
