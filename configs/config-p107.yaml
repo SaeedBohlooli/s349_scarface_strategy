@@ -153,7 +153,7 @@ live:
 #  cases_to_run: ["case_3"]
   historical_days: 4 D
 
-  capital: 5000
+  capital: 50000
   max_exposure_per_trade: 2000
   max_exposure_for_all_trades: 10000 # not used
   capital_per_trade_percentage: 0.20 # not used
