@@ -81,7 +81,7 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
         level_used = long_level if can_buy else short_level
         contract_type = app_config['symbols_meta'][symbol]['contract_type']
         do_check = True if case != 'case_manual' else False
-        user_defined_quantity = 0 if case == 'case_manual' else int(details_map.get('quantity', 0))
+        user_defined_quantity = 0 if case != 'case_manual' else int(details_map.get('quantity', 0))
 
         market_trend = 'up' if can_buy else 'down' #
         right = 'C' if can_buy else 'P'
