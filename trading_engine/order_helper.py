@@ -27,10 +27,13 @@ def add_case_manual_order_to_buy_sell_case_results_list(application_state, symbo
         case = "case_manual"
         symbol = user_request.get('symbol')
         if symbol != symbol_app_process:
+            logger.info(f"@@  [add_case_manual_order_to_buy_sell_case_results_list] skipping ...symbol:{symbol}, symbol_app_process: {symbol_app_process}, user_request:{user_request}")
             continue
         quantity = int(user_request.get('quantity', 0))
         side = user_request.get('side', 'long')
+        side = 'long' if side.lower() in ('long', 'buy') else 'short'
         right = user_request.get('right', 'C')
+        right = 'C' if right.lower() in ('C', 'call') else 'P'
         order_type = user_request.get('order_type', 'Option')
         strike = float(user_request.get('strike', 0))
         expiry = int(user_request.get('expiry', ''))
