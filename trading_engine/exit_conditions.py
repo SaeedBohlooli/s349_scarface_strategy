@@ -91,7 +91,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
             application_state['open_trades_dic'][symbol]['current_underlying_price'] = underlying_current_price
             application_state['open_trades_dic'][symbol]['current_value'] = round( current_ask * application_state['open_trades_dic'][symbol]['starting_quantity'] * 100 , 3)
             # application_state['open_trades_dic'][symbol]['current_pnl'] = round(application_state['open_trades_dic'][symbol].get('current_value', 0) - application_state['open_trades_dic'][symbol].get('cost_for_trade', 0) , 2)
-            application_state['open_trades_dic'][symbol]['current_estimated_unrealized_pnl'] = round(( mid_price - application_state['open_trades_dic'][symbol].get('entry_execution_price', 0)) * available_quantity  , 2)
+            application_state['open_trades_dic'][symbol]['current_estimated_unrealized_pnl'] = round(( mid_price - application_state['open_trades_dic'][symbol].get('entry_execution_price', 0)) * available_quantity * 100  , 2)
             application_state['open_trades_dic'][symbol]['current_estimated_realized_pnl'] = calculate_estimated_realized_pnl(open_trade_info)
 
             avg_cost_for_1_contract = application_state['open_trades_dic'][symbol].get('avg_cost_for_1_contract', 1)
@@ -217,7 +217,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                     logger.warning(f"@@@@ TBD")
                 order_closed = True
 
-            for x in application_state.get('forced_exits', []):
+            for x in application_state.get('forced_exits', []): #TODO BUG what happens if t1 get fired and again here we do same.
                 if x.get('symbol') == symbol and not 'SENT_TO_IB' in x.get('status')  :
                     logger.info(f"Forced exit for {symbol}  is found in application_state, so we will execute the exit as well ...")
                     order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='CLOSE', symbol=symbol, alias=f"FORCED_EXIT", unique_run_number=application_state.get('unique_run_number'))
@@ -449,4 +449,4 @@ def calculate_estimated_realized_pnl(open_trade_info):
     for name, tp in open_trade_info.get('take_profits', {}).items():
         estimated_realized_pnl += tp.get('take_profit_estimated_pnl',0)
 
-    return estimated_realized_pnl
+    return round(estimated_realized_pnl,3)
