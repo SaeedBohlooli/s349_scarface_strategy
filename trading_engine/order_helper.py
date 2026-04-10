@@ -38,7 +38,7 @@ def add_case_manual_order_to_buy_sell_case_results_list(application_state, symbo
         order_type = user_request.get('order_type', 'Option')
         strike = float(user_request.get('strike', 0))
         expiry = int(user_request.get('expiry', 0))
-        user_defined_stop_loss = float(user_request.get('stop_loss', 0)) # if there is stop loss in the user request, we should not send it
+        user_defined_stop_loss = user_request.get('stop_loss', 0) # if there is stop loss in the user request, we should not send it
 
         can_buy = True if right == 'C' else False
         can_sell = True if right == 'P' else False
@@ -171,6 +171,7 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
                 'case': case,
                 'level_used_to_open': level_used,
                 'level_name': '',
+                'stop_loss': details_map.get('user_defined_stop_loss',0),
                 'local_symbol': option_contract.localSymbol,
                 'con_id': option_contract.conId,
                 'order_ref': order_ref

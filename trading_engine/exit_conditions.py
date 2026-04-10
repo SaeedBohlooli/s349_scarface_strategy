@@ -58,8 +58,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
         tolerance_amount = dynamic_tolerance.get('tolerance', 0)  # used in config
         start_quantity = application_state.get('open_trades_dic', {}).get(symbol, {}).get('starting_quantity', 0) # used in config
         available_quantity = application_state.get('open_trades_dic', {}).get(symbol, {}).get('available_quantity', 0)  # used in config
-
-        skip_stop_loss = True if case == "case_manual" else False
+        user_defined_stop_loss = open_trade_info.get('stop_loss', 0)  # user in config
 
         from trading_utils import ib_pricing_async
         contract_month = app_config.get('symbols_meta', {}).get(symbol,{}).get('contract_month')
@@ -111,70 +110,73 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
         logger.info(f"level_used_to_open: {level_used_to_open}, entry_underlying_price: {entry_underlying_price}, "
                     f"underlying_current_price:, {underlying_current_price}, underlying_previous_candle_close: {underlying_previous_candle_close} ,tolerance_amount: {tolerance_amount}")
         logger.info(f"current_bid: {current_bid}, current_ask: {current_ask}, avg_cost_for_1_contract: {avg_cost_for_1_contract}")
-
-        stop_loss_condition = app_config.get('stop_losses').get(right,{}).get('stop_loss_condition', ' 1 == 2')
-
-        if skip_stop_loss:
-            stop_loss_condition_evaluated = False
-        else:
+        stop_loss_condition_evaluated = False
+        for stop_loss_condition in app_config.get('stop_losses', []):
+            if stop_loss_condition_evaluated:
+                logger.info(f"Already evalauted, so skip, stop_loss_condition_evaluated: {stop_loss_condition_evaluated}")
+                break
             stop_loss_condition_evaluated = eval(stop_loss_condition)
 
+            logger.info(f"symbol {symbol}, stop_loss_condition: {stop_loss_condition}, stop_loss_condition_evaluated: {stop_loss_condition_evaluated}")
 
-        logger.info(f"symbol {symbol}, stop_loss_condition: {stop_loss_condition}, stop_loss_condition_evaluated: {stop_loss_condition_evaluated}")
+            if stop_loss_condition_evaluated:
+                logger.warning(f"{symbol} SL condition met ...")
+                order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='CLOSE', symbol=symbol, alias='SL', unique_run_number=application_state.get('unique_run_number'))
+                con_id = open_trade_info.get('con_id')
+                close_result = ib_positions_async.close_position_by_con_id(ib, con_id=con_id, order_ref=order_ref )
+                # close_option_positions(option_positions_to_monitor, symbol=symbol, order_ref=order_ref)
+                if not close_result:
+                    logger.warning(f"@@@@ we couldn't close the position for SL, so we skip the rest ... {symbol} - needs more investigation ")
+                    continue
+                data = {
+                    'symbol': symbol,
+                    'right': application_state['open_trades_dic'][symbol]['right'],
+                    'strike':  application_state['open_trades_dic'][symbol]['strike'],
+                    'expiry': application_state['open_trades_dic'][symbol]['expiry'],
+                    'current_bid': current_bid,
+                    'current_ask': current_ask,
+                    'underlying_current_price': underlying_current_price,
+                    'available_quantity_b4': available_quantity,
+                    'sl_u_run_number': application_state.get('unique_run_number'),
+                    'stop_loss_condition': stop_loss_condition,
+                    'candle_date': str(symbol_df['date'].iloc[-1]),
+                    'open_u_run_number': '',
+                    'open_order_ref': '',
+                    'sl_order_ref': order_ref,
+                    'local_symbol': application_state['open_trades_dic'][symbol].get('local_symbol'),
+                    'con_id': application_state['open_trades_dic'][symbol].get('con_id'),
+                    }
+                application_state['open_trades_dic'][symbol].setdefault('stop_loss', {})['s1'] = data # save it in the
+                archive_open_trade_dic(application_state, symbol)
+                application_state.setdefault('open_trades_dic', {})[symbol] = {}  #  TODO This need to be happened after we get required inf from dic...
+                add_order_ref_to_application_state(application_state, open_order_ref=open_trade_info.get('order_ref'), close_order_ref=order_ref)
 
-        if stop_loss_condition_evaluated:
-            logger.warning(f"{symbol} SL condition met ...")
+                # add_to_stop_loss_history_df(data)
+                TradingLedger.add_to_dataframe('stop_loss_history_df', data)
 
-            order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='CLOSE', symbol=symbol, alias='SL', unique_run_number=application_state.get('unique_run_number'))
-            con_id = open_trade_info.get('con_id')
-            close_result = ib_positions_async.close_position_by_con_id(ib, con_id=con_id, order_ref=order_ref )
-            # close_option_positions(option_positions_to_monitor, symbol=symbol, order_ref=order_ref)
-            if not close_result:
-                logger.warning(f"@@@@ we couldn't close the position for SL, so we skip the rest ... {symbol} - needs more investigation ")
-                continue
-            data = {
-                'symbol': symbol,
-                'right': application_state['open_trades_dic'][symbol]['right'],
-                'strike':  application_state['open_trades_dic'][symbol]['strike'],
-                'expiry': application_state['open_trades_dic'][symbol]['expiry'],
-                'current_bid': current_bid,
-                'current_ask': current_ask,
-                'underlying_current_price': underlying_current_price,
-                'available_quantity_b4': available_quantity,
-                'sl_u_run_number': application_state.get('unique_run_number'),
-                'stop_loss_condition': stop_loss_condition,
-                'candle_date': str(symbol_df['date'].iloc[-1]),
-                'open_u_run_number': '',
-                'open_order_ref': '',
-                'sl_order_ref': order_ref,
-                'local_symbol': application_state['open_trades_dic'][symbol].get('local_symbol'),
-                'con_id': application_state['open_trades_dic'][symbol].get('con_id'),
-                }
-            application_state['open_trades_dic'][symbol].setdefault('stop_loss', {})['s1'] = data # save it in the
-            archive_open_trade_dic(application_state, symbol)
-            application_state.setdefault('open_trades_dic', {})[symbol] = {}  #  TODO This need to be happened after we get required inf from dic...
-            add_order_ref_to_application_state(application_state, open_order_ref=open_trade_info.get('order_ref'), close_order_ref=order_ref)
+                # add_to_signals(symbol, 'STOP_LOSS_SENT', underlying_current_price, df['date'].iloc[-1], f"STOP_LOSS  <BR> {json_utils.polish_map_to_show_in_hover(data)}")
+                TradingLedger.add_to_list("signals",(symbol, 'STOP_LOSS_SENT', underlying_current_price, symbol_df['date'].iloc[-1], f"STOP_LOSS  <BR> {json_utils.polish_map_to_show_in_hover(data)}"))
 
-            # add_to_stop_loss_history_df(data)
-            TradingLedger.add_to_dataframe('stop_loss_history_df', data)
-
-            # add_to_signals(symbol, 'STOP_LOSS_SENT', underlying_current_price, df['date'].iloc[-1], f"STOP_LOSS  <BR> {json_utils.polish_map_to_show_in_hover(data)}")
-            TradingLedger.add_to_list("signals",(symbol, 'STOP_LOSS_SENT', underlying_current_price, symbol_df['date'].iloc[-1], f"STOP_LOSS  <BR> {json_utils.polish_map_to_show_in_hover(data)}"))
+                notification_helper.send_email(app_config, event='stop_loss_sent', symbol=symbol, body=json_utils.polish_map_to_show_in_hover(data))
 
 
-            # send_email(event='stop_loss_sent', symbol=symbol, body=polish_map_to_show_in_hover(data))
-
-            notification_helper.send_email(app_config, event='stop_loss_sent', symbol=symbol, body=json_utils.polish_map_to_show_in_hover(data))
-
-        if app_config.get('take_profit_policy',{}).get('symbols',{}).get(symbol,{}).get('tp_enabled', True) == False:
-            logger.warning(f"{symbol} TP condition is disabled in the take_profit_policy config")
-            continue
 
         # ###
         # Take profit
         # ###
+
+
+        all_tps_are_enabled = True
+
+        if app_config.get('take_profit_policy',{}).get('symbols',{}).get(symbol,{}).get('tp_enabled', True) == False:
+            logger.warning(f"{symbol} TP condition is disabled in the take_profit_policy config")
+            all_tps_are_enabled = False
+
         for take_profit_lable in app_config['take_profits']:
             logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, take_profit_lable: {take_profit_lable}")
+            if all_tps_are_enabled == False:
+                logger.info("all_tps_are_enabled is False. so no check ...ymbol {symbol}")
+                continue
             if application_state['open_trades_dic'][symbol].get('available_quantity',0) == 0:
                 logger.info(f"{symbol}, {take_profit_lable}, check_for_stop_loss_and_take_profit(), available_quantity is 0 ")
                 continue

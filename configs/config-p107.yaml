@@ -53,17 +53,25 @@ files:
   open_close_refs_df: "{results}/22-open_close_refs_df.csv" # TODO rename
   open_close_refs_pnl_df: "{results}/23-open_close_refs_pnl_df.csv" # TODO rename
   capital_flow_df: "{results}/24-capital_flow_df.csv" # TODO rename
+  ib_pnl_df: "{ib}/91-ib_pnl_df.csv"
+
   screening_summary_for_all_sub_runs_agg_df: "{results}/25-screening_summary_for_all_sub_runs_agg_df.csv" # TODO rename
   test_df: "{results}/99-test_df.csv"
 
 symbols: ["QQQ", "AAPL", "AMD", "AMZN", "NVDA", "PLTR", "TSLA", "MU", "SPY"]
+#
+#stop_losses:
+#  C:
+#    stop_loss_condition: underlying_previous_candle_close < level_used_to_open - tolerance_amount and underlying_current_price < underlying_previous_candle_close
+#
+#  P:
+#    stop_loss_condition: underlying_previous_candle_close > level_used_to_open + tolerance_amount and underlying_current_price > underlying_previous_candle_close
 
 stop_losses:
-  C:
-    stop_loss_condition: underlying_previous_candle_close < level_used_to_open - tolerance_amount and underlying_current_price < underlying_previous_candle_close
-
-  P:
-    stop_loss_condition: underlying_previous_candle_close > level_used_to_open + tolerance_amount and underlying_current_price > underlying_previous_candle_close
+    - right == 'C' and case != 'case_manual' and underlying_previous_candle_close < level_used_to_open - tolerance_amount and underlying_current_price < underlying_previous_candle_close
+    - right == 'P' and case != 'case_manual' and underlying_previous_candle_close > level_used_to_open + tolerance_amount and underlying_current_price > underlying_previous_candle_close
+    - right == 'C and user_defined_stop_loss !=0 and user_defined_stop_loss < underlying_current_price
+    - right == 'P and user_defined_stop_loss !=0 and user_defined_stop_loss > underlying_current_price
 
 take_profits:
   t1:
