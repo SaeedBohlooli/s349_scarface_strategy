@@ -1,16 +1,89 @@
-from flask import Blueprint, request, jsonify
+import asyncio
 import logging
 import os
+from datetime import date
+
 import yaml
+from flask import Blueprint, current_app, jsonify, request
+
 logger = logging.getLogger(__name__)
 from trading_core.file_manager import FileManager
 from trading_core.directory_manager import DirectoryManager
-from trading_utils import streaming_util
-from trading_utils import date_utils
 from trading_engine import pnl_helper
+from trading_utils import date_utils
+from trading_utils import streaming_util
+from trading_utils.ib_execution_reports import fetch_ib_execution_reports_for_range
 
 from pprint import pprint
 app_bp = Blueprint("app_bp", __name__)
+
+
+def _optional_account_list() -> list[str] | None:
+    """
+    Optional IB account filter only.
+
+    GET: optional query param ``account`` (single value).
+    POST: optional JSON field ``account``; query ``account`` also accepted.
+    """
+    raw = None
+    if request.method == "POST":
+        data = request.get_json(silent=True) or {}
+        raw = data.get("account", request.args.get("account"))
+    else:
+        raw = request.args.get("account")
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        return None
+    if isinstance(raw, str):
+        return [raw.strip()]
+    return None
+
+
+@app_bp.route("/api/ib/execution-reports", methods=["GET", "POST"])
+def ib_execution_reports():
+    """
+    Today's IBKR executions (``reqExecutions`` cache), via dedicated ``api_ib_client_id``.
+
+    No date parameters — always **calendar today**. Optional ``account`` only (GET query
+    or POST JSON) to limit to one account; omit for all accounts.
+
+    Does not use the trading engine's connection. Not a substitute for Flex historical range.
+    """
+    cfg = current_app.config.get("APP_CONFIG")
+    if not cfg:
+        return jsonify({"status": "error", "message": "APP_CONFIG not loaded"}), 500
+
+    today = date.today()
+    start = end = today
+    accounts = _optional_account_list()
+
+    ip = cfg.get("ip")
+    port = cfg.get("port")
+    if ip is None or port is None:
+        return jsonify({"status": "error", "message": "Config missing ip or port."}), 500
+
+    cid = cfg.get("client_id")
+    if cid is None:
+        return jsonify({"status": "error", "message": "Config missing client_id."}), 500
+    api_cid = cfg.get("api_ib_client_id", int(cid) + 1)
+
+    try:
+        payload = asyncio.run(
+            fetch_ib_execution_reports_for_range(
+                str(ip),
+                int(port),
+                int(api_cid),
+                start=start,
+                end=end,
+                accounts=accounts,
+            )
+        )
+    except Exception as e:
+        logger.exception("ib execution reports failed")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+    payload["status"] = "ok"
+    payload["timestamp"] = date_utils.time_now_yyyy_mm_dd_hh_mm_ss()
+    return jsonify(payload), 200
 
 
 @app_bp.route("/api/get-closed-order-sets", methods=["GET"])
