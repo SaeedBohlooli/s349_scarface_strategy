@@ -19,8 +19,10 @@ from trading_core.broker import broker_bp
 from app_api_routes import app_bp
 
 
-def create_app(portfolio_id):
+def create_app(portfolio_id, app_config: dict):
     app = Flask(__name__)
+    app.config["APP_CONFIG"] = app_config
+    app.config["PORTFOLIO_ID"] = portfolio_id
 
     CORS(app)
 
@@ -63,7 +65,7 @@ if __name__ == "__main__":
     logger.info(f"Config Loaded: {api_service_cfg}")
     logger.info("===========================================")
 
-    app = create_app(portfolio_id)
+    app = create_app(portfolio_id, app_config)
 
     app.run(
         host=api_service_cfg.get("host", "0.0.0.0"),

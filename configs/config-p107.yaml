@@ -1,6 +1,8 @@
 ip: "127.0.0.1"
 port: 7497
 client_id: 250
+# Separate IB API client id for trading_api execution export (must differ from client_id).
+api_ib_client_id: 251
 
 logging_level: logging.INFO
 
