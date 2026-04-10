@@ -120,7 +120,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
             logger.info(f"symbol {symbol}, stop_loss_condition: {stop_loss_condition}, stop_loss_condition_evaluated: {stop_loss_condition_evaluated}")
 
             if stop_loss_condition_evaluated:
-                logger.warning(f"{symbol} SL condition met ...")
+                logger.warning(f"{symbol} SL condition met ... {stop_loss_condition}")
                 order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='CLOSE', symbol=symbol, alias='SL', unique_run_number=application_state.get('unique_run_number'))
                 con_id = open_trade_info.get('con_id')
                 close_result = ib_positions_async.close_position_by_con_id(ib, con_id=con_id, order_ref=order_ref )
@@ -146,7 +146,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                     'local_symbol': application_state['open_trades_dic'][symbol].get('local_symbol'),
                     'con_id': application_state['open_trades_dic'][symbol].get('con_id'),
                     }
-                application_state['open_trades_dic'][symbol].setdefault('stop_loss', {})['s1'] = data # save it in the
+                application_state['open_trades_dic'][symbol].setdefault('stop_loss_history', []).append(data) # save it in the
                 archive_open_trade_dic(application_state, symbol)
                 application_state.setdefault('open_trades_dic', {})[symbol] = {}  #  TODO This need to be happened after we get required inf from dic...
                 add_order_ref_to_application_state(application_state, open_order_ref=open_trade_info.get('order_ref'), close_order_ref=order_ref)
@@ -267,6 +267,8 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                     'local_symbol': application_state['open_trades_dic'][symbol].get('local_symbol'),
                     'con_id': application_state['open_trades_dic'][symbol].get('con_id'),
                 }
+                application_state['open_trades_dic'][symbol].setdefault('take_profit_history', []).append(data)
+
                 add_order_ref_to_application_state(application_state, open_order_ref=open_trade_info.get('order_ref'), close_order_ref=order_ref)
                 # add_to_take_profit_history_df(data)
                 TradingLedger.add_to_dataframe('take_profit_history_df', data)
