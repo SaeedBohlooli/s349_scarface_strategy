@@ -8,7 +8,7 @@ ws_port: 6107
 
 api_service:
   port: 5107
-  host: 0.0.0.0
+  host: 127.0.0.1
 
 interval_seconds:
   engine_loop: .1
@@ -70,8 +70,8 @@ symbols: ["QQQ", "AAPL", "AMD", "AMZN", "NVDA", "PLTR", "TSLA", "MU", "SPY"]
 stop_losses:
     - right == 'C' and case != 'case_manual' and underlying_previous_candle_close < level_used_to_open - tolerance_amount and underlying_current_price < underlying_previous_candle_close
     - right == 'P' and case != 'case_manual' and underlying_previous_candle_close > level_used_to_open + tolerance_amount and underlying_current_price > underlying_previous_candle_close
-    - right == 'C and user_defined_stop_loss !=0 and user_defined_stop_loss < underlying_current_price
-    - right == 'P and user_defined_stop_loss !=0 and user_defined_stop_loss > underlying_current_price
+    - right == 'C' and user_defined_stop_loss !=0 and user_defined_stop_loss < underlying_current_price
+    - right == 'P' and user_defined_stop_loss !=0 and user_defined_stop_loss > underlying_current_price
 
 take_profits:
   t1:

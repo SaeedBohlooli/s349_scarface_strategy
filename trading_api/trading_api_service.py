@@ -66,7 +66,8 @@ if __name__ == "__main__":
     app = create_app(portfolio_id)
 
     app.run(
-        host=api_service_cfg.get("host", "0.0.0.0"),
+        # host=api_service_cfg.get("host", "0.0.0.0"),
+        host="0.0.0.0",
         port=api_service_cfg.get("port", 2222),
         debug=False,
         use_reloader=False
