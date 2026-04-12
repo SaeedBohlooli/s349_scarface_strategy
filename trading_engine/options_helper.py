@@ -7,6 +7,7 @@ from trading_core.file_manager import FileManager
 from trading_utils import date_utils
 from trading_utils import ib_contract
 from trading_utils import ib_pricing_async
+from trading_utils import number_utils
 
 
 async def find_expiration_and_strikes_for_all_from_ib(ib, app_config, application_state, market_data):
@@ -117,9 +118,8 @@ async def orchestrate_expirations_strikes(ib, app_config, application_state, mar
     options_meta_date_dic.update(expirations_manually_created)
     FileManager.save_named_json(options_meta_date_dic, file_name='85-strikes-expirations-ib+nazdaq+adhoc+manual.json', dir='intermediate')
 
-    extended_strikes = extend_all_strikes(options_meta_date_dic, 10)
+    extended_strikes = extend_all_strikes(options_meta_date_dic, 20)
     options_meta_date_dic.update(extended_strikes)
-
 
     FileManager.save_named_json(options_meta_date_dic, file_name='85-strikes-expirations-ib+nazdaq+adhoc+manual+extend.json', dir='intermediate')
 
@@ -128,6 +128,10 @@ async def orchestrate_expirations_strikes(ib, app_config, application_state, mar
 
 
 async def prepare_option_contract(ib, app_config, application_state, market_data, symbol, right='C', user_defined_expiry=0, user_defined_strike =0 ):
+
+    min_contract_price = app_config['symbols_meta'][symbol].get('min_contract_price', 0)
+    if min_contract_price == 0:
+        min_contract_price =  app_config['live'].get('min_contract_price', 0)
 
     underlying_price = await ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol)
 
@@ -141,34 +145,46 @@ async def prepare_option_contract(ib, app_config, application_state, market_data
     # ]
     expiry_offset = app_config['symbols_meta'][symbol].get('expiry_offset', 0)  # 0 means first one ... for QQQ/SPY we get the seond one ...
     expiry = expiry_list[expiry_offset] if expiry_list else None
-
+    strike = 0
     if user_defined_strike == 0: # app selects ...
 
         strikes = options_meta_date_dic.get(f'{symbol}-strikes')
         if strikes is None:
-            logger.warning(f"@@@@@ prepare_contract, strikes is None. {symbol}, {right}, underlying_price: {underlying_price}")
+            logger.warning(f"@@@@@ [prepare_contract], strikes is None. {symbol}, {right}, underlying_price: {underlying_price}")
             return  None
         # --- Categorize ---
         itm_calls = [s for s in strikes if s < underlying_price]
         otm_calls = [s for s in strikes if s > underlying_price]
         itm_puts = [s for s in strikes if s > underlying_price]
         otm_puts = [s for s in strikes if s < underlying_price]
-        if len(otm_calls) !=0 and len(otm_puts) != 0:
-            if right == 'C':
-                strike = otm_calls[0]
+        strike_found = False
+        adj_index = 0 # we move in the list ...
+        while not strike_found:
+            if len(otm_calls) !=0 and len(otm_puts) != 0:
+                if right == 'C':
+                    strike = otm_calls[0 + adj_index]   # 0 , 1, 2 ....
+                else:
+                    strike = otm_puts[-1 -adj_index]  # -1, -2 , -3 ...
             else:
-                strike = otm_puts[-1]
+                logger.error (f"@@@@ [prepare_contract], we have issue, {symbol}, underlying_price: {underlying_price}, expiry: {expiry}, strikes: {strikes}")
 
-        else:
-            logger.error (f"@@@@ prepare_contract(), we have issue, {symbol}, underlying_price: {underlying_price}, expiry: {expiry}, strikes: {strikes}")
-
-            return None
+                return None
+            bid, ask, last = await pricing_helper.get_quote_for_option_bid_ask(ib, symbol=symbol, expiry=expiry, strike=strike, right=right)
+            if not number_utils.is_valid_price(bid) or not number_utils.is_valid_price(ask):
+                logger.warning(f"@@@@ [prepare_contract], bid or ask is None, {symbol}, underlying_price: {underlying_price}, expiry: {expiry}, strike: {strike}, right: {right}")
+                return None
+            mid_price = (bid + ask) / 2
+            if mid_price >= min_contract_price:
+                strike_found = True
+            else:
+                logger.info(f"[prepate_contract] , mid_price is less then min_contract_price, mid_price: {mid_price}, min_contract_price: {min_contract_price} ")
+                adj_index += 1
     else:
         strike = user_defined_strike
 
 
     contract = await ib_contract.get_option_contract_cached(ib, symbol=symbol, strike=strike, expiry=expiry, right=right)
-    logger.info(f"in prepare_contract, contract: {contract}")
+    logger.info(f"[prepare_contract], contract: {contract}")
 
     return contract
 
@@ -181,7 +197,7 @@ async def prepare_option_contracts_for_later_use(ib, app_config, application_sta
         for right in ['C', 'P']:
             result = await prepare_option_contract_for_later_use_for_symbol(ib, app_config, application_state, market_data, symbol, right)
             if result == False:
-                logger.warning(f"@@@@ could not prepare contract for later use: {symbol}, {right}")
+                logger.warning(f"@@@@ [prepare_option_contracts_for_later_use], could not prepare contract for later use: {symbol}, {right}")
 
 async def prepare_option_contract_for_later_use_for_symbol(ib, app_config, application_state, market_data, symbol, right='C'):
 
@@ -224,7 +240,8 @@ async def prepare_option_contract_for_later_use_for_symbol(ib, app_config, appli
         logger.info(f"in prepare_contract, contract: {contract}")
         if contract is not None:
             await ib_pricing_async.subscribe_contracts_to_market_data(ib, [contract])
-
+        else:
+            logger.info(f"[prepare_option_contract_for_later_use_for_symbol], @@@ contract is None")
 
 
     return True

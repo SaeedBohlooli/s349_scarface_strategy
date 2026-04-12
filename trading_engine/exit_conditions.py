@@ -234,7 +234,8 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
             if order_closed:
                 application_state['open_trades_dic'][symbol]['available_quantity'] = available_quantity - close_quantity
                 entry_execution_price = open_trade_info['entry_execution_price']
-                take_profit_estimated_pnl = (mid_price - entry_execution_price) * close_quantity * 100
+                take_profit_estimated_pnl = (mid_price - entry_execution_price) * close_quantity * 100 if entry_execution_price !=0 else 0
+                take_profit_estimated_pnl = round(take_profit_estimated_pnl, 3)
                 data = {
                     'status': 'SENT',
                     'available_quantity_b4' : available_quantity,
@@ -253,6 +254,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                     'right': application_state['open_trades_dic'][symbol].get('right'),
                     'strike': application_state['open_trades_dic'][symbol].get('strike'),
                     'expiry': application_state['open_trades_dic'][symbol].get('expiry'),
+                    'entry_execution_price': entry_execution_price,
                     'current_bid': current_bid,
                     'current_ask': current_ask,
                     'underlying_current_price': underlying_current_price,
@@ -450,7 +452,7 @@ def increment_wins(application_state, symbol):
 def calculate_estimated_realized_pnl(open_trade_info):
     estimated_realized_pnl = 0
 
-    for name, tp in open_trade_info.get('take_profits', {}).items():
+    for tp in open_trade_info.get('take_profit_history', []):
         estimated_realized_pnl += tp.get('take_profit_estimated_pnl',0)
 
     return round(estimated_realized_pnl,3)

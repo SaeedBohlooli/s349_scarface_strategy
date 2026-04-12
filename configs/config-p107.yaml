@@ -167,6 +167,7 @@ live:
   capital_per_trade_percentage: 0.20 # not used
   min_position_size: 6 #
   min_contract_entry_price: 0.1
+  min_contract_price: 0.8
   #  num_of_contracts: calculate_number_of_contracts()
 
   trade_time: 930 < current_hh_mm_ny  < 1515 # TODO change to trade_time
