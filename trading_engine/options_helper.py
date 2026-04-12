@@ -127,47 +127,50 @@ async def orchestrate_expirations_strikes(ib, app_config, application_state, mar
     return
 
 
-async def prepare_option_contract(ib, app_config, application_state, market_data, symbol, right='C'):
+async def prepare_option_contract(ib, app_config, application_state, market_data, symbol, right='C', user_defined_expiry=0, user_defined_strike =0 ):
 
-    # underlying_price = get_current_price(symbol)
     underlying_price = await ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol)
 
     options_meta_date_dic = market_data.data_store.get('options_meta_date_dic', {})
 
-    strikes = options_meta_date_dic.get(f'{symbol}-strikes')
-    expiry_list = options_meta_date_dic.get(f'{symbol}-expirations',[])
-
-    # example: "expirations": [
+    expiry_list = options_meta_date_dic.get(f'{symbol}-expirations', [])
+    # example: "APPL-expirations": [
     #     "20251205",
     #     "20251209",
     #     "20251212"
     # ]
-    expiry_offset = app_config['symbols_meta'][symbol].get('expiry_offset', 0) # 0 means first one ... for QQQ/SPY we get the seond one ...
-
+    expiry_offset = app_config['symbols_meta'][symbol].get('expiry_offset', 0)  # 0 means first one ... for QQQ/SPY we get the seond one ...
     expiry = expiry_list[expiry_offset] if expiry_list else None
-    if strikes is None:
-        logger.warning(f"@@@@@ prepare_contract, strikes is None. {symbol}, {right}, underlying_price: {underlying_price}")
-        return  None
-    # --- Categorize ---
-    itm_calls = [s for s in strikes if s < underlying_price]
-    otm_calls = [s for s in strikes if s > underlying_price]
-    itm_puts = [s for s in strikes if s > underlying_price]
-    otm_puts = [s for s in strikes if s < underlying_price]
-    if len(otm_calls) !=0 and len(otm_puts) != 0:
-        if right == 'C':
-            strike = otm_calls[0]
+
+    if user_defined_strike == 0: # app selects ...
+
+        strikes = options_meta_date_dic.get(f'{symbol}-strikes')
+        if strikes is None:
+            logger.warning(f"@@@@@ prepare_contract, strikes is None. {symbol}, {right}, underlying_price: {underlying_price}")
+            return  None
+        # --- Categorize ---
+        itm_calls = [s for s in strikes if s < underlying_price]
+        otm_calls = [s for s in strikes if s > underlying_price]
+        itm_puts = [s for s in strikes if s > underlying_price]
+        otm_puts = [s for s in strikes if s < underlying_price]
+        if len(otm_calls) !=0 and len(otm_puts) != 0:
+            if right == 'C':
+                strike = otm_calls[0]
+            else:
+                strike = otm_puts[-1]
+
         else:
-            strike = otm_puts[-1]
+            logger.error (f"@@@@ prepare_contract(), we have issue, {symbol}, underlying_price: {underlying_price}, expiry: {expiry}, strikes: {strikes}")
 
-        contract = await ib_contract.get_option_contract_cached(ib, symbol=symbol, strike=strike, expiry=expiry, right=right)
-        logger.info(f"in prepare_contract, contract: {contract}")
-
-        return contract
-
+            return None
     else:
-        logger.error (f"@@@@ prepare_contract(), we have issue, {symbol}, underlying_price: {underlying_price}, expiry: {expiry}, strikes: {strikes}")
+        strike = user_defined_strike
 
-        return None
+
+    contract = await ib_contract.get_option_contract_cached(ib, symbol=symbol, strike=strike, expiry=expiry, right=right)
+    logger.info(f"in prepare_contract, contract: {contract}")
+
+    return contract
 
     return None
 
@@ -178,7 +181,7 @@ async def prepare_option_contracts_for_later_use(ib, app_config, application_sta
         for right in ['C', 'P']:
             result = await prepare_option_contract_for_later_use_for_symbol(ib, app_config, application_state, market_data, symbol, right)
             if result == False:
-                logger.warning(f"@@ could not prepare contract for later use: {symbol}, {right}")
+                logger.warning(f"@@@@ could not prepare contract for later use: {symbol}, {right}")
 
 async def prepare_option_contract_for_later_use_for_symbol(ib, app_config, application_state, market_data, symbol, right='C'):
 
@@ -189,7 +192,7 @@ async def prepare_option_contract_for_later_use_for_symbol(ib, app_config, appli
     strikes = options_meta_date_dic.get(f'{symbol}-strikes')
     expiry_list = options_meta_date_dic.get(f'{symbol}-expirations',[])
 
-    # example: "expirations": [
+    # example: "AMD-expirations": [
     #     "20251205",
     #     "20251209",
     #     "20251212"
@@ -210,7 +213,7 @@ async def prepare_option_contract_for_later_use_for_symbol(ib, app_config, appli
         logger.info("@@@ prepare_option_contract_for_later_use_for_symbol, not enough otm options, so skip for later use.")
         return False
 
-    for i in [1,2, 3]: # try first three otm strikes
+    for i in [1,2,3,4,6]: # try first X otm strikes
 
         if right == 'C':
             strike = otm_calls[i - 1]   # take the first X otm calls   0 , 1,

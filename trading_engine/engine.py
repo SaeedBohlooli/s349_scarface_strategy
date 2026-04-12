@@ -249,11 +249,11 @@ class TradingEngine:
                 logger.warning(f"==================== unique_run_number: {unique_run_number}, run_spent_time: {run_time_spent} seconds, sleep ... {self.app_config['interval_seconds']['engine_loop']}")
                 self.application_state.setdefault("run_times", {})['engine_loop_run_time_spent'] = run_time_spent
 
-                await asyncio.sleep(self.app_config['interval_seconds']['engine_loop'])
             except Exception as e:
                 logger.warning(f"@@@ Unexpected error in engine_loop: {e}")
                 logger.error(f"@@@ error: {traceback.format_exc()}" )
-                await asyncio.sleep(self.app_config['interval_seconds']['engine_loop'])
+
+            await asyncio.sleep(self.app_config['interval_seconds']['engine_loop'])
 
 
     async def run(self):

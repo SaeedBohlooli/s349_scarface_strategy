@@ -36,9 +36,10 @@ def add_case_manual_order_to_buy_sell_case_results_list(application_state, symbo
         right = user_request.get('right', 'C')
         right = 'C' if right.lower() in ('c', 'call') else 'P'
         order_type = user_request.get('order_type', 'Option')
-        strike = float(user_request.get('strike', 0))
-        expiry = int(user_request.get('expiry', 0))
         user_defined_stop_loss = user_request.get('stop_loss', 0) # if there is stop loss in the user request, we should not send it
+        user_defined_expiry = user_request.get('expiry', 0)
+        user_defined_strike = user_request.get('strike', 0)
+
 
         can_buy = True if right == 'C' else False
         can_sell = True if right == 'P' else False
@@ -47,8 +48,10 @@ def add_case_manual_order_to_buy_sell_case_results_list(application_state, symbo
             'long_level': 0,
             'short_level': 0,
             'right': right,
-            'quantity': quantity,
-            'user_defined_stop_loss': user_defined_stop_loss
+            'user_defined_quantity': quantity,
+            'user_defined_stop_loss': user_defined_stop_loss,
+            'user_defined_stop_expiry': user_defined_expiry,
+            'user_defined_stop_strike': user_defined_strike
         }
         res = (case, can_buy, can_sell, details_map)
         buy_sell_case_results_list.append(res)
@@ -82,7 +85,9 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
         level_used = long_level if can_buy else short_level
         contract_type = app_config['symbols_meta'][symbol]['contract_type']
         do_check = True if case != 'case_manual' else False
-        user_defined_quantity = 0 if case != 'case_manual' else int(details_map.get('quantity', 0))
+        user_defined_quantity = 0 if case != 'case_manual' else int(details_map.get('user_defined_quantity', 0))
+        user_defined_expiry = 0 if case != 'case_manual' else details_map.get('user_defined_expiry', 0)
+        user_defined_strike = 0 if case != 'case_manual' else details_map.get(user_defined_strike, 0)
 
         market_trend = 'up' if can_buy else 'down' #
         right = 'C' if can_buy else 'P'
@@ -122,7 +127,7 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
 
         if contract_type.lower() == 'equity' and (can_buy or can_sell): # go for buy
             right = 'C' if can_buy else 'P'
-            option_contract = await options_helper.prepare_option_contract(ib, app_config, application_state, market_data, symbol, right=right)
+            option_contract = await options_helper.prepare_option_contract(ib, app_config, application_state, market_data, symbol, right=right, user_defined_expiry=user_defined_expiry, user_defined_strike=user_defined_strike)
             if option_contract == None:
                 notification_utls.notify_user(app_config, application_state, subject= f"Contract is null- {symbol} - {app_config.get('user_name')}", msg=f"@@@@@ prepare_contract returned None. We are not sending order. symbol={symbol}, option_contract={option_contract}")
                 logger.warning(f"@@@@@ We are not sending order. {symbol}, option_contract: {option_contract}")
