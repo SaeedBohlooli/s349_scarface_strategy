@@ -1,5 +1,3 @@
-from tensorboard.compat.proto.struct_pb2 import NoneValue
-
 from trading_utils import ib_contract, ib_pricing_async
 
 async def subscribe_for_current_price(ib, app_config, application_state):
