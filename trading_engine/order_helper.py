@@ -44,14 +44,17 @@ def add_case_manual_order_to_buy_sell_case_results_list(application_state, symbo
         can_buy = True if right == 'C' else False
         can_sell = True if right == 'P' else False
         details_map = {
-            'res_str': f"Manual order from user request, quantity: {quantity}, side: {side}, order_type: {order_type}, strike: {strike}, expiry: {expiry}",
+            'res_str': (
+                f"Manual order from user request, quantity: {quantity}, side: {side}, "
+                f"order_type: {order_type}, strike: {user_defined_strike}, expiry: {user_defined_expiry}"
+            ),
             'long_level': 0,
             'short_level': 0,
             'right': right,
             'user_defined_quantity': quantity,
             'user_defined_stop_loss': user_defined_stop_loss,
-            'user_defined_stop_expiry': user_defined_expiry,
-            'user_defined_stop_strike': user_defined_strike
+            'user_defined_expiry': user_defined_expiry,
+            'user_defined_strike': user_defined_strike
         }
         res = (case, can_buy, can_sell, details_map)
         buy_sell_case_results_list.append(res)
@@ -87,7 +90,7 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
         do_check = True if case != 'case_manual' else False
         user_defined_quantity = 0 if case != 'case_manual' else int(details_map.get('user_defined_quantity', 0))
         user_defined_expiry = 0 if case != 'case_manual' else details_map.get('user_defined_expiry', 0)
-        user_defined_strike = 0 if case != 'case_manual' else details_map.get(user_defined_strike, 0)
+        user_defined_strike = 0 if case != 'case_manual' else details_map.get('user_defined_strike', 0)
 
         market_trend = 'up' if can_buy else 'down' #
         right = 'C' if can_buy else 'P'
