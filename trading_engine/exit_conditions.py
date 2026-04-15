@@ -166,21 +166,26 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
         # ###
 
 
-        all_tps_are_enabled = True
+        tp_is_enabled = True
 
-        if app_config.get('take_profit_policy',{}).get('symbols',{}).get(symbol,{}).get('tp_enabled', True) == False:
+        if app_config.get('take_profit_policy',{}).get('default_enabled',True) == False:
             logger.warning(f"{symbol} TP condition is disabled in the take_profit_policy config")
-            all_tps_are_enabled = False
+            tp_is_enabled = False
+        elif app_config.get('take_profit_policy',{}).get('symbols',{}).get(symbol,{}).get('tp_enabled', True) == False:
+            logger.warning(f"{symbol} TP condition is disabled in the take_profit_policy config")
+            tp_is_enabled = False
+
+        order_closed_by_tp = False
 
         for take_profit_lable in app_config['take_profits']:
             logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, take_profit_lable: {take_profit_lable}")
-            if all_tps_are_enabled == False:
-                logger.info("all_tps_are_enabled is False. so no check ...ymbol {symbol}")
-                continue
-            if application_state['open_trades_dic'][symbol].get('available_quantity',0) == 0:
-                logger.info(f"{symbol}, {take_profit_lable}, check_for_stop_loss_and_take_profit(), available_quantity is 0 ")
+            if tp_is_enabled == False:
+                logger.info("tp_is_enabled is False. so no check ...ymbol {symbol}")
                 continue
 
+            if application_state['open_trades_dic'].get(symbol,{}).get('available_quantity',0) == 0:
+                logger.info(f"{symbol}, {take_profit_lable}, check_for_stop_loss_and_take_profit(), available_quantity is 0 ")
+                continue
 
             if application_state['open_trades_dic'][symbol].get('take_profits',{}).get(take_profit_lable,None ) is not None:
                 logger.info(f"{symbol}, TP already is executed ... {take_profit_lable}")
@@ -189,7 +194,6 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
             close_quantity_percentage = app_config['take_profits'][take_profit_lable].get('close_quantity_percentage', 0)
 
             take_profit_condition_evaluated = eval(take_profit_condition)
-
 
             if close_quantity_percentage == -1: # close all
                 close_quantity = available_quantity
@@ -200,8 +204,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
             logger.info(f"available_quantity: {available_quantity}, close_quantity_percentage: {close_quantity_percentage}, close_quantity: {close_quantity}, start_quantity:{start_quantity}")
             logger.info(f"take_profit_condition: {take_profit_condition}, take_profit_condition_evaluated: {take_profit_condition_evaluated}")
             order_ref = ''
-            order_closed = False
-            forced_exit = False
+
             if take_profit_condition_evaluated and available_quantity > 0 and close_quantity != 0 and close_quantity <= available_quantity :
                 logger.info(f"Sending TP ...{take_profit_lable}")
                 if app_config['symbols_meta'][symbol]['contract_type'] == 'Equity':
@@ -217,21 +220,23 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
 
                 else:
                     logger.warning(f"@@@@ TBD")
-                order_closed = True
+                order_closed_by_tp = True
 
-            for x in application_state.get('forced_exits', []): #TODO BUG what happens if t1 get fired and again here we do same.
+        for x in application_state.get('forced_exits', []): #TODO BUG what happens if t1 get fired and again here we do same.
+                if order_closed_by_tp:
+                    continue
                 if x.get('symbol') == symbol and not 'SENT_TO_IB' in x.get('status')  :
+
                     logger.info(f"Forced exit for {symbol}  is found in application_state, so we will execute the exit as well ...")
                     order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='CLOSE', symbol=symbol, alias=f"FORCED_EXIT", unique_run_number=application_state.get('unique_run_number'))
                     con_id = x.get('contract_id')
                     close_quantity = x.get('quantity', available_quantity) # if quantity is not provided we will close all ...
                     ib_positions_async.close_position_by_con_id(ib, con_id=con_id, qty_to_close=close_quantity, order_ref=order_ref)
-                    order_closed = True
-                    forced_exit = True
+                    order_closed_by_tp = True
                     take_profit_lable = 'tp_forced_exit'
                     x['status'] += '|SENT_TO_IB'
 
-            if order_closed:
+        if order_closed_by_tp:
                 application_state['open_trades_dic'][symbol]['available_quantity'] = available_quantity - close_quantity
                 entry_execution_price = open_trade_info['entry_execution_price']
                 take_profit_estimated_pnl = (mid_price - entry_execution_price) * close_quantity * 100 if entry_execution_price !=0 else 0
@@ -279,13 +284,12 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                 # send_email(event='take_profit_sent', symbol=symbol, body=polish_map_to_show_in_hover(data))
                 notification_helper.send_email(app_config, event='take_profit_sent', symbol=symbol, body=json_utils.polish_map_to_show_in_hover(data))
                 increment_wins(application_state, symbol)
+
                 # This is very import. There was a case that after t1 execution, t2 condition meet also
                 # but the available_quantity was not updates. look at the for iterator. we are updating what we are iterating it ...
                 # DO MOT DELETE THIS. we go out, and we will come back i next .... if break didn't work we need to use return ...
                 break
 
-            else:
-                logger.warning(f"{symbol}, {take_profit_lable} TP condition didn't meet ...  ")
 
 
 

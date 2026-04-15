@@ -170,7 +170,7 @@ live:
   min_contract_price: 0.8
   #  num_of_contracts: calculate_number_of_contracts()
 
-  trade_time: 930 < current_hh_mm_ny  < 1515 # TODO change to trade_time
+  trade_time: 930 < current_hh_mm_ny  < 1014 # TODO change to trade_time
   #  trade_time: 930 < current_hh_mm_ny  < 1559 # TODO change to trade_time
   market_time: 930 < current_hh_mm_ny < 1559
   busy_time: 933 < current_hh_mm_ny < 1016 #don't chaneg this,  we are not saving anythng or any test ...

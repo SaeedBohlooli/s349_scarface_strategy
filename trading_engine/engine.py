@@ -252,6 +252,7 @@ class TradingEngine:
             except Exception as e:
                 logger.warning(f"@@@ Unexpected error in engine_loop: {e}")
                 logger.error(f"@@@ error: {traceback.format_exc()}" )
+                application_state_router.add_audit_message(self.application_state, str(e))
 
             await asyncio.sleep(self.app_config['interval_seconds']['engine_loop'])
 
