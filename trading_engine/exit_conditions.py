@@ -174,6 +174,9 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
         elif app_config.get('take_profit_policy',{}).get('symbols',{}).get(symbol,{}).get('tp_enabled', True) == False:
             logger.warning(f"{symbol} TP condition is disabled in the take_profit_policy config")
             tp_is_enabled = False
+        elif app_config.get('xui_symbol_controls', {}).get("symbols",{}).get(symbol,{}).get('tp_enabled', True) == False:
+            logger.warning(f"{symbol} TP condition is disabled in the xui_symbol_controls config")
+            tp_is_enabled = False
 
         order_closed_by_tp = False
 

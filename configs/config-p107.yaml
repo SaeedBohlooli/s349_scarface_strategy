@@ -215,4 +215,4 @@ health_check:
 child_configs:
   - config-manual-settings.yaml
   - config-tps.yaml
-  - config-not-exist.yaml # for testing only
+  - config-xui-symbol-control.yaml

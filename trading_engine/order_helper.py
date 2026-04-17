@@ -125,6 +125,12 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
                 TradingLedger.add_to_list("signals", (symbol, f"MANUAL_CONDITION_FAILED", df['high'].iloc[-1], df['date'].iloc[-1], f"{case} - ", 'YELLOW'))
             continue
 
+        if do_check and not check_xui_symbol_controls(app_config, application_state, symbol, right):
+            logger.warning(f"@@  check_xui_symbol_controls failed, {symbol}")
+            if runtime.should_run_once(f"check_xui_symbol_controls-failed-{symbol}-{str(df['date'].iloc[-1])}"):
+                TradingLedger.add_to_list("signals", (symbol, f"CHECK_XUI_SYMBOL_CONTROLS_FAILED", df['high'].iloc[-1], df['date'].iloc[-1], f"{case} - ", 'ORANGE'))
+            continue
+
 
         # FIXME mark_score_in_the_chart(market_trend)
 
@@ -282,6 +288,23 @@ def has_open_order_in_same_group(app_config, application_state, symbol):
             logger.info(f"has_open_order_in_same_group, found open order in same group, symbol: {symbol}, open_order_symbol: {open_order_symbol}, group: {symbol_group}")
             return True
     return False
+
+
+def check_xui_symbol_controls(app_config, application_state, symbol, right):
+    # ###
+    # xui_symbol_controls:
+    #   symbols:
+    #       AAPL:
+    #           tp_enabled: true
+    #           call_enabled: true
+    #           put_enabled: true
+    #
+
+    right_enabled = "call_enabled" if right == 'C' else "put_enabled"
+    if app_config.get('xui_symbol_controls', {}).get("symbols",{}).get(symbol,{}).get(right_enabled, True) == True:
+        return True
+    else:
+        return False
 
 
 def check_manual_conditions(app_config, application_state, symbol, right):
