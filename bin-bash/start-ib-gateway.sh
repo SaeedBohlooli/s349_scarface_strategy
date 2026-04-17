@@ -25,7 +25,9 @@ fi
 echo "Process not running. Starting..."
 echo $COMMAND
 
-xvfb-run -a ./gatewaystart.sh  -inline &
+# xvfb-run -a ./gatewaystart.sh  -inline &
+
+xvfb-run -a ./gatewaystart.sh -inline >>"$LOG_FILE" 2>&1 </dev/null &
 
 NEW_PID=$!
 echo "Started trading_api with PID: $NEW_PID"
