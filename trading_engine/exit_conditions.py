@@ -165,7 +165,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
         # Take profit
         # ###
 
-
+        take_profit_condition = ''
         tp_is_enabled = True
 
         if app_config.get('take_profit_policy',{}).get('default_enabled',True) == False:

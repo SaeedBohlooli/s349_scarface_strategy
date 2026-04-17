@@ -22,6 +22,7 @@ async def initialize_application_state(ib, app_config, application_state):
     application_state['TradingLedger.get_all_dataframe_stats'] = []
     application_state['TradingLedger.get_all_list_stats'] = []
     application_state['forced_exits'] = []
+    application_state['case_manual_orders'] = []
 
     for symbol in app_config['symbols']:
         application_state['symbols'][symbol] = {}
