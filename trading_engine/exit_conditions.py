@@ -222,6 +222,11 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                     logger.warning(f"@@@@ TBD")
                 order_closed_by_tp = True
 
+                # DONT REMOVE BREAK. after tp is executed we need to remove the loop. if not, other may be executed and also wrong info in the email
+                break
+
+
+
         for x in application_state.get('forced_exits', []): #TODO BUG what happens if t1 get fired and again here we do same.
                 if order_closed_by_tp:
                     continue
