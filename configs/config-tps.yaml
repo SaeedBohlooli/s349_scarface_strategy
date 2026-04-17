@@ -18,11 +18,3 @@ take_profit_policy:
       tp_enabled: true
     SPY:
       tp_enabled: true
-    MSFT:
-      tp_enabled: true
-    GOOG:
-      tp_enabled: true
-    META:
-      tp_enabled: true
-    NFLX:
-      tp_enabled: true
