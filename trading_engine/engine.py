@@ -184,6 +184,7 @@ class TradingEngine:
                     if not strategy.all_levels_in(self.application_state, symbol, ['PMH', 'PML']):  # if not in, recalculate ...
                         strategy.find_add_PMH_PML(self.application_state, df, symbol)
 
+                    strategy.compute_indicators(self.app_config,self.application_state, symbol, df)
                     are_all_levels_in = strategy.all_levels_in(self.application_state, symbol)
 
                     # once per candle per symbol ...

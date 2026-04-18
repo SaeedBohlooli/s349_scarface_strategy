@@ -5,6 +5,7 @@ from trading_engine import chart_helper
 logger = logging.getLogger(__name__)
 import pandas as pd
 from trading_utils import number_utils
+from trading_core.runtime_manager import RuntimeManager
 
 def calculate_PDL_PDH(application_state, symbol, df, day_of_week):
 
@@ -140,3 +141,103 @@ def  add_to_key_levels_df(symbol, time_frame, key_level_name, price, memo='', un
 
 
 
+def compute_indicators(app_config, application_state, symbol, df):
+
+    if RuntimeManager.is_due(f"compute_low_high_of_day-{symbol}", interval_sec=15, min_time_hhmm=930):
+        compute_low_high_of_day(app_config,application_state,symbol,df)
+
+    if RuntimeManager.should_run_once(f"compute_previous_day_close-{symbol}", min_time_hhmm=931):
+        compute_previous_day_close(app_config, application_state, symbol, df)
+
+    if RuntimeManager.should_run_once(f"compute_today_open-{symbol}", min_time_hhmm=931):
+        compute_today_open(app_config, application_state, symbol, df)
+
+    if RuntimeManager.is_due(f"compute_x_indicators-{symbol}",
+                             interval_sec=app_config.get('indicators', {}).get('calculation_interval_seconds', 60),
+                             min_time_hhmm=930):
+        compute_x_indicators(app_config,application_state,symbol,df)
+
+
+def compute_x_indicators(app_config, application_state, symbol, df):
+    df = df.copy()
+
+    for key, indic in app_config.get('indicators',{}).get('indicators',{}).items():
+        active = indic['active']
+        name = indic['name']
+        calculation = indic['calculation']
+        if active:
+            logger.info(f"Computing indicator {name} for {symbol} using calculation: {calculation}")
+            df[name] = eval(calculation)
+            last = df[name].iloc[-1]
+            application_state['levels'].setdefault(symbol, {})[name] = round(last,2)
+
+    return
+
+def compute_only_indicators(app_config, application_state, symbol, df):
+        df = df.copy()
+        df['EMA9'] = df['close'].ewm(span=9, adjust=False).mean()
+        last_ema9 = df['EMA9'].iloc[-1]
+        application_state['levels'].setdefault(symbol, {})['EMA9'] = last_ema9
+        logger.debug(f"EMA9 for {symbol}: {last_ema9}")
+
+
+
+def compute_today_open(app_config, application_state, symbol, df):
+    current_day = df['date'].dt.date.max()
+    mask = (df['date'].dt.date == current_day) & (df['date'].dt.time == pd.to_datetime("09:30").time())
+    df_open = df[mask]
+
+    if df_open.empty:
+        logger.warning(f"[compute_today_open] No 09:30 candle found for {symbol}")
+        return
+
+    today_open = df_open.iloc[0]['open']
+    logger.debug(f"Today Open for {symbol}: {today_open}")
+    application_state['levels'].setdefault(symbol, {})['TDO'] = today_open
+
+
+def compute_previous_day_close(app_config, application_state, symbol, df):
+    unique_days = sorted(df['date'].dt.normalize().unique())
+
+    if len(unique_days) < 2:
+        logger.warning(f"[compute_previous_day_close] Not enough days for {symbol}")
+        return
+
+    prev_day = unique_days[-2]
+
+    mask = (df['date'].dt.normalize() == prev_day) & (df['date'].dt.time == pd.to_datetime("16:30").time())
+    df_prev = df[mask]
+
+    if df_prev.empty:
+        logger.warning(f"[compute_previous_day_close] No 16:30 candle found for previous day for {symbol}")
+        return
+
+    prev_close = df_prev.iloc[-1]['close']
+
+    logger.debug(f"Previous Day Close for {symbol}: {prev_close}")
+    application_state['levels'].setdefault(symbol, {})['PDC'] = prev_close
+
+
+def compute_low_high_of_day(app_config, application_state, symbol, df):
+
+   current_day = df['date'].dt.date.max()
+   start_time = pd.to_datetime("09:30").time()
+
+   mask = (
+       (df['date'].dt.date == current_day) &
+       (df['date'].dt.time >= start_time)
+   )
+
+   df_today = df[mask]
+
+   if df_today.empty:
+       logger.warning(f"[compute_low_high_of_day] No data found for {symbol} today from 09:30")
+       return
+
+   day_high = df_today['high'].max()
+   day_low = df_today['low'].min()
+
+   application_state['levels'].setdefault(symbol, {})['TDH'] = day_high
+   application_state['levels'].setdefault(symbol, {})['TDL'] = day_low
+
+   return

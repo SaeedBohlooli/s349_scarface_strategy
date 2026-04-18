@@ -212,6 +212,19 @@ health_check:
   email_recipients: saeed.bx1@yahoo.com
   email_interval_minutes: 10
 
+indicators:
+  calculation_interval_seconds: 60
+  indicators:
+    one:
+      active: true
+      name: EMA_9
+      calculation: df['close'].ewm(span=9, adjust=False).mean()
+    two:
+      active: true
+      name: EMA_20
+      calculation: df['close'].ewm(span=20, adjust=False).mean()
+
+
 child_configs:
   - config-manual-settings.yaml
   - config-tps.yaml
