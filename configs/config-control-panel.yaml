@@ -1,7 +1,8 @@
 control_panel:
-  projectName: 107 Control Panel P
+  projectName: 107 Control Panel P -Edited
   browserTitle: 107 Control Panel P
-  # Server ports
+  
+  # Control Panel Server ports
   ports:
     vite: 7107
 
@@ -16,10 +17,10 @@ control_panel:
 
   # API configuration
   api:
-    baseUrl: http://127.0.0.1:5107
     endpoints:
       sendRequest: /api/send-request
-
+    tradingEngineAPI: http://127.0.0.1:5107
+    controlPanelUrl: http://127.0.0.1:5109
   # Message types
   messageTypes:
     applicationState: application_state
