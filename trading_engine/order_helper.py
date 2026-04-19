@@ -154,7 +154,7 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
                 TradingLedger.add_to_list("signals", (symbol, f"NOT_ENOUGH_CAPITAL", df['high'].iloc[-1], df['date'].iloc[-1], f"NOT_ENOUGH_CAPITAL", 'YELLOW'))
                 continue
             order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='OPEN', symbol=symbol, side='long', unique_run_number=application_state.get('unique_run_number'), right= right)
-            await send_order(ib, option_contract, side='long', total_quantity=total_quantity, order_ref=order_ref)
+            await send_order(ib, option_contract, side='long', total_quantity=total_quantity, order_ref=order_ref, ib_account_id=app_config.get('ib_account_id'))
             data = {
                 'date': f'{date_utils.time_now()}',
                 'symbol': symbol,
@@ -344,9 +344,9 @@ def add_to_capital_allocation_df(application_state, data):
     return
 
 
-async def send_order(ib, contract, side='long', total_quantity=1, order_ref=None): #TODO move to utils ...
+async def send_order(ib, contract, side='long', total_quantity=1, order_ref=None, ib_account_id=None): #TODO move to utils ...
 
-    await ib_orders_async.submit_option_order_prequalified_contract(ib, q_contract=contract, side=side, total_quantity=total_quantity, order_ref=order_ref)
+    await ib_orders_async.submit_option_order_prequalified_contract(ib, q_contract=contract, side=side, total_quantity=total_quantity, order_ref=order_ref, ib_account_id=ib_account_id)
     # ib_orders_async.
     #
     # order = MarketOrder('BUY', totalQuantity=total_quantity)

@@ -37,6 +37,7 @@ from trading_engine import user_request_helper
 
 from trading_utils import position_router
 from trading_utils import user_request_router
+from trading_utils import ib_account
 
 from utils import atr_tolerance_helper
 
@@ -61,6 +62,8 @@ class TradingEngine:
                 logger.info(f"do_miscs ...")
                 application_state_router.populate_global_state(application_state=self.application_state)
                 self.application_state["eval_ctx"] = order_helper.create_eval_ctx(self.application_state)
+                if self.runtime.is_due("populate_ib_account_info", interval_sec=60 * 1):
+                    await populate_ib_account_info(ib, application_state)
 
                 await asyncio.sleep(interval_seconds)
             except Exception as e:
