@@ -53,7 +53,7 @@ class TradingEngine:
         self.market_data = MarketDataStore()
 
 
-    async def do_miscs(self, ib, application_state, interval_seconds=60):
+    async def do_miscs(self, ib, app_config, application_state, interval_seconds=60):
         while True:
             try:
                 if engine_cycle.should_exit(application_state=application_state):
@@ -63,7 +63,7 @@ class TradingEngine:
                 application_state_router.populate_global_state(application_state=self.application_state)
                 self.application_state["eval_ctx"] = order_helper.create_eval_ctx(self.application_state)
                 if self.runtime.is_due("populate_ib_account_info", interval_sec=60 * 1):
-                    await populate_ib_account_info(ib, application_state)
+                    await populate_ib_account_info(ib, application_state, app_config.get("ib_account_id", ""))
 
                 await asyncio.sleep(interval_seconds)
             except Exception as e:
@@ -304,7 +304,7 @@ class TradingEngine:
             contract_strikes_streamer.run(),
             quote_cache_streamer.run(),
             self.engine_loop(ib),
-            self.do_miscs(ib, self.application_state, interval_seconds=60),
+            self.do_miscs(ib, self.app_config, self.application_state, interval_seconds=60),
             # user_request_x.user_request_loop(self.app_config, self.application_state),
             self.boot.data_saver_manager.run(ib, interval_sec=60),
             user_request_loop.fetch_user_request_loop(self.app_config, self.application_state, interval_sec=5),
