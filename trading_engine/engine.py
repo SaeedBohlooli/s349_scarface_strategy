@@ -125,7 +125,7 @@ class TradingEngine:
                 if self.runtime.should_run_once("SUBSCRIBE_FOR_CURRENT_PRICE"):
                     await pricing_helper.subscribe_for_current_price(ib, self.app_config, self.application_state)
 
-                if self.runtime.is_due("PREPARE_OPTION_CONTRACTS_FOR_LATER_USE", interval_sec=60*5, min_time_hhmm=930):
+                if self.runtime.is_due("PREPARE_OPTION_CONTRACTS_FOR_LATER_USE", interval_sec=60*3, min_time_hhmm=930):
                     await options_helper.prepare_option_contracts_for_later_use(ib, self.app_config, self.application_state, self.market_data)
 
                 if not self.application_state['is_busy_time'] and self.runtime.is_due('DO_PNL', interval_sec=5*60): # TODO should be not busy_time?!
