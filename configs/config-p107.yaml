@@ -175,6 +175,9 @@ live:
   market_time: 930 < current_hh_mm_ny < 1559
   busy_time: 933 < current_hh_mm_ny < 1016 #don't chaneg this,  we are not saving anythng or any test ...
 
+options:
+  max_otm_strikes_to_try: 3
+
 chart:
   port: 51071
   #  source: live

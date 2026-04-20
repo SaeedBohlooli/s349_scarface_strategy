@@ -229,7 +229,9 @@ async def prepare_option_contract_for_later_use_for_symbol(ib, app_config, appli
         logger.info("@@@ prepare_option_contract_for_later_use_for_symbol, not enough otm options, so skip for later use.")
         return False
 
-    for i in [1,2,3,4,6]: # try first X otm strikes
+    max_otm_strikes_to_try = app_config.get('options', {}).get("max_otm_strikes_to_try", 3)
+
+    for i in range(1,max_otm_strikes_to_try + 1 ): # try first X otm strikes # try first X otm strikes
 
         if right == 'C':
             strike = otm_calls[i - 1]   # take the first X otm calls   0 , 1,
