@@ -165,7 +165,7 @@ live:
   max_exposure_per_trade: 2000
   max_exposure_for_all_trades: 10000 # not used
   capital_per_trade_percentage: 0.20 # not used
-  min_position_size: 6 #
+  min_position_size: 3 #
   min_contract_entry_price: 0.1
   min_contract_price: 0.8
   #  num_of_contracts: calculate_number_of_contracts()
