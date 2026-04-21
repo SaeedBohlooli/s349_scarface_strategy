@@ -95,7 +95,7 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
         market_trend = 'up' if can_buy else 'down' #
         right = 'C' if can_buy else 'P'
 
-        if not app_config['symbols_meta'][symbol]['can_trade']:
+        if do_check and not app_config['symbols_meta'][symbol]['can_trade']:
             logger.info(f"We are not trading {symbol}.")
             continue
         if do_check and not is_trade_time:
