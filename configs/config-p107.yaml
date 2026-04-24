@@ -157,7 +157,7 @@ pre_trade_checks:
   - x
 live:
   #  cases_to_run: ['case_2_1', 'case_4_1']
-  cases_to_run: ['case_2_2', 'case_4_2']
+  cases_to_run: ['case_2', 'case_4']
 #  cases_to_run: ["case_3"]
   historical_days: 4 D
 
@@ -226,7 +226,12 @@ indicators:
       active: true
       name: EMA_20
       calculation: df['close'].ewm(span=20, adjust=False).mean()
-
+    three:
+      active: true
+      calculation:
+        - df['ema_9'] = df['close'].ewm(span=20, adjust=False).mean()
+        - df['ema_21'] = df['close'].ewm(span=50, adjust=False).mean()
+        -
 
 child_configs:
   - config-manual-settings.yaml
