@@ -222,16 +222,25 @@ indicators:
       active: true
       name: EMA_9
       calculation: df['close'].ewm(span=9, adjust=False).mean()
-    two:
-      active: true
-      name: EMA_20
-      calculation: df['close'].ewm(span=20, adjust=False).mean()
-    three:
-      active: true
-      calculation:
-        - df['ema_9'] = df['close'].ewm(span=20, adjust=False).mean()
-        - df['ema_21'] = df['close'].ewm(span=50, adjust=False).mean()
-        -
+#    two:
+#      active: true
+#      name: EMA_20
+#      calculation: df['close'].ewm(span=20, adjust=False).mean()
+#    three:
+#      active: true
+#      name: EMA_50
+#      calculation: df['close'].ewm(span=50, adjust=False).mean()
+#    four:
+#      active: true
+#      name: VWAP
+#      calculation:  (((df["high"] + df["low"] + df["close"]) / 3) * df["volume"]).cumsum() / df["volume"].cumsum()
+
+#    three:
+#      active: true
+#      calculation:
+#        - df['ema_9'] = df['close'].ewm(span=20, adjust=False).mean()
+#        - df['ema_21'] = df['close'].ewm(span=50, adjust=False).mean()
+#        -
 
 child_configs:
   - config-manual-settings.yaml
