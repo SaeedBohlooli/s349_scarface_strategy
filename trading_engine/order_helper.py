@@ -65,6 +65,19 @@ def add_case_manual_order_to_buy_sell_case_results_list(application_state, symbo
 
     return buy_sell_case_results_list
 
+
+
+def add_entry_message_to_application_state(application_state, symbol, date, message):
+    try:
+        existing = application_state.setdefault('entry_signals', [])
+        # MAKE SURE IT IS UNIQUE ...
+        if not any(e['timestamp'] == date and e['symbol'] == symbol and e['message'] == message for e in existing):
+            existing.append({'timestamp': str(date), 'symbol': symbol, 'message': message})
+
+    except Exception as e:
+        logger.error(f"[add_entry_message_to_application_state] @@@@@@, {symbol}, e: {e}")
+
+
 async def check_buy_sell_result_to_send_order(ib, app_config, application_state, buy_sell_case_results_list, symbol, df, market_data, runtime):
 
     current_hh_mm_ny = date_utils.get_current_hhmm_ny() # used in config ...
@@ -123,10 +136,13 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
             logger.warning(f"@@  check_manual_conditions failed, {symbol}")
             if runtime.should_run_once(f"manual-condition-failed-{symbol}-{str(df['date'].iloc[-1])}"):
                 TradingLedger.add_to_list("signals", (symbol, f"MANUAL_CONDITION_FAILED", df['high'].iloc[-1], df['date'].iloc[-1], f"{case} - ", 'YELLOW'))
+                add_entry_message_to_application_state(symbol, str(df['date'].iloc[-1]), 'order is blocked by manual entry')
+
             continue
 
         if do_check and not check_xui_symbol_controls(app_config, application_state, symbol, right):
             logger.warning(f"@@  check_xui_symbol_controls failed, {symbol}")
+            add_entry_message_to_application_state(symbol, str(df['date'].iloc[-1]), 'order is blocked by xui')
             if runtime.should_run_once(f"check_xui_symbol_controls-failed-{symbol}-{str(df['date'].iloc[-1])}"):
                 TradingLedger.add_to_list("signals", (symbol, f"CHECK_XUI_SYMBOL_CONTROLS_FAILED", df['high'].iloc[-1], df['date'].iloc[-1], f"{case} - ", 'ORANGE'))
             continue
@@ -199,7 +215,7 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
             notification_helper.send_email(app_config, event='order_sent', symbol=symbol, body=json_utils.polish_map_to_show_in_hover(data))
             add_order_ref_to_application_state(application_state, open_order_ref=order_ref)
             add_open_order_to_capital_flow_df(data, capital_data)
-
+            add_entry_message_to_application_state(symbol, str(df['date'].iloc[-1]), 'order is sent')
         elif contract_type.lower() == 'future' and (can_buy or can_sell):
             right = 'long' if can_buy else 'short'
             side = 'long' if can_buy else 'short' # TODO need to be rmeoved ...
@@ -299,12 +315,17 @@ def check_xui_symbol_controls(app_config, application_state, symbol, right):
     #           call_enabled: true
     #           put_enabled: true
     #
-
-    right_enabled = "call_enabled" if right == 'C' else "put_enabled"
-    if app_config.get('xui_symbol_controls', {}).get("symbols",{}).get(symbol,{}).get(right_enabled, True) == True:
-        return True
-    else:
+    if app_config.get('xui_symbol_controls', {}).get("trading_enabled", True) == False:
         return False
+    if right == 'C' and app_config.get('xui_symbol_controls', {}).get("calls_enabled", True) == False:
+        return False
+    if right == 'P' and app_config.get('xui_symbol_controls', {}).get("puts_enabled", True) == False:
+        return False
+    right_enabled = "call_enabled" if right == 'C' else "put_enabled"
+    if app_config.get('xui_symbol_controls', {}).get("symbols",{}).get(symbol,{}).get(right_enabled, True) == False:
+        return False
+
+    return True
 
 
 def check_manual_conditions(app_config, application_state, symbol, right):
