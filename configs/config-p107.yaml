@@ -214,33 +214,59 @@ health_check:
   email_hours: 920 < current_hh_mm_ny < 1030
   email_recipients: saeed.bx1@yahoo.com
   email_interval_minutes: 10
-
+#
 indicators:
   calculation_interval_seconds: 60
-  indicators:
-    one:
-      active: true
-      name: EMA_9
-      calculation: df['close'].ewm(span=9, adjust=False).mean()
-#    two:
-#      active: true
-#      name: EMA_20
-#      calculation: df['close'].ewm(span=20, adjust=False).mean()
-#    three:
-#      active: true
-#      name: EMA_50
-#      calculation: df['close'].ewm(span=50, adjust=False).mean()
-#    four:
-#      active: true
-#      name: VWAP
-#      calculation:  (((df["high"] + df["low"] + df["close"]) / 3) * df["volume"]).cumsum() / df["volume"].cumsum()
-
-#    three:
-#      active: true
-#      calculation:
-#        - df['ema_9'] = df['close'].ewm(span=20, adjust=False).mean()
-#        - df['ema_21'] = df['close'].ewm(span=50, adjust=False).mean()
-#        -
+  details:
+      one:
+        active: true
+        names:
+        - EMA_9
+        calculation: |
+          df['EMA_9'] = df['close'].ewm(span=9, adjust=False).mean()
+#      two:
+#        active: true
+#        names:
+#        - EMA_20
+#        calculation: |
+#          df['EMA_20'] = df['close'].ewm(span=20, adjust=False).mean()
+#      three:
+#        active: true
+#        names:
+#        - EMA_50
+#        calculation: |
+#          df['EMA_50'] = df['close'].ewm(span=50, adjust=False).mean()
+#      four:
+#        active: true
+#        names:
+#        - VWAP
+#        memo: Session Volume Weighted Average Price
+#        calculation: |
+#          df['_tp']     = (df['high'] + df['low'] + df['close']) / 3
+#          df['_tp_vol'] = df['_tp'] * df['volume']
+#          df['_date']   = df.date
+#          df['VWAP']    = (df.groupby('_date')['_tp_vol'].transform('cumsum') /
+#                           df.groupby('_date')['volume'].transform('cumsum'))
+#          df.drop(columns=['_tp', '_tp_vol', '_date'], inplace=True)
+#      five:
+#        active: true
+#        names:
+#        - EMA_9_slope_pct
+#        - EMA_20_slope_pct
+#        - EMA_50_slope_pct
+#        - EMA_9_direction
+#        - EMA_20_direction
+#        - EMA_50_direction
+#
+#        memo: slope_period controls how many bars back to compare — 3 bars on 1m = ~3 min lag
+#        calculation: |
+#          slope_period = 3
+#          threshold    = 0.02          # % — below this = flat
+#          for col in ['EMA_9', 'EMA_20', 'EMA_50']:
+#              slope = (df[col] - df[col].shift(slope_period)) / df[col].shift(slope_period) * 100
+#              df[f'{col}_slope_pct'] = slope
+#              df[f'{col}_direction'] = np.where(slope >  threshold, 'up',
+#                                      np.where(slope < -threshold, 'down', 'flat'))
 
 child_configs:
   - config-manual-settings.yaml
