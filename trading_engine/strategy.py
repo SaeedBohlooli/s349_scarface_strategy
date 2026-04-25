@@ -155,7 +155,9 @@ def compute_indicators(app_config, application_state, symbol, df):
     if RuntimeManager.is_due(f"compute_x_indicators-{symbol}",
                              interval_sec=app_config.get('indicators', {}).get('calculation_interval_seconds', 60),
                              min_time_hhmm=930):
-        compute_x_indicators(app_config,application_state,symbol,df)
+        df = compute_x_indicators(app_config,application_state,symbol,df)
+        logger.info(f"compute_x_indicators: \n {df[-4:].to_markdown()}")
+    return df
 
 
 def compute_x_indicators(app_config, application_state, symbol, df):
@@ -171,7 +173,7 @@ def compute_x_indicators(app_config, application_state, symbol, df):
             last = df[name].iloc[-1]
             application_state['levels'].setdefault(symbol, {})[name] = round(last,2)
 
-    return
+    return df
 
 def compute_only_indicators(app_config, application_state, symbol, df):
         df = df.copy()
