@@ -48,7 +48,7 @@ watchdog:
   health:
     # Enable / disable individual checks
     components:
-      process: true
+      process: False
       port: False
       api: False
       heartbeat: true
