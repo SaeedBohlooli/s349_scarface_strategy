@@ -220,7 +220,7 @@ indicators:
   details:
       one:
         active: true
-        names:
+        outputs_in_application_state:
         - EMA_9
         calculation: |
           df['EMA_9'] = df['close'].ewm(span=9, adjust=False).mean()

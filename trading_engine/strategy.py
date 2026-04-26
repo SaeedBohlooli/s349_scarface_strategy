@@ -9,6 +9,7 @@ import pandas as pd
 from trading_core.trading_ledger import TradingLedger
 from trading_engine import chart_helper
 from trading_utils import number_utils
+from trading_utils import indicators_util
 from trading_core.runtime_manager import RuntimeManager
 
 logger = logging.getLogger(__name__)
@@ -161,74 +162,13 @@ def compute_indicators(app_config, application_state, symbol, df):
     if RuntimeManager.is_due(f"compute_technical_indicators-{symbol}",
                              interval_sec=app_config.get('indicators', {}).get('calculation_interval_seconds', 60),
                              min_time_hhmm=130):
-        df = compute_technical_indicators(app_config, application_state, symbol, df)
+        df = indicators_util.compute_technical_indicators(app_config, application_state, symbol, df)
         logger.info(f"compute_technical_indicators: \n {df[-4:].to_markdown()}")
     return df
 
 
-def compute_technical_indicators(app_config, application_state, symbol, df):
 
-    df = df.copy()
 
-    # Process each indicator
-    for key, indic in app_config.get('indicators', {}).get('details', {}).items():
-        try:
-            logger.debug(f"[compute_technical_indicators] Processing indicator key: {key}")
-            
-            # Extract fields
-            active = indic.get('active', False)
-            names = indic.get('names')
-            calculation = indic.get('calculation')
-            
-            logger.debug(f"[compute_technical_indicators] {key}: active={active} ")
-            
-            # Skip if not active
-            if not active:
-                logger.debug(f"[compute_technical_indicators] Skipping (not active)")
-                continue
-            if not calculation:
-                logger.error(f"[compute_technical_indicators] Indicator  missing 'calculation' field")
-                continue
-            
-            # Compute indicator
-            logger.info(f"[compute_technical_indicators] Computing for {symbol}")
-
-            # Create local context - copy all local variables
-            local_ctx = locals().copy()
-            
-            logger.debug(f"[compute_technical_indicators] Execution context: FULL unrestricted access (globals + locals)")
-            
-            # Execute calculation (supports both single-line eval and multi-line code)
-            logger.info(f"[compute_technical_indicators] Executing multi-line calculation")
-            exec(calculation, globals(), local_ctx)
-            df = local_ctx['df']
-
-            for n in names:
-                logger.info(f"pulling {n}")
-                last = df[n].iloc[-1]
-                if isinstance(last, (int, float)):
-                    last = round(float(last), 2)
-                application_state.setdefault('indicators',{}).setdefault(symbol, {})[n] =  last
-
-            # Log created columns
-            logger.info(f"[compute_technical_indicators] Indicator completed successfully")
-            
-
-        except Exception as e:
-            logger.error(f"[compute_technical_indicators] Error processing indicator {key}: {e}")
-            import traceback
-            logger.error(f"[compute_technical_indicators] Traceback: {traceback.format_exc()}")
-            continue
-    
-    logger.debug(f"[compute_technical_indicators] Completed for {symbol}")
-    return df
-
-def compute_only_indicators(app_config, application_state, symbol, df):
-        df = df.copy()
-        df['EMA9'] = df['close'].ewm(span=9, adjust=False).mean()
-        last_ema9 = df['EMA9'].iloc[-1]
-        application_state['levels'].setdefault(symbol, {})['EMA9'] = last_ema9
-        logger.debug(f"EMA9 for {symbol}: {last_ema9}")
 
 
 
