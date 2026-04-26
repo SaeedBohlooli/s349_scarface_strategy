@@ -194,13 +194,13 @@ cases:
       level: levels['5MH']
       level_alias: "5MH"
       cores:
-        - symbol == 'AMD' and 1 == 1
+        - symbol == 'AMD' and 1 == 2
       extras:
         - 1 == 1
     short:
       level: levels['PDL']
-      level_alias: "PDL"
+      level_alias: "5ML"
       cores:
-        - symbol == 'TSLA' and 1 == 1
+        - symbol == 'TSLA' and 1 == 2
       extras:
         - 1 == 1
