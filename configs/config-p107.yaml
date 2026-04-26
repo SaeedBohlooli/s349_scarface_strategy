@@ -226,19 +226,19 @@ indicators:
           df['EMA_9'] = df['close'].ewm(span=9, adjust=False).mean()
 #      two:
 #        active: true
-#        names:
+#        outputs_in_application_state:
 #        - EMA_20
 #        calculation: |
 #          df['EMA_20'] = df['close'].ewm(span=20, adjust=False).mean()
 #      three:
 #        active: true
-#        names:
+#        outputs_in_application_state:
 #        - EMA_50
 #        calculation: |
 #          df['EMA_50'] = df['close'].ewm(span=50, adjust=False).mean()
-#      four:
+#      outputs_in_application_state:
 #        active: true
-#        names:
+#        outputs_in_application_state:
 #        - VWAP
 #        memo: Session Volume Weighted Average Price
 #        calculation: |
@@ -250,7 +250,7 @@ indicators:
 #          df.drop(columns=['_tp', '_tp_vol', '_date'], inplace=True)
 #      five:
 #        active: true
-#        names:
+#        outputs_in_application_state:
 #        - EMA_9_slope_pct
 #        - EMA_20_slope_pct
 #        - EMA_50_slope_pct
