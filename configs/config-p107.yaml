@@ -217,6 +217,7 @@ health_check:
 #
 indicators:
   calculation_interval_seconds: 60
+  print_last_few_rows: True
   details:
       one:
         active: true
