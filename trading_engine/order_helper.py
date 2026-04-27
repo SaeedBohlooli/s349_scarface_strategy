@@ -136,13 +136,13 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
             logger.warning(f"@@  check_manual_conditions failed, {symbol}")
             if runtime.should_run_once(f"manual-condition-failed-{symbol}-{str(df['date'].iloc[-1])}"):
                 TradingLedger.add_to_list("signals", (symbol, f"MANUAL_CONDITION_FAILED", df['high'].iloc[-1], df['date'].iloc[-1], f"{case} - ", 'YELLOW'))
-                add_entry_message_to_application_state(symbol, str(df['date'].iloc[-1]), 'order is blocked by manual entry')
+                add_entry_message_to_application_state(application_state, symbol, str(df['date'].iloc[-1]), 'order is blocked by manual entry')
 
             continue
 
         if do_check and not check_xui_symbol_controls(app_config, application_state, symbol, right):
             logger.warning(f"@@  check_xui_symbol_controls failed, {symbol}")
-            add_entry_message_to_application_state(symbol, str(df['date'].iloc[-1]), 'order is blocked by xui')
+            add_entry_message_to_application_state(application_state, symbol, str(df['date'].iloc[-1]), 'order is blocked by xui')
             if runtime.should_run_once(f"check_xui_symbol_controls-failed-{symbol}-{str(df['date'].iloc[-1])}"):
                 TradingLedger.add_to_list("signals", (symbol, f"CHECK_XUI_SYMBOL_CONTROLS_FAILED", df['high'].iloc[-1], df['date'].iloc[-1], f"{case} - ", 'ORANGE'))
             continue
@@ -215,7 +215,7 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
             notification_helper.send_email(app_config, event='order_sent', symbol=symbol, body=json_utils.polish_map_to_show_in_hover(data))
             add_order_ref_to_application_state(application_state, open_order_ref=order_ref)
             add_open_order_to_capital_flow_df(data, capital_data)
-            add_entry_message_to_application_state(symbol, str(df['date'].iloc[-1]), 'order is sent')
+            add_entry_message_to_application_state(application_state, symbol, str(df['date'].iloc[-1]), 'order is sent')
         elif contract_type.lower() == 'future' and (can_buy or can_sell):
             right = 'long' if can_buy else 'short'
             side = 'long' if can_buy else 'short' # TODO need to be rmeoved ...
