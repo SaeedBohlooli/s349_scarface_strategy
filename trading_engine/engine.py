@@ -59,16 +59,18 @@ class TradingEngine:
                 if engine_cycle.should_exit(application_state=application_state):
                     logger.info("[do_miscs] Exiting as requested.")
                     break
-                logger.info(f"do_miscs ...")
+                logger.info(f"[do_miscs]  ...")
                 application_state_router.populate_global_state(application_state=self.application_state)
                 self.application_state["eval_ctx"] = order_helper.create_eval_ctx(self.application_state)
                 if self.runtime.is_due("populate_ib_account_info", interval_sec=60 * 1):
                     await populate_ib_account_info(ib, application_state, app_config.get("ib_account_id", ""))
+                    if self.application_state.get("global_state.subscribed_symbols_count") > 70:
+                        application_state_router.add_audit_message(application_state, f"Subscribed symbols count is {self.application_state.get('global_state.subscribed_symbols_count')}, which is quite high. ")
 
                 await asyncio.sleep(interval_seconds)
             except Exception as e:
-                logger.warning(f"@@@ Unexpected error in do_miscs: {e}")
-                logger.error(f"@@@ error: {traceback.format_exc()}" )
+                logger.warning(f"[do_miscs] @@@ Unexpected error in do_miscs: {e}")
+                logger.error(f"[do_miscs] @@@ error: {traceback.format_exc()}" )
                 await asyncio.sleep(interval_seconds)
 
     async def engine_loop(self, ib):
@@ -105,7 +107,7 @@ class TradingEngine:
                 unique_run_number_X =  self.runtime.generate_unique_run_number(run_number)
                 day_of_week = self.runtime.now_day_of_week()
                 symbol_number = 0
-                logger.info(f"==================== run_number: {run_number}, unique_run_number_X: {unique_run_number_X}")
+                logger.info(f"[engine] ==================== run_number: {run_number}, unique_run_number_X: {unique_run_number_X}")
                 self.runtime.reload_runtime_config()
                 application_state_helper.initialize_application_state_for_run(self.app_config, self.application_state)
 
@@ -114,7 +116,7 @@ class TradingEngine:
                     break
 
                 if ib is None:
-                    logger.warning("ib is None... so give a try to reconnect ...")
+                    logger.warning("[engine] ib is None... so give a try to reconnect ...")
                     await asyncio.sleep(3)
                     continue
 
@@ -143,7 +145,7 @@ class TradingEngine:
                     symbol_number += 1
                     unique_run_number = f'{unique_run_number_X}-{symbol_number}'
                     self.application_state['unique_run_number'] = unique_run_number
-                    logger.warning(f"------------------- {symbol}, {unique_run_number}, {current_hh_mm_ny} ")
+                    logger.warning(f"[engine] ------------------- {symbol}, {unique_run_number}, {current_hh_mm_ny} ")
                     symbol_start_time = time.time()
 
                     application_state_helper.initialize_application_state_for_symbol_run(self.app_config, self.application_state)
@@ -155,17 +157,17 @@ class TradingEngine:
                             current_price = -1.0
                         self.application_state.setdefault('latest_prices', {})[symbol] = current_price
 
-                    logger.info(f"Starting get_historical_data for {symbol}")
+                    logger.info(f"[engine] Starting get_historical_data for {symbol}")
                     df = await marketdata_helper.get_historical_data(ib, symbol, self.app_config, self.application_state, time_frame='1m', historical_days='3 D')
-                    logger.info(f"Finished get_historical_data for {symbol}")
+                    logger.info(f"[engine] Finished get_historical_data for {symbol}")
                     if df is None or len(df) ==0:
-                        logger.warning(f"@@@@@ {symbol}, no data found, skip the symbol for now ...")
+                        logger.warning(f"[engine] @@@@@ {symbol}, no data found, skip the symbol for now ...")
                         continue
                     df = inidicators.popualate_features(df)
                     df = inidicators.populate_volume_ratio(df)
                     self.market_data.dfs_map[symbol] = df
                     if self.application_state['is_save_time']:
-                        logger.info(f"{symbol}, df: \n{df[-4:].to_markdown()}")
+                        logger.info(f"[engine] {symbol}, df: \n{df[-4:].to_markdown()}")
 
                     qqq_df = self.market_data.dfs_map.get('QQQ')
                     relative_strength_df = inidicators.compute_relative_strength(df, qqq_df, period=20) # TODO do we need this
@@ -207,7 +209,7 @@ class TradingEngine:
                     if are_all_levels_in and self.runtime.should_run_once(f'{symbol}-CLOSED-LEVELS-MARKED'):  # we have all elvels, so mark them ...
                         chart_helper.mark_close_levels(self.app_config, self.application_state, symbol, df)
 
-                    logger.debug(f"After levels {symbol}, df: \n{df[-4:].to_markdown()}")
+                    logger.debug(f"[engine] After levels {symbol}, df: \n{df[-4:].to_markdown()}")
 
                     buy_sell_case_results_list = scanner.check_buy_and_sell_cases(ib, self.app_config, self.application_state, symbol, self.market_data)
                     buy_sell_case_results_list = order_helper.add_case_manual_order_to_buy_sell_case_results_list(self.application_state, symbol, buy_sell_case_results_list)
@@ -228,7 +230,7 @@ class TradingEngine:
 
                     symbol_end_time = time.time()
                     symbol_run_spend_time = round(symbol_end_time - symbol_start_time, 2)
-                    logger.warning(f'------------------- {symbol}, {unique_run_number}, symbol_run_spend_time: {symbol_run_spend_time} seconds')
+                    logger.warning(f'[engine]------------------- {symbol}, {unique_run_number}, symbol_run_spend_time: {symbol_run_spend_time} seconds')
                     self.application_state.setdefault("run_times", {})[symbol] = symbol_run_spend_time
 
                     # end while for symbols
@@ -250,25 +252,25 @@ class TradingEngine:
 
                 end_time = time.time()
                 run_time_spent = round(end_time - start_time, 2)
-                logger.warning(f"==================== unique_run_number: {unique_run_number}, run_spent_time: {run_time_spent} seconds, sleep ... {self.app_config['interval_seconds']['engine_loop']}")
+                logger.warning(f"[engine] ==================== unique_run_number: {unique_run_number}, run_spent_time: {run_time_spent} seconds, sleep ... {self.app_config['interval_seconds']['engine_loop']}")
                 self.application_state.setdefault("run_times", {})['engine_loop_run_time_spent'] = run_time_spent
 
             except Exception as e:
-                logger.warning(f"@@@ Unexpected error in engine_loop: {e}")
-                logger.error(f"@@@ error: {traceback.format_exc()}" )
+                logger.warning(f"[engine] @@@ Unexpected error in engine_loop: {e}")
+                logger.error(f"[engine] @@@ error: {traceback.format_exc()}" )
                 application_state_router.add_audit_message(self.application_state, str(e))
 
             await asyncio.sleep(self.app_config['interval_seconds']['engine_loop'])
 
 
     async def run(self):
-        logger.info("Starting Trading Engine")
+        logger.info("[engine] Starting Trading Engine")
         ib = await IBConnector.connect_from_config(self.app_config)
 
         ws_server = await self.ws.start()
 
         # Keep existing application_state cadence unchanged unless explicitly configured.
-        state_interval_sec = self.app_config.get("interval_seconds", {}).get("application_state_streamer", 5)
+        state_interval_sec = self.app_config.get("interval_seconds", {}).get("application_state_streamer", 2)
         state_streamer = StateStreamer(self.app_config, self.application_state, self.ws, interval_sec=state_interval_sec)
         config_streamer = ConfigStreamer(self.app_config, self.application_state, self.ws, interval_sec=60)
         open_trades_interval_sec = self.app_config.get("interval_seconds", {}).get("open_trades_streamer", 1)
@@ -294,7 +296,7 @@ class TradingEngine:
             interval_sec=quote_cache_interval_sec,
         )
 
-        self.logger.info("WebSocket server is starting...")
+        self.logger.info("[engine] WebSocket server is starting...")
 
         await asyncio.gather(
             ws_server,

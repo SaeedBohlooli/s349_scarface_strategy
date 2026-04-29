@@ -24,12 +24,12 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
     try:
         df = market_data.dfs_map.get(symbol)
         if df is None:
-            logger.warning(f"check_buy_sell_condition, no market data for symbol: {symbol}")
+            logger.warning(f"[check_buy_sell_condition], no market data for symbol: {symbol}")
             return None
         precondition = app_config['cases'][case]['precondition']
         precondition_eval = eval(precondition)
         if not precondition_eval:
-            logger.warning(f"check_buy_sell_condition, precondition not met for case: {case}, symbol: {symbol}, precondition: {precondition}")
+            logger.warning(f"[check_buy_sell_condition], precondition not met for case: {case}, symbol: {symbol}, precondition: {precondition}")
             return None
         levels = application_state['levels'][symbol] # used in config
 
@@ -44,25 +44,25 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
         price = df['close'].iloc[-1]  # used in config
         atr_14 = df['atr_14'].iloc[-2]  # used in config
 
-        logger.debug(f"in check_buy_sell_condition, levels: {levels}")
+        logger.debug(f"[check_buy_sell_condition], levels: {levels}")
         evaluated_conditions_map = {}
         for side in ['long', 'short']:
             level_alias = app_config['cases'][case][side]['level_alias'] # used in config
             c_i = 0
             for condition in app_config['cases'][case][side]['cores']:
                 c_i = c_i + 1
-                logger.info(f"{c_i}) in check_buy_sell_condition, {symbol}, case: {case}, side: {side}, condition: {condition} ")
+                logger.info(f"[check_buy_sell_condition] {c_i}), {symbol}, case: {case}, side: {side}, condition: {condition} ")
                 evaluated = eval(condition)
-                logger.info(f"{c_i}) in check_buy_sell_condition, {symbol}, case: {case}, side: {side}, evaluated: {evaluated},  condition: {condition} ")
+                logger.info(f"[check_buy_sell_condition] {c_i}), {symbol}, case: {case}, side: {side}, evaluated: {evaluated},  condition: {condition} ")
                 evaluated_conditions_map.setdefault(side, {}).setdefault('valuated_conditions',[]).append(evaluated)
                 evaluated_conditions_map.setdefault(side, {}).setdefault('valuated_conditions_cores',[]).append(evaluated)
                 
             
             for condition in app_config['cases'][case][side].get('extras', []):
                 c_i = c_i + 1
-                logger.info(f"{c_i}) in check_buy_sell_condition, {symbol}, case: {case}, side: {side}, condition: {condition} ")
+                logger.info(f"[check_buy_sell_condition] {c_i}), {symbol}, case: {case}, side: {side}, condition: {condition} ")
                 evaluated = eval(condition)
-                logger.info(f"{c_i}) in check_buy_sell_condition, {symbol}, case: {case}, side: {side}, evaluated: {evaluated},  condition: {condition} ")
+                logger.info(f"[check_buy_sell_condition] {c_i}), {symbol}, case: {case}, side: {side}, evaluated: {evaluated},  condition: {condition} ")
                 evaluated_conditions_map.setdefault(side, {}).setdefault('valuated_conditions',[]).append(evaluated)
                 evaluated_conditions_map.setdefault(side, {}).setdefault('valuated_conditions_extras',[]).append(evaluated)
 
@@ -77,9 +77,9 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
         if all(evaluated_conditions_map.get('short', {}).get('valuated_conditions_cores', [])):
             can_sell_cores = True
 
-        logger.info(f"check_buy_sell_condition(), {case}, {symbol}, {can_buy}, {can_sell}")
-        logger.info(f"check_buy_sell_condition(), {case}, {symbol}, can_buy: {can_buy}, ")
-        logger.info(f"check_buy_sell_condition(), {case}, {symbol}, can_sell: {can_sell}")
+        logger.info(f"[check_buy_sell_condition] {case}, {symbol}, {can_buy}, {can_sell}")
+        logger.info(f"[check_buy_sell_condition] {case}, {symbol}, can_buy: {can_buy}, ")
+        logger.info(f"[check_buy_sell_condition] {case}, {symbol}, can_sell: {can_sell}")
 
         long_breakout_idxs = get_break_out_indices_by_level_set(application_state, symbol, long_level)
         long_retest_idxs = get_retest_indices_by_level_set(application_state, symbol, long_level)
@@ -97,11 +97,11 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
         long_retest_idx = get_retest_idx(application_state, symbol, long_level)
         short_retest_idx = get_retest_idx(application_state, symbol, short_level)
 
-        logger.info(f"check_buy_sell_condition(), breakout_idxs, {case}, {symbol}, can_buy: {long_breakout_idxs}, {long_retest_idxs}")
-        logger.info(f"check_buy_sell_condition(), breakout_idxs, {case}, {symbol}, can_sell: {short_breakout_idxs}, {short_retest_idxs}")
+        logger.info(f"[check_buy_sell_condition] breakout_idxs, {case}, {symbol}, can_buy: {long_breakout_idxs}, {long_retest_idxs}")
+        logger.info(f"[check_buy_sell_condition] breakout_idxs, {case}, {symbol}, can_sell: {short_breakout_idxs}, {short_retest_idxs}")
 
-        logger.info(f"check_buy_sell_condition(), idx, {case}, {symbol}, can_buy: {long_breakout_idx}, {long_retest_idx}")
-        logger.info(f"check_buy_sell_condition(), idx, {case}, {symbol}, can_sell: {short_breakout_idx}, {short_retest_idx}")
+        logger.info(f"[check_buy_sell_condition] idx, {case}, {symbol}, can_buy: {long_breakout_idx}, {long_retest_idx}")
+        logger.info(f"[check_buy_sell_condition] idx, {case}, {symbol}, can_sell: {short_breakout_idx}, {short_retest_idx}")
 
         # This is shown in the chart ..
         res_str = (f"res_{case}:<br>"
@@ -123,7 +123,7 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
         }
 
     except Exception as e:
-        logger.error(f"@ in check_buy_sell_condition: {symbol} {case} error {e}")
+        logger.error(f"[check_buy_sell_condition] @@ {symbol} {case} error {e}")
         logger.error(traceback.format_exc())
         res_str = f'res_{case}'
     details_map = {
@@ -587,8 +587,8 @@ def is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, d
     clipped_df = df[breakout_idx:]
     highest_high = clipped_df['high'].max()
     lowest_low = clipped_df['low'].min()
-    logger.info(f"is_price_close_to_next_levels_ver_2, {symbol}, price: side: {side}, {price}, current_level: {current_level}, next_levels:{next_levels}, breakout_idx: {breakout_idx} ,date: {df['date'].iloc[-1]}")
-    logger.info(f"is_price_close_to_next_levels_ver_2, clipped_df: \n{clipped_df[-4:].to_markdown()}")
+    logger.info(f"[is_price_close_to_next_levels_ver_2], {symbol}, price: side: {side}, {price}, current_level: {current_level}, next_levels:{next_levels}, breakout_idx: {breakout_idx} ,date: {df['date'].iloc[-1]}")
+    # logger.info(f"[is_price_close_to_next_levels_ver_2], clipped_df: \n{clipped_df[-4:].to_markdown()}")
 
     for key in next_levels:
         next_level = levels_map.get(key, None)

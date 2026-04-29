@@ -20,36 +20,39 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
     symbols_need_to_be_removed = [] # we dont remove in the loop ..
 
     for symbol, open_trade_info in application_state.get('open_trades_dic', {}).items():
-        logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, open order unique_ru_number: {open_trade_info.get('unique_run_number')}" )
+        logger.info(f"[check_for_stop_loss_and_take_profit], symbol {symbol}, open order unique_ru_number: {open_trade_info.get('unique_run_number')}" )
 
         # ###
         # stop loss
         # ###
         if not application_state.get('is_save_time'):
-            logger.info(f"in check_for_stop_loss, {symbol} , {open_trade_info}" )
+            logger.info(f"[check_for_stop_loss_and_take_profit] , {symbol} , {open_trade_info}" )
             #json_utils.print_map_pretty(open_trade_info)
 
         if open_trade_info.get('available_quantity', 0) == 0:
-            logger.info(f"{symbol}, check_for_stop_loss_and_take_profit(), available_quantity: 0")
+            logger.info(f"[check_for_stop_loss_and_take_profit] {symbol}, available_quantity: 0")
             continue
 
         symbol_df = market_data.dfs_map.get(symbol, pd.DataFrame())
         if symbol_df is None or len(symbol_df) == 0:
-            logger.warning(f"@@@ check_for_stop_loss_and_take_profit(), symbol_df is None or len==0 , {symbol}")
+            logger.warning(f"[check_for_stop_loss_and_take_profit] @@@  symbol_df is None or len==0 , {symbol}")
             continue
         try:
             seconds_since_last_record = date_utils.seconds_passed_since_last_record(symbol_df)
-            logger.info(f"@ check_for_stop_loss_and_take_profit(), symbol: {symbol}, seconds_since_last_record: {seconds_since_last_record}")
+            logger.info(f"[check_for_stop_loss_and_take_profit] @ symbol: {symbol}, seconds_since_last_record: {seconds_since_last_record}")
             if seconds_since_last_record > 65:
-                logger.warning(f"@@@ check_for_stop_loss_and_take_profit(), {symbol}, seconds_since_last_record: {seconds_since_last_record}")
-                logger.info(f"@@@ check_for_stop_loss_and_take_profit(), symbol_df[-1:]\n {symbol_df[-1:].to_markdown()}")
+                logger.warning(f"[check_for_stop_loss_and_take_profit] @@@ {symbol}, seconds_since_last_record: {seconds_since_last_record}")
+                logger.info(f"[check_for_stop_loss_and_take_profit] @@@ , symbol_df[-1:]\n {symbol_df[-1:].to_markdown()}")
                 continue
         except Exception as e:
-            logger.error(f"@@@@@@ check_for_stop_loss_and_take_profit(), error in date check , {symbol}, e: {e}")
+            logger.error(f"[check_for_stop_loss_and_take_profit] @@@@@@ , error in date check , {symbol}, e: {e}")
 
         # TODO check date to make sure that the data is not old
         entry_underlying_price = float(open_trade_info.get('entry_underlying_price', -1))  # used in config ...
         avg_cost_for_1_contract = open_trade_info.get('avg_cost_for_1_contract', -1) # used in config
+        if avg_cost_for_1_contract == 0:
+            avg_cost_for_1_contract = open_trade_info.get('entry_ask')  # TOD is better to get entry_execution_price
+
         case = open_trade_info.get('case') #
         right = application_state['open_trades_dic'][symbol].get('right', '') # used in config
         side = application_state['open_trades_dic'][symbol].get('side') # used in config
@@ -80,7 +83,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
 
         # TODO handle Future ...
         if not number_utils.is_valid_price(current_bid) or not number_utils.is_valid_price(current_ask):
-            logger.warning(f"@@@ check_for_stop_loss_and_take_profit(), symbol: {symbol}, current_bid or current_ask is invalid, current_bid: {current_bid}, current_ask: {current_ask}")
+            logger.warning(f"[check_for_stop_loss_and_take_profit] @@@  symbol: {symbol}, current_bid or current_ask is invalid, current_bid: {current_bid}, current_ask: {current_ask}")
             continue
 
         # update app status ...
@@ -107,17 +110,17 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
             application_state['open_trades_dic'][symbol]['current_roi'] = round(application_state['open_trades_dic'][symbol]['current_underlying_price'] / application_state['open_trades_dic'][symbol].get('entry_underlying_price', 1) - 1, 3)
 
 
-        logger.info(f"level_used_to_open: {level_used_to_open}, entry_underlying_price: {entry_underlying_price}, "
+        logger.info(f"[check_for_stop_loss_and_take_profit], level_used_to_open: {level_used_to_open}, entry_underlying_price: {entry_underlying_price}, "
                     f"underlying_current_price:, {underlying_current_price}, underlying_previous_candle_close: {underlying_previous_candle_close} ,tolerance_amount: {tolerance_amount}")
-        logger.info(f"current_bid: {current_bid}, current_ask: {current_ask}, avg_cost_for_1_contract: {avg_cost_for_1_contract}")
+        logger.info(f"[check_for_stop_loss_and_take_profit], current_bid: {current_bid}, current_ask: {current_ask}, avg_cost_for_1_contract: {avg_cost_for_1_contract}")
         stop_loss_condition_evaluated = False
         for stop_loss_condition in app_config.get('stop_losses', []):
             if stop_loss_condition_evaluated:
-                logger.info(f"Already evalauted, so skip, stop_loss_condition_evaluated: {stop_loss_condition_evaluated}")
+                logger.info(f"[check_for_stop_loss_and_take_profit], Already evalauted, so skip, stop_loss_condition_evaluated: {stop_loss_condition_evaluated}")
                 break
             stop_loss_condition_evaluated = eval(stop_loss_condition)
 
-            logger.info(f"symbol {symbol}, stop_loss_condition: {stop_loss_condition}, stop_loss_condition_evaluated: {stop_loss_condition_evaluated}")
+            logger.info(f"[check_for_stop_loss_and_take_profit], symbol {symbol}, stop_loss_condition: {stop_loss_condition}, stop_loss_condition_evaluated: {stop_loss_condition_evaluated}")
 
             if stop_loss_condition_evaluated:
                 logger.warning(f"{symbol} SL condition met ... {stop_loss_condition}")
@@ -181,17 +184,17 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
         order_closed_by_tp = False
 
         for take_profit_lable in app_config['take_profits']:
-            logger.info(f"check_for_stop_loss_and_take_profit(), symbol {symbol}, take_profit_lable: {take_profit_lable}")
+            logger.info(f"[check_for_stop_loss_and_take_profit], symbol {symbol}, take_profit_lable: {take_profit_lable}")
             if tp_is_enabled == False:
                 logger.info("tp_is_enabled is False. so no check ...ymbol {symbol}")
                 continue
 
             if application_state['open_trades_dic'].get(symbol,{}).get('available_quantity',0) == 0:
-                logger.info(f"{symbol}, {take_profit_lable}, check_for_stop_loss_and_take_profit(), available_quantity is 0 ")
+                logger.info(f"[check_for_stop_loss_and_take_profit] {symbol}, {take_profit_lable}, available_quantity is 0 ")
                 continue
 
             if application_state['open_trades_dic'][symbol].get('take_profits',{}).get(take_profit_lable,None ) is not None:
-                logger.info(f"{symbol}, TP already is executed ... {take_profit_lable}")
+                logger.info(f"[check_for_stop_loss_and_take_profit], {symbol}, TP already is executed ... {take_profit_lable}")
                 continue
             take_profit_condition = app_config['take_profits'][take_profit_lable].get('condition', '1 == 2')
             close_quantity_percentage = app_config['take_profits'][take_profit_lable].get('close_quantity_percentage', 0)

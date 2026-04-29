@@ -12,6 +12,7 @@ api_service:
 
 interval_seconds:
   engine_loop: .1
+  application_state_streamer: 3
   open_trades_streamer: 1
   contract_strikes_streamer: 1
   contract_strikes_force_emit: 15

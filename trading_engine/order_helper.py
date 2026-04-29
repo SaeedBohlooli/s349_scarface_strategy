@@ -11,6 +11,7 @@ from trading_utils import ib_orders_async
 from trading_utils import ib_contract
 from trading_utils import json_utils
 from trading_utils import number_utils
+from trading_core import application_state_router
 
 from trading_core.trading_ledger import TradingLedger
 
@@ -27,7 +28,7 @@ def add_case_manual_order_to_buy_sell_case_results_list(application_state, symbo
         case = "case_manual"
         symbol = user_request.get('symbol')
         if symbol != symbol_app_process:
-            logger.info(f"@@  [add_case_manual_order_to_buy_sell_case_results_list] skipping ...symbol:{symbol}, symbol_app_process: {symbol_app_process}, user_request:{user_request}")
+            logger.info(f"[add_case_manual_order_to_buy_sell_case_results_list] @@ skipping ...symbol:{symbol}, symbol_app_process: {symbol_app_process}, user_request:{user_request}")
             continue
         logger.info(f"[add_case_manual_order_to_buy_sell_case_results_list], processing user request for manual order, symbol:{symbol}, user_request:{user_request}")
         quantity = int(user_request.get('quantity', 0))
@@ -68,14 +69,11 @@ def add_case_manual_order_to_buy_sell_case_results_list(application_state, symbo
 
 
 def add_entry_message_to_application_state(application_state, symbol, date, message):
-    try:
-        existing = application_state.setdefault('entry_signals', [])
-        # MAKE SURE IT IS UNIQUE ...
-        if not any(e['timestamp'] == date and e['symbol'] == symbol and e['message'] == message for e in existing):
-            existing.append({'timestamp': str(date), 'symbol': symbol, 'message': message})
-
-    except Exception as e:
-        logger.error(f"[add_entry_message_to_application_state] @@@@@@, {symbol}, e: {e}")
+    existing = application_state.setdefault('entry_signals', [])
+    # MAKE SURE IT IS UNIQUE ...
+    if not any(e['timestamp'] == date and e['symbol'] == symbol and e['message'] == message for e in existing):
+        existing.append({'timestamp': str(date), 'symbol': symbol, 'message': message})
+        application_state_router.add_audit_message(application_state, message, severity="medium" )
 
 
 async def check_buy_sell_result_to_send_order(ib, app_config, application_state, buy_sell_case_results_list, symbol, df, market_data, runtime):
@@ -89,10 +87,10 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
         case = buy_sell_case_result[0]
         can_buy = buy_sell_case_result[1]
         can_sell = buy_sell_case_result[2]
-        logger.info(f"check_buy_sell_result_to_send_order, {symbol}, can_buy: {can_buy}, can_sell:{can_sell}")
+        logger.debug(f"[check_buy_sell_result_to_send_order], {symbol}, can_buy: {can_buy}, can_sell:{can_sell}")
         if can_buy == False and can_sell == False: # no success ...
             continue
-        logger.info(f"check_buy_sell_result_to_send_order, order signal , {symbol}, can_buy: {can_buy}, can_sell:{can_sell}")
+        logger.info(f"[check_buy_sell_result_to_send_order], order signal , {symbol}, can_buy: {can_buy}, can_sell:{can_sell}")
 
         details_map = buy_sell_case_result[3]
         case_result = details_map.get('res_str')
@@ -109,39 +107,39 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
         right = 'C' if can_buy else 'P'
 
         if do_check and not app_config['symbols_meta'][symbol]['can_trade']:
-            logger.info(f"We are not trading {symbol}.")
+            logger.info(f"[check_buy_sell_result_to_send_order] @@ We are not trading {symbol}.")
             continue
         if do_check and not is_trade_time:
-            logger.warning(f"@@ is_trade_time:{is_trade_time}, {symbol}, {app_config['live']['trade_time']}")
+            logger.warning(f"[check_buy_sell_result_to_send_order] @@ is_trade_time:{is_trade_time}, {symbol}, {app_config['live']['trade_time']}")
             continue
         if application_state.get('open_trades_dic', {}).get(symbol,{}).get('available_quantity', 0) != 0:
-            logger.warning(f"@@ You already have open position. Don't be greedy!!!  symbol: {symbol}")
+            logger.warning(f"[check_buy_sell_result_to_send_order] @@ You already have open position. Don't be greedy!!!  symbol: {symbol}")
             continue
         if do_check and number_of_positions_today(application_state, symbol) > app_config['risk_gate']['max_num_of_trade_per_symbol_per_day']:
-            logger.warning(f"@@  We already sent enough orders for {symbol}")
+            logger.warning(f"[check_buy_sell_result_to_send_order] @@  We already sent enough orders for {symbol}")
             continue
         if do_check and number_of_total_positions_today(application_state) >= app_config['risk_gate']['max_number_of_trades_per_day']:
-            logger.warning(f"@@  We already sent enough orders for {symbol}")
+            logger.warning(f"[check_buy_sell_result_to_send_order] @@  We already sent enough orders for {symbol}")
             continue
         if do_check and has_open_order_in_same_group(app_config, application_state, symbol):
-            logger.warning(f"@@  We already have open order in same group {symbol}")
+            logger.warning(f"[check_buy_sell_result_to_send_order] @@  We already have open order in same group {symbol}")
             continue
         if do_check and symbol in app_config.get('manual_settings',{}).get('blocked_symbols',{})[right]:
-            logger.warning(f"@@  This symbol is blocked, {symbol}, {app_config.get('manual_settings',{}).get('blocked_symbols',{})[right]}")
+            logger.warning(f"[check_buy_sell_result_to_send_order] @@  This symbol is blocked, {symbol}, {app_config.get('manual_settings',{}).get('blocked_symbols',{})[right]}")
             continue
         if do_check and  number_of_wins(application_state, symbol) >= app_config.get('risk_gate',{}).get('stop_after_wins', 100):
-            logger.warning(f"@@  Today we had enough wins, {symbol}")
+            logger.warning(f"[check_buy_sell_result_to_send_order] @@  Today we had enough wins, {symbol}")
             continue
         if do_check and not check_manual_conditions(app_config, application_state, symbol, right):
-            logger.warning(f"@@  check_manual_conditions failed, {symbol}")
+            logger.warning(f"[check_buy_sell_result_to_send_order] @@  check_manual_conditions failed, {symbol}")
             if runtime.should_run_once(f"manual-condition-failed-{symbol}-{str(df['date'].iloc[-1])}"):
-                TradingLedger.add_to_list("signals", (symbol, f"MANUAL_CONDITION_FAILED", df['high'].iloc[-1], df['date'].iloc[-1], f"{case} - ", 'YELLOW'))
+                TradingLedger.add_to_list("signals", (symbol, f"MANUAL_CONDITION_FAILED", df['high'].iloc[-1], df['date'].iloc[-1], f"{case} - blocked by manual settings", 'YELLOW'))
                 add_entry_message_to_application_state(application_state, symbol, str(df['date'].iloc[-1]), 'order is blocked by manual entry')
 
             continue
 
         if do_check and not check_xui_symbol_controls(app_config, application_state, symbol, right):
-            logger.warning(f"@@  check_xui_symbol_controls failed, {symbol}")
+            logger.warning(f"[check_buy_sell_result_to_send_order] @@  check_xui_symbol_controls failed, {symbol}")
             add_entry_message_to_application_state(application_state, symbol, str(df['date'].iloc[-1]), 'order is blocked by xui')
             if runtime.should_run_once(f"check_xui_symbol_controls-failed-{symbol}-{str(df['date'].iloc[-1])}"):
                 TradingLedger.add_to_list("signals", (symbol, f"CHECK_XUI_SYMBOL_CONTROLS_FAILED", df['high'].iloc[-1], df['date'].iloc[-1], f"{case} - ", 'ORANGE'))
@@ -155,18 +153,18 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
             option_contract = await options_helper.prepare_option_contract(ib, app_config, application_state, market_data, symbol, right=right, user_defined_expiry=user_defined_expiry, user_defined_strike=user_defined_strike)
             if option_contract == None:
                 notification_utls.notify_user(app_config, application_state, subject= f"Contract is null- {symbol} - {app_config.get('user_name')}", msg=f"@@@@@ prepare_contract returned None. We are not sending order. symbol={symbol}, option_contract={option_contract}")
-                logger.warning(f"@@@@@ We are not sending order. {symbol}, option_contract: {option_contract}")
+                logger.warning(f"[check_buy_sell_result_to_send_order] @@@@@ We are not sending order. {symbol}, option_contract: {option_contract}")
                 continue
             bid, ask, last = await pricing_helper.get_quote_for_option_bid_ask(ib, symbol=symbol, expiry=option_contract.lastTradeDateOrContractMonth, strike=option_contract.strike, right=option_contract.right)
             if not number_utils.is_valid_price(bid) or not number_utils.is_valid_price(ask):
                 notification_utls.notify_user(app_config, application_state, subject= f"Bid or Ask is null {app_config.get('user_name')}", msg=f"Bid or Ask returned None. We are not sending order. symbol={symbol}, option_contract={option_contract}")
-                logger.warning(f"@@@@@ We are not sending order. bid: {bid} or ask: {ask}")
+                logger.warning(f"[check_buy_sell_result_to_send_order] @@@@@ We are not sending order. bid: {bid} or ask: {ask}")
                 continue
 
             total_quantity, capital_data = risk_helper.calculate_number_of_option_contracts(app_config, application_state, symbol, option_contract.strike, ask, user_defined_quantity)
             add_to_capital_allocation_df(application_state, capital_data)
             if total_quantity == 0:  # we don't have enough capital
-                logger.warning(f"@@ We dont have enough capital {symbol} ....")
+                logger.warning(f"[check_buy_sell_result_to_send_order] @@ We dont have enough capital {symbol} ....")
                 TradingLedger.add_to_list("signals", (symbol, f"NOT_ENOUGH_CAPITAL", df['high'].iloc[-1], df['date'].iloc[-1], f"NOT_ENOUGH_CAPITAL", 'YELLOW'))
                 continue
             order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='OPEN', symbol=symbol, side='long', unique_run_number=application_state.get('unique_run_number'), right= right)
@@ -338,7 +336,7 @@ def check_manual_conditions(app_config, application_state, symbol, right):
             # evaluated_condition = eval(condition)
             evaluated_condition = eval(condition, {}, eval_ctx)
 
-            logger.info(f"check_manual_conditions, {symbol}, {right}, condition: {condition}, evaluated_condition: {evaluated_condition} ")
+            logger.info(f"[check_manual_conditions], {symbol}, {right}, condition: {condition}, evaluated_condition: {evaluated_condition} ")
             if not evaluated_condition:
                 return False
 
@@ -351,8 +349,8 @@ def check_manual_conditions(app_config, application_state, symbol, right):
                 return False
 
     except Exception as e:
-        logger.error(f"@@@ TODO This is temp .... {e}")
-        logger.error(f"@@@ TODO This is temp .... {traceback.format_exc()}")
+        logger.error(f"[check_manual_conditions] @@@ TODO This is temp .... {e}")
+        logger.error(f"[check_manual_conditions] @@@ TODO This is temp .... {traceback.format_exc()}")
 
     return True
 
@@ -368,17 +366,6 @@ def add_to_capital_allocation_df(application_state, data):
 async def send_order(ib, contract, side='long', total_quantity=1, order_ref=None, ib_account_id=None): #TODO move to utils ...
 
     await ib_orders_async.submit_option_order_prequalified_contract(ib, q_contract=contract, side=side, total_quantity=total_quantity, order_ref=order_ref, ib_account_id=ib_account_id)
-    # ib_orders_async.
-    #
-    # order = MarketOrder('BUY', totalQuantity=total_quantity)
-    #
-    # order.orderRef = order_ref
-    # trade = ib.placeOrder(contract, order)
-    # # TODO convert to ib df
-    # trade.fillEvent += ib_posttrade.on_fill
-    # ib.sleep(1)
-    # logger.warning(f"Order sent ....")
-    # logger.warning(f"@@ trade: {trade}")
     return
 
 
@@ -389,7 +376,7 @@ def polish_map_to_show_in_hover(data):
         return json.dumps(data, default=str).replace(',', ',<br>') # use str for .Object of type int64 is not JSON serializable error
 
     except Exception as e:
-        logger.warning(f"@@ we have paring issue ...{e}")
+        logger.warning(f"[polish_map_to_show_in_hover] @@ we have paring issue ...{e}")
         return {}
     #
 
@@ -416,7 +403,7 @@ def add_order_ref_to_application_state(application_state, open_order_ref='', clo
 
         application_state.get('open_close_refs_map', {}).get(open_order_ref).append(close_order_ref) # now add the close ...
     else:
-        logger.info(f"@@@ add_order_ref_to_application_state, is not supported, open_order_ref: {open_order_ref}, close_order_ref: {close_order_ref}")
+        logger.info(f"[add_order_ref_to_application_state] @@@ add_order_ref_to_application_state, is not supported, open_order_ref: {open_order_ref}, close_order_ref: {close_order_ref}")
     data = {
         'open_order_ref': open_order_ref,
         'close_order_ref': close_order_ref,
@@ -451,7 +438,7 @@ def add_open_order_to_capital_flow_df(data, capital_data):
         TradingLedger.add_to_dataframe("capital_flow_df", d)
     except Exception as e:
     # TODO add
-        logger.error(f"@@@@ add_open_order_to_capital_flow_df e")
+        logger.error(f"[add_open_order_to_capital_flow_df] @@@@ add_open_order_to_capital_flow_df e")
         logger.error(traceback.format_exc())
 
     return
@@ -472,7 +459,7 @@ def calculate_number_of_future_contracts(app_config, application_state, symbol):
     logger.info(f"capital_per_trade: {capital_per_trade}")
     logger.info(f"symbol: {symbol}, num_of_contracts: {num_of_contracts}")
     if num_of_contracts == 0:
-        logger.warning(f"@@@@ we don't have enough capital ...")
+        logger.warning(f"[calculate_number_of_future_contracts] @@@@ we don't have enough capital ...")
     capital_used = num_of_contracts * 2500
     capital_remaining_after_order = available_capital - capital_used
     open_trades_count_at_entry = position_helper.calculate_number_of_open_positions(application_state)
