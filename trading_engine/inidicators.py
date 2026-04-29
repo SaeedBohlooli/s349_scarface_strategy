@@ -63,12 +63,12 @@ def compute_intraday_rs(stock_df: pd.DataFrame, qqq_df: pd.DataFrame):
             return df.loc[mask].iloc[0]['open']
         else:
             # Fallback to first bar of session if not exactly 09:30
-            logger.warning("@ get_930_open(), df does not have open for 9:30.")
+            logger.warning("[compute_intraday_rs] @ get_930_open(), df does not have open for 9:30.")
             tmp_df = df[df['date'].dt.date == latest_date]
             if len(tmp_df) >0:
                 return tmp_df['open'].iloc[-1]
             else:
-                logger.warning("@ get_930_open(), df does not have open for same day, so we we return last record")
+                logger.warning("[compute_intraday_rs] @ get_930_open(), df does not have open for same day, so we we return last record")
                 logger.warning(f"\n{df[-1:].to_markdown()}")
                 return 600 # on Sunday night, MNQ is there but QQQ will start on Monday. so no data for Sunday QQQ. so let's return 600
                 # TODO
@@ -84,7 +84,7 @@ def compute_intraday_rs(stock_df: pd.DataFrame, qqq_df: pd.DataFrame):
         suffixes=('_stock', '_qqq')
     )
 
-    logger.info(f'stock_open: {stock_open}, qqq_open: {qqq_open}')
+    logger.info(f'[compute_intraday_rs] stock_open: {stock_open}, qqq_open: {qqq_open}')
     # --- Compute % change from 9:30 anchor ---
     merged['stock_pct'] = merged['close_stock'] / stock_open - 1
     merged['qqq_pct'] = merged['close_qqq'] / qqq_open - 1

@@ -346,9 +346,9 @@ def detect_a_mark_market_gap(application_state, symbol, df):
         close_yesterday_1600 = df.loc[df["trade_day"] == yesterday, "close"].iloc[-1]
     else:
         close_yesterday_1600 = res.iloc[-1]
-    logger.info(f"{symbol}, open_today_0930: {open_today_0930} , close_yesterday_1600: {close_yesterday_1600}")
+    logger.info(f"[detect_a_mark_market_gap] {symbol}, open_today_0930: {open_today_0930} , close_yesterday_1600: {close_yesterday_1600}")
     if open_today_0930 is None or close_yesterday_1600 is None:
-        logger.info(f"@ detect_a_mark_market_gap, cannot detect market gap for {symbol}, open_today_0930: {open_today_0930}, close_yesterday_1600: {close_yesterday_1600}")
+        logger.info(f"[detect_a_mark_market_gap] @, cannot detect market gap for {symbol}, open_today_0930: {open_today_0930}, close_yesterday_1600: {close_yesterday_1600}")
         return
     gap_size = round(open_today_0930 - close_yesterday_1600, 2)
     color = constants.COLOR_GREEN_TRANSPARENT if gap_size > 0 else constants.COLOR_RED_TRANSPARENT

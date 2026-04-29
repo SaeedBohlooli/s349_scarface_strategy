@@ -114,7 +114,7 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
         res_str = res_str.replace('False', 'F')
 
         res_str_log = res_str.replace('<br>', '\n')
-        logger.info(f"res_str:\n{res_str_log}")
+        logger.info(f"[buy_sell_case_results_details] res_str:\n{res_str_log}")
 
         application_state.setdefault('buy_sell_case_results_details', {}).setdefault(symbol, {})[case] = {
             'can_buy': can_buy,
@@ -375,7 +375,7 @@ def price_retest(app_config, application_state, case, symbol, df, side='up', idx
     tolerance_amount = application_state.get('dynamic_tolerances', {}).get(symbol, {}).get('tolerance', 0)
 
     tolerance_amount = tolerance_amount * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1)
-    logger.debug(f"price_retest(), {symbol}, tolerance_amount: {tolerance_amount}")
+    logger.debug(f"[price_retest] {symbol}, tolerance_amount: {tolerance_amount}")
     retest = False
     case_color = get_case_color(app_config,case)
 
@@ -401,7 +401,7 @@ def price_retest(app_config, application_state, case, symbol, df, side='up', idx
                 offseted_price = chart_helper.get_offseted_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx])
                 TradingLedger.add_to_list("signals", (symbol, 'RETEST', offseted_price, df['date'].iloc[idx], f"RETEST  {level_alias} ... {df['date'].iloc[idx]}", case_color) )
 
-                logger.info(f"price_retest(), symbol: {symbol}, level: {level}, date:{df.iloc[idx]['date']} ")
+                logger.info(f"[price_retest] symbol: {symbol}, level: {level}, date:{df.iloc[idx]['date']} ")
                 retest = True
                 diff = abs(row['low']-level)
 

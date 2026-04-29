@@ -4,7 +4,7 @@ set CMD="python ..\trading_api\trading_api_service.py"
 set PROGRAM=python.exe
 set PORTFOLIO=p107
 set KEY_1=trading_api_service
-set KEY_2=trading_api_service
+set KEY_2=p107
 
 wmic process where "name='%PROGRAM%' and CommandLine like '%%%KEY_1%%%' and CommandLine like '%%%KEY_2%%%' " get ProcessId | findstr [0-9] >nul
 

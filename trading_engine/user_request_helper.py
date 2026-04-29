@@ -23,7 +23,7 @@ async def process_app_user_request_loop(ib, app_config, application_state, inter
                 logger.info("[process_app_user_request_loop] Exiting as requested.")
                 break
             process_user_requests(app_config, application_state)
-            logger.info("process_app_user_request_loop...")
+            logger.info("[process_app_user_request_loop] ...")
             await asyncio.sleep(interval_sec)
         except Exception as e:
             logger.warning(f"@@@ process_app_user_request_loop Unexpected error: {e}")

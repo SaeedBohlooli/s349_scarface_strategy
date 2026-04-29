@@ -163,7 +163,7 @@ def compute_indicators(app_config, application_state, symbol, df):
                              interval_sec=app_config.get('indicators', {}).get('calculation_interval_seconds', 60),
                              min_time_hhmm=130):
         df = indicators_util.compute_technical_indicators(app_config, application_state, symbol, df)
-        logger.info(f"compute_technical_indicators: \n {df[-4:].to_markdown()}")
+        logger.info(f"[compute_technical_indicators] df: \n {df[-4:].to_markdown()}")
     return df
 
 
