@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# ==================== MAIN ====================
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd $SCRIPT_DIR || exit 1
 echo "We are at script directory: $SCRIPT_DIR"
@@ -25,18 +27,14 @@ if [ -f "$PID_FILE" ]; then
     echo "Found previous PID file with PID: $OLD_PID"
 
     if kill -0 "$OLD_PID" 2>/dev/null; then
-        echo "Previous process (PID: $OLD_PID) is still running. Killing it..."
-        kill "$OLD_PID"
-        sleep 1
-
-        # Force kill if still running
-        if kill -0 "$OLD_PID" 2>/dev/null; then
-            echo "Force killing process..."
-            kill -9 "$OLD_PID"
-        fi
-        echo "Previous process killed."
+        # Process is still running - show message and exit
+        echo "================================"
+        echo "Process already running!"
+        echo "PID: $OLD_PID"
+        echo "================================"
+        exit 1
     else
-        echo "Previous process (PID: $OLD_PID) is not running."
+        echo "Previous process (PID: $OLD_PID) is not running. Safe to start."
     fi
 fi
 
