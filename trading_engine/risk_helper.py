@@ -26,20 +26,20 @@ def calculate_number_of_option_contracts(app_config, application_state, symbol, 
         num_of_contracts = round(capital_per_trade / (ask * 100))
 
         if ask < min_contract_entry_price:
-            logger.warning(f"@@@@ ask price {ask} is below the minimum contract entry price {min_contract_entry_price} ...")
+            logger.warning(f"[calculate_number_of_option_contracts] @@@@ ask price {ask} is below the minimum contract entry price {min_contract_entry_price} ...")
             num_of_contracts = 0
 
         if num_of_contracts < min_position_size:
-            logger.warning(f"@@@@ we don't have enough capital ...{num_of_contracts} contracts is below the minimum position size {min_position_size} ...")
+            logger.warning(f"[calculate_number_of_option_contracts] @@@@ we don't have enough capital ...{num_of_contracts} contracts is below the minimum position size {min_position_size} ...")
             num_of_contracts = 0
     else:
         num_of_contracts = user_defined_quantity
         memo += 'case_manual'
 
-    logger.info(f"capital_per_trade: {capital_per_trade}, ask: {ask} strike: {strike}")
-    logger.info(f"symbol: {symbol}, num_of_contracts: {num_of_contracts}")
+    logger.info(f"[calculate_number_of_option_contracts] capital_per_trade: {capital_per_trade}, ask: {ask} strike: {strike}")
+    logger.info(f"[calculate_number_of_option_contracts] symbol: {symbol}, num_of_contracts: {num_of_contracts}")
     if num_of_contracts == 0:
-        logger.warning(f"@@@@ we don't have enough capital ...")
+        logger.warning(f"[calculate_number_of_option_contracts] @@@@ we don't have enough capital ...")
     capital_used = num_of_contracts * 100 * ask
     capital_remaining_after_order = available_capital - capital_used
     open_trades_count_at_entry = position_helper.calculate_number_of_open_positions(application_state)
