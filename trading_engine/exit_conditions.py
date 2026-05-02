@@ -92,9 +92,16 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
             application_state['open_trades_dic'][symbol]['current_ask'] = current_ask
             application_state['open_trades_dic'][symbol]['current_underlying_price'] = underlying_current_price
             application_state['open_trades_dic'][symbol]['current_value'] = round( current_ask * application_state['open_trades_dic'][symbol]['starting_quantity'] * 100 , 3)
-            # application_state['open_trades_dic'][symbol]['current_pnl'] = round(application_state['open_trades_dic'][symbol].get('current_value', 0) - application_state['open_trades_dic'][symbol].get('cost_for_trade', 0) , 2)
-            application_state['open_trades_dic'][symbol]['current_estimated_unrealized_pnl'] = round(( mid_price - application_state['open_trades_dic'][symbol].get('entry_execution_price', 0)) * available_quantity * 100  , 2)
+            if application_state['open_trades_dic'][symbol].get('entry_execution_price', 0) == 0:
+                entry_price = application_state['open_trades_dic'][symbol]['entry_ask']
+            else:
+               entry_price = application_state['open_trades_dic'][symbol].get('entry_execution_price', 0)
+            current_estimated_unrealized_pnl = round(( mid_price - entry_price) * available_quantity * 100  , 2)
+            application_state['open_trades_dic'][symbol]['current_estimated_unrealized_pnl'] = current_estimated_unrealized_pnl
             application_state['open_trades_dic'][symbol]['current_estimated_realized_pnl'] = calculate_estimated_realized_pnl(open_trade_info)
+
+            application_state['open_trades_dic'][symbol]['min_bid'] = current_bid if application_state['open_trades_dic'][symbol].get('min_bid') == 0 else min(application_state['open_trades_dic'][symbol].get('min_bid'), current_bid)
+            application_state['open_trades_dic'][symbol]['max_bid'] = max(application_state['open_trades_dic'][symbol].get('max_bid'), current_bid)
 
             avg_cost_for_1_contract = application_state['open_trades_dic'][symbol].get('avg_cost_for_1_contract', 1)
             if avg_cost_for_1_contract != 0: # not decide by 0
@@ -315,11 +322,6 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
 
     return
 
-
-
-
-
-
 def add_order_ref_to_application_state(application_state, open_order_ref='', close_order_ref=''):
 
     if open_order_ref != '' and close_order_ref == '': # this is for open order ...
@@ -345,6 +347,10 @@ def add_order_ref_to_application_state(application_state, open_order_ref='', clo
 
 def archive_open_trade_dic(application_state, symbol):
     FileManager.save_named_json(application_state, file_name=f"84-{application_state.get('unique_run_number')}-{symbol}.json",
+                            dir='intermediate')
+    order_ref  = application_state.get("open_trades_dic", {}).get(symbol,{}).get('order_ref', 'x')
+    FileManager.save_named_json(application_state.get("open_trades_dic",{}).get(symbol),
+                                file_name=f"{order_ref}.json",
                             dir='intermediate')
     return
 
