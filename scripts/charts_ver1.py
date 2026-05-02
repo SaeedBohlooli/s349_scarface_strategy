@@ -74,6 +74,34 @@ def _align_ts_for_chart(s: pd.Series) -> pd.Series:
         t = t.dt.tz_convert("America/New_York").dt.tz_localize(None)
     return t
 
+
+def _parse_chart_hh_mm(s: str) -> tuple[int, int]:
+    parts = str(s).strip().split(":")
+    h = int(parts[0])
+    m = int(parts[1]) if len(parts) > 1 else 0
+    return h, m
+
+
+def chart_focus_x_range_et(df: pd.DataFrame, app_cfg: dict) -> tuple[pd.Timestamp, pd.Timestamp]:
+    """
+    Fixed ET window on the last calendar day in df — initial candlestick x-axis view
+    (not “last N hours from last bar”).
+    """
+    ch = app_cfg.get("chart") or {}
+    live_win = ch.get("live") or {}
+    start_s = live_win.get("start_time", "08:30")
+    end_s = live_win.get("end_time", "12:00")
+    sh, sm = _parse_chart_hh_mm(start_s)
+    eh, em = _parse_chart_hh_mm(end_s)
+    if df is None or df.empty or "date" not in df.columns:
+        day = pd.Timestamp.now().normalize()
+    else:
+        d = pd.to_datetime(df["date"], errors="coerce").dropna()
+        day = pd.Timestamp(d.dt.normalize().max()) if len(d) else pd.Timestamp.now().normalize()
+    start_time = day + pd.Timedelta(hours=sh, minutes=sm)
+    end_time = day + pd.Timedelta(hours=eh, minutes=em)
+    return start_time, end_time
+
 def load_support_resistance_map_from_file():
     file_path = os.path.join(charts_dir, 'support_resistance_1min_previous_day.json')
     if os.path.exists(file_path):
@@ -121,15 +149,10 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
     logger.info(f"in draw_w_plotly_w_subplot:\n {df[-5:].to_markdown()}")
     df['date'] = pd.to_datetime(df['date'])
 
-
-    end_time = df['date'].max() + pd.Timedelta(minutes=10)
     extra_features_df['date'] = pd.to_datetime(extra_features_df['date'])
 
-
-    hours_in_focus = int(app_config['chart']['hours_in_focus'])
-    start_time = end_time - pd.Timedelta(hours=hours_in_focus)
-
-
+    start_time, end_time = chart_focus_x_range_et(df, app_config)
+    end_pad = end_time + pd.Timedelta(minutes=5)
 
     # Set 'date' as the index
     # df.set_index('date', inplace=True)
@@ -158,7 +181,11 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
         high=df['high'],
         low=df['low'],
         close=df['close'],
-        name='Candles'
+        name='Candles',
+        increasing_line_color="#089981",
+        decreasing_line_color="#f23645",
+        increasing_fillcolor="#089981",
+        decreasing_fillcolor="#f23645",
     ), row=row_in_chart, col=1)
 
     df['ema_9'] = df['close'].ewm(span=9, adjust=False).mean()
@@ -334,39 +361,18 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
         title=f'{chart_title}',
         width=1900,
         height=1400,
-        xaxis=dict(
-            range=[start_time, end_time],  # limit slider to last 4 hours
-            rangeslider=dict(
-                visible=False,
-            ),
-
-        ),
-        xaxis2=dict(
-            range=[start_time, end_time],  # 👈 sets visible window
-            rangeslider=dict(visible=False)  # ATR row
-        ),
-        xaxis3=dict(
-            range=[start_time, end_time],  # 👈 sets visible window
-            rangeslider=dict(visible=False)  # Volume row
-        ),
-        xaxis4=dict(
-            range=[start_time, end_time],  # 👈 sets visible window
-            rangeslider=dict(visible=False)  # Volume row
-        ),
-        xaxis5=dict(
-            range=[start_time, end_time],  # 👈 sets visible window
-            rangeslider=dict(visible=False)
-        ),
-        xaxis6=dict(
-            range=[start_time, end_time],  # 👈 sets visible window
-            rangeslider=dict(visible=False)
-        ),
-        xaxis7=dict(
-            range=[start_time, end_time],  # 👈 sets visible window
-            rangeslider=dict(visible=True,
-                    thickness=0.07  # makes it smaller so it doesn’t overlap ATR
-                    )
-        )
+    )
+    fig.update_xaxes(
+        range=[start_time, end_pad],
+        type="date",
+        rangeslider=dict(visible=False),
+    )
+    fig.update_xaxes(
+        range=[start_time, end_pad],
+        type="date",
+        rangeslider=dict(visible=True, thickness=0.07),
+        row=8,
+        col=1,
     )
 
     x = 0

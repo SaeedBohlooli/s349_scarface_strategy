@@ -185,10 +185,10 @@ chart:
   port: 51071
   #  source: live
   source: back_test
-  #  cutoff_in_hours: 0
-  hours_in_focus: 3
+  # Initial x-axis window on the last day in the OHLC CSV (ET wall time, naive timestamps).
+  hours_in_focus: 3 # legacy; focus window uses live.start_time / live.end_time below
   live:
-    start_time: "09:00"
+    start_time: "08:30"
     end_time: "12:00"
 
 # before_start:
