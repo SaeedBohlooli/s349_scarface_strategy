@@ -162,7 +162,17 @@ async def check_buy_sell_result_to_send_order(
 
         if contract_type.lower() == 'equity' and (can_buy or can_sell): # go for buy
             right = 'C' if can_buy else 'P'
-            option_contract = await options_helper.prepare_option_contract(ib, app_config, application_state, market_data, symbol, right=right, user_defined_expiry=user_defined_expiry, user_defined_strike=user_defined_strike)
+            option_contract = await options_helper.prepare_option_contract(
+                ib,
+                app_config,
+                application_state,
+                market_data,
+                symbol,
+                right=right,
+                user_defined_expiry=user_defined_expiry,
+                user_defined_strike=user_defined_strike,
+                replay_markers_only=replay_markers_only,
+            )
             if option_contract == None:
                 if replay_markers_only:
                     logger.warning("[replay] prepare_option_contract returned None for %s — skipping entry markers.", symbol)
@@ -234,6 +244,40 @@ async def check_buy_sell_result_to_send_order(
             }
             application_state.setdefault('open_trades_dic', {})[symbol] = data
             TradingLedger.add_to_list("signals", (symbol, f'ORDER_SENT',df['close'].iloc[-1],df['date'].iloc[-1], json_utils.polish_map_to_show_in_hover(data)))
+
+            # Futures path adds SL/TP hover markers at entry; equity options do not. Replay needs chart hints without IB option quotes firing exits.
+            if replay_markers_only:
+                try:
+                    dynamic_tolerance = market_data.data_store.get(symbol, {}).get("dynamic_tolerance", {})
+                    tol = float(dynamic_tolerance.get("tolerance", 0)) * float(
+                        app_config["symbols_meta"][symbol].get("retest_tolerance_multiplier", 1)
+                    )
+                    atr14 = float(df["atr_14"].iloc[-2])
+                    close_px = float(df["close"].iloc[-1])
+                    lv = float(level_used)
+                    side_key = "long" if can_buy else "short"
+                    sm_side = app_config["symbols_meta"][symbol].get(side_key)
+                    if isinstance(sm_side, dict) and "stop_loss" in sm_side and "take_profit" in sm_side:
+                        stop_loss_price = eval(sm_side["stop_loss"])
+                        take_profit_price = eval(sm_side["take_profit"])
+                    else:
+                        if can_buy:
+                            stop_loss_price = lv - tol
+                            take_profit_price = close_px + atr14 * 2
+                        else:
+                            stop_loss_price = lv + tol
+                            take_profit_price = close_px - atr14 * 2
+                    candle_ts = df["date"].iloc[-1]
+                    TradingLedger.add_to_list(
+                        "signals",
+                        (symbol, "STOP_LOSS_SENT", stop_loss_price, candle_ts, "replay SL (underlying approx)", "Red"),
+                    )
+                    TradingLedger.add_to_list(
+                        "signals",
+                        (symbol, "TAKE_PROFIT_SENT", take_profit_price, candle_ts, "replay TP (underlying approx)", "Green"),
+                    )
+                except Exception as exc:
+                    logger.warning("[replay] Could not add SL/TP chart markers: %s", exc)
 
             if not replay_markers_only:
                 TradingLedger.add_to_dataframe("order_history_df", data)

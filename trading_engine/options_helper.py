@@ -127,7 +127,17 @@ async def orchestrate_expirations_strikes(ib, app_config, application_state, mar
     return
 
 
-async def prepare_option_contract(ib, app_config, application_state, market_data, symbol, right='C', user_defined_expiry=0, user_defined_strike =0 ):
+async def prepare_option_contract(
+    ib,
+    app_config,
+    application_state,
+    market_data,
+    symbol,
+    right='C',
+    user_defined_expiry=0,
+    user_defined_strike=0,
+    replay_markers_only: bool = False,
+):
 
     min_contract_price = app_config['symbols_meta'][symbol].get('min_contract_price', 0)
     if min_contract_price == 0:
@@ -183,8 +193,24 @@ async def prepare_option_contract(ib, app_config, application_state, market_data
                 return None
             bid, ask, last = await pricing_helper.get_quote_for_option_bid_ask(ib, symbol=symbol, expiry=expiry, strike=strike, right=right)
             if not number_utils.is_valid_price(bid) or not number_utils.is_valid_price(ask):
-                logger.warning(f"@@@@ [prepare_contract], bid or ask is None, {symbol}, underlying_price: {underlying_price}, expiry: {expiry}, strike: {strike}, right: {right}")
-                return None
+                if replay_markers_only:
+                    ask = max(
+                        underlying_price * 0.004,
+                        float(app_config["live"].get("min_contract_entry_price", 0.5)),
+                    )
+                    bid = ask * 0.99
+                    logger.warning(
+                        "[replay] Synthetic option bid/ask in prepare_option_contract %s expiry=%s strike=%s right=%s",
+                        symbol,
+                        expiry,
+                        strike,
+                        right,
+                    )
+                else:
+                    logger.warning(
+                        f"@@@@ [prepare_contract], bid or ask is None, {symbol}, underlying_price: {underlying_price}, expiry: {expiry}, strike: {strike}, right: {right}"
+                    )
+                    return None
             mid_price = (bid + ask) / 2
             if mid_price >= min_contract_price:
                 strike_found = True
