@@ -32,6 +32,8 @@ dirs:
   # Cached IB 1m OHLCV per session date (replay reads here first; see backtest_run.refresh_ohlcv_from_ib).
   backtest_ohlcv: "../../portfolios/{portfolio_id}/backtest_ohlcv/{date}"
   charts: "../../portfolios/{portfolio_id}/charts/{date}"
+  # Bar replay / chart.source=back_test — FileManager `{charts}` remapped in backtest_replay.
+  backtest_charts: "../../portfolios/{portfolio_id}/backtest-charts/{date}"
 
 files:
   application_state: "{intermediate}/application_state.json"
@@ -273,7 +275,7 @@ indicators:
 # Enabled chart replay worker: main/backtest_main.py (IB historical pull + per-day ledger save).
 backtest_run:
   enabled: true
-  start_date: "2026-04-18"
+  start_date: "2026-04-30"
   end_date: "2026-05-01"
   symbols: []
   ib_historical_window: "6 D"

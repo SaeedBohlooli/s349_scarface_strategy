@@ -43,6 +43,19 @@ from trading_utils.ib_marketdata_async import get_stock_historical_data
 logger = logging.getLogger(__name__)
 
 
+def _replay_app_config_for_chart_dirs(app_config: Dict[str, Any]) -> Dict[str, Any]:
+    """Resolve `{charts}` outputs to backtest-charts for replay (live engine keeps dirs.charts)."""
+    dirs = dict(app_config.get("dirs") or {})
+    bt = dirs.get("backtest_charts")
+    if not bt:
+        logger.warning(
+            "[backtest_replay] dirs.backtest_charts missing — replay chart CSVs use dirs.charts (live path)"
+        )
+        return app_config
+    dirs["charts"] = bt
+    return {**app_config, "dirs": dirs}
+
+
 @contextlib.contextmanager
 def _backtest_cases_to_run_override(app_config: Dict[str, Any]) -> Iterator[None]:
     """
@@ -355,14 +368,15 @@ async def replay_one_calendar_day(
 ) -> None:
     prefetch_symbols = list(dict.fromkeys(["QQQ"] + [s for s in symbols if s != "QQQ"]))
     symbols_save_charts = list(symbols)
+    replay_paths_cfg = _replay_app_config_for_chart_dirs(app_config)
     dm = DirectoryManager(
         portfolio_id=portfolio_id,
-        app_config=app_config,
+        app_config=replay_paths_cfg,
         mode="live",
         session_date=session_date_yyyy_mm_dd,
     )
     FileManager.set_dirs(dm)
-    FileManager.set_files_config(app_config["files"])
+    FileManager.set_files_config(replay_paths_cfg["files"])
     backtest_ohlcv_dir = getattr(dm.paths, "backtest_ohlcv", None)
 
     with _backtest_cases_to_run_override(app_config):

@@ -762,12 +762,30 @@ def cut_df_for_live(df):
         return df if df is not None else pd.DataFrame()
     if "date" not in df.columns:
         return df
+    # Clip to chart window only when viewing live chart folders (not backtest-charts).
     if mode == 'live':
 
         df = df_utils.cut_df_strating_hour_x_on_last_day(df, cutoff_time=app_config['chart']['live']['start_time'] )
         df = df_utils.cut_df_until_hour_x_on_last_day(df, cutoff_time=app_config['chart']['live']['end_time'] )
 
     return df
+
+
+def _normalize_chart_date_folder(name: str) -> str:
+    """Accept YYYY-MM-DD or YYYYMMDD folder/URL labels."""
+    s = str(name).strip()
+    if len(s) == 8 and s.isdigit():
+        return f"{s[:4]}-{s[4:6]}-{s[6:8]}"
+    return s
+
+
+def _list_chart_session_dirs(root: str):
+    if not os.path.isdir(root):
+        return []
+    return sorted(
+        [d for d in os.listdir(root) if os.path.isdir(os.path.join(root, d))],
+        reverse=True,
+    )
 
 
 def _synthetic_extra_features_from_ohlc(ohlc_df: pd.DataFrame) -> pd.DataFrame:
@@ -974,42 +992,30 @@ def index():
 
     portfolio_id = 'p107'
     app_config = load_app_config(portfolio_id)
-    mode = app_config['chart']['source']
+    chart_source = app_config.get('chart', {}).get('source', 'live')
 
-    backtest_base_dir = '../../portfolios/charts-backtest'
-    live_base_dir = f'../../portfolios/{portfolio_id}/charts/'
+    live_dates_root = f'../../portfolios/{portfolio_id}/charts'
+    backtest_dates_root = f'../../portfolios/{portfolio_id}/backtest-charts'
 
-    available_backtest_dates = sorted([
-        d for d in os.listdir(backtest_base_dir)
-        if os.path.isdir(os.path.join(backtest_base_dir, d))
-    ], reverse=True)  # sort newest first
-    # available_backtest_dates.insert(0 , 'live') # adding live to bigiinig ...
-    live_dates = sorted([
-        d for d in os.listdir(live_base_dir)
-        if os.path.isdir(os.path.join(live_base_dir, d))
-    ], reverse=True)  # sort newest first
-
-    available_dates = live_dates + available_backtest_dates
-
-    chart_date = request.args.get('chart_date') # read from URL
-    logger.info(f"available_dates {available_dates}")
-    if chart_date is None:
-        chart_date = available_dates[0]
-
-
-    logger.info(f"chart_date: {chart_date}")
-    if len (chart_date) == 10:  # backtest date format 'YYYYMMDD' or 'YYYY-MM-DD'
-        charts_dir = f'../../portfolios/{portfolio_id}/charts/{chart_date}'
-        mode = 'live'
-    else:
-        charts_dir = f'../../portfolios/charts-backtest/{chart_date}/{portfolio_id}'
+    if chart_source == 'back_test':
         mode = 'back_test'
-    # if 'chart_date 'live':
-    #     charts_dir = f'../../portfolios/charts-backtest/{chart_date}/{portfolio_id}'
-    #     mode = 'back_test'
-    # else:
-    #     charts_dir = f'../../portfolios/{portfolio_id}/charts/2025-12-29'
-    #     mode = 'live'
+        dates_root = backtest_dates_root
+    else:
+        mode = 'live'
+        dates_root = live_dates_root
+
+    available_dates = _list_chart_session_dirs(dates_root)
+
+    chart_date = request.args.get('chart_date')
+    logger.info(f"chart source={chart_source} dates_root={dates_root} available_dates={available_dates}")
+    if chart_date is None and available_dates:
+        chart_date = available_dates[0]
+    elif chart_date is None:
+        chart_date = ''
+
+    chart_folder = _normalize_chart_date_folder(chart_date) if chart_date else ''
+    logger.info(f"chart_date: {chart_date} -> folder {chart_folder}")
+    charts_dir = os.path.join(dates_root, chart_folder) if chart_folder else dates_root
 
 # time.sleep(1)
 
