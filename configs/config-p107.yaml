@@ -68,7 +68,7 @@ symbols: ["QQQ", "AAPL", "AMD", "AMZN", "NVDA", "PLTR", "TSLA", "MU", "SPY"]
 #    stop_loss_condition: underlying_previous_candle_close > level_used_to_open + tolerance_amount and underlying_current_price > underlying_previous_candle_close
 
 stop_losses:
-  - righdt == 'C' and case != 'case_manual' and underlying_previous_candle_close < level_used_to_open - tolerance_amount and underlying_current_price < underlying_previous_candle_close
+  - right == 'C' and case != 'case_manual' and underlying_previous_candle_close < level_used_to_open - tolerance_amount and underlying_current_price < underlying_previous_candle_close
   - right == 'P' and case != 'case_manual' and underlying_previous_candle_close > level_used_to_open + tolerance_amount and underlying_current_price > underlying_previous_candle_close
   - right == 'C' and user_defined_stop_loss !=0 and underlying_current_price < user_defined_stop_loss
   - right == 'P' and user_defined_stop_loss !=0 and underlying_current_price > user_defined_stop_loss
@@ -271,7 +271,7 @@ indicators:
 # Enabled chart replay worker: main/backtest_main.py (IB historical pull + per-day ledger save).
 backtest_run:
   enabled: true
-  start_date: "2026-04-27"
+  start_date: "2026-04-30"
   end_date: "2026-05-01"
   symbols: []
   ib_historical_window: "6 D"
