@@ -16,29 +16,6 @@ from trading_utils import number_utils
 from trading_engine import notification_helper
 
 
-def synthetic_option_quotes_for_replay(open_trade_info: dict, underlying_now: float) -> tuple[float, float, float]:
-    """
-    Approximate option bid/ask/mid from underlying move vs entry (replay only; no IB option quotes).
-    """
-    entry_u = float(open_trade_info.get('entry_underlying_price') or 0)
-    entry_ask = float(
-        open_trade_info.get('entry_ask')
-        or open_trade_info.get('entry_execution_price')
-        or 0
-    )
-    right = str(open_trade_info.get('right', 'C'))
-    if entry_u <= 0 or entry_ask <= 0:
-        mid = max(underlying_now * 0.002, 0.05)
-        return mid * 0.995, mid * 1.005, mid
-    r = underlying_now / entry_u
-    if right.upper() == 'C':
-        mult = max(r ** 1.12, 0.15)
-    else:
-        mult = max((2.0 - min(r, 1.95)) ** 1.12, 0.15) if r < 2 else max(0.2, 2.2 - r)
-    mid = max(entry_ask * mult, 0.05)
-    return mid * 0.995, mid * 1.005, mid
-
-
 async def check_for_stop_loss_and_take_profit(ib, app_config, application_state, market_data, replay_markers_only: bool = False):
     symbols_need_to_be_removed = [] # we dont remove in the loop ..
 
@@ -92,11 +69,12 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                 underlying_previous_candle_close = float(symbol_df['close'].iloc[-2])
             else:
                 underlying_previous_candle_close = underlying_current_price
+            # Bar replay: evaluate SL/TP from underlying only (ignore option bid/ask).
             if open_trade_info.get('position_type') == 'OPTION':
-                current_bid, current_ask, mid_price = synthetic_option_quotes_for_replay(
-                    open_trade_info, underlying_current_price
-                )
-                current_last = mid_price
+                current_bid = underlying_current_price
+                current_ask = underlying_current_price
+                current_last = underlying_current_price
+                mid_price = underlying_current_price
             else:
                 px = float(symbol_df['close'].iloc[-1])
                 current_bid, current_ask, current_last = px, px, px
@@ -122,19 +100,41 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
             logger.warning(f"@@@ check_for_stop_loss_and_take_profit(), symbol: {symbol}, current_bid or current_ask is invalid, current_bid: {current_bid}, current_ask: {current_ask}")
             continue
 
+        replay_option_underlying_exits = (
+            replay_markers_only
+            and open_trade_info.get('position_type') == 'OPTION'
+            and app_config['symbols_meta'][symbol]['contract_type'] == 'Equity'
+        )
+
         # update app status ...
         if app_config['symbols_meta'][symbol]['contract_type'] == 'Equity':
             application_state['open_trades_dic'][symbol]['current_bid'] = current_bid
             application_state['open_trades_dic'][symbol]['current_ask'] = current_ask
             application_state['open_trades_dic'][symbol]['current_underlying_price'] = underlying_current_price
-            application_state['open_trades_dic'][symbol]['current_value'] = round( current_ask * application_state['open_trades_dic'][symbol]['starting_quantity'] * 100 , 3)
-            # application_state['open_trades_dic'][symbol]['current_pnl'] = round(application_state['open_trades_dic'][symbol].get('current_value', 0) - application_state['open_trades_dic'][symbol].get('cost_for_trade', 0) , 2)
-            application_state['open_trades_dic'][symbol]['current_estimated_unrealized_pnl'] = round(( mid_price - application_state['open_trades_dic'][symbol].get('entry_execution_price', 0)) * available_quantity * 100  , 2)
-            application_state['open_trades_dic'][symbol]['current_estimated_realized_pnl'] = calculate_estimated_realized_pnl(open_trade_info)
+            if replay_option_underlying_exits:
+                # Skip option-notional fields when bid/ask are really underlying quotes.
+                application_state['open_trades_dic'][symbol]['current_estimated_realized_pnl'] = calculate_estimated_realized_pnl(
+                    open_trade_info
+                )
+            else:
+                application_state['open_trades_dic'][symbol]['current_value'] = round(
+                    current_ask * application_state['open_trades_dic'][symbol]['starting_quantity'] * 100, 3
+                )
+                application_state['open_trades_dic'][symbol]['current_estimated_unrealized_pnl'] = round(
+                    (mid_price - application_state['open_trades_dic'][symbol].get('entry_execution_price', 0))
+                    * available_quantity
+                    * 100,
+                    2,
+                )
+                application_state['open_trades_dic'][symbol]['current_estimated_realized_pnl'] = calculate_estimated_realized_pnl(
+                    open_trade_info
+                )
 
-            avg_cost_for_1_contract = application_state['open_trades_dic'][symbol].get('avg_cost_for_1_contract', 1)
-            if avg_cost_for_1_contract != 0: # not decide by 0
-                application_state['open_trades_dic'][symbol]['current_roi'] = round(application_state['open_trades_dic'][symbol]['current_bid'] / avg_cost_for_1_contract - 1, 3)
+                avg_cost_for_1_contract = application_state['open_trades_dic'][symbol].get('avg_cost_for_1_contract', 1)
+                if avg_cost_for_1_contract != 0:  # not decide by 0
+                    application_state['open_trades_dic'][symbol]['current_roi'] = round(
+                        application_state['open_trades_dic'][symbol]['current_bid'] / avg_cost_for_1_contract - 1, 3
+                    )
 
         else: # it is future ...
             application_state['open_trades_dic'][symbol]['current_bid'] = current_bid
@@ -145,6 +145,11 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
             # application_state['open_trades_dic'][symbol]['current_pnl'] = round(application_state['open_trades_dic'][symbol]['current_underlying_price'] - application_state['open_trades_dic'][symbol].get('entry_underlying_price', 0), 2)
             application_state['open_trades_dic'][symbol]['current_roi'] = round(application_state['open_trades_dic'][symbol]['current_underlying_price'] / application_state['open_trades_dic'][symbol].get('entry_underlying_price', 1) - 1, 3)
 
+        if replay_option_underlying_exits:
+            eu = float(open_trade_info.get('entry_underlying_price', -1) or -1)
+            if eu > 0:
+                # take_profits YAML compares current_bid to avg_cost_for_1_contract — use underlying entry vs underlying quote.
+                avg_cost_for_1_contract = eu
 
         logger.info(f"level_used_to_open: {level_used_to_open}, entry_underlying_price: {entry_underlying_price}, "
                     f"underlying_current_price:, {underlying_current_price}, underlying_previous_candle_close: {underlying_previous_candle_close} ,tolerance_amount: {tolerance_amount}")
@@ -293,8 +298,26 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
         if order_closed_by_tp:
                 application_state['open_trades_dic'][symbol]['available_quantity'] = available_quantity - close_quantity
                 entry_execution_price = open_trade_info['entry_execution_price']
-                take_profit_estimated_pnl = (mid_price - entry_execution_price) * close_quantity * 100 if entry_execution_price !=0 else 0
-                take_profit_estimated_pnl = round(take_profit_estimated_pnl, 3)
+                if replay_option_underlying_exits:
+                    eu = float(open_trade_info.get('entry_underlying_price', -1) or -1)
+                    rt = str(open_trade_info.get('right', 'C'))
+                    if eu > 0:
+                        if rt.upper() == 'C':
+                            take_profit_estimated_pnl = (
+                                underlying_current_price - eu
+                            ) * 100 * close_quantity
+                        else:
+                            take_profit_estimated_pnl = (
+                                eu - underlying_current_price
+                            ) * 100 * close_quantity
+                    else:
+                        take_profit_estimated_pnl = 0
+                    take_profit_estimated_pnl = round(take_profit_estimated_pnl, 3)
+                else:
+                    take_profit_estimated_pnl = (
+                        (mid_price - entry_execution_price) * close_quantity * 100 if entry_execution_price != 0 else 0
+                    )
+                    take_profit_estimated_pnl = round(take_profit_estimated_pnl, 3)
                 data = {
                     'status': 'SENT',
                     'available_quantity_b4' : available_quantity,
