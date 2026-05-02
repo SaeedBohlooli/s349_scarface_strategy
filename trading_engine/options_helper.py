@@ -180,17 +180,53 @@ async def prepare_option_contract(
         itm_puts = [s for s in strikes if s > underlying_price]
         otm_puts = [s for s in strikes if s < underlying_price]
         strike_found = False
-        adj_index = 0 # we move in the list ...
+        adj_index = 0
+        last_strike_tried = None
+        pool_calls_ok = len(otm_calls) != 0 and len(otm_puts) != 0
         while not strike_found:
-            if len(otm_calls) !=0 and len(otm_puts) != 0:
-                if right == 'C':
-                    strike = otm_calls[0 + adj_index]   # 0 , 1, 2 ....
-                else:
-                    strike = otm_puts[-1 -adj_index]  # -1, -2 , -3 ...
-            else:
-                logger.error (f"@@@@ [prepare_contract], we have issue, {symbol}, underlying_price: {underlying_price}, expiry: {expiry}, strikes: {strikes}")
-
+            if not pool_calls_ok:
+                logger.error(
+                    f"@@@@ [prepare_contract], we have issue, {symbol}, underlying_price: {underlying_price}, expiry: {expiry}, strikes: {strikes}"
+                )
                 return None
+
+            pool = otm_calls if right == "C" else otm_puts
+            if adj_index >= len(pool):
+                if replay_markers_only and last_strike_tried is not None:
+                    strike = last_strike_tried
+                    floor = max(
+                        float(min_contract_price),
+                        float(app_config["live"].get("min_contract_entry_price", 0.5)),
+                        underlying_price * 0.004,
+                    )
+                    ask = floor * 1.05
+                    bid = ask * 0.99
+                    logger.warning(
+                        "[replay] Exhausted OTM strikes for %s; using last strike=%s with synthetic bid/ask "
+                        "(%s/%s) to satisfy min_contract_price=%s",
+                        symbol,
+                        strike,
+                        bid,
+                        ask,
+                        min_contract_price,
+                    )
+                    strike_found = True
+                    break
+                logger.warning(
+                    "@@@@ [prepare_contract] exhausted OTM strikes for %s right=%s (adj_index=%s len=%s)",
+                    symbol,
+                    right,
+                    adj_index,
+                    len(pool),
+                )
+                return None
+
+            if right == "C":
+                strike = pool[adj_index]
+            else:
+                strike = pool[-1 - adj_index]
+            last_strike_tried = strike
+
             bid, ask, last = await pricing_helper.get_quote_for_option_bid_ask(ib, symbol=symbol, expiry=expiry, strike=strike, right=right)
             if not number_utils.is_valid_price(bid) or not number_utils.is_valid_price(ask):
                 if replay_markers_only:
@@ -214,8 +250,20 @@ async def prepare_option_contract(
             mid_price = (bid + ask) / 2
             if mid_price >= min_contract_price:
                 strike_found = True
+            elif replay_markers_only:
+                ask = max(float(ask), float(min_contract_price) * 1.05, float(app_config["live"].get("min_contract_entry_price", 0.5)))
+                bid = ask * 0.99
+                logger.warning(
+                    "[replay] Bumped synthetic mid for %s strike=%s so mid >= min_contract_price (%s)",
+                    symbol,
+                    strike,
+                    min_contract_price,
+                )
+                strike_found = True
             else:
-                logger.info(f"[prepate_contract] , mid_price is less then min_contract_price, mid_price: {mid_price}, min_contract_price: {min_contract_price} ")
+                logger.info(
+                    f"[prepate_contract] , mid_price is less then min_contract_price, mid_price: {mid_price}, min_contract_price: {min_contract_price} "
+                )
                 adj_index += 1
     else:
         strike = user_defined_strike
