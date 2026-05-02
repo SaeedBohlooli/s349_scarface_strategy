@@ -186,7 +186,7 @@ cases:
         - not is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='down', price=price, current_level=short_level, next_levels=['5ML'])
 
   case_3:
-    memo: This is for Saeed's live test
+    memo: Same 5MH/5ML candle-close stack as case_2 (BREAKOUT/RETEST signals); can_replace_level off.
     can_replace_level: false
     precondition: all_levels_in(application_state, symbol)
     color: black
@@ -194,13 +194,31 @@ cases:
       level: levels['5MH']
       level_alias: "5MH"
       cores:
-        - symbol == 'AMD' and 1 == 2
+        - breakout_in_last_x_candles_ver_3(app_config, application_state, case, symbol, df, side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level, level_alias=level_alias)
+        - price_retest(app_config, application_state, case, symbol, df, side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True, level_alias=level_alias)
+        - is_retest_after_breakout(application_state, symbol, side='up', level=long_level)
+        - check_entry_vs_retest(application_state, case, symbol, df, side='up', level=long_level)
+        - no_failure_after_breakout(application_state, case, symbol, df, side='up', level=long_level, ohlc_field='close')
+        - check_price_vs_level(app_config, symbol, side='up', price=price, level=long_level )
+        - not is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='up', price=price, current_level=long_level, next_levels=['PDH'])
+        - 930 < get_last_record_hh_mm(df) < 1016 or get_mode(application_state) == 'live'
       extras:
-        - 1 == 1
+        - abs (price - long_level) < 1.2 * atr_14
+        - price > application_state['levels'][symbol]['PDL']
+        - price < levels['PDH'] or get_current_price(ib, application_state, 'QQQ') > application_state['levels']['QQQ']['5MH']
     short:
-      level: levels['PDL']
+      level: levels['5ML']
       level_alias: "5ML"
       cores:
-        - symbol == 'TSLA' and 1 == 2
+        - breakout_in_last_x_candles_ver_3(app_config, application_state, case, symbol, df, side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level, level_alias=level_alias)
+        - price_retest(app_config, application_state, case, symbol, df, side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True ,level_alias=level_alias)
+        - is_retest_after_breakout(application_state, symbol, side='down', level=short_level)
+        - check_entry_vs_retest(application_state, case, symbol, df, side='down', level=short_level)
+        - no_failure_after_breakout(application_state, case, symbol, df, side='down', level=short_level, ohlc_field='close')
+        - check_price_vs_level(app_config, symbol, side='down', price=price, level=short_level )
+        - not is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='down', price=price, current_level=short_level, next_levels=['PDH'])
+        - 930 < get_last_record_hh_mm(df) < 1016 or get_mode(application_state) == 'live'
       extras:
-        - 1 == 1
+        - abs (price - short_level) < 1.2 * atr_14
+        - price < application_state['levels'][symbol]['PDH']
+        - price > levels['PDL'] or get_current_price(ib, application_state, 'QQQ') < application_state['levels']['QQQ']['5ML']

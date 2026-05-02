@@ -68,10 +68,10 @@ symbols: ["QQQ", "AAPL", "AMD", "AMZN", "NVDA", "PLTR", "TSLA", "MU", "SPY"]
 #    stop_loss_condition: underlying_previous_candle_close > level_used_to_open + tolerance_amount and underlying_current_price > underlying_previous_candle_close
 
 stop_losses:
-    - right == 'C' and case != 'case_manual' and underlying_previous_candle_close < level_used_to_open - tolerance_amount and underlying_current_price < underlying_previous_candle_close
-    - right == 'P' and case != 'case_manual' and underlying_previous_candle_close > level_used_to_open + tolerance_amount and underlying_current_price > underlying_previous_candle_close
-    - right == 'C' and user_defined_stop_loss !=0 and underlying_current_price < user_defined_stop_loss
-    - right == 'P' and user_defined_stop_loss !=0 and underlying_current_price > user_defined_stop_loss
+  - righdt == 'C' and case != 'case_manual' and underlying_previous_candle_close < level_used_to_open - tolerance_amount and underlying_current_price < underlying_previous_candle_close
+  - right == 'P' and case != 'case_manual' and underlying_previous_candle_close > level_used_to_open + tolerance_amount and underlying_current_price > underlying_previous_candle_close
+  - right == 'C' and user_defined_stop_loss !=0 and underlying_current_price < user_defined_stop_loss
+  - right == 'P' and user_defined_stop_loss !=0 and underlying_current_price > user_defined_stop_loss
 
 take_profits:
   t1:
@@ -80,7 +80,6 @@ take_profits:
       and avg_cost_for_1_contract not in [0,-1] and current_bid not in [0,-1]
     close_quantity_percentage: 0.6
     memo: Taking some profit at 15% or 0.20 with 4 of 6
-
   t2:
     condition: >
       (current_bid > avg_cost_for_1_contract * 1.30 or current_bid - avg_cost_for_1_contract > 0.70)
@@ -138,8 +137,8 @@ closeness_distance_for_case_1: df['atr_14'].iloc[-2] * 2
 
 risk_gate:
   stop_after_wins: 1
-  max_number_of_trades_per_day: 2
-  max_num_of_trade_per_symbol_per_day: 2
+  max_number_of_trades_per_day: 50
+  max_num_of_trade_per_symbol_per_day: 20
 #  stop_after_wins: 10
 #  max_number_of_trades_per_day: 20
 #  max_num_of_trade_per_symbol_per_day: 20
@@ -157,8 +156,8 @@ pre_trade_checks:
   - x
 live:
   #  cases_to_run: ['case_2_1', 'case_4_1']
-  cases_to_run: ['case_2', 'case_4']
-#  cases_to_run: ["case_3"]
+  cases_to_run: ["case_2", "case_4"]
+  # cases_to_run: ["case_3"]
   historical_days: 4 D
 
   capital: 50000
@@ -170,8 +169,8 @@ live:
   min_contract_price: 0.8
   #  num_of_contracts: calculate_number_of_contracts()
 
-  trade_time: 930 < current_hh_mm_ny  < 1014 # TODO change to trade_time
-  #  trade_time: 930 < current_hh_mm_ny  < 1559 # TODO change to trade_time
+  #  trade_time: 930 < current_hh_mm_ny  < 1014 # TODO change to trade_time
+  trade_time: 930 < current_hh_mm_ny  < 1559 # TODO change to trade_time
   market_time: 930 < current_hh_mm_ny < 1559
   busy_time: 933 < current_hh_mm_ny < 1016 #don't chaneg this,  we are not saving anythng or any test ...
 
@@ -216,58 +215,69 @@ health_check:
   email_interval_minutes: 10
 #
 indicators:
-  calculation_interval_seconds: 60
-  print_last_few_rows: True
+  calculation_interval_seconds: 10
+  print_last_few_rows: false
   details:
-      one:
-        active: true
-        outputs_in_application_state:
+    one:
+      active: true
+      outputs_in_application_state:
         - EMA_9
-        calculation: |
-          df['EMA_9'] = df['close'].ewm(span=9, adjust=False).mean()
-#      two:
-#        active: true
-#        outputs_in_application_state:
-#        - EMA_20
-#        calculation: |
-#          df['EMA_20'] = df['close'].ewm(span=20, adjust=False).mean()
-#      three:
-#        active: true
-#        outputs_in_application_state:
-#        - EMA_50
-#        calculation: |
-#          df['EMA_50'] = df['close'].ewm(span=50, adjust=False).mean()
-#      outputs_in_application_state:
-#        active: true
-#        outputs_in_application_state:
-#        - VWAP
-#        memo: Session Volume Weighted Average Price
-#        calculation: |
-#          df['_tp']     = (df['high'] + df['low'] + df['close']) / 3
-#          df['_tp_vol'] = df['_tp'] * df['volume']
-#          df['_date']   = df.date
-#          df['VWAP']    = (df.groupby('_date')['_tp_vol'].transform('cumsum') /
-#                           df.groupby('_date')['volume'].transform('cumsum'))
-#          df.drop(columns=['_tp', '_tp_vol', '_date'], inplace=True)
-#      five:
-#        active: true
-#        outputs_in_application_state:
-#        - EMA_9_slope_pct
-#        - EMA_20_slope_pct
-#        - EMA_50_slope_pct
-#        - EMA_9_direction
-#        - EMA_20_direction
-#        - EMA_50_direction
-#
-#        memo: slope_period controls how many bars back to compare — 3 bars on 1m = ~3 min lag
-#        calculation: |
-#          slope_period = 3
-#          threshold    = 0.02          # % — below this = flat
-#          for col in ['EMA_9', 'EMA_20', 'EMA_50']:
-#              slope = (df[col] - df[col].shift(slope_period)) / df[col].shift(slope_period) * 100
-#              df[f'{col}_slope_pct'] = slope
-#              df[f'{col}_direction'] = np.where(slope >  threshold, 'up',
-#                                      np.where(slope < -threshold, 'down', 'flat'))
+      calculation: |
+        df['EMA_9'] = df['close'].ewm(span=9, adjust=False).mean()
+    two:
+      active: true
+      outputs_in_application_state:
+        - EMA_20
+      calculation: |
+        df['EMA_20'] = df['close'].ewm(span=20, adjust=False).mean()
+    three:
+      active: true
+      outputs_in_application_state:
+        - EMA_50
+      calculation: |
+        df['EMA_50'] = df['close'].ewm(span=50, adjust=False).mean()
+    outputs_in_application_state:
+      active: true
+      outputs_in_application_state:
+        - VWAP
+      memo: Session Volume Weighted Average Price
+      calculation: |
+        df['_tp']     = (df['high'] + df['low'] + df['close']) / 3
+        df['_tp_vol'] = df['_tp'] * df['volume']
+        df['_date']   = df.date
+        df['VWAP']    = (df.groupby('_date')['_tp_vol'].transform('cumsum') /
+                         df.groupby('_date')['volume'].transform('cumsum'))
+        df.drop(columns=['_tp', '_tp_vol', '_date'], inplace=True)
+    five:
+      active: true
+      outputs_in_application_state:
+        - EMA_9_slope_pct
+        - EMA_20_slope_pct
+        - EMA_50_slope_pct
+        - EMA_9_direction
+        - EMA_20_direction
+        - EMA_50_direction
+
+      memo: slope_period controls how many bars back to compare — 3 bars on 1m = ~3 min lag
+      calculation: |
+        slope_period = 3
+        threshold    = 0.02          # % — below this = flat
+        for col in ['EMA_9', 'EMA_20', 'EMA_50']:
+            slope = (df[col] - df[col].shift(slope_period)) / df[col].shift(slope_period) * 100
+            df[f'{col}_slope_pct'] = slope
+            df[f'{col}_direction'] = np.where(slope >  threshold, 'up',
+                                    np.where(slope < -threshold, 'down', 'flat'))
+
+# Enabled chart replay worker: main/backtest_main.py (IB historical pull + per-day ledger save).
+backtest_run:
+  enabled: true
+  start_date: "2026-04-27"
+  end_date: "2026-05-01"
+  symbols: []
+  ib_historical_window: "6 D"
+  # Replay only bars in this ET window (inclusive by minute).
+  session_start_et: "09:30"
+  session_end_et: "10:00"
 
 child_configs:
   - config-manual-settings.yaml

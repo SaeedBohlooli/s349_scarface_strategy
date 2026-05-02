@@ -78,7 +78,17 @@ def add_entry_message_to_application_state(application_state, symbol, date, mess
         logger.error(f"[add_entry_message_to_application_state] @@@@@@, {symbol}, e: {e}")
 
 
-async def check_buy_sell_result_to_send_order(ib, app_config, application_state, buy_sell_case_results_list, symbol, df, market_data, runtime):
+async def check_buy_sell_result_to_send_order(
+    ib,
+    app_config,
+    application_state,
+    buy_sell_case_results_list,
+    symbol,
+    df,
+    market_data,
+    runtime,
+    replay_markers_only: bool = False,
+):
 
     current_hh_mm_ny = date_utils.get_current_hhmm_ny() # used in config ...
     is_trade_time = eval(app_config['live']['trade_time'])
@@ -136,13 +146,13 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
             logger.warning(f"@@  check_manual_conditions failed, {symbol}")
             if runtime.should_run_once(f"manual-condition-failed-{symbol}-{str(df['date'].iloc[-1])}"):
                 TradingLedger.add_to_list("signals", (symbol, f"MANUAL_CONDITION_FAILED", df['high'].iloc[-1], df['date'].iloc[-1], f"{case} - ", 'YELLOW'))
-                add_entry_message_to_application_state(symbol, str(df['date'].iloc[-1]), 'order is blocked by manual entry')
+                add_entry_message_to_application_state(application_state, symbol, str(df['date'].iloc[-1]), 'order is blocked by manual entry')
 
             continue
 
         if do_check and not check_xui_symbol_controls(app_config, application_state, symbol, right):
             logger.warning(f"@@  check_xui_symbol_controls failed, {symbol}")
-            add_entry_message_to_application_state(symbol, str(df['date'].iloc[-1]), 'order is blocked by xui')
+            add_entry_message_to_application_state(application_state, symbol, str(df['date'].iloc[-1]), 'order is blocked by xui')
             if runtime.should_run_once(f"check_xui_symbol_controls-failed-{symbol}-{str(df['date'].iloc[-1])}"):
                 TradingLedger.add_to_list("signals", (symbol, f"CHECK_XUI_SYMBOL_CONTROLS_FAILED", df['high'].iloc[-1], df['date'].iloc[-1], f"{case} - ", 'ORANGE'))
             continue
@@ -154,23 +164,39 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
             right = 'C' if can_buy else 'P'
             option_contract = await options_helper.prepare_option_contract(ib, app_config, application_state, market_data, symbol, right=right, user_defined_expiry=user_defined_expiry, user_defined_strike=user_defined_strike)
             if option_contract == None:
-                notification_utls.notify_user(app_config, application_state, subject= f"Contract is null- {symbol} - {app_config.get('user_name')}", msg=f"@@@@@ prepare_contract returned None. We are not sending order. symbol={symbol}, option_contract={option_contract}")
-                logger.warning(f"@@@@@ We are not sending order. {symbol}, option_contract: {option_contract}")
+                if replay_markers_only:
+                    logger.warning("[replay] prepare_option_contract returned None for %s — skipping entry markers.", symbol)
+                else:
+                    notification_utls.notify_user(app_config, application_state, subject= f"Contract is null- {symbol} - {app_config.get('user_name')}", msg=f"@@@@@ prepare_contract returned None. We are not sending order. symbol={symbol}, option_contract={option_contract}")
+                    logger.warning(f"@@@@@ We are not sending order. {symbol}, option_contract: {option_contract}")
                 continue
             bid, ask, last = await pricing_helper.get_quote_for_option_bid_ask(ib, symbol=symbol, expiry=option_contract.lastTradeDateOrContractMonth, strike=option_contract.strike, right=option_contract.right)
             if not number_utils.is_valid_price(bid) or not number_utils.is_valid_price(ask):
-                notification_utls.notify_user(app_config, application_state, subject= f"Bid or Ask is null {app_config.get('user_name')}", msg=f"Bid or Ask returned None. We are not sending order. symbol={symbol}, option_contract={option_contract}")
-                logger.warning(f"@@@@@ We are not sending order. bid: {bid} or ask: {ask}")
-                continue
+                if replay_markers_only:
+                    u = float(df['close'].iloc[-1])
+                    ask = max(u * 0.004, float(app_config['live'].get('min_contract_entry_price', 0.5)))
+                    bid = ask * 0.99
+                    logger.warning("[replay] Synthetic option quote %s bid=%s ask=%s", symbol, bid, ask)
+                else:
+                    notification_utls.notify_user(app_config, application_state, subject= f"Bid or Ask is null {app_config.get('user_name')}", msg=f"Bid or Ask returned None. We are not sending order. symbol={symbol}, option_contract={option_contract}")
+                    logger.warning(f"@@@@@ We are not sending order. bid: {bid} or ask: {ask}")
+                    continue
 
             total_quantity, capital_data = risk_helper.calculate_number_of_option_contracts(app_config, application_state, symbol, option_contract.strike, ask, user_defined_quantity)
-            add_to_capital_allocation_df(application_state, capital_data)
+            if replay_markers_only and total_quantity == 0:
+                total_quantity = max(int(app_config['live'].get('min_position_size', 3)), 1)
+                capital_data = {}
+            elif not replay_markers_only:
+                add_to_capital_allocation_df(application_state, capital_data)
             if total_quantity == 0:  # we don't have enough capital
                 logger.warning(f"@@ We dont have enough capital {symbol} ....")
                 TradingLedger.add_to_list("signals", (symbol, f"NOT_ENOUGH_CAPITAL", df['high'].iloc[-1], df['date'].iloc[-1], f"NOT_ENOUGH_CAPITAL", 'YELLOW'))
                 continue
             order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='OPEN', symbol=symbol, side='long', unique_run_number=application_state.get('unique_run_number'), right= right)
-            await send_order(ib, option_contract, side='long', total_quantity=total_quantity, order_ref=order_ref, ib_account_id=app_config.get('ib_account_id'))
+            if not replay_markers_only:
+                await send_order(ib, option_contract, side='long', total_quantity=total_quantity, order_ref=order_ref, ib_account_id=app_config.get('ib_account_id'))
+            ls = getattr(option_contract, 'localSymbol', '') or ''
+            cid = getattr(option_contract, 'conId', 0) or 0
             data = {
                 'date': f'{date_utils.time_now()}',
                 'symbol': symbol,
@@ -181,7 +207,7 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
                 'entry_underlying_price': df['close'].iloc[-1] ,
                 'entry_bid': bid, #TODO need to be fixed ...
                 'entry_ask': ask, #TODO need to be fixed ...
-                'entry_execution_price': 0,
+                'entry_execution_price': ask,
                 "current_bid": 0,
                 "current_ask": 0,
                 "current_underlying_price": 0,
@@ -193,7 +219,7 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
                 "cost_for_trade": 0,
                 "avg_cost": 0,
                 "avg_cost_for_1_position": 0,
-                "avg_cost_for_1_contract": 0,
+                "avg_cost_for_1_contract": ask,
                 'strike': option_contract.strike,
                 'expiry': option_contract.lastTradeDateOrContractMonth,
                 'position_type': 'OPTION',
@@ -202,20 +228,22 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
                 'level_used_to_open': level_used,
                 'level_name': '',
                 'stop_loss': details_map.get('user_defined_stop_loss',0),
-                'local_symbol': option_contract.localSymbol,
-                'con_id': option_contract.conId,
+                'local_symbol': ls,
+                'con_id': cid,
                 'order_ref': order_ref
             }
             application_state.setdefault('open_trades_dic', {})[symbol] = data
             TradingLedger.add_to_list("signals", (symbol, f'ORDER_SENT',df['close'].iloc[-1],df['date'].iloc[-1], json_utils.polish_map_to_show_in_hover(data)))
 
-            TradingLedger.add_to_dataframe("order_history_df", data)
+            if not replay_markers_only:
+                TradingLedger.add_to_dataframe("order_history_df", data)
 
             add_to_number_of_positions_today(application_state, symbol)
-            notification_helper.send_email(app_config, event='order_sent', symbol=symbol, body=json_utils.polish_map_to_show_in_hover(data))
-            add_order_ref_to_application_state(application_state, open_order_ref=order_ref)
-            add_open_order_to_capital_flow_df(data, capital_data)
-            add_entry_message_to_application_state(symbol, str(df['date'].iloc[-1]), 'order is sent')
+            if not replay_markers_only:
+                notification_helper.send_email(app_config, event='order_sent', symbol=symbol, body=json_utils.polish_map_to_show_in_hover(data))
+                add_order_ref_to_application_state(application_state, open_order_ref=order_ref)
+                add_open_order_to_capital_flow_df(data, capital_data)
+            add_entry_message_to_application_state(application_state, symbol, str(df['date'].iloc[-1]), 'order is sent' if not replay_markers_only else 'replay entry marker')
         elif contract_type.lower() == 'future' and (can_buy or can_sell):
             right = 'long' if can_buy else 'short'
             side = 'long' if can_buy else 'short' # TODO need to be rmeoved ...
@@ -230,7 +258,10 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
 
             candle_date = str(df['date'].iloc[-1])
 
-            result_dic = await ib_orders_async.submit_linear_order_with_sl_tp(ib, side, contract, stop_loss_price, take_profit_price, total_quantity, order_ref, candle_date)
+            if replay_markers_only:
+                result_dic = {}
+            else:
+                result_dic = await ib_orders_async.submit_linear_order_with_sl_tp(ib, side, contract, stop_loss_price, take_profit_price, total_quantity, order_ref, candle_date)
 
             data = {
                 'symbol': symbol,
@@ -246,21 +277,24 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
                 'order_ref': order_ref,
             }
             data.update(result_dic)
-            json_utils.print_map_pretty(data, msg = 'after MNQ order ')
+            if not replay_markers_only:
+                json_utils.print_map_pretty(data, msg = 'after MNQ order ')
 
             application_state.setdefault('open_trades_dic', {})[symbol] = data
             TradingLedger.add_to_list("signals", (symbol, f'ORDER_SENT',df['close'].iloc[-1],df['date'].iloc[-1], polish_map_to_show_in_hover(data)))
             TradingLedger.add_to_list("signals", (symbol, f'STOP_LOSS_SENT', stop_loss_price, df['date'].iloc[-1], polish_map_to_show_in_hover(data)))
             TradingLedger.add_to_list("signals", (symbol, f'TAKE_PROFIT_SENT', take_profit_price, df['date'].iloc[-1], polish_map_to_show_in_hover(data)))
-            TradingLedger.add_to_dataframe("futures_order_history_df", data)
+            if not replay_markers_only:
+                TradingLedger.add_to_dataframe("futures_order_history_df", data)
             add_to_number_of_positions_today(application_state, symbol)
-            notification_helper.send_email(app_config, event='order_sent', symbol=symbol, body=polish_map_to_show_in_hover(data))
-            add_order_ref_to_application_state(open_order_ref=order_ref)
-            add_order_ref_to_application_state(open_order_ref=order_ref, close_order_ref=f'{order_ref}-TP')  #TODO need to be passed to the send order ...
-            add_order_ref_to_application_state(open_order_ref=order_ref, close_order_ref=f'{order_ref}-SL')  #TODO need to be passed to the send order ...
-            total_quantity, capital_data = calculate_number_of_future_contracts(symbol) # move it up ...
-            add_to_capital_allocation_df(capital_data)
-            add_open_order_to_capital_flow_df(data, capital_data)
+            if not replay_markers_only:
+                notification_helper.send_email(app_config, event='order_sent', symbol=symbol, body=polish_map_to_show_in_hover(data))
+                add_order_ref_to_application_state(application_state, open_order_ref=order_ref)
+                add_order_ref_to_application_state(application_state, open_order_ref=order_ref, close_order_ref=f'{order_ref}-TP')  #TODO need to be passed to the send order ...
+                add_order_ref_to_application_state(application_state, open_order_ref=order_ref, close_order_ref=f'{order_ref}-SL')  #TODO need to be passed to the send order ...
+                total_quantity, capital_data = calculate_number_of_future_contracts(app_config, application_state, symbol) # move it up ...
+                add_to_capital_allocation_df(application_state, capital_data)
+                add_open_order_to_capital_flow_df(data, capital_data)
 
     return
 

@@ -66,6 +66,14 @@ def convert_time_zone(df, from_tz, to_tz):
     df['date'] = df['date'].dt.tz_localize(None)
     return df
 
+
+def _align_ts_for_chart(s: pd.Series) -> pd.Series:
+    """Normalize CSV timestamps to naive US/Eastern wall time for Plotly (OHLC + hover alignment)."""
+    t = pd.to_datetime(s, errors="coerce")
+    if getattr(t.dt, "tz", None) is not None:
+        t = t.dt.tz_convert("America/New_York").dt.tz_localize(None)
+    return t
+
 def load_support_resistance_map_from_file():
     file_path = os.path.join(charts_dir, 'support_resistance_1min_previous_day.json')
     if os.path.exists(file_path):
@@ -499,6 +507,10 @@ def draw_w_plotly_w_subplot_test(df, chart_title='title'):
     return fig
 
 def draw_objects(fig, df, drawing_objects_df, symbol, time_frame):
+    # Price / candles are subplot row 1 — traces must specify row/col or Plotly leaves
+    # xaxis/yaxis unset and horizontal levels never appear on the chart.
+    _ROW_PRICE = 1
+    _COL = 1
 
     for i in range(len(drawing_objects_df)):
 
@@ -506,17 +518,19 @@ def draw_objects(fig, df, drawing_objects_df, symbol, time_frame):
 
             obj = drawing_objects_df['object'].iloc[i]
             color = drawing_objects_df['color'].iloc[i]
-            price = drawing_objects_df['price_1'].iloc[i]
-            price_2 = drawing_objects_df['price_2'].iloc[i]
+            price = pd.to_numeric(drawing_objects_df['price_1'].iloc[i], errors="coerce")
+            price_2 = pd.to_numeric(drawing_objects_df['price_2'].iloc[i], errors="coerce")
             date = drawing_objects_df['date_1'].iloc[i]
             date_2 = drawing_objects_df['date_2'].iloc[i]
 
             memo = drawing_objects_df['memo'].iloc[i]
 
+            if pd.isna(price):
+                continue
 
             if obj in [ "solid", "dot", "dash", "longdash", "dashdot", "longdashdot"]:
                 x_vals = df['date']
-                y_vals = [price] * len(x_vals)
+                y_vals = [float(price)] * len(x_vals)
 
                 # Create a text list: only first point has text
                 text_vals = [''] * (len(x_vals) - 1) + [memo]
@@ -530,17 +544,21 @@ def draw_objects(fig, df, drawing_objects_df, symbol, time_frame):
                     textposition='top right',  # always on the left
                     showlegend=True,
                     name=memo
-                ))
+                ), row=_ROW_PRICE, col=_COL)
             elif obj in ['rect']:
+                if pd.isna(price_2):
+                    continue
 
                 fig.add_shape(
                     type="rect",
                     x0=date,
                     x1=date_2,
-                    y0=min(price, price_2),
-                    y1=max(price, price_2),
+                    y0=min(float(price), float(price_2)),
+                    y1=max(float(price), float(price_2)),
                     fillcolor=color,  # green transparent
                     line=dict(color="orange", width=1, dash="dot"),
+                    row=_ROW_PRICE,
+                    col=_COL,
                 )
 
     return fig
@@ -590,9 +608,11 @@ def load_extra_features_df(portfolio_id='p700', symbol='TSLA', time_frame='1min'
     logger.info(f"load_extra_features_df_from_file, reading file: {file}")
     if os.path.exists(file):
         df = pd.read_csv(file)
-        df  = df [-1200:]
-        df['date'] = pd.to_datetime(df['date'])
-
+        if df.empty or "date" not in df.columns:
+            logger.warning("extra_features CSV missing or has no date column: %s", file)
+            return pd.DataFrame()
+        df = df[-1200:]
+        df["date"] = _align_ts_for_chart(df["date"])
 
         logger.info(f"in load_extra_features_df_from_file, df: \n{df[-5:].to_markdown()}")
         return df
@@ -606,7 +626,7 @@ def load_df_from_ohlc_file(portfolio_id='p700', symbol='TSLA', time_frame='1min'
         return pd.DataFrame()
     df = pd.read_csv(file)
     df = df [-1200:]
-    df['date'] = pd.to_datetime(df['date'])
+    df["date"] = _align_ts_for_chart(df["date"])
 
     # if app_config['chart']['cutoff_in_hours'] !=0 :  # cut off hours ...
     #     # find the cutoff timestamp
@@ -622,8 +642,25 @@ def load_df_from_ohlc_file(portfolio_id='p700', symbol='TSLA', time_frame='1min'
 def load_file_to_drawing_objects_df():
     file = f'{get_charts_dir(portfolio_id)}/10-drawing_objects_df.csv'
     logger.info(f"reading file: {file}")
+    if not os.path.exists(file):
+        logger.warning("missing %s; using empty drawing objects", file)
+        return pd.DataFrame(
+            columns=[
+                "symbol",
+                "time_frame",
+                "object",
+                "color",
+                "date_1",
+                "price_1",
+                "date_2",
+                "price_2",
+                "memo",
+                "unique_id",
+            ]
+        )
     df = pd.read_csv(file)
-    logger.info(f"drawing_objects_df:\n{df[-3:].to_markdown()}")
+    if len(df):
+        logger.info(f"drawing_objects_df:\n{df[-3:].to_markdown()}")
     return df
 
 def load_file_to_hover_df():
@@ -714,30 +751,66 @@ def add_hover_to_chart(fig1, hover_df):
             textposition='top center',
             textfont=dict(size=20, color=colors),
             showlegend=False
-        ))
+        ), row=1, col=1)
 
     return fig1
 
 
 def cut_df_for_live(df):
     # return df
+    if df is None or len(df) == 0:
+        return df if df is not None else pd.DataFrame()
+    if "date" not in df.columns:
+        return df
     if mode == 'live':
 
         df = df_utils.cut_df_strating_hour_x_on_last_day(df, cutoff_time=app_config['chart']['live']['start_time'] )
         df = df_utils.cut_df_until_hour_x_on_last_day(df, cutoff_time=app_config['chart']['live']['end_time'] )
 
     return df
-def create_chart_hovered_df(hover_df, symbol):
+
+
+def _synthetic_extra_features_from_ohlc(ohlc_df: pd.DataFrame) -> pd.DataFrame:
+    """RS subplots require rs_* columns; replay often saves OHLC only (no extra_features CSV)."""
+    if ohlc_df is None or len(ohlc_df) == 0 or "date" not in ohlc_df.columns:
+        return pd.DataFrame()
+    n = len(ohlc_df)
+    return pd.DataFrame(
+        {
+            "date": pd.to_datetime(ohlc_df["date"]),
+            "rs_rel": np.zeros(n),
+            "rs_rel_ema": np.zeros(n),
+            "rs_delta": np.zeros(n),
+            "rs_delta_ema": np.zeros(n),
+            "stock_pct": np.zeros(n),
+            "qqq_pct": np.zeros(n),
+        }
+    )
+def create_chart_hovered_df(hover_df, symbol, ohlc_df=None):
     if len(hover_df) == 0:
         return pd.DataFrame()
     df = hover_df.copy()
 
     df = df[df['symbol'] == symbol]
+    if len(df) == 0:
+        return pd.DataFrame()
     df['date'] = df['date_1']
     df['price'] = df['price_1']
     df['text'] = df['memo']
-    df['date'] = pd.to_datetime(df['date'])
-    df = cut_df_for_live(df)
+    df['date'] = _align_ts_for_chart(df['date'])
+    df = df[df["date"].notna()]
+    df["price"] = pd.to_numeric(df["price"], errors="coerce")
+
+    # Clip markers to the candle window so they stay inside Plotly's x-axis range (avoids empty hover after cut_df).
+    if ohlc_df is not None and len(ohlc_df) > 0 and "date" in ohlc_df.columns:
+        od = _align_ts_for_chart(ohlc_df["date"])
+        lo, hi = od.min(), od.max()
+        df = df[(df["date"] >= lo) & (df["date"] <= hi)]
+    else:
+        df = cut_df_for_live(df)
+
+    if len(df) == 0:
+        return pd.DataFrame()
 
 
 #  ⇗ ↛ ⇧
@@ -958,13 +1031,19 @@ def index():
 
         extra_features_df = load_extra_features_df(portfolio_id='p107', time_frame=time_frame, symbol=symbol)
         extra_features_df = cut_df_for_live(extra_features_df)
+        if extra_features_df.empty or "date" not in extra_features_df.columns:
+            logger.warning(
+                "No usable extra_features for %s — using zero-filled RS columns (save replay extra_features to populate).",
+                symbol,
+            )
+            extra_features_df = _synthetic_extra_features_from_ohlc(df)
 
         fig1 = draw_w_plotly_w_subplot_1(symbol, chart_title=f'{symbol}-{time_frame}')
         fig1 = draw_objects(fig1,df, drawing_objects_df, symbol=symbol, time_frame=time_frame )
         if mode == 'back_test':
             fig1 = add_start_finish_day(fig1, df)
             fig1 = mark_market_time_only_last_one(fig1, df)
-        chart_hovered_df = create_chart_hovered_df(hover_df, symbol)
+        chart_hovered_df = create_chart_hovered_df(hover_df, symbol, ohlc_df=df)
         fig1 = add_hover_to_chart(fig1, chart_hovered_df)
         fig1 = add_close_levels_anoteation(fig1, df, close_levels_df, symbol)
         plot_html = pio.to_html(fig1, full_html=False)

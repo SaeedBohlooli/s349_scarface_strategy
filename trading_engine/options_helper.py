@@ -134,6 +134,18 @@ async def prepare_option_contract(ib, app_config, application_state, market_data
         min_contract_price =  app_config['live'].get('min_contract_price', 0)
 
     underlying_price = await ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol)
+    if not number_utils.is_valid_price(underlying_price):
+        lp = application_state.get("latest_prices", {}).get(symbol)
+        if number_utils.is_valid_price(lp) and float(lp) > 0:
+            underlying_price = float(lp)
+            logger.info("[prepare_option_contract] Using application_state latest_prices for %s: %s", symbol, underlying_price)
+    if not number_utils.is_valid_price(underlying_price):
+        logger.warning(
+            "@@@@@ [prepare_contract] No underlying price for %s (IB quote unavailable, latest_prices missing) — cannot select strike.",
+            symbol,
+        )
+        return None
+    underlying_price = float(underlying_price)
 
     options_meta_date_dic = market_data.data_store.get('options_meta_date_dic', {})
 
@@ -202,6 +214,16 @@ async def prepare_option_contracts_for_later_use(ib, app_config, application_sta
 async def prepare_option_contract_for_later_use_for_symbol(ib, app_config, application_state, market_data, symbol, right='C'):
 
     underlying_price = await ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol)
+    if not number_utils.is_valid_price(underlying_price):
+        lp = application_state.get("latest_prices", {}).get(symbol)
+        if number_utils.is_valid_price(lp) and float(lp) > 0:
+            underlying_price = float(lp)
+    if not number_utils.is_valid_price(underlying_price):
+        logger.warning(
+            "@@@@@ prepare_option_contract_for_later_use_for_symbol: no underlying price for %s — skip.", symbol
+        )
+        return False
+    underlying_price = float(underlying_price)
 
     options_meta_date_dic = market_data.data_store.get('options_meta_date_dic', {})
 

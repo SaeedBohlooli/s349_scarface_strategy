@@ -27,15 +27,23 @@ async def get_historical_data(ib, symbol, app_config, application_state, time_fr
     return df
 
 
+def save_ohlc_dataframe_to_charts(application_state, symbol: str, df, save_tabular: bool = False):
+    """Write one-symbol OHLC+ATR CSV into dirs.charts (live or replay)."""
+    time_frame = "1 min"
+    df_out = df[['date', 'open', 'high', 'low', 'close', 'volume', 'atr_14']]
+    file_name = f"{symbol}-{time_frame.replace(' ', '')}.csv"
+    FileManager.save_my_df(df_out, dir="charts", file_name=file_name, save_tabular=save_tabular, mode='w')
+    return file_name
+
+
 def save_ohlc_for_chart(application_state, market_data, save_tabular=False):
     mode = application_state.get('mode', 'live')
+    replay_full = application_state.get('chart_replay_save_full', False)
     time_frame = "1 min"
     for symbol, df in market_data.dfs_map.items():
         logger.info(f"in save_ohlc_for_chart, symbol: {symbol}, len(df): {len(df)}")
-        if mode == 'live':
-            df = df[['date','open', 'high', 'low', 'close', 'volume', 'atr_14']]
-            file_name = f"{symbol}-{time_frame.replace(' ', '')}.csv"
-            FileManager.save_my_df(df, dir="charts", file_name=file_name, save_tabular=save_tabular, mode='w')
+        if mode == 'live' or replay_full:
+            save_ohlc_dataframe_to_charts(application_state, symbol, df, save_tabular=save_tabular)
     return
 
 

@@ -16,7 +16,30 @@ from trading_utils import number_utils
 from trading_engine import notification_helper
 
 
-async def check_for_stop_loss_and_take_profit(ib, app_config, application_state, market_data):
+def synthetic_option_quotes_for_replay(open_trade_info: dict, underlying_now: float) -> tuple[float, float, float]:
+    """
+    Approximate option bid/ask/mid from underlying move vs entry (replay only; no IB option quotes).
+    """
+    entry_u = float(open_trade_info.get('entry_underlying_price') or 0)
+    entry_ask = float(
+        open_trade_info.get('entry_ask')
+        or open_trade_info.get('entry_execution_price')
+        or 0
+    )
+    right = str(open_trade_info.get('right', 'C'))
+    if entry_u <= 0 or entry_ask <= 0:
+        mid = max(underlying_now * 0.002, 0.05)
+        return mid * 0.995, mid * 1.005, mid
+    r = underlying_now / entry_u
+    if right.upper() == 'C':
+        mult = max(r ** 1.12, 0.15)
+    else:
+        mult = max((2.0 - min(r, 1.95)) ** 1.12, 0.15) if r < 2 else max(0.2, 2.2 - r)
+    mid = max(entry_ask * mult, 0.05)
+    return mid * 0.995, mid * 1.005, mid
+
+
+async def check_for_stop_loss_and_take_profit(ib, app_config, application_state, market_data, replay_markers_only: bool = False):
     symbols_need_to_be_removed = [] # we dont remove in the loop ..
 
     for symbol, open_trade_info in application_state.get('open_trades_dic', {}).items():
@@ -37,15 +60,16 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
         if symbol_df is None or len(symbol_df) == 0:
             logger.warning(f"@@@ check_for_stop_loss_and_take_profit(), symbol_df is None or len==0 , {symbol}")
             continue
-        try:
-            seconds_since_last_record = date_utils.seconds_passed_since_last_record(symbol_df)
-            logger.info(f"@ check_for_stop_loss_and_take_profit(), symbol: {symbol}, seconds_since_last_record: {seconds_since_last_record}")
-            if seconds_since_last_record > 65:
-                logger.warning(f"@@@ check_for_stop_loss_and_take_profit(), {symbol}, seconds_since_last_record: {seconds_since_last_record}")
-                logger.info(f"@@@ check_for_stop_loss_and_take_profit(), symbol_df[-1:]\n {symbol_df[-1:].to_markdown()}")
-                continue
-        except Exception as e:
-            logger.error(f"@@@@@@ check_for_stop_loss_and_take_profit(), error in date check , {symbol}, e: {e}")
+        if not replay_markers_only:
+            try:
+                seconds_since_last_record = date_utils.seconds_passed_since_last_record(symbol_df)
+                logger.info(f"@ check_for_stop_loss_and_take_profit(), symbol: {symbol}, seconds_since_last_record: {seconds_since_last_record}")
+                if seconds_since_last_record > 65:
+                    logger.warning(f"@@@ check_for_stop_loss_and_take_profit(), {symbol}, seconds_since_last_record: {seconds_since_last_record}")
+                    logger.info(f"@@@ check_for_stop_loss_and_take_profit(), symbol_df[-1:]\n {symbol_df[-1:].to_markdown()}")
+                    continue
+            except Exception as e:
+                logger.error(f"@@@@@@ check_for_stop_loss_and_take_profit(), error in date check , {symbol}, e: {e}")
 
         # TODO check date to make sure that the data is not old
         entry_underlying_price = float(open_trade_info.get('entry_underlying_price', -1))  # used in config ...
@@ -62,21 +86,36 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
 
         from trading_utils import ib_pricing_async
         contract_month = app_config.get('symbols_meta', {}).get(symbol,{}).get('contract_month')
-        underlying_current_price = await ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol, contract_month)
-        if len(symbol_df) == 0:
-            # it maybe first run, and we don't have it yet in the dic ...
-            underlying_previous_candle_close = underlying_current_price
+        if replay_markers_only:
+            underlying_current_price = float(symbol_df['close'].iloc[-1])
+            if len(symbol_df) > 1:
+                underlying_previous_candle_close = float(symbol_df['close'].iloc[-2])
+            else:
+                underlying_previous_candle_close = underlying_current_price
+            if open_trade_info.get('position_type') == 'OPTION':
+                current_bid, current_ask, mid_price = synthetic_option_quotes_for_replay(
+                    open_trade_info, underlying_current_price
+                )
+                current_last = mid_price
+            else:
+                px = float(symbol_df['close'].iloc[-1])
+                current_bid, current_ask, current_last = px, px, px
+                mid_price = px
         else:
-            underlying_previous_candle_close = symbol_df['close'].iloc[-2] # used in config
+            underlying_current_price = await ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol, contract_month)
+            if len(symbol_df) == 0:
+                underlying_previous_candle_close = underlying_current_price
+            else:
+                underlying_previous_candle_close = symbol_df['close'].iloc[-2] # used in config
 
-        expiry = application_state['open_trades_dic'][symbol]['expiry']
-        strike = application_state['open_trades_dic'][symbol]['strike']
-        right = application_state['open_trades_dic'][symbol]['right']
-        if open_trade_info.get('position_type') == 'OPTION':
-            current_bid, current_ask, current_last = await ib_pricing_async.get_or_subscribe_option_price(ib, symbol, expiry, strike,right)  # used in config
-        else:
-            current_bid, current_ask, current_last = await ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol, contract_month)  # used in config
-        mid_price = (current_bid + current_ask) / 2
+            expiry = application_state['open_trades_dic'][symbol]['expiry']
+            strike = application_state['open_trades_dic'][symbol]['strike']
+            right = application_state['open_trades_dic'][symbol]['right']
+            if open_trade_info.get('position_type') == 'OPTION':
+                current_bid, current_ask, current_last = await ib_pricing_async.get_or_subscribe_option_price(ib, symbol, expiry, strike,right)  # used in config
+            else:
+                current_bid, current_ask, current_last = await ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol, contract_month)  # used in config
+            mid_price = (current_bid + current_ask) / 2
 
         # TODO handle Future ...
         if not number_utils.is_valid_price(current_bid) or not number_utils.is_valid_price(current_ask):
@@ -123,7 +162,10 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                 logger.warning(f"{symbol} SL condition met ... {stop_loss_condition}")
                 order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='CLOSE', symbol=symbol, alias='SL', unique_run_number=application_state.get('unique_run_number'))
                 con_id = open_trade_info.get('con_id')
-                close_result = ib_positions_async.close_position_by_con_id(ib, con_id=con_id, order_ref=order_ref )
+                if replay_markers_only:
+                    close_result = True
+                else:
+                    close_result = ib_positions_async.close_position_by_con_id(ib, con_id=con_id, order_ref=order_ref )
                 # close_option_positions(option_positions_to_monitor, symbol=symbol, order_ref=order_ref)
                 if not close_result:
                     logger.warning(f"@@@@ we couldn't close the position for SL, so we skip the rest ... {symbol} - needs more investigation ")
@@ -149,7 +191,6 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                 application_state['open_trades_dic'][symbol].setdefault('stop_loss_history', []).append(data) # save it in the
                 archive_open_trade_dic(application_state, symbol)
                 application_state.setdefault('open_trades_dic', {})[symbol] = {}  #  TODO This need to be happened after we get required inf from dic...
-                add_order_ref_to_application_state(application_state, open_order_ref=open_trade_info.get('order_ref'), close_order_ref=order_ref)
 
                 # add_to_stop_loss_history_df(data)
                 TradingLedger.add_to_dataframe('stop_loss_history_df', data)
@@ -157,7 +198,9 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                 # add_to_signals(symbol, 'STOP_LOSS_SENT', underlying_current_price, df['date'].iloc[-1], f"STOP_LOSS  <BR> {json_utils.polish_map_to_show_in_hover(data)}")
                 TradingLedger.add_to_list("signals",(symbol, 'STOP_LOSS_SENT', underlying_current_price, symbol_df['date'].iloc[-1], f"STOP_LOSS  <BR> {json_utils.polish_map_to_show_in_hover(data)}"))
 
-                notification_helper.send_email(app_config, event='stop_loss_sent', symbol=symbol, body=json_utils.polish_map_to_show_in_hover(data))
+                if not replay_markers_only:
+                    notification_helper.send_email(app_config, event='stop_loss_sent', symbol=symbol, body=json_utils.polish_map_to_show_in_hover(data))
+                    add_order_ref_to_application_state(application_state, open_order_ref=open_trade_info.get('order_ref'), close_order_ref=order_ref)
 
 
 
@@ -212,14 +255,16 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                 logger.info(f"Sending TP ...{take_profit_lable}")
                 if app_config['symbols_meta'][symbol]['contract_type'] == 'Equity':
                     order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='CLOSE', symbol=symbol, alias=take_profit_lable, unique_run_number=application_state.get('unique_run_number'))
-                    con_id = open_trade_info.get('con_id')
-                    ib_positions_async.close_position_by_con_id(ib, con_id = con_id, qty_to_close=close_quantity, order_ref=order_ref )
+                    if not replay_markers_only:
+                        con_id = open_trade_info.get('con_id')
+                        ib_positions_async.close_position_by_con_id(ib, con_id = con_id, qty_to_close=close_quantity, order_ref=order_ref )
                 elif app_config['symbols_meta'][symbol]['contract_type'] == 'Future':
                     order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='CLOSE', symbol=symbol, alias=take_profit_lable, unique_run_number=application_state.get('unique_run_number'))
 
-                    con_id = open_trade_info.get('con_id')
-                    # close_future_positions(future_positions_to_monitor, symbol=symbol, close_qty=close_quantity, order_ref=order_ref )
-                    ib_positions_async.close_position_by_con_id(ib, con_id=con_id, qty_to_close=close_quantity,order_ref=order_ref)
+                    if not replay_markers_only:
+                        con_id = open_trade_info.get('con_id')
+                        # close_future_positions(future_positions_to_monitor, symbol=symbol, close_qty=close_quantity, order_ref=order_ref )
+                        ib_positions_async.close_position_by_con_id(ib, con_id=con_id, qty_to_close=close_quantity,order_ref=order_ref)
 
                 else:
                     logger.warning(f"@@@@ TBD")
@@ -239,7 +284,8 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                     order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='CLOSE', symbol=symbol, alias=f"FORCED_EXIT", unique_run_number=application_state.get('unique_run_number'))
                     con_id = x.get('contract_id')
                     close_quantity = x.get('quantity', available_quantity) # if quantity is not provided we will close all ...
-                    ib_positions_async.close_position_by_con_id(ib, con_id=con_id, qty_to_close=close_quantity, order_ref=order_ref)
+                    if not replay_markers_only:
+                        ib_positions_async.close_position_by_con_id(ib, con_id=con_id, qty_to_close=close_quantity, order_ref=order_ref)
                     order_closed_by_tp = True
                     take_profit_lable = 'tp_forced_exit'
                     x['status'] += '|SENT_TO_IB'
@@ -284,13 +330,15 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                 }
                 application_state['open_trades_dic'][symbol].setdefault('take_profit_history', []).append(data)
 
-                add_order_ref_to_application_state(application_state, open_order_ref=open_trade_info.get('order_ref'), close_order_ref=order_ref)
+                if not replay_markers_only:
+                    add_order_ref_to_application_state(application_state, open_order_ref=open_trade_info.get('order_ref'), close_order_ref=order_ref)
                 # add_to_take_profit_history_df(data)
                 TradingLedger.add_to_dataframe('take_profit_history_df', data)
                 # add_to_signals(symbol, 'TAKE_PROFIT_SENT', underlying_current_price, df['date'].bloc[-1], f"TAKE-PROFIT-{take_profit_lable} <BR>{polish_map_to_show_in_hover(data)}")
                 TradingLedger.add_to_list("signals", (symbol, 'TAKE_PROFIT_SENT', underlying_current_price, symbol_df['date'].iloc[-1], f"TAKE-PROFIT-{take_profit_lable} <BR>{json_utils.polish_map_to_show_in_hover(data)}"))
                 # send_email(event='take_profit_sent', symbol=symbol, body=polish_map_to_show_in_hover(data))
-                notification_helper.send_email(app_config, event='take_profit_sent', symbol=symbol, body=json_utils.polish_map_to_show_in_hover(data))
+                if not replay_markers_only:
+                    notification_helper.send_email(app_config, event='take_profit_sent', symbol=symbol, body=json_utils.polish_map_to_show_in_hover(data))
                 increment_wins(application_state, symbol)
 
                 # This is very import. There was a case that after t1 execution, t2 condition meet also
