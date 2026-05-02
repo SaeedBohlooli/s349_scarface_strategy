@@ -177,7 +177,7 @@ async def prepare_option_contract(ib, app_config, application_state, market_data
             if mid_price >= min_contract_price:
                 strike_found = True
             else:
-                logger.info(f"[prepate_contract] , mid_price is less then min_contract_price, mid_price: {mid_price}, min_contract_price: {min_contract_price} ")
+                logger.info(f"[prepate_contract] @ mid_price is less then min_contract_price, strike: {strike}, mid_price: {mid_price}, min_contract_price: {min_contract_price} ")
                 adj_index += 1
     else:
         strike = user_defined_strike
