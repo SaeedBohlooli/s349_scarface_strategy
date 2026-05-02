@@ -4,8 +4,8 @@ Historical bar replay using the same strategy / scanner / chart stack as Trading
 Drives simulated wall/monotonic clocks via trading_utils.date_utils so RuntimeManager,
 trade_time/busy_time evals, and per-bar should_run_once keys align with each replayed bar.
 
-Does not submit IB orders or run exit_conditions (those require live quotes); chart markers
-and scanner outputs match the shared engine helpers.
+Does not submit live IB orders; uses optional on-disk OHLCV under dirs.backtest_ohlcv per
+session date to avoid refetching (set backtest_run.refresh_ohlcv_from_ib to force IB).
 """
 
 from __future__ import annotations
@@ -13,8 +13,9 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import logging
+import os
 import time
-from typing import Any, Dict, Iterator, List
+from typing import Any, Dict, Iterator, List, Optional
 
 import pandas as pd
 import pandas_market_calendars as mcal
@@ -137,6 +138,63 @@ def slice_session_day_only(dfull: pd.DataFrame, session_date_yyyy_mm_dd: str) ->
     return dfull[dd.dt.normalize() == d_norm].copy()
 
 
+_OHLCV_CACHE_COLS = ("date", "open", "high", "low", "close", "volume")
+
+
+def _normalize_ib_hist_df(df: pd.DataFrame) -> pd.DataFrame:
+    if df is None or df.empty:
+        return pd.DataFrame()
+    out = df.copy()
+    if "date" not in out.columns:
+        return pd.DataFrame()
+    out["date"] = pd.to_datetime(out["date"])
+    if getattr(out["date"].dt, "tz", None) is not None:
+        out["date"] = out["date"].dt.tz_convert("America/New_York").dt.tz_localize(None)
+    out = out.sort_values("date").reset_index(drop=True)
+    out = out.drop_duplicates(subset=["date"], keep="last").reset_index(drop=True)
+    return out
+
+
+def _backtest_ohlcv_cache_file(cache_dir: Optional[str], symbol: str) -> Optional[str]:
+    if not cache_dir:
+        return None
+    return os.path.join(cache_dir, f"{symbol}-1min.csv")
+
+
+def _load_backtest_ohlcv_cache(
+    cache_file: str,
+    session_date_yyyy_mm_dd: str,
+) -> pd.DataFrame:
+    try:
+        df = pd.read_csv(cache_file)
+    except Exception as exc:
+        logger.warning("[backtest_replay] Could not read OHLCV cache %s: %s", cache_file, exc)
+        return pd.DataFrame()
+    df = _normalize_ib_hist_df(df)
+    if df.empty:
+        return df
+    day = slice_session_day_only(df, session_date_yyyy_mm_dd)
+    if day.empty:
+        logger.info(
+            "[backtest_replay] OHLCV cache %s has no rows on session %s — refetch",
+            cache_file,
+            session_date_yyyy_mm_dd,
+        )
+        return pd.DataFrame()
+    return df
+
+
+def _save_backtest_ohlcv_cache(cache_file: str, df: pd.DataFrame) -> None:
+    os.makedirs(os.path.dirname(cache_file), exist_ok=True)
+    cols = [c for c in _OHLCV_CACHE_COLS if c in df.columns]
+    if len(cols) < 2 or "date" not in cols:
+        logger.warning("[backtest_replay] Skip OHLCV cache write — missing columns in df")
+        return
+    out = df[cols].copy()
+    out.to_csv(cache_file, index=False)
+    logger.info("[backtest_replay] Wrote OHLCV cache %s (%s rows)", cache_file, len(out))
+
+
 async def prefetch_symbol_history(
     ib,
     *,
@@ -144,7 +202,22 @@ async def prefetch_symbol_history(
     app_config: dict,
     ib_historical_window: str,
     session_date_yyyy_mm_dd: str,
+    cache_dir: Optional[str] = None,
+    refresh_ohlcv_from_ib: bool = False,
 ) -> pd.DataFrame:
+    cache_file = _backtest_ohlcv_cache_file(cache_dir, symbol)
+
+    if cache_file and not refresh_ohlcv_from_ib and os.path.isfile(cache_file):
+        cached = _load_backtest_ohlcv_cache(cache_file, session_date_yyyy_mm_dd)
+        if not cached.empty:
+            logger.info(
+                "[backtest_replay] Using OHLCV cache for %s session=%s (%s rows)",
+                symbol,
+                session_date_yyyy_mm_dd,
+                len(cached),
+            )
+            return cached
+
     end_compact = pd.Timestamp(session_date_yyyy_mm_dd).strftime("%Y%m%d")
     df = await get_stock_historical_data(
         ib,
@@ -159,12 +232,11 @@ async def prefetch_symbol_history(
     if df is None or df.empty:
         logger.warning("[backtest_replay] No bars for symbol=%s end=%s", symbol, session_date_yyyy_mm_dd)
         return pd.DataFrame()
-    df = df.copy()
-    df["date"] = pd.to_datetime(df["date"])
-    if getattr(df["date"].dt, "tz", None) is not None:
-        df["date"] = df["date"].dt.tz_convert("America/New_York").dt.tz_localize(None)
-    df = df.sort_values("date").reset_index(drop=True)
-    df = df.drop_duplicates(subset=["date"], keep="last").reset_index(drop=True)
+
+    df = _normalize_ib_hist_df(df)
+    if cache_file:
+        _save_backtest_ohlcv_cache(cache_file, df)
+
     return df
 
 
@@ -279,6 +351,7 @@ async def replay_one_calendar_day(
     ib_historical_window: str,
     session_start: str,
     session_end: str,
+    refresh_ohlcv_from_ib: bool = False,
 ) -> None:
     prefetch_symbols = list(dict.fromkeys(["QQQ"] + [s for s in symbols if s != "QQQ"]))
     symbols_save_charts = list(symbols)
@@ -290,6 +363,7 @@ async def replay_one_calendar_day(
     )
     FileManager.set_dirs(dm)
     FileManager.set_files_config(app_config["files"])
+    backtest_ohlcv_dir = getattr(dm.paths, "backtest_ohlcv", None)
 
     with _backtest_cases_to_run_override(app_config):
         await _replay_one_calendar_day_body(
@@ -302,6 +376,8 @@ async def replay_one_calendar_day(
             ib_historical_window=ib_historical_window,
             session_start=session_start,
             session_end=session_end,
+            backtest_ohlcv_dir=backtest_ohlcv_dir,
+            refresh_ohlcv_from_ib=refresh_ohlcv_from_ib,
         )
 
 
@@ -316,6 +392,8 @@ async def _replay_one_calendar_day_body(
     ib_historical_window: str,
     session_start: str,
     session_end: str,
+    backtest_ohlcv_dir: Optional[str] = None,
+    refresh_ohlcv_from_ib: bool = False,
 ) -> None:
     TradingLedger.clear_all()
     hover_cols = [
@@ -357,6 +435,8 @@ async def _replay_one_calendar_day_body(
             app_config=app_config,
             ib_historical_window=ib_historical_window,
             session_date_yyyy_mm_dd=session_date_yyyy_mm_dd,
+            cache_dir=backtest_ohlcv_dir,
+            refresh_ohlcv_from_ib=refresh_ohlcv_from_ib,
         )
 
     usable = all(not full_hist[s].empty for s in prefetch_symbols)
@@ -517,6 +597,7 @@ async def run_backtest_job_from_cli(*, portfolio_id: str, config_folder: str = "
     ib_window = job.get("ib_historical_window", cfg.get("live", {}).get("historical_days", "6 D"))
     ss = job.get("session_start_et", "04:00")
     se = job.get("session_end_et", "16:00")
+    refresh_ohlcv = bool(job.get("refresh_ohlcv_from_ib", False))
 
     if "QQQ" in cfg.get("symbols", []) and "QQQ" not in symbols:
         symbols = ["QQQ"] + [s for s in symbols if s != "QQQ"]
@@ -553,6 +634,7 @@ async def run_backtest_job_from_cli(*, portfolio_id: str, config_folder: str = "
                 ib_historical_window=ib_window,
                 session_start=ss,
                 session_end=se,
+                refresh_ohlcv_from_ib=refresh_ohlcv,
             )
     finally:
         ib.disconnect()

@@ -29,6 +29,8 @@ dirs:
   ohlc: "../../portfolios/{portfolio_id}/backtest-ohlc"
   ohlc_archive: "../../portfolios/{portfolio_id}/ohlc-archive"
   ohlc_w_indicators: "../../portfolios/{portfolio_id}/ohlc-w-indicators"
+  # Cached IB 1m OHLCV per session date (replay reads here first; see backtest_run.refresh_ohlcv_from_ib).
+  backtest_ohlcv: "../../portfolios/{portfolio_id}/backtest_ohlcv/{date}"
   charts: "../../portfolios/{portfolio_id}/charts/{date}"
 
 files:
@@ -271,10 +273,12 @@ indicators:
 # Enabled chart replay worker: main/backtest_main.py (IB historical pull + per-day ledger save).
 backtest_run:
   enabled: true
-  start_date: "2026-04-30"
+  start_date: "2026-04-18"
   end_date: "2026-05-01"
   symbols: []
   ib_historical_window: "6 D"
+  # If false: use dirs.backtest_ohlcv/{session_date}/{SYMBOL}-1min.csv when present and valid.
+  refresh_ohlcv_from_ib: false
   # Replay only bars in this ET window (inclusive by minute).
   session_start_et: "09:30"
   session_end_et: "10:00"
