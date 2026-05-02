@@ -18,19 +18,19 @@ async def find_expiration_and_strikes_for_all_from_ib(ib, app_config, applicatio
 
 async def find_expiration_and_strikes_from_ib(ib, application_state, symbol, exchange, market_data):
     underlying = Stock(symbol, 'SMART', 'USD')
-    logger.info(f"underlying: {underlying}, type: {type(underlying)}, module: {type(underlying).__module__}" )
+    logger.info(f"[find_expiration_and_strikes_from_ib] underlying: {underlying}, type: {type(underlying)}, module: {type(underlying).__module__}" )
 
     q = await ib_contract.get_cached_contract(ib, symbol)
 
-    logger.info(f"underlying: {underlying}:  qualifyContracts: {q}")
+    logger.info(f"[find_expiration_and_strikes_from_ib] underlying: {underlying}:  qualifyContracts: {q}")
 
     if not q :
-        logger.warning(f"@@@@ find_expiration_and_strikes_from_ib, underlying contract not qualified. {symbol}: {underlying}")
+        logger.warning(f"[find_expiration_and_strikes_from_ib] @@@@ find_expiration_and_strikes_from_ib, underlying contract not qualified. {symbol}: {underlying}")
         return
     #  Request all option chains for this symbol
     chains = await ib.reqSecDefOptParamsAsync(symbol, '', 'STK', q.conId)
     if chains is None:
-        logger.warning(f"@@@ chains is Null for symbol: {symbol}")
+        logger.warning(f"[find_expiration_and_strikes_from_ib] @@@ chains is Null for symbol: {symbol}")
         return
     # Look at what's available
     # for chain in chains:
@@ -131,7 +131,7 @@ async def prepare_option_contract(ib, app_config, application_state, market_data
 
     min_contract_price = app_config['symbols_meta'][symbol].get('min_contract_price', 0)
     if min_contract_price == 0:
-        min_contract_price =  app_config['live'].get('min_contract_price', 0)
+        min_contract_price =  app_config['positioning'].get('min_contract_price', 0)
 
     underlying_price = await ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol)
 

@@ -47,9 +47,9 @@ def initialize_application_state_for_run(app_config, application_state):
     application_state['retest_idx'] = {}
 
     current_hh_mm_ny = date_utils.get_current_hhmm_ny() #used in the config evals for trade_time
-    is_trade_time = eval(app_config['live']['trade_time'])
-    is_busy_time = eval(app_config['live'].get('busy_time', '1 == 1'))
-    is_market_time = eval(app_config['live'].get('market_time', '1 == 1'))
+    is_trade_time = eval(app_config['trading_session']['trade_time'])
+    is_busy_time = eval(app_config['trading_session'].get('busy_time', '1 == 1'))
+    is_market_time = eval(app_config['trading_session'].get('market_time', '1 == 1'))
 
     application_state['is_trade_time'] = is_trade_time
     application_state['is_busy_time'] = is_busy_time

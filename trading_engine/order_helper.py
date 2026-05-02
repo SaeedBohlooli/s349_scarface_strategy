@@ -79,7 +79,7 @@ def add_entry_message_to_application_state(application_state, symbol, date, mess
 async def check_buy_sell_result_to_send_order(ib, app_config, application_state, buy_sell_case_results_list, symbol, df, market_data, runtime):
 
     current_hh_mm_ny = date_utils.get_current_hhmm_ny() # used in config ...
-    is_trade_time = eval(app_config['live']['trade_time'])
+    is_trade_time = eval(app_config['trading_session']['trade_time'])
 
     for buy_sell_case_result in buy_sell_case_results_list:
 
@@ -110,15 +110,15 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
             logger.info(f"[check_buy_sell_result_to_send_order] @@ We are not trading {symbol}.")
             continue
         if do_check and not is_trade_time:
-            logger.warning(f"[check_buy_sell_result_to_send_order] @@ is_trade_time:{is_trade_time}, {symbol}, {app_config['live']['trade_time']}")
+            logger.warning(f"[check_buy_sell_result_to_send_order] @@ is_trade_time:{is_trade_time}, {symbol}, {app_config['trading_session']['trade_time']}")
             continue
         if application_state.get('open_trades_dic', {}).get(symbol,{}).get('available_quantity', 0) != 0:
             logger.warning(f"[check_buy_sell_result_to_send_order] @@ You already have open position. Don't be greedy!!!  symbol: {symbol}")
             continue
-        if do_check and number_of_positions_today(application_state, symbol) > app_config['risk_gate']['max_num_of_trade_per_symbol_per_day']:
+        if do_check and number_of_positions_today(application_state, symbol) > app_config['positioning']['max_num_of_trade_per_symbol_per_day']:
             logger.warning(f"[check_buy_sell_result_to_send_order] @@  We already sent enough orders for {symbol}")
             continue
-        if do_check and number_of_total_positions_today(application_state) >= app_config['risk_gate']['max_number_of_trades_per_day']:
+        if do_check and number_of_total_positions_today(application_state) >= app_config['positioning']['max_number_of_trades_per_day']:
             logger.warning(f"[check_buy_sell_result_to_send_order] @@  We already sent enough orders for {symbol}")
             continue
         if do_check and has_open_order_in_same_group(app_config, application_state, symbol):
@@ -127,7 +127,7 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
         if do_check and symbol in app_config.get('manual_settings',{}).get('blocked_symbols',{})[right]:
             logger.warning(f"[check_buy_sell_result_to_send_order] @@  This symbol is blocked, {symbol}, {app_config.get('manual_settings',{}).get('blocked_symbols',{})[right]}")
             continue
-        if do_check and  number_of_wins(application_state, symbol) >= app_config.get('risk_gate',{}).get('stop_after_wins', 100):
+        if do_check and  number_of_wins(application_state, symbol) >= app_config.get('positioning',{}).get('stop_after_wins', 100):
             logger.warning(f"[check_buy_sell_result_to_send_order] @@  Today we had enough wins, {symbol}")
             continue
         if do_check and not check_manual_conditions(app_config, application_state, symbol, right):
@@ -142,7 +142,7 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
             logger.warning(f"[check_buy_sell_result_to_send_order] @@  check_xui_symbol_controls failed, {symbol}")
             add_entry_message_to_application_state(application_state, symbol, str(df['date'].iloc[-1]), 'order is blocked by xui')
             if runtime.should_run_once(f"check_xui_symbol_controls-failed-{symbol}-{str(df['date'].iloc[-1])}"):
-                TradingLedger.add_to_list("signals", (symbol, f"CHECK_XUI_SYMBOL_CONTROLS_FAILED", df['high'].iloc[-1], df['date'].iloc[-1], f"{case} - ", 'ORANGE'))
+                TradingLedger.add_to_list("signals", (symbol, f"CHECK_XUI_SYMBOL_CONTROLS_FAILED", df['high'].iloc[-1], df['date'].iloc[-1], f"{case} - CHECK_XUI_SYMBOL_CONTROLS_FAILED ", 'ORANGE'))
             continue
 
 
@@ -449,7 +449,7 @@ def calculate_number_of_future_contracts(app_config, application_state, symbol):
 
     available_capital = risk_helper.calcualte_availale_capital(app_config, application_state)
 
-    capital_per_trade_percentage = app_config['live']['capital_per_trade_percentage']
+    capital_per_trade_percentage = app_config['positioning']['capital_per_trade_percentage']
 
     logger.info(f"calculate_number_of_future_contracts(), {symbol}, available_capital: {available_capital}, capital_per_trade_percentage: {capital_per_trade_percentage}")
 

@@ -161,6 +161,7 @@ cases:
       extras:
         - levels['PDH'] < levels['5MH'] or get_current_price(ib, application_state, 'QQQ') > application_state['levels']['QQQ']['5MH']
         - abs (price - long_level) < 1.2 * atr_14
+        # - abs (price - long_level) < 1.2 * atr_14 and abs (price - long_level) < 2 * abs( levels['5MH'] - levels['PDL'])
         # 10
         # We commented this case for long, but we leave it there for short.
         - not is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='up', price=price, current_level=long_level, next_levels=['5MH'])

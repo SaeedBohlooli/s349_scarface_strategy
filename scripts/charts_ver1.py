@@ -904,6 +904,9 @@ def index():
     mode = app_config['chart']['source']
 
     backtest_base_dir = '../../portfolios/charts-backtest'
+    if not os.path.exists(backtest_base_dir):
+        os.makedirs(backtest_base_dir, exist_ok=True)
+
     live_base_dir = f'../../portfolios/{portfolio_id}/charts/'
 
     available_backtest_dates = sorted([

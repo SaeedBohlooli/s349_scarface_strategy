@@ -8,8 +8,7 @@ from trading_core.file_manager import FileManager
 
 async def get_historical_data(ib, symbol, app_config, application_state, time_frame ='1 day', historical_days=''):
     if historical_days == '':
-        mode = application_state.get('mode', 'live')
-        historical_days = app_config[mode]['historical_days']
+        historical_days = '4 D'
 
     logger.info(f"[get_historical_data], symbol: {symbol}, time_frame: {time_frame}, historical_days: {historical_days}")
     df = await ib_marketdata_async.get_stock_historical_data(

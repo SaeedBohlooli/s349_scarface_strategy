@@ -8,15 +8,15 @@ def calculate_number_of_option_contracts(app_config, application_state, symbol, 
     memo = ''
     available_capital = calcualte_availale_capital(app_config, application_state)
 
-    capital_per_trade_percentage = app_config['live']['capital_per_trade_percentage']
+    capital_per_trade_percentage = app_config['positioning']['capital_per_trade_percentage']
 
     # 4000 * 0.2 = 800.00  if the ask = 1,  quantity:  8  =  800/( 100  contract * 1 ask)
     #  num_of_contracts: 4
     logger.info(f"calculate_number_of_contracts(), {symbol}, available_capital: {available_capital}, capital_per_trade_percentage: {capital_per_trade_percentage}")
 
-    max_exposure_per_trade = int(app_config['live'].get('max_exposure_per_trade', 800))
-    min_position_size = int(app_config['live'].get('min_position_size', 6))
-    min_contract_entry_price = app_config['live'].get('min_contract_entry_price', 0.5)
+    max_exposure_per_trade = int(app_config['positioning'].get('max_exposure_per_trade', 800))
+    min_position_size = int(app_config['positioning'].get('min_position_size', 6))
+    # min_contract_entry_price = app_config['positioning'].get('min_contract_entry_price', 0.5)
 
     # capital_per_trade = min(available_capital * capital_per_trade_percentage, max_exposure_per_trade)  # TODO put in a function
     capital_per_trade = max_exposure_per_trade
@@ -25,9 +25,9 @@ def calculate_number_of_option_contracts(app_config, application_state, symbol, 
     if user_defined_quantity == 0: # we calcualte it ...
         num_of_contracts = round(capital_per_trade / (ask * 100))
 
-        if ask < min_contract_entry_price:
-            logger.warning(f"[calculate_number_of_option_contracts] @@@@ ask price {ask} is below the minimum contract entry price {min_contract_entry_price} ...")
-            num_of_contracts = 0
+        # if ask < min_contract_entry_price:
+        #     logger.warning(f"[calculate_number_of_option_contracts] @@@@ ask price {ask} is below the minimum contract entry price {min_contract_entry_price} ...")
+        #     num_of_contracts = 0
 
         if num_of_contracts < min_position_size:
             logger.warning(f"[calculate_number_of_option_contracts] @@@@ we don't have enough capital ...{num_of_contracts} contracts is below the minimum position size {min_position_size} ...")
@@ -69,7 +69,7 @@ def calculate_number_of_future_contracts(app_config, application_state, symbol):
 
     available_capital = calcualte_availale_capital()
 
-    capital_per_trade_percentage = app_config['live']['capital_per_trade_percentage']
+    capital_per_trade_percentage = app_config['positioning']['capital_per_trade_percentage']
 
     logger.info(f"calculate_number_of_future_contracts(), {symbol}, available_capital: {available_capital}, capital_per_trade_percentage: {capital_per_trade_percentage} ")
 
@@ -110,7 +110,7 @@ def calcualte_availale_capital(app_config, application_state):
 
     available_capital = application_state.get('risk', {}).get('available_capital', None)
     if available_capital is None:
-       available_capital = app_config['live']['capital']
+       available_capital = app_config['positioning']['capital']
        application_state.setdefault('risk', {}).setdefault('available_capital', available_capital )
     return available_capital
 

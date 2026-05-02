@@ -1,27 +1,22 @@
-# Shared between engine and XUI
+live_cases:
+  - case_2
+  - case_4
 
-live:
-  #  cases_to_run: ['case_2_1', 'case_4_1']
-  cases_to_run: ['case_2', 'case_4']
-#  cases_to_run: ["case_3"]
-  historical_days: 4 D  # SB: check and move ....
+positioning:
   capital: 50000
   max_exposure_per_trade: 2000
   min_position_size: 3 #
-  min_contract_entry_price: 0.1  # SB check one is needed
+#  min_contract_entry_price: 0.1  # SB check one is needed
   min_contract_price: 0.1
-  #  num_of_contracts: calculate_number_of_contracts()
-
-#  trade_time: 930 < current_hh_mm_ny  < 1014 # TODO change to trade_time
-  trade_time: 930 < current_hh_mm_ny  < 1559 # TODO change to trade_time
-  market_time: 930 < current_hh_mm_ny < 1559
-  busy_time: 933 < current_hh_mm_ny < 1016 #don't chaneg this,  we are not saving anythng or any test ...
-
-
-risk_gate:
   stop_after_wins: 10
   max_number_of_trades_per_day: 20
   max_num_of_trade_per_symbol_per_day: 20
+
+
+trading_session:
+  trade_time: 930 < current_hh_mm_ny  < 1559 # TODO change to trade_time
+  market_time: 930 < current_hh_mm_ny < 1559
+  busy_time: 933 < current_hh_mm_ny < 1016 #don't chaneg this,  we are not saving anythng or any test ...
 
 available_cases:
   - one:

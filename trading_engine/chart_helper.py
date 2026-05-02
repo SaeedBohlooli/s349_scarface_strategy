@@ -239,9 +239,9 @@ def mark_tolerance_to_the_level(app_config, application_state, symbol, level_nam
     df = market_data.dfs_map.get(symbol)
     date = df['date'].iloc[-1]
 
-    TradingLedger.add_to_list("signals", (symbol, f'{level_name}_SMALL_DOT', p1, date, f'tel: {p1}, l: {level} t: {tolerance}', 'yellow' ))
+    TradingLedger.add_to_list("signals", (symbol, f'{level_name}_SMALL_DOT', p1, date, f'tel: {p1}, l: {level} t: {tolerance} {str(date)}', 'yellow' ))
 
-    TradingLedger.add_to_list("signals", (symbol, f'{level_name}_SMALL_DOT_1', p2, date, f'tel: {p2}, l: {level} t: {tolerance}' ,'yellow' ))
+    TradingLedger.add_to_list("signals", (symbol, f'{level_name}_SMALL_DOT_1', p2, date, f'tel: {p2}, l: {level} t: {tolerance} {str(date)}' ,'yellow' ))
 
     return
 

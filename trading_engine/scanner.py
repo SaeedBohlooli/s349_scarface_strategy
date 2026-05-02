@@ -147,7 +147,7 @@ def check_buy_and_sell_cases(ib, app_config, application_state, symbol, market_d
     mode = application_state.get('mode', 'live')
     buy_sell_case_results = []
     for case in app_config['cases']:
-        if case in app_config[mode]['cases_to_run']:
+        if case in app_config['live_cases']:
             res = check_buy_sell_condition(ib, app_config, application_state, case, symbol, market_data)
             if res is not None: # if precondition not met, we get None
                 buy_sell_case_results.append(res)
