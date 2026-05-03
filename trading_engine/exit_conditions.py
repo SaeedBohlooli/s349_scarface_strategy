@@ -41,7 +41,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
         try:
             seconds_since_last_record = date_utils.seconds_passed_since_last_record(symbol_df)
             logger.info(f"[check_for_stop_loss_and_take_profit] @ symbol: {symbol}, seconds_since_last_record: {seconds_since_last_record}")
-            if seconds_since_last_record > 65:
+            if seconds_since_last_record > 66:
                 logger.warning(f"[check_for_stop_loss_and_take_profit] @@@ {symbol}, seconds_since_last_record: {seconds_since_last_record}")
                 logger.info(f"[check_for_stop_loss_and_take_profit] @@@ , symbol_df[-1:]\n {symbol_df[-1:].to_markdown()}")
                 continue
@@ -52,9 +52,9 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
         entry_underlying_price = float(open_trade_info.get('entry_underlying_price', -1))  # used in config ...
 
         case = open_trade_info.get('case') #
-        right = application_state['open_trades_dic'][symbol].get('right', '') # used in config
-        side = application_state['open_trades_dic'][symbol].get('side') # used in config
-        level_used_to_open = application_state['open_trades_dic'][symbol]['level_used_to_open'] # used in config
+        right = open_trade_info.get('right', '') # used in config
+        side = open_trade_info.get('side') # used in config
+        level_used_to_open = open_trade_info['level_used_to_open'] # used in config
         dynamic_tolerance = market_data.data_store.get(symbol,{}).get('dynamic_tolerance', {})
         tolerance_amount = dynamic_tolerance.get('tolerance', 0)  # used in config
         start_quantity = application_state.get('open_trades_dic', {}).get(symbol, {}).get('starting_quantity', 0) # used in config
@@ -62,10 +62,10 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
         user_defined_stop_loss = open_trade_info.get('stop_loss', 0)  # user in config
 
         entry_price = 0 # used in config ...
-        if application_state['open_trades_dic'][symbol].get('entry_execution_price', 0) != 0:
-            entry_price = application_state['open_trades_dic'][symbol].get('entry_execution_price', 0)
+        if open_trade_info.get('entry_execution_price', 0) != 0:
+            entry_price = open_trade_info.get('entry_execution_price', 0)
         else:
-            entry_price = application_state['open_trades_dic'][symbol]['entry_ask']
+            entry_price = open_trade_info['entry_ask']
 
         from trading_utils import ib_pricing_async
         contract_month = app_config.get('symbols_meta', {}).get(symbol,{}).get('contract_month')
@@ -76,9 +76,9 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
         else:
             underlying_previous_candle_close = symbol_df['close'].iloc[-2] # used in config
 
-        expiry = application_state['open_trades_dic'][symbol]['expiry']
-        strike = application_state['open_trades_dic'][symbol]['strike']
-        right = application_state['open_trades_dic'][symbol]['right']
+        expiry = open_trade_info['expiry']
+        strike = open_trade_info['strike']
+        right = open_trade_info['right']
         if open_trade_info.get('position_type') == 'OPTION':
             current_bid, current_ask, current_last = await ib_pricing_async.get_or_subscribe_option_price(ib, symbol, expiry, strike,right)  # used in config
         else:
@@ -93,21 +93,21 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
 
         # update app status ...
         if app_config['symbols_meta'][symbol]['contract_type'] == 'Equity':
-            application_state['open_trades_dic'][symbol]['current_bid'] = current_bid
-            application_state['open_trades_dic'][symbol]['current_ask'] = current_ask
-            application_state['open_trades_dic'][symbol]['current_underlying_price'] = underlying_current_price
-            application_state['open_trades_dic'][symbol]['current_value'] = round( current_ask * application_state['open_trades_dic'][symbol]['starting_quantity'] * 100 , 3)
+            open_trade_info['current_bid'] = current_bid
+            open_trade_info['current_ask'] = current_ask
+            open_trade_info['current_underlying_price'] = underlying_current_price
+            open_trade_info['current_value'] = round( current_ask * open_trade_info['starting_quantity'] * 100 , 3)
             current_estimated_unrealized_pnl = round(( mid_price - entry_price) * available_quantity * 100  , 2)
-            application_state['open_trades_dic'][symbol]['current_estimated_unrealized_pnl'] = current_estimated_unrealized_pnl
-            application_state['open_trades_dic'][symbol]['current_estimated_realized_pnl'] = calculate_estimated_realized_pnl(open_trade_info)
-            application_state['open_trades_dic'][symbol]['min_bid'] = current_bid if application_state['open_trades_dic'][symbol].get('min_bid') == 0 else min(application_state['open_trades_dic'][symbol].get('min_bid'), current_bid)
-            application_state['open_trades_dic'][symbol]['max_bid'] = max(application_state['open_trades_dic'][symbol].get('max_bid'), current_bid)
+            open_trade_info['current_estimated_unrealized_pnl'] = current_estimated_unrealized_pnl
+            open_trade_info['current_estimated_realized_pnl'] = calculate_estimated_realized_pnl(open_trade_info)
+            open_trade_info['min_bid'] = current_bid if open_trade_info.get('min_bid') == 0 else min(open_trade_info.get('min_bid'), current_bid)
+            open_trade_info['max_bid'] = max(open_trade_info.get('max_bid'), current_bid)
 
         else: # it is future ...
-            application_state['open_trades_dic'][symbol]['current_bid'] = current_bid
-            application_state['open_trades_dic'][symbol]['current_ask'] = current_ask
-            application_state['open_trades_dic'][symbol]['current_underlying_price'] = underlying_current_price
-            application_state['open_trades_dic'][symbol]['current_value'] = underlying_current_price * 1 # TODO available...
+            open_trade_info['current_bid'] = current_bid
+            open_trade_info['current_ask'] = current_ask
+            open_trade_info['current_underlying_price'] = underlying_current_price
+            open_trade_info['current_value'] = underlying_current_price * 1 # TODO available...
 
 
         logger.info(f"[check_for_stop_loss_and_take_profit], level_used_to_open: {level_used_to_open}, entry_underlying_price: {entry_underlying_price}, "
@@ -133,9 +133,9 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                     continue
                 data = {
                     'symbol': symbol,
-                    'right': application_state['open_trades_dic'][symbol]['right'],
-                    'strike':  application_state['open_trades_dic'][symbol]['strike'],
-                    'expiry': application_state['open_trades_dic'][symbol]['expiry'],
+                    'right': open_trade_info['right'],
+                    'strike':  open_trade_info['strike'],
+                    'expiry': open_trade_info['expiry'],
                     'current_bid': current_bid,
                     'current_ask': current_ask,
                     'underlying_current_price': underlying_current_price,
@@ -146,10 +146,10 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                     'open_u_run_number': '',
                     'open_order_ref': '',
                     'sl_order_ref': order_ref,
-                    'local_symbol': application_state['open_trades_dic'][symbol].get('local_symbol'),
-                    'con_id': application_state['open_trades_dic'][symbol].get('con_id'),
+                    'local_symbol': open_trade_info.get('local_symbol'),
+                    'con_id': open_trade_info.get('con_id'),
                     }
-                application_state['open_trades_dic'][symbol].setdefault('stop_loss_history', []).append(data) # save it in the
+                open_trade_info.setdefault('stop_loss_history', []).append(data) # save it in the
                 archive_open_trade_dic(application_state, symbol)
                 application_state.setdefault('open_trades_dic', {})[symbol] = {}  #  TODO This need to be happened after we get required inf from dic...
                 add_order_ref_to_application_state(application_state, open_order_ref=open_trade_info.get('order_ref'), close_order_ref=order_ref)
@@ -193,7 +193,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                 logger.info(f"[check_for_stop_loss_and_take_profit] {symbol}, {take_profit_lable}, available_quantity is 0 ")
                 continue
 
-            if application_state['open_trades_dic'][symbol].get('take_profits',{}).get(take_profit_lable,None ) is not None:
+            if open_trade_info.get('take_profits',{}).get(take_profit_lable,None ) is not None:
                 logger.info(f"[check_for_stop_loss_and_take_profit], {symbol}, TP already is executed ... {take_profit_lable}")
                 continue
             take_profit_condition = app_config['take_profits'][take_profit_lable].get('condition', '1 == 2')
@@ -248,7 +248,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                     x['status'] += '|SENT_TO_IB'
 
         if order_closed_by_tp:
-                application_state['open_trades_dic'][symbol]['available_quantity'] = available_quantity - close_quantity
+                open_trade_info['available_quantity'] = available_quantity - close_quantity
                 entry_execution_price = open_trade_info['entry_execution_price']
                 take_profit_estimated_pnl = (mid_price - entry_execution_price) * close_quantity * 100 if entry_execution_price !=0 else 0
                 take_profit_estimated_pnl = round(take_profit_estimated_pnl, 3)
@@ -264,13 +264,13 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                     'tp_u_run_number': application_state.get('unique_run_number'),
                     'order_ref': order_ref,
                 }
-                application_state['open_trades_dic'][symbol].setdefault('take_profits', {})[take_profit_lable] = data
+                open_trade_info.setdefault('take_profits', {})[take_profit_lable] = data
 
                 data = {
                     'symbol': symbol,
-                    'right': application_state['open_trades_dic'][symbol].get('right'),
-                    'strike': application_state['open_trades_dic'][symbol].get('strike'),
-                    'expiry': application_state['open_trades_dic'][symbol].get('expiry'),
+                    'right': open_trade_info.get('right'),
+                    'strike': open_trade_info.get('strike'),
+                    'expiry': open_trade_info.get('expiry'),
                     'entry_execution_price': entry_execution_price,
                     'current_bid': current_bid,
                     'current_ask': current_ask,
@@ -283,10 +283,10 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                     'candle_date': str(symbol_df['date'].iloc[-1]),
                     'tp_u_run_number': application_state.get('unique_run_number'),
                     'order_ref': order_ref,
-                    'local_symbol': application_state['open_trades_dic'][symbol].get('local_symbol'),
-                    'con_id': application_state['open_trades_dic'][symbol].get('con_id'),
+                    'local_symbol': open_trade_info.get('local_symbol'),
+                    'con_id': open_trade_info.get('con_id'),
                 }
-                application_state['open_trades_dic'][symbol].setdefault('take_profit_history', []).append(data)
+                open_trade_info.setdefault('take_profit_history', []).append(data)
 
                 add_order_ref_to_application_state(application_state, open_order_ref=open_trade_info.get('order_ref'), close_order_ref=order_ref)
                 TradingLedger.add_to_dataframe('take_profit_history_df', data)
@@ -303,7 +303,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
 
 
     for symbol, open_trade_info in application_state.get('open_trades_dic', {}).items():
-        if application_state['open_trades_dic'].get(symbol, {}) != {} and application_state['open_trades_dic'][symbol].get('available_quantity', 0) <= 0:
+        if application_state['open_trades_dic'].get(symbol, {}) != {} and open_trade_info.get('available_quantity', 0) <= 0:
             logger.info(f"{symbol}, the available_quantity is zero, so we set empty dic for it")
             symbols_need_to_be_removed.append(symbol)
 

@@ -20,8 +20,8 @@ def update_position_for_entry_execution_price(application_state):
                 if ib_on_fill_fill_df is None or ib_on_fill_fill_df.empty:
                     logger.info(f"Skipping {symbol} -- ib_on_fill_fill_df is None or empty")
                     continue
-                local_symbol = application_state['open_trades_dic'][symbol]['local_symbol']
-                order_ref = application_state['open_trades_dic'][symbol]['order_ref']
+                local_symbol = open_trade_info['local_symbol']
+                order_ref = open_trade_info['order_ref']
                 execution_info_map = ib_posttrade.get_execution_map(ib_on_fill_fill_df,
                                                                     contract_localSymbol=local_symbol,
                                                                     execution_orderRef=order_ref)
