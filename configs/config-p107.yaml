@@ -142,14 +142,6 @@ closeness_distance_for_case_1: df['atr_14'].iloc[-2] * 2
 options:
   max_otm_strikes_to_try: 3
 
-chart:
-  port: 51071
-  source: back_test
-  hours_in_focus: 3
-  live:
-    start_time: "09:00"
-    end_time: "12:00"
-
 # before_start:
 load_application_state_from_file: true
 

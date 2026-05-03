@@ -46,6 +46,8 @@ def load_app_config(portfolio_id):
     global app_config
     logger.warning(f"loading app_config ....")
     app_config = config_utils.load_config(f'{configs_folder}/config-{portfolio_id}.yaml')
+    chart_config = config_utils.load_config(f'{configs_folder}/config-charts.yaml')
+    app_config.update(chart_config)
     logger.info(f"loaded.")
     return app_config
 
