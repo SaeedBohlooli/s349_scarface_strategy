@@ -1,11 +1,12 @@
-:: start cmd /k python ..\trading_utils\watchdog_ibgateway.py
-
-set CMD="call ..\.venv\Scripts\activate && python ..\trading_utils\watchdog_ibgateway.py"
+@echo off
 
 set PROGRAM=python.exe
-set PORTFOLIO=p107
-set KEY_1=watchdog_ibgateway
-set KEY_2=watchdog_ibgateway
+set PORTFOLIO_ID=p107
+set KEY_1=ib_heartbeat_monitor_standalone
+set KEY_2=p107
+
+set CMD="call ..\.venv\Scripts\activate && python ..\utils\ib_heartbeat_monitor_standalone.py --portfolio-id=%PORTFOLIO_ID%"
+rem set CMD="call ..\.venv\Scripts\activate ; python ..\utils\ib_heartbeat_monitor_standalone.py --portfolio-id=%PORTFOLIO_ID%"
 
 wmic process where "name='%PROGRAM%' and CommandLine like '%%%KEY_1%%%' and CommandLine like '%%%KEY_2%%%' " get ProcessId | findstr [0-9] >nul
 
@@ -18,7 +19,9 @@ if %errorlevel%==0 (
     wmic process where "name='%PROGRAM%' and CommandLine like '%%%KEY_1%%%' and CommandLine like '%%%KEY_2%%%' " get ProcessId,CommandLine
 ) else (
     echo Starting program %CMD%
-    :: start cmd /k python ..\trading_utils\watchdog_ibgateway.py
     start cmd /k %CMD%
 
+    rem %CMD%
 )
+
+:: start "" "C:\Program Files\Google\Chrome\Application\chrome.exe" "http://localhost:51071/"
