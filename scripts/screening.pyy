@@ -2257,7 +2257,7 @@ def populate_volume_ratio(df):
     df['VR'] = df['VR'].clip(upper=cap)
     df['VR_sma10'] = df['VR'].rolling(window=10).mean()
     return df
-def popualate_features(df):
+def populate_features(df):
     period = 14
     atr_df = pd.DataFrame()
     atr_df[f'atr_{period}'] = TA.ATR(df, 14)
@@ -3993,7 +3993,7 @@ if __name__ == "__main__":
             breakout_idx = 0
 
             df = get_market_data(symbol, '1 min', historical_days=historical_days)
-            df = popualate_features(df)
+            df = populate_features(df)
             df = populate_volume_ratio(df)
             if not is_busy_time:
                 logger.info(f"{symbol}, df: \n{df[-4:].to_markdown()}")

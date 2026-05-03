@@ -163,7 +163,7 @@ class TradingEngine:
                     if df is None or len(df) ==0:
                         logger.warning(f"[engine] @@@@@ {symbol}, no data found, skip the symbol for now ...")
                         continue
-                    df = inidicators.popualate_features(df)
+                    df = inidicators.populate_features(df)
                     df = inidicators.populate_volume_ratio(df)
                     self.market_data.dfs_map[symbol] = df
                     if self.application_state['is_save_time']:
@@ -173,11 +173,11 @@ class TradingEngine:
                     relative_strength_df = inidicators.compute_relative_strength(df, qqq_df, period=20) # TODO do we need this
                     intraday_rs_df = inidicators.compute_intraday_rs(df, qqq_df)
 
-                    if self.runtime.should_run_once(f'{symbol}-DYNAMIC-TOLERANCE-CALCULATION-{str(df["date"].iloc[-1])}'): # telrance for last closed candle
-                        dynamic_tolerance = atr_tolerance_helper.get_dynamic_tolerance(df[:-1].copy(), level=0, min_tick=0.01)  # Drop -1 as it fluctuates and SL triggers ...
-                        dynamic_tolerance['timestamp'] = str(df['date'].iloc[-1])
-                        self.market_data.data_store.setdefault(symbol, {})['dynamic_tolerance'] = dynamic_tolerance
-                        self.application_state.setdefault('dynamic_tolerances', {})[symbol] = dynamic_tolerance
+                    if self.runtime.should_run_once(f'DYNAMIC-TOLERANCE-CALCULATION-{symbol}-{str(df["date"].iloc[-1])}'): # telrance for last closed candle
+                        dynamic_tolerance_map = atr_tolerance_helper.get_dynamic_tolerance(df[:-1].copy(), level=0, min_tick=0.01)  # Drop -1 as it fluctuates and SL triggers ...
+                        dynamic_tolerance_map['timestamp'] = str(df['date'].iloc[-1])
+                        self.market_data.data_store.setdefault(symbol, {})['dynamic_tolerance'] = dynamic_tolerance_map
+                        self.application_state.setdefault('dynamic_tolerances', {})[symbol] = dynamic_tolerance_map
 
                     # Levels
                     if not strategy.all_levels_in(self.application_state, symbol, ['PDH']):

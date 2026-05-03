@@ -12,7 +12,7 @@ def populate_volume_ratio(df):
     df['VR_sma10'] = df['VR'].rolling(window=10).mean()
     return df
 
-def popualate_features(df):
+def populate_features(df):
     period = 14
     atr_df = pd.DataFrame()
     atr_df[f'atr_{period}'] = TA.ATR(df, 14)

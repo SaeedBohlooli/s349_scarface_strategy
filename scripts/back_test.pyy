@@ -2279,7 +2279,7 @@ def populate_volume_ratio(df):
     df['VR'] = df['VR'].clip(upper=cap)
     df['VR_sma10'] = df['VR'].rolling(window=10).mean()
     return df
-def popualate_features(df):
+def populate_features(df):
     period = 14
     atr_df = pd.DataFrame()
     atr_df[f'atr_{period}'] = TA.ATR(df, 14)
@@ -3952,7 +3952,7 @@ if __name__ == "__main__":
                     df = cut_df_until_hour_x_on_last_day(df, cutoff_time="11:00")
                     df.reset_index(drop=True, inplace=True) # reset index start from 0
 
-                    df = popualate_features(df)
+                    df = populate_features(df)
                     df = populate_volume_ratio(df)
                     df = populate_backtest_columns(df)
 
