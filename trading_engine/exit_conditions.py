@@ -196,16 +196,31 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
             if open_trade_info.get('take_profits',{}).get(take_profit_lable,None ) is not None:
                 logger.info(f"[check_for_stop_loss_and_take_profit], {symbol}, TP already is executed ... {take_profit_lable}")
                 continue
+
+            if app_config.get('take_profit_configs',{}).get(take_profit_lable ,{}).get('enabled',True) == False:
+                logger.info(f"[check_for_stop_loss_and_take_profit], {symbol}, TP is disabled in take_profit_configs  ... {take_profit_lable}")
+                continue
+
+            close_type = app_config.get('take_profit_configs',{}).get(take_profit_lable ,{}).get('close_type',"percentage") # percentage or price   # used in config
+            number_of_trails = app_config.get('take_profit_configs',{}).get(take_profit_lable ,{}).get('number_of_trails',0)   # used in config
+            percentage_change = 1.0 + app_config.get('take_profit_configs',{}).get(take_profit_lable ,{}).get('percentage_change',0)   # used in config
+            absolute_change = app_config.get('take_profit_configs',{}).get(take_profit_lable ,{}).get('absolute_change',0)  # used in config
+
             take_profit_condition = app_config['take_profits'][take_profit_lable].get('condition', '1 == 2')
             close_quantity_percentage = app_config['take_profits'][take_profit_lable].get('close_quantity_percentage', 0)
 
             take_profit_condition_evaluated = eval(take_profit_condition)
 
-            if close_quantity_percentage == -1: # close all
-                close_quantity = available_quantity
+            if close_type == 'percentage':
+                if close_quantity_percentage == -1: # close all
+                    close_quantity = available_quantity
+                else:
+                    close_quantity = int(start_quantity * close_quantity_percentage )   # we take the less. dont do round
+                    close_quantity = 1 if close_quantity == 0 else close_quantity  # we want to make sure 0.4 * 1 will return 1.
+            elif close_type == 'absolute':
+                close_quantity = available_quantity - number_of_trails
             else:
-                close_quantity = round(start_quantity * close_quantity_percentage )
-                close_quantity = 1 if close_quantity == 0 else close_quantity  # we want to make sure 0.4 * 1 will return 1.
+                logger.info(f"[check_for_stop_loss_and_take_profit] @@@ close_type is not supported. close_type: {close_type}")
 
             logger.info(f"[check_for_stop_loss_and_take_profit] available_quantity: {available_quantity}, close_quantity_percentage: {close_quantity_percentage}, close_quantity: {close_quantity}, start_quantity:{start_quantity}")
             logger.info(f"[check_for_stop_loss_and_take_profit] take_profit_condition: {take_profit_condition}, take_profit_condition_evaluated: {take_profit_condition_evaluated}")
@@ -216,36 +231,37 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                 if app_config['symbols_meta'][symbol]['contract_type'] == 'Equity':
                     order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='CLOSE', symbol=symbol, alias=take_profit_lable, unique_run_number=application_state.get('unique_run_number'))
                     con_id = open_trade_info.get('con_id')
-                    ib_positions_async.close_position_by_con_id(ib, con_id = con_id, qty_to_close=close_quantity, order_ref=order_ref )
+                    close_result = ib_positions_async.close_position_by_con_id(ib, con_id = con_id, qty_to_close=close_quantity, order_ref=order_ref)
+                    if not close_result:
+                        logger.info(f"[check_for_stop_loss_and_take_profit] @@@@ we couldn't close the position for TP, so we skip the rest ... {symbol} - needs more investigation ")
                 elif app_config['symbols_meta'][symbol]['contract_type'] == 'Future':
                     order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='CLOSE', symbol=symbol, alias=take_profit_lable, unique_run_number=application_state.get('unique_run_number'))
-
                     con_id = open_trade_info.get('con_id')
-                    # close_future_positions(future_positions_to_monitor, symbol=symbol, close_qty=close_quantity, order_ref=order_ref )
                     ib_positions_async.close_position_by_con_id(ib, con_id=con_id, qty_to_close=close_quantity,order_ref=order_ref)
-
                 else:
                     logger.warning(f"[check_for_stop_loss_and_take_profit] @@@@ TBD")
                 order_closed_by_tp = True
 
-                # DONT REMOVE BREAK. after tp is executed we need to remove the loop. if not, other may be executed and also wrong info in the email
+                # DO NOT REMOVE BREAK. after tp is executed we need to remove the loop. if not, other may be executed and also wrong info in the email
                 break
 
 
 
-        for x in application_state.get('forced_exits', []): #TODO BUG what happens if t1 get fired and again here we do same.
+        for forced_ecit_entry in application_state.get('forced_exits', []):
                 if order_closed_by_tp:
                     continue
-                if x.get('symbol') == symbol and not 'SENT_TO_IB' in x.get('status')  :
+                if forced_ecit_entry.get('symbol') == symbol and not 'SENT_TO_IB' in forced_ecit_entry.get('status')  :
 
-                    logger.info(f"Forced exit for {symbol}  is found in application_state, so we will execute the exit as well ...")
+                    logger.info(f"[check_for_stop_loss_and_take_profit] Forced exit for {symbol}  is found in application_state, so we will execute the exit as well ...")
                     order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='CLOSE', symbol=symbol, alias=f"FORCED_EXIT", unique_run_number=application_state.get('unique_run_number'))
-                    con_id = x.get('contract_id')
-                    close_quantity = x.get('quantity', available_quantity) # if quantity is not provided we will close all ...
-                    ib_positions_async.close_position_by_con_id(ib, con_id=con_id, qty_to_close=close_quantity, order_ref=order_ref)
+                    con_id = forced_ecit_entry.get('contract_id')
+                    close_quantity = forced_ecit_entry.get('quantity', available_quantity) # if quantity is not provided we will close all ...
+                    close_result = ib_positions_async.close_position_by_con_id(ib, con_id=con_id, qty_to_close=close_quantity, order_ref=order_ref)
+                    if not close_result:
+                        logger.info(f"[check_for_stop_loss_and_take_profit] @@@@ we couldn't close the position for TP, so we skip the rest ... {symbol} - needs more investigation ")
                     order_closed_by_tp = True
                     take_profit_lable = 'tp_forced_exit'
-                    x['status'] += '|SENT_TO_IB'
+                    forced_ecit_entry['status'] += '|SENT_TO_IB'
 
         if order_closed_by_tp:
                 open_trade_info['available_quantity'] = available_quantity - close_quantity

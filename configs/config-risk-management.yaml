@@ -28,7 +28,7 @@ available_cases:
      case: case_3
      memo: 5MH and 5ML breakout_ver_2, no short above PDH, trade close to level. - we running this one - 2.1 improved
 
-take_profits_configs:
+take_profit_configs:
   t1:
     enabled: true
     close_type: percentage # percentage or absolute

@@ -77,7 +77,7 @@ stop_losses:
 take_profits:
   t1:
     condition: >
-      (current_bid > entry_price * 1.15 or current_bid - entry_price > 0.30)  
+      (current_bid > entry_price * percentage_change or current_bid - entry_price > absolute_change)  
       and entry_price not in [0,-1] and current_bid not in [0,-1]
     close_quantity_percentage: 0.6
     close_quantity_numbner: total - number_of_trails
