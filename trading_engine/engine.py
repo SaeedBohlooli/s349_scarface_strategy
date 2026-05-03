@@ -217,7 +217,7 @@ class TradingEngine:
 
                     await exit_conditions.check_for_stop_loss_and_take_profit(ib, self.app_config, self.application_state, self.market_data)
 
-                    if self.application_state['is_save_time'] and 931 < current_hh_mm_ny and not self.runtime.should_run_once(f'{symbol}-MARK_GAP'):
+                    if self.application_state['is_save_time'] and 931 < current_hh_mm_ny and self.runtime.should_run_once(f'{symbol}-MARK_GAP'):
                         chart_helper.detect_a_mark_market_gap(self.application_state, symbol, df)  # need to happen one time after 9:30
 
                     if self.application_state['is_save_time'] and self.runtime.is_due(f'{symbol}-EXTRA-FEATURES-DF-SAVE', interval_sec=5*60):
@@ -225,7 +225,6 @@ class TradingEngine:
 
                     chart_helper.add_buy_a_sell_entries_to_signals(self.app_config, self.application_state, buy_sell_case_results_list, symbol, self.market_data)
 
-                    position_helper.update_position_for_avg_cost(self.application_state)  # TODO this is wrong
                     position_helper.update_position_for_entry_execution_price(self.application_state)
 
                     symbol_end_time = time.time()

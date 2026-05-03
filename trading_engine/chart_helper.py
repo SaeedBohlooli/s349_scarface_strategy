@@ -328,6 +328,7 @@ def mark_close_levels(app_config, application_state, symbol, df):
 
 
 def detect_a_mark_market_gap(application_state, symbol, df):
+    logger.info(f"[detect_a_mark_market_gap] symbol: {symbol}")
     df["trade_day"] = df["date"].dt.date
     unique_days = sorted(df["trade_day"].unique())
     today = unique_days[-1]
@@ -356,7 +357,7 @@ def detect_a_mark_market_gap(application_state, symbol, df):
     if open_today_0930 is not  None and close_yesterday_1600 is not None:
         add_to_drawing_objects_df(symbol=symbol, time_frame='1min', object='rect', color=color, date_1=f'{today} 09:00:00', price_1=close_yesterday_1600,
                                   date_2=f'{today} 09:30:00', price_2=open_today_0930, memo='Market Gap', unique_id=f'{symbol}--MARKET-GAP')
-        application_state.setdefault('symbols', {}).setdefault(symbol, {}).update(
+        application_state.setdefault('gaps', {}).setdefault(symbol, {}).update(
             {
             'date': str(df['date'].iloc[-1]),
             'open_today_0930': open_today_0930,

@@ -25,9 +25,10 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
         # ###
         # stop loss
         # ###
-        if not application_state.get('is_save_time'):
-            logger.info(f"[check_for_stop_loss_and_take_profit] {symbol}, {open_trade_info}" )
+        if application_state.get('is_save_time'):
+            # logger.info(f"[check_for_stop_loss_and_take_profit] {symbol}, {open_trade_info}" )
             #json_utils.print_map_pretty(open_trade_info)
+            pass
 
         if open_trade_info.get('available_quantity', 0) == 0:
             logger.info(f"[check_for_stop_loss_and_take_profit] {symbol}, available_quantity: 0")
@@ -49,9 +50,6 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
 
         # TODO check date to make sure that the data is not old
         entry_underlying_price = float(open_trade_info.get('entry_underlying_price', -1))  # used in config ...
-        avg_cost_for_1_contract = open_trade_info.get('avg_cost_for_1_contract', -1) # used in config
-        if avg_cost_for_1_contract == 0:
-            avg_cost_for_1_contract = open_trade_info.get('entry_ask')  # TOD is better to get entry_execution_price
 
         case = open_trade_info.get('case') #
         right = application_state['open_trades_dic'][symbol].get('right', '') # used in config
@@ -62,6 +60,12 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
         start_quantity = application_state.get('open_trades_dic', {}).get(symbol, {}).get('starting_quantity', 0) # used in config
         available_quantity = application_state.get('open_trades_dic', {}).get(symbol, {}).get('available_quantity', 0)  # used in config
         user_defined_stop_loss = open_trade_info.get('stop_loss', 0)  # user in config
+
+        entry_price = 0 # used in config ...
+        if application_state['open_trades_dic'][symbol].get('entry_execution_price', 0) != 0:
+            entry_price = application_state['open_trades_dic'][symbol].get('entry_execution_price', 0)
+        else:
+            entry_price = application_state['open_trades_dic'][symbol]['entry_ask']
 
         from trading_utils import ib_pricing_async
         contract_month = app_config.get('symbols_meta', {}).get(symbol,{}).get('contract_month')
@@ -79,6 +83,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
             current_bid, current_ask, current_last = await ib_pricing_async.get_or_subscribe_option_price(ib, symbol, expiry, strike,right)  # used in config
         else:
             current_bid, current_ask, current_last = await ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol, contract_month)  # used in config
+
         mid_price = (current_bid + current_ask) / 2
 
         # TODO handle Future ...
@@ -92,34 +97,22 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
             application_state['open_trades_dic'][symbol]['current_ask'] = current_ask
             application_state['open_trades_dic'][symbol]['current_underlying_price'] = underlying_current_price
             application_state['open_trades_dic'][symbol]['current_value'] = round( current_ask * application_state['open_trades_dic'][symbol]['starting_quantity'] * 100 , 3)
-            if application_state['open_trades_dic'][symbol].get('entry_execution_price', 0) == 0:
-                entry_price = application_state['open_trades_dic'][symbol]['entry_ask']
-            else:
-               entry_price = application_state['open_trades_dic'][symbol].get('entry_execution_price', 0)
             current_estimated_unrealized_pnl = round(( mid_price - entry_price) * available_quantity * 100  , 2)
             application_state['open_trades_dic'][symbol]['current_estimated_unrealized_pnl'] = current_estimated_unrealized_pnl
             application_state['open_trades_dic'][symbol]['current_estimated_realized_pnl'] = calculate_estimated_realized_pnl(open_trade_info)
-
             application_state['open_trades_dic'][symbol]['min_bid'] = current_bid if application_state['open_trades_dic'][symbol].get('min_bid') == 0 else min(application_state['open_trades_dic'][symbol].get('min_bid'), current_bid)
             application_state['open_trades_dic'][symbol]['max_bid'] = max(application_state['open_trades_dic'][symbol].get('max_bid'), current_bid)
-
-            avg_cost_for_1_contract = application_state['open_trades_dic'][symbol].get('avg_cost_for_1_contract', 1)
-            if avg_cost_for_1_contract != 0: # not decide by 0
-                application_state['open_trades_dic'][symbol]['current_roi'] = round(application_state['open_trades_dic'][symbol]['current_bid'] / avg_cost_for_1_contract - 1, 3)
 
         else: # it is future ...
             application_state['open_trades_dic'][symbol]['current_bid'] = current_bid
             application_state['open_trades_dic'][symbol]['current_ask'] = current_ask
-
             application_state['open_trades_dic'][symbol]['current_underlying_price'] = underlying_current_price
             application_state['open_trades_dic'][symbol]['current_value'] = underlying_current_price * 1 # TODO available...
-            # application_state['open_trades_dic'][symbol]['current_pnl'] = round(application_state['open_trades_dic'][symbol]['current_underlying_price'] - application_state['open_trades_dic'][symbol].get('entry_underlying_price', 0), 2)
-            application_state['open_trades_dic'][symbol]['current_roi'] = round(application_state['open_trades_dic'][symbol]['current_underlying_price'] / application_state['open_trades_dic'][symbol].get('entry_underlying_price', 1) - 1, 3)
 
 
         logger.info(f"[check_for_stop_loss_and_take_profit], level_used_to_open: {level_used_to_open}, entry_underlying_price: {entry_underlying_price}, "
                     f"underlying_current_price:, {underlying_current_price}, underlying_previous_candle_close: {underlying_previous_candle_close} ,tolerance_amount: {tolerance_amount}")
-        logger.info(f"[check_for_stop_loss_and_take_profit], current_bid: {current_bid}, current_ask: {current_ask}, avg_cost_for_1_contract: {avg_cost_for_1_contract}")
+        logger.info(f"[check_for_stop_loss_and_take_profit], current_bid: {current_bid}, current_ask: {current_ask}")
         stop_loss_condition_evaluated = False
         for stop_loss_condition in app_config.get('stop_losses', []):
             if stop_loss_condition_evaluated:
@@ -265,6 +258,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                     'close_quantity': close_quantity,
                     'candle_date': str(symbol_df['date'].iloc[-1]),
                     'take_profit_estimated_pnl': take_profit_estimated_pnl,
+                    'entry_execution_price': entry_execution_price,
                     'current_bid': current_bid,
                     'current_ask': current_ask,
                     'tp_u_run_number': application_state.get('unique_run_number'),
@@ -295,11 +289,8 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                 application_state['open_trades_dic'][symbol].setdefault('take_profit_history', []).append(data)
 
                 add_order_ref_to_application_state(application_state, open_order_ref=open_trade_info.get('order_ref'), close_order_ref=order_ref)
-                # add_to_take_profit_history_df(data)
                 TradingLedger.add_to_dataframe('take_profit_history_df', data)
-                # add_to_signals(symbol, 'TAKE_PROFIT_SENT', underlying_current_price, df['date'].bloc[-1], f"TAKE-PROFIT-{take_profit_lable} <BR>{polish_map_to_show_in_hover(data)}")
                 TradingLedger.add_to_list("signals", (symbol, 'TAKE_PROFIT_SENT', underlying_current_price, symbol_df['date'].iloc[-1], f"TAKE-PROFIT-{take_profit_lable} <BR>{json_utils.polish_map_to_show_in_hover(data)}"))
-                # send_email(event='take_profit_sent', symbol=symbol, body=polish_map_to_show_in_hover(data))
                 notification_helper.send_email(app_config, event='take_profit_sent', symbol=symbol, body=json_utils.polish_map_to_show_in_hover(data))
                 increment_wins(application_state, symbol)
 
@@ -350,8 +341,7 @@ def archive_open_trade_dic(application_state, symbol):
                             dir='intermediate')
     order_ref  = application_state.get("open_trades_dic", {}).get(symbol,{}).get('order_ref', 'x')
     FileManager.save_named_json(application_state.get("open_trades_dic",{}).get(symbol),
-                                file_name=f"{order_ref}.json",
-                            dir='intermediate')
+                                file_name=f"{order_ref}.json", dir='intermediate')
     return
 
 
