@@ -38,7 +38,7 @@ def setup_logging(portfolio_id: str, log_dir: str = None) -> logging.Logger:
     """Setup logging with file and console output."""
     
     if log_dir is None:
-        log_dir = f"../portfolios/{portfolio_id}/logs"
+        log_dir = f"../../portfolios/{portfolio_id}/logs"
     
     os.makedirs(log_dir, exist_ok=True)
     
