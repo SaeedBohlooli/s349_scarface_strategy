@@ -21,6 +21,8 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
     long_retest_idx = 0
     short_breakout_idx = 0
     short_retest_idx = 0
+    entry_breakout_idx = 0
+    entry_retest_idx = 0
     try:
         df = market_data.dfs_map.get(symbol)
         if df is None:
@@ -121,6 +123,12 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
             'can_sell': can_sell,
             'res_str': res_str,
         }
+        if can_buy:
+            entry_breakout_idx = long_breakout_idx
+            entry_retest_idx = long_retest_idx
+        elif can_sell:
+            entry_breakout_idx = short_breakout_idx
+            entry_retest_idx = short_retest_idx
 
     except Exception as e:
         logger.error(f"[check_buy_sell_condition] @@ {symbol} {case} error {e}")
@@ -137,7 +145,9 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
         'long_breakout_idx': long_breakout_idx,
         'long_retest_idx': long_retest_idx,
         'short_breakout_idx': short_breakout_idx,
-        'short_retest_idx': short_retest_idx
+        'short_retest_idx': short_retest_idx,
+        'entry_breakout_idx': entry_breakout_idx,
+        'entry_retest_idx': entry_retest_idx
 
     }
     return case, can_buy, can_sell, details_map

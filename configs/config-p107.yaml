@@ -58,6 +58,7 @@ files:
 
   screening_summary_for_all_sub_runs_agg_df: "{results}/25-screening_summary_for_all_sub_runs_agg_df.csv" # TODO rename
   test_df: "{results}/99-test_df.csv"
+  context_filter_df: "{default}/context_filter_df.csv"
 
 symbols: ["QQQ", "AAPL", "AMD", "AMZN", "NVDA", "PLTR", "TSLA", "MU", "SPY"]
 #
@@ -228,3 +229,6 @@ child_configs:
   - config-tps.yaml
   - config-xui-symbol-control.yaml
   - config-xui-risk-management.yaml
+
+historical_data:
+  print_last_few_rows: False

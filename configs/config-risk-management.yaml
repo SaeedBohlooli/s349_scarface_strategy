@@ -32,7 +32,7 @@ take_profit_configs:
   t1:
     enabled: true
     close_type: percentage # percentage or absolute
-    numner_of_trails: 1
+    number_of_trails: 1
     percentage_change: 0.15
     absolute_change: 0.30
     memo: Taking some profit at 15% or 0.20 with 4 of

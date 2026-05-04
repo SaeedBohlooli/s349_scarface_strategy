@@ -4,6 +4,8 @@ import traceback
 
 import pandas as pd
 
+from trading_core.file_manager import FileManager
+
 logger = logging.getLogger(__name__)
 from trading_utils import date_utils
 from trading_utils import notification_utls
@@ -212,6 +214,7 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
             add_order_ref_to_application_state(application_state, open_order_ref=order_ref)
             add_open_order_to_capital_flow_df(data, capital_data)
             add_entry_message_to_application_state(application_state, symbol, str(df['date'].iloc[-1]), 'order is sent')
+            context_filter(application_state, data, details_map, df)
         elif contract_type.lower() == 'future' and (can_buy or can_sell):
             right = 'long' if can_buy else 'short'
             side = 'long' if can_buy else 'short' # TODO need to be rmeoved ...
@@ -505,3 +508,61 @@ def number_of_wins(application_state, symbol):
     trading_date = application_state.get('trading_date')
     number_of_wins = application_state.get('number_of_wins', {}).get(trading_date, 0)
     return number_of_wins
+
+
+def context_filter(application_state, data, details_map, df):
+    try:
+
+        from utils.context_filter import check_trade, LevelData
+        eval_ctx = application_state.get("eval_ctx", {})
+        symbol = data.get("symbol")
+        retest_candle_high = 0
+        retest_candle_low = 0
+        entry_retest_idx = details_map.get("entry_retest_idx", 0)
+        if entry_retest_idx !=0:
+          retest_candle_high = df.loc[entry_retest_idx]["high"]
+          retest_candle_low = df.loc[entry_retest_idx]["low"]
+
+
+        qqq = LevelData(
+          symbol="QQQ",
+          price=eval_ctx["QQQ_price"],
+          TDH=eval_ctx["QQQ_TDH"],
+          TDL=eval_ctx["QQQ_TDL"],
+          PDH=eval_ctx["QQQ_PDH"],
+          PDL=eval_ctx["QQQ_PDL"],
+          PMH=eval_ctx["QQQ_PMH"],
+          PML=eval_ctx["QQQ_PML"],
+          five_MH=eval_ctx["QQQ_5MH"],
+          five_ML=eval_ctx["QQQ_5ML"],
+        )
+
+        ticker = LevelData(
+          symbol=data.get("symbol"),
+          price=eval_ctx[f"{symbol}_price"],
+          TDH=eval_ctx[f"{symbol}_TDH"],
+          TDL=eval_ctx[f"{symbol}_TDL"],
+          PDH=eval_ctx[f"{symbol}_PDH"],
+          PDL=eval_ctx[f"{symbol}_PDL"],
+          PMH=eval_ctx[f"{symbol}_PMH"],
+          PML=eval_ctx[f"{symbol}_PML"],
+          five_MH=eval_ctx[f"{symbol}_5MH"],
+          five_ML=eval_ctx[f"{symbol}_5ML"],
+        )
+
+        result = check_trade(
+          side="long" if data.get("right") == "C" else "short",
+          level=data.get("level_used_to_open"),
+          retest_candle_high=retest_candle_high,
+          retest_candle_low=retest_candle_low,
+          stop_loss=data.get("level_used_to_open"),
+          signal_time=data.get("date"),
+          qqq=qqq,
+          ticker=ticker,
+        )
+
+        FileManager.save_my_df(result, "context_filter_df", save_tabular=True )
+    except Exception as e:
+        logger.error(f"[context_filter] @@@ error: {traceback.format_exc()}")
+        application_state_router.add_audit_message(application_state, str(e))
+
