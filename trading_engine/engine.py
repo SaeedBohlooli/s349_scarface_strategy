@@ -145,7 +145,7 @@ class TradingEngine:
                     symbol_number += 1
                     unique_run_number = f'{unique_run_number_X}-{symbol_number}'
                     self.application_state['unique_run_number'] = unique_run_number
-                    logger.warning(f"[engine] ------------------- {symbol}, {unique_run_number}, {current_hh_mm_ny} ")
+                    logger.info(f"[engine] ------------------- {symbol}, {unique_run_number}, {current_hh_mm_ny} ")
                     symbol_start_time = time.time()
 
                     application_state_helper.initialize_application_state_for_symbol_run(self.app_config, self.application_state)
@@ -229,7 +229,7 @@ class TradingEngine:
 
                     symbol_end_time = time.time()
                     symbol_run_spend_time = round(symbol_end_time - symbol_start_time, 2)
-                    logger.warning(f'[engine]------------------- {symbol}, {unique_run_number}, symbol_run_spend_time: {symbol_run_spend_time} seconds')
+                    logger.info(f'[engine]------------------- {symbol}, {unique_run_number}, symbol_run_spend_time: {symbol_run_spend_time} seconds')
                     self.application_state.setdefault("run_times", {})[symbol] = symbol_run_spend_time
 
                     # end while for symbols
@@ -251,7 +251,7 @@ class TradingEngine:
 
                 end_time = time.time()
                 run_time_spent = round(end_time - start_time, 2)
-                logger.warning(f"[engine] ==================== unique_run_number: {unique_run_number}, run_spent_time: {run_time_spent} seconds, sleep ... {self.app_config['interval_seconds']['engine_loop']}")
+                logger.info(f"[engine] ==================== unique_run_number: {unique_run_number}, run_spent_time: {run_time_spent} seconds, sleep ... {self.app_config['interval_seconds']['engine_loop']}")
                 self.application_state.setdefault("run_times", {})['engine_loop_run_time_spent'] = run_time_spent
 
             except Exception as e:
