@@ -450,7 +450,7 @@ def calculate_number_of_future_contracts(app_config, application_state, symbol):
 
     available_capital = risk_helper.calcualte_availale_capital(app_config, application_state)
 
-    capital_per_trade_percentage = app_config['positioning']['capital_per_trade_percentage']
+    capital_per_trade_percentage = app_config['positioning'].get('capital_per_trade_percentage', 0.5)
 
     logger.info(f"calculate_number_of_future_contracts(), {symbol}, available_capital: {available_capital}, capital_per_trade_percentage: {capital_per_trade_percentage}")
 
@@ -520,8 +520,9 @@ def context_filter(application_state, data, details_map, df):
         retest_candle_low = 0
         entry_retest_idx = details_map.get("entry_retest_idx", 0)
         if entry_retest_idx !=0:
-          retest_candle_high = df.loc[entry_retest_idx]["high"]
-          retest_candle_low = df.loc[entry_retest_idx]["low"]
+            logger.info(f"[context_filter] entry_retest_idx: {entry_retest_idx} ")
+            retest_candle_high = df.loc[entry_retest_idx]["high"]
+            retest_candle_low = df.loc[entry_retest_idx]["low"]
 
 
         qqq = LevelData(

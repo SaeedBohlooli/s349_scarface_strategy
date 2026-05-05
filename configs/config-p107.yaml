@@ -229,6 +229,7 @@ child_configs:
   - config-tps.yaml
   - config-xui-symbol-control.yaml
   - config-risk-management.yaml
+  - config.local.yaml
 
 historical_data:
   print_last_few_rows: False
