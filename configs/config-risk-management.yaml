@@ -6,14 +6,14 @@ positioning:
   capital: 50000
   max_exposure_per_trade: 2000
   min_position_size: 3 #
-  min_contract_price: 0.1
-  stop_after_wins: 10
-  max_number_of_trades_per_day: 20
-  max_num_of_trade_per_symbol_per_day: 20
+  min_contract_price: 0.8
+  stop_after_wins: 1
+  max_number_of_trades_per_day: 2
+  max_num_of_trade_per_symbol_per_day: 2
 
 
 trading_session:
-  trade_time: 930 < current_hh_mm_ny  < 1559 # TODO change to trade_time
+  trade_time: 930 < current_hh_mm_ny  < 1016
   market_time: 930 < current_hh_mm_ny < 1559
   busy_time: 933 < current_hh_mm_ny < 1016 #don't chaneg this,  we are not saving anythng or any test ...
 
