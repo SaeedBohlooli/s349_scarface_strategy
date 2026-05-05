@@ -8,7 +8,7 @@ def calculate_number_of_option_contracts(app_config, application_state, symbol, 
     memo = ''
     available_capital = calcualte_availale_capital(app_config, application_state)
 
-    capital_per_trade_percentage = app_config['positioning']['capital_per_trade_percentage']
+    capital_per_trade_percentage = app_config['positioning'].get('capital_per_trade_percentage',1)
 
     # 4000 * 0.2 = 800.00  if the ask = 1,  quantity:  8  =  800/( 100  contract * 1 ask)
     #  num_of_contracts: 4
@@ -69,7 +69,7 @@ def calculate_number_of_future_contracts(app_config, application_state, symbol):
 
     available_capital = calcualte_availale_capital()
 
-    capital_per_trade_percentage = app_config['positioning']['capital_per_trade_percentage']
+    capital_per_trade_percentage = app_config['positioning'].get('capital_per_trade_percentage',0.5)
 
     logger.info(f"calculate_number_of_future_contracts(), {symbol}, available_capital: {available_capital}, capital_per_trade_percentage: {capital_per_trade_percentage} ")
 
