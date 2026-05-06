@@ -521,8 +521,8 @@ def context_filter(application_state, data, details_map, df):
         entry_retest_idx = details_map.get("entry_retest_idx", 0)
         if entry_retest_idx !=0:
             logger.info(f"[context_filter] entry_retest_idx: {entry_retest_idx} ")
-            retest_candle_high = df.loc[entry_retest_idx]["high"]
-            retest_candle_low = df.loc[entry_retest_idx]["low"]
+            retest_candle_high = df["high"].iloc[entry_retest_idx]
+            retest_candle_low = df["low"].iloc[entry_retest_idx]
 
 
         qqq = LevelData(
