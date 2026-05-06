@@ -523,7 +523,9 @@ def context_filter(application_state, data, details_map, df):
             logger.info(f"[context_filter] entry_retest_idx: {entry_retest_idx} ")
             retest_candle_high = df["high"].iloc[entry_retest_idx]
             retest_candle_low = df["low"].iloc[entry_retest_idx]
-
+        else:
+            logger.info(f"[context_filter] @ entry_retest_idx is not valid. entry_retest_idx: {entry_retest_idx} ")
+            return
 
         qqq = LevelData(
           symbol="QQQ",
@@ -561,7 +563,7 @@ def context_filter(application_state, data, details_map, df):
           qqq=qqq,
           ticker=ticker,
         )
-
+        logger.info(f"[context_filter] result: {result}")
         FileManager.save_my_df(result, "context_filter_df", save_tabular=True )
     except Exception as e:
         logger.error(f"[context_filter] @@@ error: {traceback.format_exc()}")
