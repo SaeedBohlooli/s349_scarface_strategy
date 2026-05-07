@@ -163,15 +163,15 @@ class TradingEngine:
                     if df is None or len(df) ==0:
                         logger.warning(f"[engine] @@@@@ {symbol}, no data found, skip the symbol for now ...")
                         continue
-                    df = inidicators.populate_features(df)
-                    df = inidicators.populate_volume_ratio(df)
+                    df = inidicators.populate_features(df)  # TODO do we need it?
+                    df = inidicators.populate_volume_ratio(df)  # TODO do we need it?
                     self.market_data.dfs_map[symbol] = df
                     if self.application_state['is_save_time']:
                         logger.info(f"[engine] {symbol}, df: \n{df[-4:].to_markdown()}")
 
                     qqq_df = self.market_data.dfs_map.get('QQQ')
-                    relative_strength_df = inidicators.compute_relative_strength(df, qqq_df, period=20) # TODO do we need this
-                    intraday_rs_df = inidicators.compute_intraday_rs(df, qqq_df)
+                    # relative_strength_df = inidicators.compute_relative_strength(df, qqq_df, period=20) # TODO do we need this
+                    # intraday_rs_df = inidicators.compute_intraday_rs(df, qqq_df)
 
                     if self.runtime.should_run_once(f'DYNAMIC-TOLERANCE-CALCULATION-{symbol}-{str(df["date"].iloc[-1])}'): # telrance for last closed candle
                         dynamic_tolerance_map = atr_tolerance_helper.get_dynamic_tolerance(df[:-1].copy(), level=0, min_tick=0.01)  # Drop -1 as it fluctuates and SL triggers ...
@@ -202,7 +202,7 @@ class TradingEngine:
 
                         chart_helper.add_atr_to_candle_info(symbol, self.market_data)
 
-                        chart_helper.add_rs_relative_to_candle_info(symbol, intraday_rs_df, self.market_data)
+                        # chart_helper.add_rs_relative_to_candle_info(symbol, intraday_rs_df, self.market_data)
                         chart_helper.add_open_position_to_candle_info(self.application_state, symbol, self.market_data)
 
 
@@ -220,8 +220,8 @@ class TradingEngine:
                     if self.application_state['is_save_time'] and 931 < current_hh_mm_ny and self.runtime.should_run_once(f'{symbol}-MARK_GAP'):
                         chart_helper.detect_a_mark_market_gap(self.application_state, symbol, df)  # need to happen one time after 9:30
 
-                    if self.application_state['is_save_time'] and self.runtime.is_due(f'{symbol}-EXTRA-FEATURES-DF-SAVE', interval_sec=5*60):
-                        marketdata_helper.save_extra_features_df(self.application_state, symbol, df, relative_strength_df, intraday_rs_df,time_frame='1 min', save_tabular=False)
+                    # if self.application_state['is_save_time'] and self.runtime.is_due(f'{symbol}-EXTRA-FEATURES-DF-SAVE', interval_sec=5*60):
+                    #     marketdata_helper.save_extra_features_df(self.application_state, symbol, df, relative_strength_df, intraday_rs_df,time_frame='1 min', save_tabular=False)
 
                     chart_helper.add_buy_a_sell_entries_to_signals(self.app_config, self.application_state, buy_sell_case_results_list, symbol, self.market_data)
 
@@ -306,7 +306,6 @@ class TradingEngine:
             quote_cache_streamer.run(),
             self.engine_loop(ib),
             self.do_miscs(ib, self.app_config, self.application_state, interval_seconds=60),
-            # user_request_x.user_request_loop(self.app_config, self.application_state),
             self.boot.data_saver_manager.run(ib, interval_sec=60),
             user_request_loop.fetch_user_request_loop(self.app_config, self.application_state, interval_sec=5),
             user_request_loop.process_common_user_request_loop(ib, self.app_config, self.application_state,interval_sec=5),
