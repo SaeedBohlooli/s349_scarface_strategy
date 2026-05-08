@@ -597,8 +597,8 @@ def is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, d
     clipped_df = df[breakout_idx:]
     highest_high = clipped_df['high'].max()
     lowest_low = clipped_df['low'].min()
-    logger.info(f"[is_price_close_to_next_levels_ver_2], {symbol}, price: side: {side}, {price}, current_level: {current_level}, next_levels:{next_levels}, breakout_idx: {breakout_idx} ,date: {df['date'].iloc[-1]}")
-    # logger.info(f"[is_price_close_to_next_levels_ver_2], clipped_df: \n{clipped_df[-4:].to_markdown()}")
+    logger.info(f"[is_price_close_to_next_levels_ver_2] {symbol}, price: side: {side}, {price}, current_level: {current_level}, next_levels:{next_levels}, breakout_idx: {breakout_idx} ,date: {df['date'].iloc[-1]}")
+    # logger.info(f"[is_price_close_to_next_levels_ver_2] clipped_df: \n{clipped_df[-4:].to_markdown()}")
 
     for key in next_levels:
         next_level = levels_map.get(key, None)

@@ -32,7 +32,7 @@ def add_case_manual_order_to_buy_sell_case_results_list(application_state, symbo
         if symbol != symbol_app_process:
             logger.info(f"[add_case_manual_order_to_buy_sell_case_results_list] @@ skipping ...symbol:{symbol}, symbol_app_process: {symbol_app_process}, user_request:{user_request}")
             continue
-        logger.info(f"[add_case_manual_order_to_buy_sell_case_results_list], processing user request for manual order, symbol:{symbol}, user_request:{user_request}")
+        logger.info(f"[add_case_manual_order_to_buy_sell_case_results_list] processing user request for manual order, symbol:{symbol}, user_request:{user_request}")
         quantity = int(user_request.get('quantity', 0))
         side = user_request.get('side', 'long')
         side = 'long' if side.lower() in ('long', 'buy') else 'short'
@@ -92,7 +92,7 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
         logger.debug(f"[check_buy_sell_result_to_send_order], {symbol}, can_buy: {can_buy}, can_sell:{can_sell}")
         if can_buy == False and can_sell == False: # no success ...
             continue
-        logger.info(f"[check_buy_sell_result_to_send_order], order signal , {symbol}, can_buy: {can_buy}, can_sell:{can_sell}")
+        logger.info(f"[check_buy_sell_result_to_send_order] order signal , {symbol}, can_buy: {can_buy}, can_sell:{can_sell}")
 
         details_map = buy_sell_case_result[3]
         case_result = details_map.get('res_str')
@@ -337,7 +337,7 @@ def check_manual_conditions(app_config, application_state, symbol, right):
             # evaluated_condition = eval(condition)
             evaluated_condition = eval(condition, {}, eval_ctx)
 
-            logger.info(f"[check_manual_conditions], {symbol}, {right}, condition: {condition}, evaluated_condition: {evaluated_condition} ")
+            logger.info(f"[check_manual_conditions] {symbol}, {right}, condition: {condition}, evaluated_condition: {evaluated_condition} ")
             if not evaluated_condition:
                 return False
 
@@ -345,7 +345,7 @@ def check_manual_conditions(app_config, application_state, symbol, right):
             # evaluated_condition
             evaluated_condition = eval(condition, {}, eval_ctx)
 
-            logger.info(f"[check_manual_conditions], {symbol}, {right}, condition: {condition}, evaluated_condition: {evaluated_condition} ")
+            logger.info(f"[check_manual_conditions] {symbol}, {right}, condition: {condition}, evaluated_condition: {evaluated_condition} ")
             if not evaluated_condition:
                 return False
 

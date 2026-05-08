@@ -10,7 +10,7 @@ async def get_historical_data(ib, symbol, app_config, application_state, time_fr
     if historical_days == '':
         historical_days = '4 D'
 
-    logger.info(f"[get_historical_data], symbol: {symbol}, time_frame: {time_frame}, historical_days: {historical_days}")
+    logger.info(f"[get_historical_data] symbol: {symbol}, time_frame: {time_frame}, historical_days: {historical_days}")
     df = await ib_marketdata_async.get_stock_historical_data(
         ib,
         symbol,
@@ -22,7 +22,7 @@ async def get_historical_data(ib, symbol, app_config, application_state, time_fr
 
     if not application_state['is_save_time']:
         logger.info(f"[get_historical_data] , start: \n{df[:2].to_markdown()}")
-        logger.info(f"[get_historical_data], end: \n{df[-2:].to_markdown()}")
+        logger.info(f"[get_historical_data] end: \n{df[-2:].to_markdown()}")
     return df
 
 

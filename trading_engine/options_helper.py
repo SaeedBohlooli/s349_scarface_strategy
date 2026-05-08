@@ -184,7 +184,7 @@ async def prepare_option_contract(ib, app_config, application_state, market_data
 
 
     contract = await ib_contract.get_option_contract_cached(ib, symbol=symbol, strike=strike, expiry=expiry, right=right)
-    logger.info(f"[prepare_contract], contract: {contract}")
+    logger.info(f"[prepare_contract] contract: {contract}")
 
     return contract
 
@@ -243,7 +243,7 @@ async def prepare_option_contract_for_later_use_for_symbol(ib, app_config, appli
         if contract is not None:
             await ib_pricing_async.subscribe_contracts_to_market_data(ib, [contract])
         else:
-            logger.info(f"[prepare_option_contract_for_later_use_for_symbol], @@@ contract is None")
+            logger.info(f"[prepare_option_contract_for_later_use_for_symbol] @@@ contract is None")
 
 
     return True

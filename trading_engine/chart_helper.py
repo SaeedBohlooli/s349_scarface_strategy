@@ -364,7 +364,6 @@ def detect_a_mark_market_gap(application_state, symbol, df):
             'close_yesterday_1600': close_yesterday_1600,
             'gap_size': gap_size,
             'update_timestamp': str(date_utils.time_now()),
-
             }
         )
     return

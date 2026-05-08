@@ -129,7 +129,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                 close_result = ib_positions_async.close_position_by_con_id(ib, con_id=con_id, order_ref=order_ref )
                 # close_option_positions(option_positions_to_monitor, symbol=symbol, order_ref=order_ref)
                 if not close_result:
-                    logger.warning(f"[check_for_stop_loss_and_take_profit] @@@@ we couldn't close the position for SL, so we skip the rest ... {symbol} - needs more investigation ")
+                    logger.warning(f"[check_for_stop_loss_and_take_profit] @@@@ we couldn't close the position for SL, so we skip the rest {symbol}  {open_trade_info.get("order_ref")}  needs more investigation ")
                     continue
                 data = {
                     'symbol': symbol,
@@ -223,7 +223,8 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                 logger.info(f"[check_for_stop_loss_and_take_profit] @@@ close_type is not supported. close_type: {close_type}")
 
             logger.info(f"[check_for_stop_loss_and_take_profit] available_quantity: {available_quantity}, close_quantity_percentage: {close_quantity_percentage}, close_quantity: {close_quantity}, start_quantity:{start_quantity}")
-            logger.info(f"[check_for_stop_loss_and_take_profit] take_profit_condition: {take_profit_condition}, take_profit_condition_evaluated: {take_profit_condition_evaluated}")
+            logger.info(f"[check_for_stop_loss_and_take_profit] take_profit_condition: {take_profit_condition}")
+            logger.info(f"[check_for_stop_loss_and_take_profit] take_profit_condition_evaluated: {take_profit_condition_evaluated}")
             order_ref = ''
 
             if take_profit_condition_evaluated and available_quantity > 0 and close_quantity != 0 and close_quantity <= available_quantity :
@@ -400,19 +401,19 @@ def check_mark_revers_candles(application_state, symbol, take_profit_alias=None,
         logger.info(f"[check_mark_revers_candles] ... {symbol}")
         result = False
         tp_candle_date = application_state['open_trades_dic'].get(symbol,{}).get('take_profits',{}).get(take_profit_alias,{}).get('candle_date',None)
-        logger.info(f"[check_mark_revers_candles], {symbol}, tp_candle_date: {tp_candle_date}")
+        logger.info(f"[check_mark_revers_candles] {symbol}, tp_candle_date: {tp_candle_date}")
 
         if tp_candle_date == None:
            return False
 
         right = application_state['open_trades_dic'].get(symbol,{}).get('right', '')
-        logger.info(f"[check_mark_revers_candles], {symbol}, right: {right} ")
+        logger.info(f"[check_mark_revers_candles] {symbol}, right: {right} ")
 
 
         if len(df) == 0:
             logger.warning(f"@@ len(df) is zero")
             return False
-        logger.info(f"[check_mark_revers_candles], {symbol}, df[-5:]\n {df[-5:].to_markdown()}")
+        logger.info(f"[check_mark_revers_candles] {symbol}, df[-5:]\n {df[-5:].to_markdown()}")
         crossed_ema9 = False
         df["ema_9"] = df["close"].ewm(span=9, adjust=False).mean()
         if right == 'C':
@@ -427,8 +428,8 @@ def check_mark_revers_candles(application_state, symbol, take_profit_alias=None,
 
         df = df[df["date"] >= target_date]
         logger.info(f"@@ check_mark_revers_candles, {symbol}, prev_close: {prev_close}. ")
-        logger.info(f"[check_mark_revers_candles], {symbol}, first two \n {df[:2].to_markdown()}")
-        logger.info(f"[check_mark_revers_candles], {symbol}, last two \n {df[-2:].to_markdown()}")
+        logger.info(f"[check_mark_revers_candles] {symbol}, first two \n {df[:2].to_markdown()}")
+        logger.info(f"[check_mark_revers_candles] {symbol}, last two \n {df[-2:].to_markdown()}")
 
         df = df[:-2]                           # cut the latest row and the prev one as we comparing against it ...
         logger.info(f"@@ check_mark_revers_candles, {symbol}, candles we checking - after cutting last two (need to be verified)\n {df[-5:].to_markdown()}")
@@ -438,9 +439,9 @@ def check_mark_revers_candles(application_state, symbol, take_profit_alias=None,
             lowest_bearish_low = df.loc[df["is_bearish"], "low"].min()
 
             result = prev_close < lowest_bearish_low and crossed_ema9
-            logger.info(f"[check_mark_revers_candles], {symbol}, lowest_bearish_low: {lowest_bearish_low}, prev_close: {prev_close}, {result}, \n{df[-5:].to_markdown()}")
+            logger.info(f"[check_mark_revers_candles] {symbol}, lowest_bearish_low: {lowest_bearish_low}, prev_close: {prev_close}, {result}, \n{df[-5:].to_markdown()}")
             if result:
-                logger.info(f"[check_mark_revers_candles], {symbol}, The break happened. lowest_bearish_low: {lowest_bearish_low}, prev_close: {prev_close}")
+                logger.info(f"[check_mark_revers_candles] {symbol}, The break happened. lowest_bearish_low: {lowest_bearish_low}, prev_close: {prev_close}")
                 # add_to_signlas(symbol, 'LEVEL_REPLACED', df['close'].iloc[-1], check_date, f'Level is break out {check_date}<br> t_date: {target_date} <br>  lowest_bearish_low: {lowest_bearish_low} <br> prev_close: {prev_close}' )
                 TradingLedger.add_to_list("signals",(symbol, 'LEVEL_REPLACED', df['close'].iloc[-1], check_date, f'Level is break out {check_date}<br> t_date: {target_date} <br>  lowest_bearish_low: {lowest_bearish_low} <br> prev_close: {prev_close}' ))
 
@@ -450,14 +451,14 @@ def check_mark_revers_candles(application_state, symbol, take_profit_alias=None,
             highest_bulish_high = df.loc[df["is_bulish"], "high"].max()
 
             result = prev_close > highest_bulish_high and crossed_ema9
-            logger.info(f"[check_mark_revers_candles], {symbol}, highest_bulish_high: {highest_bulish_high}, prev_close: {prev_close}, result: {result}, \n {df[-5:].to_markdown()}")
+            logger.info(f"[check_mark_revers_candles] {symbol}, highest_bulish_high: {highest_bulish_high}, prev_close: {prev_close}, result: {result}, \n {df[-5:].to_markdown()}")
             if result:
-                logger.info(f"[check_mark_revers_candles], {symbol}, The break happened. highest_bulish_high: {highest_bulish_high}, prev_close: {prev_close}")
+                logger.info(f"[check_mark_revers_candles] {symbol}, The break happened. highest_bulish_high: {highest_bulish_high}, prev_close: {prev_close}")
                 # add_to_signlas(symbol, 'LEVEL_REPLACED', df['close'].iloc[-1], check_date, f'Level is break out {check_date}<br> t_date: {target_date} <br>  highest_bulish_high: {highest_bulish_high} <br> prev_close: {prev_close}' )
                 TradingLedger.add_to_list("signals", (symbol, 'LEVEL_REPLACED', df['close'].iloc[-1], check_date, f'Level is break out {check_date}<br> t_date: {target_date} <br>  highest_bulish_high: {highest_bulish_high} <br> prev_close: {prev_close}' ))
 
         if result:
-            logger.info(f"[check_mark_revers_candles], The break happened. ")
+            logger.info(f"[check_mark_revers_candles] The break happened. ")
 
         return result
     except Exception as e:
