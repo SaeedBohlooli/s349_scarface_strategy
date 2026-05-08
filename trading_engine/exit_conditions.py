@@ -20,7 +20,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
     symbols_need_to_be_removed = [] # we dont remove in the loop ..
 
     for symbol, open_trade_info in application_state.get('open_trades_dic', {}).items():
-        logger.info(f"[check_for_stop_loss_and_take_profit], symbol {symbol}, open order unique_run_number: {open_trade_info.get('unique_run_number')}" )
+        logger.info(f"[check_for_stop_loss_and_take_profit] symbol {symbol}, open order unique_run_number: {open_trade_info.get('unique_run_number')}" )
 
         # ###
         # stop loss
@@ -110,17 +110,17 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
             open_trade_info['current_value'] = underlying_current_price * 1 # TODO available...
 
 
-        logger.info(f"[check_for_stop_loss_and_take_profit], level_used_to_open: {level_used_to_open}, entry_underlying_price: {entry_underlying_price}, "
+        logger.info(f"[check_for_stop_loss_and_take_profit] level_used_to_open: {level_used_to_open}, entry_underlying_price: {entry_underlying_price}, "
                     f"underlying_current_price:, {underlying_current_price}, underlying_previous_candle_close: {underlying_previous_candle_close} ,tolerance_amount: {tolerance_amount}")
-        logger.info(f"[check_for_stop_loss_and_take_profit], current_bid: {current_bid}, current_ask: {current_ask}")
+        logger.info(f"[check_for_stop_loss_and_take_profit] current_bid: {current_bid}, current_ask: {current_ask}")
         stop_loss_condition_evaluated = False
         for stop_loss_condition in app_config.get('stop_losses', []):
             if stop_loss_condition_evaluated:
-                logger.info(f"[check_for_stop_loss_and_take_profit], Already evalauted, so skip, stop_loss_condition_evaluated: {stop_loss_condition_evaluated}")
+                logger.info(f"[check_for_stop_loss_and_take_profit] Already evalauted, so skip, stop_loss_condition_evaluated: {stop_loss_condition_evaluated}")
                 break
             stop_loss_condition_evaluated = eval(stop_loss_condition)
 
-            logger.info(f"[check_for_stop_loss_and_take_profit], symbol {symbol}, stop_loss_condition: {stop_loss_condition}, stop_loss_condition_evaluated: {stop_loss_condition_evaluated}")
+            logger.info(f"[check_for_stop_loss_and_take_profit] symbol {symbol}, stop_loss_condition: {stop_loss_condition}, stop_loss_condition_evaluated: {stop_loss_condition_evaluated}")
 
             if stop_loss_condition_evaluated:
                 logger.warning(f"[check_for_stop_loss_and_take_profit] {symbol} SL condition met ... {stop_loss_condition}")
@@ -184,7 +184,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
         order_closed_by_tp = False
 
         for take_profit_lable in app_config['take_profits']:
-            logger.info(f"[check_for_stop_loss_and_take_profit], symbol {symbol}, take_profit_lable: {take_profit_lable}")
+            logger.info(f"[check_for_stop_loss_and_take_profit] symbol {symbol}, take_profit_lable: {take_profit_lable}")
             if tp_is_enabled == False:
                 logger.info("[check_for_stop_loss_and_take_profit] tp_is_enabled is False. so no check ...ymbol {symbol}")
                 continue
@@ -194,11 +194,11 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                 continue
 
             if open_trade_info.get('take_profits',{}).get(take_profit_lable,None ) is not None:
-                logger.info(f"[check_for_stop_loss_and_take_profit], {symbol}, TP already is executed ... {take_profit_lable}")
+                logger.info(f"[check_for_stop_loss_and_take_profit] {symbol}, TP already is executed ... {take_profit_lable}")
                 continue
 
             if app_config.get('take_profit_configs',{}).get(take_profit_lable ,{}).get('enabled',True) == False:
-                logger.info(f"[check_for_stop_loss_and_take_profit], {symbol}, TP is disabled in take_profit_configs  ... {take_profit_lable}")
+                logger.info(f"[check_for_stop_loss_and_take_profit] {symbol}, TP is disabled in take_profit_configs  ... {take_profit_lable}")
                 continue
 
             close_type = app_config.get('take_profit_configs',{}).get(take_profit_lable ,{}).get('close_type',"percentage") # percentage or price   # used in config

@@ -169,7 +169,7 @@ class TradingEngine:
                     if self.application_state['is_save_time']:
                         logger.info(f"[engine] {symbol}, df: \n{df[-4:].to_markdown()}")
 
-                    qqq_df = self.market_data.dfs_map.get('QQQ')
+                    # qqq_df = self.market_data.dfs_map.get('QQQ')
                     # relative_strength_df = inidicators.compute_relative_strength(df, qqq_df, period=20) # TODO do we need this
                     # intraday_rs_df = inidicators.compute_intraday_rs(df, qqq_df)
 
@@ -213,15 +213,13 @@ class TradingEngine:
 
                     buy_sell_case_results_list = scanner.check_buy_and_sell_cases(ib, self.app_config, self.application_state, symbol, self.market_data)
                     buy_sell_case_results_list = order_helper.add_case_manual_order_to_buy_sell_case_results_list(self.application_state, symbol, buy_sell_case_results_list)
+
                     await order_helper.check_buy_sell_result_to_send_order(ib, self.app_config, self.application_state, buy_sell_case_results_list, symbol, df, self.market_data, self.runtime)
 
                     await exit_conditions.check_for_stop_loss_and_take_profit(ib, self.app_config, self.application_state, self.market_data)
 
                     if self.application_state['is_save_time'] and 931 < current_hh_mm_ny and self.runtime.should_run_once(f'{symbol}-MARK_GAP'):
                         chart_helper.detect_a_mark_market_gap(self.application_state, symbol, df)  # need to happen one time after 9:30
-
-                    # if self.application_state['is_save_time'] and self.runtime.is_due(f'{symbol}-EXTRA-FEATURES-DF-SAVE', interval_sec=5*60):
-                    #     marketdata_helper.save_extra_features_df(self.application_state, symbol, df, relative_strength_df, intraday_rs_df,time_frame='1 min', save_tabular=False)
 
                     chart_helper.add_buy_a_sell_entries_to_signals(self.app_config, self.application_state, buy_sell_case_results_list, symbol, self.market_data)
 
@@ -234,6 +232,10 @@ class TradingEngine:
 
                     # end while for symbols
 
+                if (position_helper.calculate_number_of_open_positions(self.application_state) > 0 or  # either is open positions or ...
+                        self.runtime.is_due(f'UPDATE-IB-POSITIONS', interval_sec=3*60)):
+                    position_router.update_application_state_for_ib_positions(ib, self.application_state)
+
                 if self.runtime.is_due('SAVE-SIGNALS', interval_sec=3 * 60):
                     chart_helper.add_candle_info_df_to_signals()
                     chart_helper.convert_signals_to_hover_df()
@@ -244,10 +246,6 @@ class TradingEngine:
 
                 if self.application_state['is_save_time'] and self.runtime.is_due('SAVE_OHLC',interval_sec=1*60):
                     marketdata_helper.save_ohlc_for_chart(self.application_state, self.market_data, save_tabular=False)
-
-                if (position_helper.calculate_number_of_open_positions(self.application_state) > 0 or  # either is open positions or ...
-                        self.runtime.is_due(f'UPDATE-IB-POSITIONS', interval_sec=3*60)):
-                    position_router.update_application_state_for_ib_positions(ib, self.application_state)
 
                 end_time = time.time()
                 run_time_spent = round(end_time - start_time, 2)
