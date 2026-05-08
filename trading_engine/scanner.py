@@ -53,18 +53,18 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
             c_i = 0
             for condition in app_config['cases'][case][side]['cores']:
                 c_i = c_i + 1
-                logger.info(f"[check_buy_sell_condition] {c_i}), {symbol}, case: {case}, side: {side}, condition: {condition} ")
+                logger.debug(f"[check_buy_sell_condition] {c_i}), {symbol}, case: {case}, side: {side}, condition: {condition} ")
                 evaluated = eval(condition)
-                logger.info(f"[check_buy_sell_condition] {c_i}), {symbol}, case: {case}, side: {side}, evaluated: {evaluated},  condition: {condition} ")
+                logger.debug(f"[check_buy_sell_condition] {c_i}), {symbol}, case: {case}, side: {side}, evaluated: {evaluated},  condition: {condition} ")
                 evaluated_conditions_map.setdefault(side, {}).setdefault('valuated_conditions',[]).append(evaluated)
                 evaluated_conditions_map.setdefault(side, {}).setdefault('valuated_conditions_cores',[]).append(evaluated)
                 
             
             for condition in app_config['cases'][case][side].get('extras', []):
                 c_i = c_i + 1
-                logger.info(f"[check_buy_sell_condition] {c_i}), {symbol}, case: {case}, side: {side}, condition: {condition} ")
+                logger.debug(f"[check_buy_sell_condition] {c_i}), {symbol}, case: {case}, side: {side}, condition: {condition} ")
                 evaluated = eval(condition)
-                logger.info(f"[check_buy_sell_condition] {c_i}), {symbol}, case: {case}, side: {side}, evaluated: {evaluated},  condition: {condition} ")
+                logger.debug(f"[check_buy_sell_condition] {c_i}), {symbol}, case: {case}, side: {side}, evaluated: {evaluated},  condition: {condition} ")
                 evaluated_conditions_map.setdefault(side, {}).setdefault('valuated_conditions',[]).append(evaluated)
                 evaluated_conditions_map.setdefault(side, {}).setdefault('valuated_conditions_extras',[]).append(evaluated)
 
