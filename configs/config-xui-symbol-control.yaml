@@ -3,6 +3,7 @@ xui_symbol_controls:
   trading_enabled: true
   calls_enabled: true
   puts_enabled: true
+  relaxed_trading_enabled: true
   symbols:
     QQQ:
       call_enabled: true

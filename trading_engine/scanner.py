@@ -45,6 +45,7 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
         min_required_move_from_level = app_config['symbols_meta'][symbol]['min_required_move_from_level']  # used in config
         price = df['close'].iloc[-1]  # used in config
         atr_14 = df['atr_14'].iloc[-2]  # used in config
+        relaxed_trading_enabled = app_config.get("xui_symbol_controls", {}).get(symbol, {}).get("relaxed_trading_enabled", False)  # used in config
 
         logger.debug(f"[check_buy_sell_condition], levels: {levels}")
         evaluated_conditions_map = {}
@@ -257,6 +258,110 @@ def breakout_in_last_x_candles_ver_2(app_config, application_state, case, symbol
 
     return breakout_happened
 
+def breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol, df, side='up', idx_list=[-2], level=0, level_alias=''):
+    ###
+    # The difference with ver_2 is that if -i is breakout candle, we do not need to check the body confirmation for -i-1 candle.
+    # because -i-1 candle is before breakout and it can be weak as we do not care about it. but in ver_2 we check body
+    # confirmation for -i candle which is breakout candle and it can be weak as well.
+    # so in ver_3 we check body confirmation for -i candle only if cond_1 is true. if cond_2 or cond_3 is true, we do not check body confirmation for -i candle.
+
+    logger.debug(f"in breakout_in_last_x_candles, symbol: {symbol}, idx_list: {idx_list}, level:{level}")
+
+    if level == 0:
+        return False
+    gap = app_config['symbols_meta'][symbol]['breakout_confirmation_distance']
+    breakout_happened = False
+    breakout_idxs = []
+
+    for idx in idx_list:
+        row = df.iloc[idx]
+        previous = df.iloc[idx-1]
+        next = df.iloc[idx+1]   # as we always we check -2, so this is safe. and -1 with be the forming candle
+        # --- Breakout detection ---
+        if date_utils.get_hhmm_int(row['date']) < 930: # we dont want breaks before 930
+            continue
+
+        # --- breakout condition ---
+        if side == 'up':
+            cond_1 = (row["low"] <= level and row["close"] > level + gap)    # The price above level + gap
+            cond_2 = (previous["open"] < level and row["close"] > level + gap)  # The prev open is below level and current above the level.
+            cond_3 = (previous["open"] < level and row["open"] > level and row["close"] > level)  # The prev open is below level and current open and close are above the level.
+            cond_4 = (row["low"] <= level and row["close"] > level and next["open"] > level and next["close"] > level and next["close"]  > next["open"] )  # The current open is below level and next open and close both above the level
+
+        else:
+            cond_1 = (row["high"] >= level and row["close"] < level - gap)
+            cond_2 = (previous["open"] > level and row["close"] < level - gap)
+            cond_3 = (previous["open"] > level and row["open"] < level and row["close"] < level)
+            cond_4 = (row["high"]  >= level and row["clode"] < level and next["open"] < level and next["close"] < level and next["close"] < next["open"])
+
+        breakout = (cond_1 or cond_2 or cond_3 or cond_4)
+        if not breakout:
+            continue
+
+
+        # --- candle body confirmation ---
+        body = abs(row["close"] - row["open"])
+        candle_range = row["high"] - row["low"]
+        candle_is_not_week = (candle_range > 0 and body / candle_range > 0.5) # do not remove candle_rage > 0 will raise devided by zero exception
+
+        if (cond_1 and candle_is_not_week) or cond_2 or cond_3 or cond_4: # for cond_1 we need body_confirmation, for others we do not need it
+
+            logger.info(f"[breakout_in_last_x_candles_ver_4], idx: {idx}, level: {level}")
+
+            application_state['breakouts'].setdefault(symbol, []).append({
+                'side': side,
+                'level': level,
+                'level_alias': level_alias,
+                'idx': idx,
+                'time': str(row['date']),
+            })
+            breakout_idxs.append(idx)
+            breakout_happened = True
+
+            offseted_price = chart_helper.get_offseted_price(app_config, application_state, symbol, side='up',price=df['high'].iloc[idx])
+            case_color = get_case_color(app_config, case)
+            TradingLedger.add_to_list("signals", (symbol, 'BREAKOUT', offseted_price, df['date'].iloc[idx], f"BREAKOUT {level_alias} ... {df['date'].iloc[idx]}... ", case_color) )
+
+    for breakout_idx in breakout_idxs:
+        if not breakout_idx - 1 in breakout_idxs:
+            # if the previous candle is not breakout candle, we check to markk it as breakout as well
+                row = df.iloc[breakout_idx-1]
+                if side == 'up':
+                    body = abs(row["close"] - row["open"])
+                    candle_range = row["high"] - row["low"]
+                    candle_is_not_week = (candle_range > 0 and body / candle_range > 0.5) # do not remove candle_rage > 0 will raise devided by zero exception
+                    if candle_is_not_week and row["open"] <= level and row["close"] > level:    # The price above level
+                        application_state['breakouts'].setdefault(symbol, []).append({
+                            'side': side,
+                            'level': level,
+                            'level_alias': level_alias,
+                            'idx': breakout_idx-1,
+                            'time': str(row['date']),
+                        })
+                        offseted_price = chart_helper.get_offseted_price(app_config, application_state, symbol, side='up',price=df['high'].iloc[breakout_idx-1])
+                        case_color = get_case_color(app_config, case)
+                        TradingLedger.add_to_list("signals", (symbol, 'BREAKOUT', offseted_price, row['date'], f"BREAKOUT {level_alias} ... {row['date']}... ", case_color) )
+                else:
+                    body = abs(row["close"] - row["open"])
+                    candle_range = row["high"] - row["low"]
+                    candle_is_not_week = (candle_range > 0 and body / candle_range > 0.5) # do not remove candle_rage > 0 will raise devided by zero exception
+                    if candle_is_not_week and row["open"] >= level and row["close"] < level:    # The price below level
+                        application_state['breakouts'].setdefault(symbol, []).append({
+                            'side': side,
+                            'level': level,
+                            'level_alias': level_alias,
+                            'idx': breakout_idx-1,
+                            'time': str(row['date']),
+                        })
+                        offseted_price = chart_helper.get_offseted_price(app_config, application_state, symbol, side='up',price=df['high'].iloc[breakout_idx-1])
+                        case_color = get_case_color(app_config, case)
+                        TradingLedger.add_to_list("signals", (symbol, 'BREAKOUT', offseted_price, row['date'], f"BREAKOUT {level_alias} ... {row['date']}... ", case_color) )
+
+
+
+    return breakout_happened
+
+
 def breakout_in_last_x_candles_ver_3(app_config, application_state, case, symbol, df, side='up', idx_list=[-2], level=0, level_alias=''):
     ###
     # The difference with ver_2 is that if -i is breakout candle, we do not need to check the body confirmation for -i-1 candle.
@@ -355,7 +460,6 @@ def breakout_in_last_x_candles_ver_3(app_config, application_state, case, symbol
 
 
     return breakout_happened
-
 
 def get_break_out_indices_by_level_set(application_state, symbol, level):
     break_out_indices = set()
@@ -598,7 +702,6 @@ def is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, d
     highest_high = clipped_df['high'].max()
     lowest_low = clipped_df['low'].min()
     logger.info(f"[is_price_close_to_next_levels_ver_2] {symbol}, price: side: {side}, {price}, current_level: {current_level}, next_levels:{next_levels}, breakout_idx: {breakout_idx} ,date: {df['date'].iloc[-1]}")
-    # logger.info(f"[is_price_close_to_next_levels_ver_2] clipped_df: \n{clipped_df[-4:].to_markdown()}")
 
     for key in next_levels:
         next_level = levels_map.get(key, None)
