@@ -113,7 +113,7 @@ cases:
         - check_price_vs_level(app_config, symbol, side='up', price=price, level=long_level )
         - 930 < get_last_record_hh_mm(df) < 1016 or get_mode(application_state) == 'live'
       extras:
-        - relax_trading_enabled or not is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='up', price=price, current_level=long_level, next_levels=['PDH'])
+        - relaxed_trading_enabled or not is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='up', price=price, current_level=long_level, next_levels=['PDH'])
         - abs (price - long_level) < 1.2 * atr_14
         # 10
         - price > application_state['levels'][symbol]['PDL']
@@ -161,7 +161,7 @@ cases:
         - levels['PDH'] < levels['5MH'] or get_current_price(ib, application_state, 'QQQ') > application_state['levels']['QQQ']['5MH']
         - abs (price - long_level) < 1.2 * atr_14
         # 10
-        - relax_trading_enabled or ( not is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='up', price=price, current_level=long_level, next_levels=['5MH']))
+        - relaxed_trading_enabled or ( not is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='up', price=price, current_level=long_level, next_levels=['5MH']))
 
     short:
       level: levels['PDL']

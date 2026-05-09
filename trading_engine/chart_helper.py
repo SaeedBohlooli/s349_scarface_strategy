@@ -239,9 +239,9 @@ def mark_tolerance_to_the_level(app_config, application_state, symbol, level_nam
     df = market_data.dfs_map.get(symbol)
     date = df['date'].iloc[-1]
 
-    TradingLedger.add_to_list("signals", (symbol, f'{level_name}_SMALL_DOT', p1, date, f'tel: {p1}, l: {level} t: {tolerance} {str(date)}', 'yellow' ))
+    TradingLedger.add_to_list("signals", (symbol, f'{level_name}_SMALL_DOT', p1, date, f'tel: {p1}, l: {level} t: {tolerance} {date_utils.get_hhm_mm_of_last_record(df)}', 'yellow' ))
 
-    TradingLedger.add_to_list("signals", (symbol, f'{level_name}_SMALL_DOT_1', p2, date, f'tel: {p2}, l: {level} t: {tolerance} {str(date)}' ,'yellow' ))
+    TradingLedger.add_to_list("signals", (symbol, f'{level_name}_SMALL_DOT_1', p2, date, f'tel: {p2}, l: {level} t: {tolerance} {date_utils.get_hhm_mm_of_last_record(df)}' ,'yellow' ))
 
     return
 
@@ -259,7 +259,7 @@ def mark_atr_to_the_level(application_state, symbol, side, level_name, market_da
     else:
         p1 = round(level - atr, 2)
 
-    TradingLedger.add_to_list("signals", (symbol, f'{level_name}_SMALL_DOT_2', p1, date, f'atr_14: p: {p1}, l: {level} atr: {round(atr,2)}', 'red' ))
+    TradingLedger.add_to_list("signals", (symbol, f'{level_name}_SMALL_DOT_2', p1, date, f'atr_14: p: {p1}, l: {level} atr: {round(atr,2)}  {date_utils.get_hhm_mm_of_last_record(df)}', 'red' ))
 
     return
 
