@@ -130,16 +130,18 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
     # df.set_index('date', inplace=True)
 
     # Create a subplot: (2 rows, shared x-axis)
-    fig = make_subplots(rows=8, cols=1, shared_xaxes=True,
+    fig = make_subplots(rows=3, cols=1, shared_xaxes=True,
                         vertical_spacing=0.04,
-                        row_heights=[0.65, 0.05, 0.05, 0.10, 0.04, 0.04, 0.04, 0.04],
+                        # row_heights=[0.65, 0.05, 0.05, 0.10, 0.04, 0.04, 0.04, 0.04],
+                        row_heights=[0.90, 0.05, 0.05],
+                        # row_heights=[0.90, 0.05, 0.05],
                         subplot_titles=(f'{symbol}',
-                                        f'Volume Ratio {symbol}',
+                                        # f'Volume Ratio {symbol}',
                                         # f'Relative Strength Relative {symbol}',
                                         # f'Relative Strength Delta {symbol}',
                                         # f'Check ... {symbol}',
-                                        # f'ATR-{symbol}',
-                                        # f'Volume-{symbol}',
+                                        f'ATR-{symbol}',
+                                        f'Volume-{symbol}',
 
                                         )
                         )
@@ -176,37 +178,37 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
 
     fig.update_xaxes(showticklabels=True, row=1, col=1)
 
+    if False:
+        # vol ratio
+        row_in_chart += 1
+        df['volume_sma10'] = df['volume'].rolling(window=10).mean()
+        df['VR'] = df['volume'] / df['volume_sma10']
+        cap = df['VR'].quantile(0.95)  # 95th percentile
+        df['VR'] = df['VR'].clip(upper=cap)
+        df['VR_sma3'] = df['VR'].rolling(window=3).mean()
 
-    # vol ratio
-    row_in_chart += 1
-    df['volume_sma10'] = df['volume'].rolling(window=10).mean()
-    df['VR'] = df['volume'] / df['volume_sma10']
-    cap = df['VR'].quantile(0.95)  # 95th percentile
-    df['VR'] = df['VR'].clip(upper=cap)
-    df['VR_sma3'] = df['VR'].rolling(window=3).mean()
+        fig.add_trace(go.Scatter(
+            x=df['date'],
+            y=df['VR'],
+            line=dict(color='blue', width=2),
+            name='volume ratio '
+        ), row=row_in_chart, col=1)
 
-    fig.add_trace(go.Scatter(
-        x=df['date'],
-        y=df['VR'],
-        line=dict(color='blue', width=2),
-        name='volume ratio '
-    ), row=row_in_chart, col=1)
+        fig.add_trace(go.Scatter( # line on 1
+            x=df['date'],
+            y=[1] * len(df),
+            mode='lines',
+            name='1 Line',
+            line=dict(color='red', dash='dot', width=1),
+            showlegend=False
+        ), row=row_in_chart, col=1)
 
-    fig.add_trace(go.Scatter( # line on 1
-        x=df['date'],
-        y=[1] * len(df),
-        mode='lines',
-        name='1 Line',
-        line=dict(color='red', dash='dot', width=1),
-        showlegend=False
-    ), row=row_in_chart, col=1)
-
-    fig.add_trace(go.Scatter(
-        x=df['date'],
-        y=df['VR_sma3'],
-        line=dict(color='blue', dash='dot', width=2),
-        name='VR_sma3'
-    ), row=row_in_chart, col=1)
+        fig.add_trace(go.Scatter(
+            x=df['date'],
+            y=df['VR_sma3'],
+            line=dict(color='blue', dash='dot', width=2),
+            name='VR_sma3'
+        ), row=row_in_chart, col=1)
 
     if False:
         #rs_rel
