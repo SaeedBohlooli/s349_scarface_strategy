@@ -164,7 +164,7 @@ class TradingEngine:
                         logger.warning(f"[engine] @@@@@ {symbol}, no data found, skip the symbol for now ...")
                         continue
                     df = inidicators.populate_features(df)  # TODO do we need it?
-                    df = inidicators.populate_volume_ratio(df)  # TODO do we need it?
+                    # df = inidicators.populate_volume_ratio(df)  # TODO do we need it?
                     self.market_data.dfs_map[symbol] = df
                     if self.application_state['is_save_time']:
                         logger.info(f"[engine] {symbol}, df: \n{df[-4:].to_markdown()}")

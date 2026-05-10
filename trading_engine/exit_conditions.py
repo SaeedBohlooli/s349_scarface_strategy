@@ -197,6 +197,10 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                 logger.info(f"[check_for_stop_loss_and_take_profit] {symbol}, TP already is executed ... {take_profit_lable}")
                 continue
 
+            if app_config.get('take_profits',{}).get(take_profit_lable ,{}).get('enabled',True) == False:
+                logger.info(f"[check_for_stop_loss_and_take_profit] {symbol}, TP is disabled in take_profits  ... {take_profit_lable}")
+                continue
+
             if app_config.get('take_profit_configs',{}).get(take_profit_lable ,{}).get('enabled',True) == False:
                 logger.info(f"[check_for_stop_loss_and_take_profit] {symbol}, TP is disabled in take_profit_configs  ... {take_profit_lable}")
                 continue
