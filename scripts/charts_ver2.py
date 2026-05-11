@@ -1055,6 +1055,7 @@ def index():
     hover_df = load_file_to_hover_df()
     close_levels_df = load_file_to_close_levels_df()
     plots = []
+    plots_with_symbols = []  # Store both symbol and plot
     logger.info(f"================== call from client run_counter: {run_counter}")
 
     for symbol in app_config['symbols']:
@@ -1082,6 +1083,7 @@ def index():
         plot_html = pio.to_html(fig1, full_html=False)
 
         plots.append(plot_html)
+        plots_with_symbols.append((symbol, plot_html))  # Store with symbol
 
     end_time = time.time()
     run_spend_time = round(end_time - start_time, 2)
@@ -1092,13 +1094,17 @@ def index():
         return render_template(
             "index.html",
             plots=plots,
+            plots_with_symbols=plots_with_symbols,  # ✅ pass paired data
+            symbols=app_config['symbols'],  # ✅ pass symbols for navigation
             backtest_date=chart_date,
-            available_dates=available_dates  # ✅ must pass this
+            available_dates=available_dates
         )
     else:
         return render_template(
             "index.html",
             plots=plots,
+            plots_with_symbols=plots_with_symbols,  # ✅ pass paired data
+            symbols=app_config['symbols'],  # ✅ pass symbols for navigation
             backtest_date='',
             available_dates=[])  # ✅ must pass this
 

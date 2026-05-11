@@ -21,8 +21,21 @@
 
     <hr>
 
-    {% for plot in plots %}
-        <div>{{ plot|safe }}</div>
+    <!-- Charts with Inline Symbol Navigation -->
+    {% for symbol, plot in plots_with_symbols %}
+        <div id="chart-{{ symbol }}" style="margin-bottom: 40px; padding: 20px; background-color: #ffffff; border: 1px solid #ddd; border-radius: 5px;">
+            <h3 style="margin-top: 0; display: flex; align-items: center; gap: 15px;">
+                {{ symbol }}
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    {% for sym in symbols %}
+                        <a href="#chart-{{ sym }}" style="padding: 5px 12px; background-color: {% if sym == symbol %}#28a745{% else %}#007bff{% endif %}; color: white; text-decoration: none; border-radius: 4px; font-size: 12px; font-weight: bold;">
+                            {{ sym }}
+                        </a>
+                    {% endfor %}
+                </div>
+            </h3>
+            {{ plot|safe }}
+        </div>
     {% endfor %}
 </body>
 </html>
