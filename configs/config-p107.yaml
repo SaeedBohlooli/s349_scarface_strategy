@@ -132,21 +132,18 @@ take_profits:
       memo: for long after tp1, if we go below last down close candle, then we close the position and vice versa for short
 
   t10_cl_manual: # This is for closing everything just NVDA:   1 == 1 and symbol == 'NVDA'
-    enabled: true
+    enabled: False
     condition: 1 == 2 and symbol == 'AMZN'
     close_quantity_percentage: .5
 
   t11_cl_manual: # This is for closing everything just NVDA:   1 == 1 and symbol == 'NVDA'
-    enabled: true
+    enabled: False
     condition: 1 == 3 and symbol == 'TSLA'
     close_quantity_percentage: -1
 
   tp_kill:
     enabled: true
-    condition: >
-      (right == 'C' and current_bid < entry_price * 0.70 )
-      or
-      (right == 'P' and current_bid < entry_price * 0.70)
+    condition: current_bid < entry_price * 0.70
     close_quantity_percentage: -1
     memo: If we are down 30%, then we kill the position to save capital for next trades
 

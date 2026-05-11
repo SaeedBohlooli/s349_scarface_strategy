@@ -1,6 +1,6 @@
 chart:
   port: 51071
-  source: back_test
+  source: live
   hours_in_focus: 3
   live:
     start_time: "09:00"

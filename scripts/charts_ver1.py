@@ -633,7 +633,7 @@ def load_file_to_hover_df():
     if os.path.exists(file):
         logger.info(f"reading file: {file}")
         df = pd.read_csv(file)
-        logger.info(f"load_file_to_hover_df:\n{df[-3:].to_markdown()}")
+        logger.info(f"[load_file_to_hover_df]:\n{df[-3:].to_markdown()}")
         return df
     else:
         return pd.DataFrame()
@@ -723,6 +723,7 @@ def add_hover_to_chart(fig1, hover_df):
 
 def cut_df_for_live(df):
     # return df
+    logger.info(f"[cut_df_for_live] cutting df for mode:  {mode} original len: {len(df)}")
     if mode == 'live':
 
         df = df_utils.cut_df_strating_hour_x_on_last_day(df, cutoff_time=app_config['chart']['live']['start_time'] )

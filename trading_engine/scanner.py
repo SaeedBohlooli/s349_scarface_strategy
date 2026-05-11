@@ -45,7 +45,8 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
         min_required_move_from_level = app_config['symbols_meta'][symbol]['min_required_move_from_level']  # used in config
         price = df['close'].iloc[-1]  # used in config
         atr_14 = df['atr_14'].iloc[-2]  # used in config
-        relaxed_trading_enabled = app_config.get("xui_symbol_controls", {}).get(symbol, {}).get("relaxed_trading_enabled", False)  # used in config
+        skip_level_closeness_enabled = app_config.get("xui_symbol_controls", {}).get(symbol, {}).get("skip_level_closeness_enabled", False)  # used in config
+        skip_pdhl_and_qqq_check_enabled = app_config.get("xui_symbol_controls", {}).get(symbol, {}).get("skip_pdhl_and_qqq_check_enabled", False)  # used in config
 
         logger.debug(f"[check_buy_sell_condition], levels: {levels}")
         evaluated_conditions_map = {}

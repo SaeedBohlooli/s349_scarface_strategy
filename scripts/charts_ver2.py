@@ -45,7 +45,8 @@ run_counter = 0
 def load_app_config(portfolio_id):
     global app_config
     logger.warning(f"loading app_config ....")
-    app_config = config_utils.load_config(f'{configs_folder}/config-{portfolio_id}.yaml')
+    # app_config = config_utils.load_app_config(f'{configs_folder}/config-{portfolio_id}.yaml')
+    app_config = config_utils.load_app_config(portfolio_id=portfolio_id)
     chart_config = config_utils.load_config(f'{configs_folder}/config-charts.yaml')
     app_config.update(chart_config)
     logger.info(f"loaded.")
@@ -210,7 +211,6 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
             name='VR_sma3'
         ), row=row_in_chart, col=1)
 
-    if False:
         #rs_rel
         row_in_chart += 1
         fig.add_trace(go.Scatter(
@@ -637,7 +637,7 @@ def load_file_to_hover_df():
     if os.path.exists(file):
         logger.info(f"reading file: {file}")
         df = pd.read_csv(file)
-        logger.info(f"load_file_to_hover_df:\n{df[-3:].to_markdown()}")
+        logger.info(f"[load_file_to_hover_df]:\n{df[-3:].to_markdown()}")
         return df
     else:
         return pd.DataFrame()
@@ -729,24 +729,36 @@ def cut_df_for_live(df):
     if len(df) ==0:
         return df
     # return df
-    if mode == 'live':
 
+    logger.info(f"[cut_df_for_live] cutting df for mode: {mode}, original len: {len(df)} \n{df[:10].to_markdown()} \n{df[-5:].to_markdown()}")
+    if mode == 'live':
+        logger.info(f"[cut_df_for_live] mode: {mode}, {app_config['chart']['live']['start_time']}, {app_config['chart']['live']['end_time']}, cutting for live mode ...")
         df = df_utils.cut_df_strating_hour_x_on_last_day(df, cutoff_time=app_config['chart']['live']['start_time'] )
         df = df_utils.cut_df_until_hour_x_on_last_day(df, cutoff_time=app_config['chart']['live']['end_time'] )
-
+        logger.info(f"[cut_df_for_live] after cutting for live mode, len: {len(df)}")
+    else:
+        logger.info(f"[cut_df_for_live] mode: {mode}, no cutting applied.")
     return df
 def create_chart_hovered_df(hover_df, symbol):
     if len(hover_df) == 0:
+        logger.info(f"[create_chart_hovered_df], hover_df is empty, returning empty df_1")
         return pd.DataFrame()
-    df = hover_df.copy()
+    else:
+        logger.info(f"[create_chart_hovered_df], symbol: {symbol}, hover_df: {hover_df[-5:].to_markdown()}")
 
-    df = df[df['symbol'] == symbol]
-    df['date'] = df['date_1']
-    df['price'] = df['price_1']
-    df['text'] = df['memo']
-    df['date'] = pd.to_datetime(df['date'])
-    df = cut_df_for_live(df)
+    df_1 = hover_df.copy()
+    logger.info(f"[create_chart_hovered_df], created hover df_1:\n{df_1[-5:].to_markdown()}")
 
+    df_1 = df_1[df_1['symbol'] == symbol]
+    logger.info(f"[create_chart_hovered_df]:\n{df[-3:].to_markdown()}")
+
+    df_1['date'] = df_1['date_1']
+    df_1['price'] = df_1['price_1']
+    df_1['text'] = df_1['memo']
+    df_1['date'] = pd.to_datetime(df_1['date'])
+    df_1 = cut_df_for_live(df_1)
+
+    logger.info(f"[create_chart_hovered_df], after filter df_1:\n{df_1[-5:].to_markdown()}")
 
 #  ⇗ ↛ ⇧
     # http://xahlee.info/comp/unicode_geometric_shapes.html
@@ -851,17 +863,18 @@ def create_chart_hovered_df(hover_df, symbol):
         'b': '→',
     }
 
-    mask = df["object"].str.contains("TEXT", case=False, na=False)
+    mask = df_1["object"].str.contains("TEXT", case=False, na=False)
 
     # When object has 'TEXT' → take first part of memo before '#'
-    df.loc[mask, "signals"] = df["memo"].str.split("#").str[0].str.strip()
+    df_1.loc[mask, "signals"] = df_1["memo"].str.split("#").str[0].str.strip()
 
     # Otherwise → use mapping fallback
-    df.loc[~mask, "signals"] = df["object"].map(mapping).fillna("●")
+    df_1.loc[~mask, "signals"] = df_1["object"].map(mapping).fillna("●")
 
-    df = df[['date', 'price', 'signals', 'color', 'text']]
+    df_1 = df_1[['date', 'price', 'signals', 'color', 'text']]
+    logger.info(f"[create_chart_hovered_df], created hover df_1:\n{df_1[-5:].to_markdown()}")
 
-    return df
+    return df_1
 
 
 def add_close_levels_anoteation(fig1, df, close_levels_df, symbol):
@@ -889,6 +902,101 @@ def add_close_levels_anoteation(fig1, df, close_levels_df, symbol):
         # logger.info(f"add_close_levels_anoteation(), {symbol}, {df['date'].iloc[-1]} , {level1}, {level2}")
 
     return fig1
+
+def add_cases_info_label(fig1, app_config):
+    """
+    Add individual info labels for each case to the chart.
+    Each case gets its own separate annotation positioned vertically.
+    Only displays on hover (does not clutter the chart).
+    Preserves proper YAML structure with indentation and line breaks.
+    """
+    try:
+        cases = app_config.get('cases', {})
+        
+        if not cases:
+            logger.warning("[add_cases_info_label] No cases data found in app_config")
+            return fig1
+        
+        def format_value(value, indent=0):
+            """Recursively format values with proper indentation"""
+            indent_str = " " * indent
+            
+            if isinstance(value, dict):
+                lines = []
+                for k, v in value.items():
+                    formatted_v = format_value(v, indent + 2)
+                    # If value is multi-line, keep it multi-line
+                    if '\n' in str(formatted_v):
+                        lines.append(f"{indent_str}{k}:")
+                        lines.append(formatted_v)
+                    else:
+                        lines.append(f"{indent_str}{k}: {formatted_v}")
+                return '\n'.join(lines)
+            elif isinstance(value, list):
+                lines = []
+                for item in value:
+                    formatted_item = format_value(item, indent)
+                    # Each list item on its own line with proper indentation
+                    for line in str(formatted_item).split('\n'):
+                        lines.append(f"{indent_str}- {line}")
+                return '\n'.join(lines)
+            else:
+                return str(value)
+        
+        # Create a separate annotation for each case
+        if isinstance(cases, dict):
+            case_index = 0
+            for case_name, case_config in cases.items():
+                # Format individual case
+                case_lines = [f"CASE: {case_name}", "=" * 80]
+                case_lines.append("")
+                case_lines.append(f"cases:")
+                case_lines.append(f"  {case_name}:")
+                formatted_config = format_value(case_config, indent=4)
+                case_lines.extend(formatted_config.split('\n'))
+                
+                # Convert to HTML with <br> for line breaks
+                hover_text_lines = []
+                for line in case_lines:
+                    # Escape special HTML characters
+                    line = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                    hover_text_lines.append(line)
+                
+                # Join with <br> for proper line breaks in HTML
+                hover_text = "<br>".join(hover_text_lines)
+                # Wrap in pre tag for proper monospace formatting and left-alignment
+                hover_text = f'<pre style="text-align: left; font-family: monospace; font-size: 28px; margin: 0; padding: 5px; white-space: pre-wrap; word-wrap: break-word;">{hover_text}</pre>'
+
+                # Position each case label vertically stacked in top-left corner
+                y_position = 1.0 - (case_index * 0.08)  # Offset each case vertically
+                
+                fig1.add_annotation(
+                    x=0.0,  # top-left corner (normalized coordinates)
+                    y=y_position,
+                    xref="paper",
+                    yref="paper",
+                    text=f"[{case_index + 1}]",  # Numbered indicator
+                    showarrow=False,
+                    hovertext=hover_text,
+                    font=dict(size=14, color="darkblue", family="Arial"),
+                    xanchor="left",
+                    yanchor="top",
+                    xshift=15,
+                    yshift=-15,
+                )
+                
+                logger.info(f"[add_cases_info_label] Added case '{case_name}' with label [{case_index + 1}]")
+                case_index += 1
+        
+        logger.info(f"[add_cases_info_label] All {case_index} cases added successfully (hover only)")
+        return fig1
+        
+    except Exception as e:
+        logger.error(f"[add_cases_info_label] Error adding cases info: {e}")
+        import traceback
+        logger.error(f"[add_cases_info_label] Traceback: {traceback.format_exc()}")
+        return fig1
+
 
 app_config = load_app_config(portfolio_id)  # to be accisible form every where ...
 backtest_date = '20250810'
@@ -942,14 +1050,6 @@ def index():
     else:
         charts_dir = f'../../portfolios/charts-backtest/{chart_date}/{portfolio_id}'
         mode = 'back_test'
-    # if 'chart_date 'live':
-    #     charts_dir = f'../../portfolios/charts-backtest/{chart_date}/{portfolio_id}'
-    #     mode = 'back_test'
-    # else:
-    #     charts_dir = f'../../portfolios/{portfolio_id}/charts/2025-12-29'
-    #     mode = 'live'
-
-# time.sleep(1)
 
     drawing_objects_df = load_file_to_drawing_objects_df()
     hover_df = load_file_to_hover_df()
@@ -978,6 +1078,7 @@ def index():
         chart_hovered_df = create_chart_hovered_df(hover_df, symbol)
         fig1 = add_hover_to_chart(fig1, chart_hovered_df)
         fig1 = add_close_levels_anoteation(fig1, df, close_levels_df, symbol)
+        fig1 = add_cases_info_label(fig1, app_config)
         plot_html = pio.to_html(fig1, full_html=False)
 
         plots.append(plot_html)
