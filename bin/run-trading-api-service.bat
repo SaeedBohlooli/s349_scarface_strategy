@@ -1,3 +1,4 @@
+@echo off
 
 set CMD="python ..\trading_api\trading_api_service.py"
 

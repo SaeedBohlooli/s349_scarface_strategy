@@ -820,11 +820,14 @@ def create_chart_hovered_df(hover_df, symbol):
         'BUY_ENTRY_case_1': '■',
         'SELL_ENTRY_case_1': '■',
         # BUY and sell Entry
-        'BUY_ENTRY_case_2': '■',
-        'SELL_ENTRY_case_2': '■',
+        'BUY_ENTRY_case_2': '●',
+        'SELL_ENTRY_case_2': '●',
 
-        'BUY_ENTRY_case_3': '■',
-        'SELL_ENTRY_case_3': '■',
+        'BUY_ENTRY_case_3': '●',
+        'SELL_ENTRY_case_3': '●',
+
+        'BUY_ENTRY_case_4': '●',
+        'SELL_ENTRY_case_4': '●',
 
         'SCREENING_case_1': '○',
         'SCREENING_case_2': '○',
@@ -855,6 +858,7 @@ def create_chart_hovered_df(hover_df, symbol):
 
         'SCORE': 'S',
         'PRICE_CLODE_TO_LEVEL': '●',
+        'PRICE_CLOSE_TO_LEVEL': '●',
 
         # ------
         # Test 
