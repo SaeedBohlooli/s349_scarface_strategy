@@ -108,6 +108,8 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
         market_trend = 'up' if can_buy else 'down' #
         right = 'C' if can_buy else 'P'
 
+        context_filter(application_state, details_map, df, order_ref, symbol, side, level_used)
+
         if do_check and not app_config['symbols_meta'][symbol]['can_trade']:
             logger.info(f"[check_buy_sell_result_to_send_order] @@ We are not trading {symbol}.")
             continue
@@ -213,8 +215,7 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
             notification_helper.send_email(app_config, event='order_sent', symbol=symbol, body=json_utils.polish_map_to_show_in_hover(data))
             add_order_ref_to_application_state(application_state, open_order_ref=order_ref)
             add_open_order_to_capital_flow_df(data, capital_data)
-            add_entry_message_to_application_state(application_state, symbol, str(df['date'].iloc[-1]), 'order is sent')
-            context_filter(application_state, data, details_map, df, order_ref)
+            add_entry_message_to_application_state(application_state, symbol, str(df['date'].iloc[-1]), f'Order is sent {symbol} {case} {right}')
         elif contract_type.lower() == 'future' and (can_buy or can_sell):
             right = 'long' if can_buy else 'short'
             side = 'long' if can_buy else 'short' # TODO need to be rmeoved ...
@@ -510,12 +511,12 @@ def number_of_wins(application_state, symbol):
     return number_of_wins
 
 
-def context_filter(application_state, data, details_map, df, order_ref):
+def context_filter(application_state, details_map, df, order_ref, symbol, side, level_used):
     try:
 
         from utils.context_filter import check_trade, LevelData
         eval_ctx = application_state.get("eval_ctx", {})
-        symbol = data.get("symbol")
+        symbol = symbol
         retest_candle_high = 0
         retest_candle_low = 0
         entry_retest_idx = details_map.get("entry_retest_idx", 0)
@@ -541,7 +542,7 @@ def context_filter(application_state, data, details_map, df, order_ref):
         )
 
         ticker = LevelData(
-          symbol=data.get("symbol"),
+          symbol=symbol,
           price=eval_ctx[f"{symbol}_price"],
           TDH=eval_ctx[f"{symbol}_TDH"],
           TDL=eval_ctx[f"{symbol}_TDL"],
@@ -554,12 +555,12 @@ def context_filter(application_state, data, details_map, df, order_ref):
         )
 
         result = check_trade(
-          side="long" if data.get("right") == "C" else "short",
-          level=data.get("level_used_to_open"),
+          side="long" if side == "C" else "short",
+          level=level_used,
           retest_candle_high=retest_candle_high,
           retest_candle_low=retest_candle_low,
-          stop_loss=data.get("level_used_to_open"),
-          signal_time=data.get("date"),
+          stop_loss=level_used,
+          signal_time=df['date'].iloc[-1],
           qqq=qqq,
           ticker=ticker,
         )
