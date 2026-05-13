@@ -36,7 +36,7 @@ Informational only (never block):
     - Price vs 9 EMA
 """
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Any, Optional
 
@@ -97,6 +97,9 @@ class FilterResult:
     vwap_extension_pct: Optional[float] = None
     ema_stack: Optional[str] = None  # BULLISH | BEARISH | MIXED
     price_vs_ema9: Optional[str] = None  # ABOVE | BELOW | AT
+
+    # --- Echo of inputs (saved JSON / debugging; not used for gates) ---
+    inputs: dict = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -219,6 +222,21 @@ def _price_vs_ema9(price: float, ema9: float) -> str:
     return "ABOVE" if price > ema9 else "BELOW"
 
 
+def _level_data_snapshot(ld: LevelData) -> dict[str, Any]:
+    """JSON-friendly copy of LevelData (symbol + price + session levels)."""
+    out: dict[str, Any] = {}
+    for k, v in asdict(ld).items():
+        if v is None:
+            out[k] = None
+            continue
+        try:
+            fv = float(v)
+            out[k] = None if fv != fv else fv
+        except (TypeError, ValueError):
+            out[k] = v
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -237,6 +255,8 @@ def check_trade(
         ema9: Optional[float] = None,
         ema20: Optional[float] = None,
         ema50: Optional[float] = None,
+        retest_bar: Optional[dict[str, Any]] = None,  # date + high + low for retest row
+        signal_bar: Optional[dict[str, Any]] = None,  # date + high + low for last / signal bar
 ) -> FilterResult:
     side = side.lower()
     assert side in ("long", "short"), "side must be 'long' or 'short'"
@@ -331,6 +351,31 @@ def check_trade(
     if ema9 is not None and ema9 != 0:
         price_vs_9 = _price_vs_ema9(ticker.price, ema9)
 
+    qqq_break_iso: Optional[str] = None
+    if qqq_level_break_time is not None:
+        qqq_break_iso = _parse_dt(qqq_level_break_time).isoformat(sep=" ")
+
+    inputs_snapshot: dict[str, Any] = {
+        "side": side,
+        "signal_time": signal_dt.isoformat(sep=" "),
+        "qqq_level_break_time": qqq_break_iso,
+        "level": float(level),
+        "stop_loss": float(stop_loss),
+        "retest_candle_high": float(retest_candle_high),
+        "retest_candle_low": float(retest_candle_low),
+        "trigger_price": float(trigger_price),
+        "minutes_from_open": minutes,
+        "qqq_range_position": round(qqq_pos, 6),
+        "vwap": None if vwap is None else float(vwap),
+        "ema9": None if ema9 is None else float(ema9),
+        "ema20": None if ema20 is None else float(ema20),
+        "ema50": None if ema50 is None else float(ema50),
+        "qqq": _level_data_snapshot(qqq),
+        "ticker": _level_data_snapshot(ticker),
+        "retest_bar": retest_bar,
+        "signal_bar": signal_bar,
+    }
+
     return FilterResult(
         allowed=allowed,
         trade_state=trade_state,
@@ -347,6 +392,7 @@ def check_trade(
         vwap_extension_pct=vwap_ext_pct,
         ema_stack=ema_stack_label,
         price_vs_ema9=price_vs_9,
+        inputs=inputs_snapshot,
     )
 
 

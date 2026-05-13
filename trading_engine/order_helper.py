@@ -513,6 +513,24 @@ def number_of_wins(application_state, symbol):
     return number_of_wins
 
 
+def _context_filter_hl_row(df, idx):
+    """date + high + low for one bar (JSON-serializable), or None on failure."""
+    try:
+        row = df.iloc[int(idx)]
+        dt = row["date"]
+        hi = row["high"]
+        lo = row["low"]
+        if pd.isna(hi) or pd.isna(lo):
+            return None
+        return {
+            "date": pd.Timestamp(dt).isoformat(),
+            "high": float(hi),
+            "low": float(lo),
+        }
+    except (IndexError, TypeError, ValueError, KeyError):
+        return None
+
+
 def context_filter(application_state, details_map, df, unique_run_number, symbol, right, level_used):
     try:
 
@@ -579,6 +597,9 @@ def context_filter(application_state, details_map, df, unique_run_number, symbol
         ema20 = _snap_float("EMA_20")
         ema50 = _snap_float("EMA_50")
 
+        retest_bar = _context_filter_hl_row(df, entry_retest_idx)
+        signal_bar = _context_filter_hl_row(df, -1)
+
         result = check_trade(
           side="long" if right == "C" else "short",
           level=level_used,
@@ -592,6 +613,8 @@ def context_filter(application_state, details_map, df, unique_run_number, symbol
           ema9=ema9,
           ema20=ema20,
           ema50=ema50,
+          retest_bar=retest_bar,
+          signal_bar=signal_bar,
         )
         logger.info(f"[context_filter] result: {result}")
         result_dict = result.__dict__
