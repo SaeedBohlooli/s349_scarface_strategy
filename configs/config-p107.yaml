@@ -207,7 +207,7 @@ indicators:
 #        - EMA_50
 #        calculation: |
 #          df['EMA_50'] = df['close'].ewm(span=50, adjust=False).mean()
-#      outputs_in_application_state:
+#      four:
 #        active: true
 #        outputs_in_application_state:
 #        - VWAP
