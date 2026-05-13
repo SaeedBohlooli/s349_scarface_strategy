@@ -12,7 +12,7 @@ positioning:
   min_position_size: 3 #
   min_contract_price: 0.8
   stop_after_wins: 1
-  max_number_of_trades_per_day: 2
+  max_number_of_trades_per_day: 1
   max_num_of_trade_per_symbol_per_day: 2
 
 
