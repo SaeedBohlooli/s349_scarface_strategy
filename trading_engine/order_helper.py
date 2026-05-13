@@ -108,7 +108,7 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
         market_trend = 'up' if can_buy else 'down' #
         right = 'C' if can_buy else 'P'
 
-        context_filter(application_state, details_map, df, order_ref, symbol, side, level_used)
+        context_filter(application_state, details_map, df, application_state['unique_run_number'], symbol, right, level_used)
 
         if do_check and not app_config['symbols_meta'][symbol]['can_trade']:
             logger.info(f"[check_buy_sell_result_to_send_order] @@ We are not trading {symbol}.")
@@ -513,7 +513,7 @@ def number_of_wins(application_state, symbol):
     return number_of_wins
 
 
-def context_filter(application_state, details_map, df, order_ref, symbol, side, level_used):
+def context_filter(application_state, details_map, df, unique_run_number, symbol, right, level_used):
     try:
 
         from utils.context_filter import check_trade, LevelData
@@ -557,7 +557,7 @@ def context_filter(application_state, details_map, df, order_ref, symbol, side, 
         )
 
         result = check_trade(
-          side="long" if side == "C" else "short",
+          side="long" if right == "C" else "short",
           level=level_used,
           retest_candle_high=retest_candle_high,
           retest_candle_low=retest_candle_low,
@@ -569,7 +569,7 @@ def context_filter(application_state, details_map, df, order_ref, symbol, side, 
         logger.info(f"[context_filter] result: {result}")
         result_dict = result.__dict__
         logger.info(f"[context_filter] result_dict: {result_dict}")
-        FileManager.save_named_json(result_dict, file_name = f"context_filter-{order_ref}.json", dir = "default" )
+        FileManager.save_named_json(result_dict, file_name = f"context_filter-{unique_run_number}-{symbol}.json", dir = "default" )
     except Exception as e:
         logger.error(f"[context_filter] @@@ error: {traceback.format_exc()}")
         application_state_router.add_audit_message(application_state, str(e))
