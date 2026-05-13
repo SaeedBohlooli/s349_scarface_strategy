@@ -38,7 +38,18 @@ Informational only (never block):
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
+
+
+def _parse_dt(value: Any) -> datetime:
+    """Coerce market timestamps from ISO strings, datetime, or pandas/numpy scalars."""
+    if isinstance(value, str):
+        return datetime.fromisoformat(value)
+    if isinstance(value, datetime):
+        return value
+    import pandas as pd
+
+    return pd.Timestamp(value).to_pydatetime()
 
 
 # ---------------------------------------------------------------------------
@@ -218,10 +229,10 @@ def check_trade(
         retest_candle_high: float,
         retest_candle_low: float,
         stop_loss: float,
-        signal_time: str,  # "YYYY-MM-DD HH:MM:SS"
+        signal_time: Any,  # ISO str, datetime, or pandas/numpy timestamp
         qqq: LevelData,
         ticker: LevelData,
-        qqq_level_break_time: Optional[str] = None,  # when QQQ broke its corresponding level
+        qqq_level_break_time: Any | None = None,  # when QQQ broke its corresponding level
         vwap: Optional[float] = None,
         ema9: Optional[float] = None,
         ema20: Optional[float] = None,
@@ -232,7 +243,7 @@ def check_trade(
 
     trigger_price = retest_candle_high if side == "long" else retest_candle_low
 
-    signal_dt = datetime.fromisoformat(signal_time)
+    signal_dt = _parse_dt(signal_time)
     minutes = _minutes_from_open(signal_dt)
 
     qqq_pos = _qqq_range_position(qqq)
@@ -276,7 +287,7 @@ def check_trade(
     lag_mins = None
 
     if qqq_level_break_time is not None:
-        qqq_break_dt = datetime.fromisoformat(qqq_level_break_time)
+        qqq_break_dt = _parse_dt(qqq_level_break_time)
         lag_mins = round((signal_dt - qqq_break_dt).total_seconds() / 60, 1)
         lag_threshold = 3 if phase == "EARLY_IMPULSE" else LAGGING_BLOCK_THRESHOLD
         timing_label = _ticker_timing(lag_mins, lag_threshold)
