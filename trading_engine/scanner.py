@@ -179,13 +179,13 @@ def replace_level_if_needed(application_state, app_config, df, symbol, side, can
 
     if side == 'up':
         if next_level > level and abs(next_level - level) < closeness_distance:
-            logger.info(f"replace_level_if_needed, level is replaced,{symbol}, {side}, level: {level}, next_level: {next_level}, {df['date'].iloc[-1]}")
+            logger.info(f"[replace_level_if_needed] level is replaced,{symbol}, {side}, level: {level}, next_level: {next_level}, {df['date'].iloc[-1]}")
             price = chart_helper.get_offseted_price(app_config, application_state,symbol,side='up', price=df['high'].iloc[-1])
             TradingLedger.add_to_list("signals", (symbol, 'LEVEL_REPLACED', price, df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}') )
             return next_level
     else:
         if next_level < level and abs(next_level - level) < closeness_distance:
-            logger.info(f"replace_level_if_needed, level is replaced, {symbol}, {side}, level: {level}, next_level: {next_level}, {df['date'].iloc[-1]}")
+            logger.info(f"[replace_level_if_needed] level is replaced, {symbol}, {side}, level: {level}, next_level: {next_level}, {df['date'].iloc[-1]}")
             price = chart_helper.get_offseted_price(app_config,application_state, symbol,'up', df['high'].iloc[-1])
             TradingLedger.add_to_list("signals", (symbol, 'LEVEL_REPLACED', price, df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}') )
             return next_level
@@ -205,7 +205,7 @@ def get_next_level(side, level, levels):
 
 def breakout_in_last_x_candles_ver_2(app_config, application_state, case, symbol, df, side='up', idx_list=[-2], level=0, level_alias=''):
 
-    logger.debug(f"in breakout_in_last_x_candles, symbol: {symbol}, idx_list: {idx_list}, level:{level}")
+    logger.debug(f"[in breakout_in_last_x_candles], symbol: {symbol}, idx_list: {idx_list}, level:{level}")
 
     if level == 0:
         return False
@@ -242,7 +242,7 @@ def breakout_in_last_x_candles_ver_2(app_config, application_state, case, symbol
 
         if (cond_1 and candle_is_not_week) or cond_2 or cond_3: # for cond_1 we need body_confirmation, for cond_2 and cond_3 we do not need it
 
-            logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
+            logger.info(f"[in breakout_in_last_x_candles], idx: {idx}, level: {level}, retest happened!! ")
 
             application_state['breakouts'].setdefault(symbol, []).append({
                 'side': side,
@@ -266,7 +266,7 @@ def breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol
     # confirmation for -i candle which is breakout candle and it can be weak as well.
     # so in ver_3 we check body confirmation for -i candle only if cond_1 is true. if cond_2 or cond_3 is true, we do not check body confirmation for -i candle.
 
-    logger.debug(f"in breakout_in_last_x_candles, symbol: {symbol}, idx_list: {idx_list}, level:{level}")
+    logger.debug(f"[in breakout_in_last_x_candles], symbol: {symbol}, idx_list: {idx_list}, level:{level}")
 
     if level == 0:
         return False
@@ -370,7 +370,7 @@ def breakout_in_last_x_candles_ver_3(app_config, application_state, case, symbol
     # confirmation for -i candle which is breakout candle and it can be weak as well.
     # so in ver_3 we check body confirmation for -i candle only if cond_1 is true. if cond_2 or cond_3 is true, we do not check body confirmation for -i candle.
 
-    logger.debug(f"in breakout_in_last_x_candles, symbol: {symbol}, idx_list: {idx_list}, level:{level}")
+    logger.debug(f"[breakout_in_last_x_candles], symbol: {symbol}, idx_list: {idx_list}, level:{level}")
 
     if level == 0:
         return False
@@ -408,7 +408,7 @@ def breakout_in_last_x_candles_ver_3(app_config, application_state, case, symbol
 
         if (cond_1 and candle_is_not_week) or cond_2 or cond_3: # for cond_1 we need body_confirmation, for cond_2 and cond_3 we do not need it
 
-            logger.info(f"in breakout_in_last_x_candles, idx: {idx}, level: {level}, retest happened!! ")
+            logger.info(f"[breakout_in_last_x_candles], idx: {idx}, level: {level}, retest happened!! ")
 
             application_state['breakouts'].setdefault(symbol, []).append({
                 'side': side,

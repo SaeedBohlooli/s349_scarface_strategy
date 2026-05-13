@@ -338,16 +338,18 @@ def check_manual_conditions(app_config, application_state, symbol, right):
             # evaluated_condition = eval(condition)
             evaluated_condition = eval(condition, {}, eval_ctx)
 
-            logger.info(f"[check_manual_conditions] {symbol}, {right}, condition: {condition}, evaluated_condition: {evaluated_condition} ")
             if not evaluated_condition:
+                logger.info(f"[check_manual_conditions] {symbol}, price: {eval_ctx.get(f"{symbol}_price")} QQQ_price: {eval_ctx.get(f"QQQ_price")}")
+                logger.info(f"[check_manual_conditions] {symbol}, {right}, evaluated_condition: {evaluated_condition} , condition: {condition}")
                 return False
 
         for condition in app_config.get('manual_settings', {}).get('symbols',{}).get(symbol, {}).get(right,[]):
             # evaluated_condition
             evaluated_condition = eval(condition, {}, eval_ctx)
 
-            logger.info(f"[check_manual_conditions] {symbol}, {right}, condition: {condition}, evaluated_condition: {evaluated_condition} ")
             if not evaluated_condition:
+                logger.info(f"[check_manual_conditions] {symbol}, price: {eval_ctx.get(f"{symbol}_price")} QQQ_price: {eval_ctx.get(f"QQQ_price")}")
+                logger.info(f"[check_manual_conditions] {symbol}, {right}, evaluated_condition: {evaluated_condition} , condition: {condition}")
                 return False
 
     except Exception as e:

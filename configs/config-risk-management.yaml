@@ -1,4 +1,8 @@
 live_cases:
+  - case_2 # freezed
+  - case_4  # freezed
+
+trade_cases:
   - case_2
   - case_4
 

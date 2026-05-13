@@ -61,7 +61,6 @@ class TradingEngine:
                     break
                 logger.info(f"[do_miscs]  ...")
                 application_state_router.populate_global_state(application_state=self.application_state)
-                self.application_state["eval_ctx"] = order_helper.create_eval_ctx(self.application_state)
                 if self.runtime.is_due("populate_ib_account_info", interval_sec=60 * 1):
                     await populate_ib_account_info(ib, application_state, app_config.get("ib_account_id", ""))
                     if self.application_state.get("global_state.subscribed_symbols_count") > 70:
@@ -225,10 +224,13 @@ class TradingEngine:
 
                     position_helper.update_position_for_entry_execution_price(self.application_state)
 
+                    self.application_state["eval_ctx"] = order_helper.create_eval_ctx(self.application_state)
+
                     symbol_end_time = time.time()
                     symbol_run_spend_time = round(symbol_end_time - symbol_start_time, 2)
                     logger.info(f'[engine]------------------- {symbol}, {unique_run_number}, symbol_run_spend_time: {symbol_run_spend_time} seconds')
                     self.application_state.setdefault("run_times", {})[symbol] = symbol_run_spend_time
+
 
                     # end while for symbols
 
