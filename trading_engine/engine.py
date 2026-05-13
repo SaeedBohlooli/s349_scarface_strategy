@@ -228,7 +228,7 @@ class TradingEngine:
 
                     symbol_end_time = time.time()
                     symbol_run_spend_time = round(symbol_end_time - symbol_start_time, 2)
-                    logger.info(f'[engine]------------------- {symbol}, {unique_run_number}, symbol_run_spend_time: {symbol_run_spend_time} seconds')
+                    logger.info(f'[engine] ------------------- {symbol}, {unique_run_number}, symbol_run_spend_time: {symbol_run_spend_time} seconds')
                     self.application_state.setdefault("run_times", {})[symbol] = symbol_run_spend_time
 
 
