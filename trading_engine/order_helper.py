@@ -513,113 +513,23 @@ def number_of_wins(application_state, symbol):
     return number_of_wins
 
 
-def _context_filter_hl_row(df, idx):
-    """date + high + low for one bar (JSON-serializable), or None on failure."""
-    try:
-        row = df.iloc[int(idx)]
-        dt = row["date"]
-        hi = row["high"]
-        lo = row["low"]
-        if pd.isna(hi) or pd.isna(lo):
-            return None
-        return {
-            "date": pd.Timestamp(dt).isoformat(),
-            "high": float(hi),
-            "low": float(lo),
-        }
-    except (IndexError, TypeError, ValueError, KeyError):
-        return None
-
-
 def context_filter(application_state, details_map, df, unique_run_number, symbol, right, level_used):
     try:
+        from utils.context_filter import run_context_filter_for_order
 
-        from utils.context_filter import check_trade, LevelData
-        eval_ctx = application_state.get("eval_ctx", {})
-        symbol = symbol
-        retest_candle_high = 0
-        retest_candle_low = 0
-        entry_retest_idx = details_map.get("entry_retest_idx", 0)
-        if entry_retest_idx is not None and entry_retest_idx !=0:
-            logger.info(f"[context_filter] entry_retest_idx: {entry_retest_idx} ")
-            retest_candle_high = df["high"].iloc[entry_retest_idx]
-            retest_candle_low = df["low"].iloc[entry_retest_idx]
-        else:
-            logger.info(f"[context_filter] @ entry_retest_idx is not valid. entry_retest_idx: {entry_retest_idx} ")
+        result = run_context_filter_for_order(
+            application_state, details_map, df, symbol, right, level_used
+        )
+        if result is None:
             return
-
-        qqq = LevelData(
-          symbol="QQQ",
-          price=eval_ctx["QQQ_price"],
-          TDH=eval_ctx["QQQ_TDH"],
-          TDL=eval_ctx["QQQ_TDL"],
-          PDH=eval_ctx["QQQ_PDH"],
-          PDL=eval_ctx["QQQ_PDL"],
-          PMH=eval_ctx["QQQ_PMH"],
-          PML=eval_ctx["QQQ_PML"],
-          five_MH=eval_ctx["QQQ_5MH"],
-          five_ML=eval_ctx["QQQ_5ML"],
-        )
-
-        ticker = LevelData(
-          symbol=symbol,
-          price=eval_ctx[f"{symbol}_price"],
-          TDH=eval_ctx[f"{symbol}_TDH"],
-          TDL=eval_ctx[f"{symbol}_TDL"],
-          PDH=eval_ctx[f"{symbol}_PDH"],
-          PDL=eval_ctx[f"{symbol}_PDL"],
-          PMH=eval_ctx[f"{symbol}_PMH"],
-          PML=eval_ctx[f"{symbol}_PML"],
-          five_MH=eval_ctx[f"{symbol}_5MH"],
-          five_ML=eval_ctx[f"{symbol}_5ML"],
-        )
-
-        indicators_bucket = application_state.get("indicators")
-        if not isinstance(indicators_bucket, dict):
-            indicators_bucket = {}
-        raw_ind = indicators_bucket.get(symbol)
-        ind = raw_ind if isinstance(raw_ind, dict) else {}
-
-        def _snap_float(key):
-            try:
-                val = ind.get(key)
-                if val is None:
-                    return None
-                fv = float(val)
-                if fv != fv:  # NaN
-                    return None
-                return fv
-            except (TypeError, ValueError):
-                return None
-
-        vwap = _snap_float("VWAP")
-        ema9 = _snap_float("EMA_9")
-        ema20 = _snap_float("EMA_20")
-        ema50 = _snap_float("EMA_50")
-
-        retest_bar = _context_filter_hl_row(df, entry_retest_idx)
-        signal_bar = _context_filter_hl_row(df, -1)
-
-        result = check_trade(
-          side="long" if right == "C" else "short",
-          level=level_used,
-          retest_candle_high=retest_candle_high,
-          retest_candle_low=retest_candle_low,
-          stop_loss=level_used,
-          signal_time=df['date'].iloc[-1],
-          qqq=qqq,
-          ticker=ticker,
-          vwap=vwap,
-          ema9=ema9,
-          ema20=ema20,
-          ema50=ema50,
-          retest_bar=retest_bar,
-          signal_bar=signal_bar,
-        )
         logger.info(f"[context_filter] result: {result}")
         result_dict = result.__dict__
         logger.info(f"[context_filter] result_dict: {result_dict}")
-        FileManager.save_named_json(result_dict, file_name = f"context_filter-{unique_run_number}-{symbol}.json", dir = "default" )
+        FileManager.save_named_json(
+            result_dict,
+            file_name=f"context_filter-{unique_run_number}-{symbol}.json",
+            dir="default",
+        )
     except Exception as e:
         logger.error(f"[context_filter] @@@ error: {traceback.format_exc()}")
         application_state_router.add_audit_message(application_state, str(e))

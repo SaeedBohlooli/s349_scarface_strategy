@@ -38,7 +38,12 @@ Informational only (never block):
 
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
+import logging
 from typing import Any, Optional
+
+import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_dt(value: Any) -> datetime:
@@ -47,8 +52,6 @@ def _parse_dt(value: Any) -> datetime:
         return datetime.fromisoformat(value)
     if isinstance(value, datetime):
         return value
-    import pandas as pd
-
     return pd.Timestamp(value).to_pydatetime()
 
 
@@ -246,7 +249,7 @@ def check_trade(
         level: float,  # B&R level (5MH, 5ML, PDH, PDL)
         retest_candle_high: float,
         retest_candle_low: float,
-        stop_loss: float,
+        stop_loss: float,  # structure anchor for entry-quality width (often opposite side of setup)
         signal_time: Any,  # ISO str, datetime, or pandas/numpy timestamp
         qqq: LevelData,
         ticker: LevelData,
@@ -257,6 +260,7 @@ def check_trade(
         ema50: Optional[float] = None,
         retest_bar: Optional[dict[str, Any]] = None,  # date + high + low for retest row
         signal_bar: Optional[dict[str, Any]] = None,  # date + high + low for last / signal bar
+        extra_inputs: Optional[dict[str, Any]] = None,  # merged into saved inputs (e.g. scanner levels)
 ) -> FilterResult:
     side = side.lower()
     assert side in ("long", "short"), "side must be 'long' or 'short'"
@@ -360,7 +364,7 @@ def check_trade(
         "signal_time": signal_dt.isoformat(sep=" "),
         "qqq_level_break_time": qqq_break_iso,
         "level": float(level),
-        "stop_loss": float(stop_loss),
+        "structure_stop": float(stop_loss),
         "retest_candle_high": float(retest_candle_high),
         "retest_candle_low": float(retest_candle_low),
         "trigger_price": float(trigger_price),
@@ -375,6 +379,8 @@ def check_trade(
         "retest_bar": retest_bar,
         "signal_bar": signal_bar,
     }
+    if extra_inputs:
+        inputs_snapshot.update(extra_inputs)
 
     return FilterResult(
         allowed=allowed,
@@ -418,6 +424,209 @@ def _build_watch_note(
     if timing_label == "LAGGING":
         notes.append("Ticker broke level too late after QQQ — wait for next QQQ leg")
     return " | ".join(notes)
+
+
+def _hl_bar_row(df: pd.DataFrame, idx: int) -> dict[str, Any] | None:
+    """date + high + low for one bar (JSON-serializable), or None on failure."""
+    try:
+        row = df.iloc[int(idx)]
+        dt = row["date"]
+        hi = row["high"]
+        lo = row["low"]
+        if pd.isna(hi) or pd.isna(lo):
+            return None
+        return {
+            "date": pd.Timestamp(dt).isoformat(),
+            "high": float(hi),
+            "low": float(lo),
+        }
+    except (IndexError, TypeError, ValueError, KeyError):
+        return None
+
+
+def _structure_stop_for_order(
+    right: str,
+    level_used: float,
+    details_map: dict[str, Any],
+    retest_hi: float,
+    retest_lo: float,
+    *,
+    ticker_anchor_lows: tuple[Any, ...] | None = None,
+    ticker_anchor_highs: tuple[Any, ...] | None = None,
+) -> float:
+    """
+    Anchor below/above entry level for entry-quality width (not the order stop price).
+    Long: scanner short_level below level, else retest low, else lowest ticker anchor below level.
+    Short: symmetric with long_level / retest high / highs above level.
+    """
+    lu = float(level_used)
+    rhi = float(retest_hi)
+    rlo = float(retest_lo)
+    ticker_anchor_lows = ticker_anchor_lows or ()
+    ticker_anchor_highs = ticker_anchor_highs or ()
+
+    def _sf(v: Any) -> float | None:
+        if v is None or v == -1:
+            return None
+        try:
+            x = float(v)
+            return x if x > 0 else None
+        except (TypeError, ValueError):
+            return None
+
+    def _below_level_anchor() -> float | None:
+        vals = []
+        for v in ticker_anchor_lows:
+            fv = _sf(v)
+            if fv is not None and fv < lu - 1e-9:
+                vals.append(fv)
+        return min(vals) if vals else None
+
+    def _above_level_anchor() -> float | None:
+        vals = []
+        for v in ticker_anchor_highs:
+            fv = _sf(v)
+            if fv is not None and fv > lu + 1e-9:
+                vals.append(fv)
+        return max(vals) if vals else None
+
+    ll = _sf(details_map.get("long_level"))
+    sl = _sf(details_map.get("short_level"))
+
+    if right == "C":
+        if sl is not None and sl < lu - 1e-9:
+            return sl
+        if rlo < lu - 1e-9:
+            return rlo
+        bl = _below_level_anchor()
+        if bl is not None:
+            return bl
+        return lu
+    if ll is not None and ll > lu + 1e-9:
+        return ll
+    if rhi > lu + 1e-9:
+        return rhi
+    ah = _above_level_anchor()
+    if ah is not None:
+        return ah
+    return lu
+
+
+def _snap_indicator(application_state: dict[str, Any], symbol: str, key: str) -> float | None:
+    indicators_bucket = application_state.get("indicators")
+    if not isinstance(indicators_bucket, dict):
+        indicators_bucket = {}
+    raw_ind = indicators_bucket.get(symbol)
+    ind = raw_ind if isinstance(raw_ind, dict) else {}
+    try:
+        val = ind.get(key)
+        if val is None:
+            return None
+        fv = float(val)
+        if fv != fv:
+            return None
+        return fv
+    except (TypeError, ValueError):
+        return None
+
+
+def run_context_filter_for_order(
+    application_state: dict[str, Any],
+    details_map: dict[str, Any],
+    df: pd.DataFrame,
+    symbol: str,
+    right: str,
+    level_used: float,
+) -> Optional[FilterResult]:
+    """
+    Build LevelData, indicators, structure stop, and run check_trade.
+    Returns None when entry_retest_idx is missing or invalid.
+    """
+    eval_ctx = application_state.get("eval_ctx", {})
+    entry_retest_idx = details_map.get("entry_retest_idx", 0)
+    if entry_retest_idx is None or entry_retest_idx == 0:
+        logger.info(
+            f"[context_filter] @ entry_retest_idx is not valid. entry_retest_idx: {entry_retest_idx} "
+        )
+        return None
+
+    logger.info(f"[context_filter] entry_retest_idx: {entry_retest_idx} ")
+    retest_candle_high = df["high"].iloc[entry_retest_idx]
+    retest_candle_low = df["low"].iloc[entry_retest_idx]
+
+    qqq = LevelData(
+        symbol="QQQ",
+        price=eval_ctx["QQQ_price"],
+        TDH=eval_ctx["QQQ_TDH"],
+        TDL=eval_ctx["QQQ_TDL"],
+        PDH=eval_ctx["QQQ_PDH"],
+        PDL=eval_ctx["QQQ_PDL"],
+        PMH=eval_ctx["QQQ_PMH"],
+        PML=eval_ctx["QQQ_PML"],
+        five_MH=eval_ctx["QQQ_5MH"],
+        five_ML=eval_ctx["QQQ_5ML"],
+    )
+
+    ticker = LevelData(
+        symbol=symbol,
+        price=eval_ctx[f"{symbol}_price"],
+        TDH=eval_ctx[f"{symbol}_TDH"],
+        TDL=eval_ctx[f"{symbol}_TDL"],
+        PDH=eval_ctx[f"{symbol}_PDH"],
+        PDL=eval_ctx[f"{symbol}_PDL"],
+        PMH=eval_ctx[f"{symbol}_PMH"],
+        PML=eval_ctx[f"{symbol}_PML"],
+        five_MH=eval_ctx[f"{symbol}_5MH"],
+        five_ML=eval_ctx[f"{symbol}_5ML"],
+    )
+
+    vwap = _snap_indicator(application_state, symbol, "VWAP")
+    ema9 = _snap_indicator(application_state, symbol, "EMA_9")
+    ema20 = _snap_indicator(application_state, symbol, "EMA_20")
+    ema50 = _snap_indicator(application_state, symbol, "EMA_50")
+
+    retest_bar = _hl_bar_row(df, entry_retest_idx)
+    signal_bar = _hl_bar_row(df, -1)
+
+    structure_stop = _structure_stop_for_order(
+        right,
+        level_used,
+        details_map,
+        float(retest_candle_high),
+        float(retest_candle_low),
+        ticker_anchor_lows=(
+            eval_ctx.get(f"{symbol}_TDL"),
+            eval_ctx.get(f"{symbol}_PDL"),
+            eval_ctx.get(f"{symbol}_5ML"),
+        ),
+        ticker_anchor_highs=(
+            eval_ctx.get(f"{symbol}_TDH"),
+            eval_ctx.get(f"{symbol}_PDH"),
+            eval_ctx.get(f"{symbol}_5MH"),
+        ),
+    )
+
+    return check_trade(
+        side="long" if right == "C" else "short",
+        level=level_used,
+        retest_candle_high=float(retest_candle_high),
+        retest_candle_low=float(retest_candle_low),
+        stop_loss=structure_stop,
+        signal_time=df["date"].iloc[-1],
+        qqq=qqq,
+        ticker=ticker,
+        vwap=vwap,
+        ema9=ema9,
+        ema20=ema20,
+        ema50=ema50,
+        retest_bar=retest_bar,
+        signal_bar=signal_bar,
+        extra_inputs={
+            "long_level": details_map.get("long_level"),
+            "short_level": details_map.get("short_level"),
+        },
+    )
+
 
 #############################################
 
