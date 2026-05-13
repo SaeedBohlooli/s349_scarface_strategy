@@ -320,7 +320,7 @@ def check_trade(
 
     # --- Informational only ---
     vwap_ctx = vwap_ext_pct = None
-    if vwap is not None:
+    if vwap is not None and vwap != 0:
         vwap_ctx, vwap_ext_pct = _vwap_context(ticker.price, vwap)
 
     ema_stack_label = None
@@ -328,7 +328,7 @@ def check_trade(
         ema_stack_label = _ema_stack(ema9, ema20, ema50)
 
     price_vs_9 = None
-    if ema9 is not None:
+    if ema9 is not None and ema9 != 0:
         price_vs_9 = _price_vs_ema9(ticker.price, ema9)
 
     return FilterResult(

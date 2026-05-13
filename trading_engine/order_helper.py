@@ -556,6 +556,29 @@ def context_filter(application_state, details_map, df, unique_run_number, symbol
           five_ML=eval_ctx[f"{symbol}_5ML"],
         )
 
+        indicators_bucket = application_state.get("indicators")
+        if not isinstance(indicators_bucket, dict):
+            indicators_bucket = {}
+        raw_ind = indicators_bucket.get(symbol)
+        ind = raw_ind if isinstance(raw_ind, dict) else {}
+
+        def _snap_float(key):
+            try:
+                val = ind.get(key)
+                if val is None:
+                    return None
+                fv = float(val)
+                if fv != fv:  # NaN
+                    return None
+                return fv
+            except (TypeError, ValueError):
+                return None
+
+        vwap = _snap_float("VWAP")
+        ema9 = _snap_float("EMA_9")
+        ema20 = _snap_float("EMA_20")
+        ema50 = _snap_float("EMA_50")
+
         result = check_trade(
           side="long" if right == "C" else "short",
           level=level_used,
@@ -565,6 +588,10 @@ def context_filter(application_state, details_map, df, unique_run_number, symbol
           signal_time=df['date'].iloc[-1],
           qqq=qqq,
           ticker=ticker,
+          vwap=vwap,
+          ema9=ema9,
+          ema20=ema20,
+          ema50=ema50,
         )
         logger.info(f"[context_filter] result: {result}")
         result_dict = result.__dict__
