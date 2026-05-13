@@ -104,7 +104,7 @@ cases:
       level: levels['5MH']
       level_alias: "5MH"
       cores:
-        - breakout_in_last_x_candles_ver_3(app_config, application_state, case, symbol, df, side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level, level_alias=level_alias)
+        - breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol, df, side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level, level_alias=level_alias)
         - price_retest(app_config, application_state, case, symbol, df, side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True, level_alias=level_alias)
         - is_retest_after_breakout(application_state, symbol, side='up', level=long_level)
         - check_entry_vs_retest(application_state, case, symbol, df, side='up', level=long_level)
@@ -125,7 +125,7 @@ cases:
       level: levels['5ML']
       level_alias: "5ML"
       cores:
-        - breakout_in_last_x_candles_ver_3(app_config, application_state, case, symbol, df, side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level, level_alias=level_alias)
+        - breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol, df, side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level, level_alias=level_alias)
         - price_retest(app_config, application_state, case, symbol, df, side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True ,level_alias=level_alias)
         - is_retest_after_breakout(application_state, symbol, side='down', level=short_level)
         - check_entry_vs_retest(application_state, case, symbol, df, side='down', level=short_level)
@@ -149,7 +149,7 @@ cases:
       level: levels['PDH']
       level_alias: "PDH"
       cores:
-        - breakout_in_last_x_candles_ver_3(app_config, application_state, case, symbol, df, side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level, level_alias=level_alias)
+        - breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol, df, side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level, level_alias=level_alias)
         - price_retest(app_config, application_state, case, symbol, df, side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True, level_alias=level_alias)
         - is_retest_after_breakout(application_state, symbol, side='up', level=long_level)
         - check_entry_vs_retest(application_state, case, symbol, df, side='up', level=long_level)
@@ -161,7 +161,7 @@ cases:
         - levels['PDH'] < levels['5MH'] or get_current_price(ib, application_state, 'QQQ') > application_state['levels']['QQQ']['5MH']
         - abs (price - long_level) < 1.2 * atr_14
         # 10
-        - skip_level_closeness_enabled or ( not is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='up', price=price, current_level=long_level, next_levels=['5MH']))
+        - 10 == 10 and skip_level_closeness_enabled or ( not is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='up', price=price, current_level=long_level, next_levels=['5MH']))
 
     short:
       level: levels['PDL']
@@ -181,7 +181,7 @@ cases:
         - abs (price - short_level) < 1.2 * atr_14
         # 10
         - not is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='down', price=price, current_level=short_level, next_levels=['PML'])
-        - not is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='down', price=price, current_level=short_level, next_levels=['5ML'])
+        - 10 == 10 and not is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='down', price=price, current_level=short_level, next_levels=['5ML'])
 
   case_3:
     memo: This is for Saeed's live test
