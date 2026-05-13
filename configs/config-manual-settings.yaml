@@ -1,10 +1,10 @@
 manual_settings:
   C:
     conditions:
-    - QQQ_price > QQQ_5MH or 1 ==1
+    - QQQ_price > QQQ_5MH
   P:
     conditions:
-    - QQQ_price < QQQ_5ML or  1 == 1
+    - QQQ_price < QQQ_5ML
   blocked_symbols:
     C:
     - MU
