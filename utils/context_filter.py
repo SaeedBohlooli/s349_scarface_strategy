@@ -530,6 +530,81 @@ def _snap_indicator(application_state: dict[str, Any], symbol: str, key: str) ->
         return None
 
 
+def _resolve_qqq_level_break_time(
+    application_state: dict[str, Any],
+    signal_time: Any,
+    qqq: LevelData,
+    *,
+    level_epsilon: float = 0.75,
+    max_lag_minutes: float = 390.0,
+) -> Optional[str]:
+    """
+    Best-effort QQQ breakout bar time for Gate 3 / saved inputs.
+
+    Uses application_state['breakouts']['QQQ']: same calendar day as signal,
+    bar time at or before signal, lag within max_lag_minutes. Prefers rows
+    whose breakout level is near a QQQ session reference (PDH, PDL, 5MH, 5ML, PMH, PML).
+    """
+    bucket = application_state.get("breakouts")
+    if not isinstance(bucket, dict):
+        return None
+    rows = bucket.get("QQQ")
+    if not isinstance(rows, list) or not rows:
+        return None
+    try:
+        sig = pd.Timestamp(signal_time)
+    except Exception:
+        return None
+
+    ref: list[float] = []
+    for x in (qqq.PDH, qqq.PDL, qqq.five_MH, qqq.five_ML, qqq.PMH, qqq.PML):
+        try:
+            fx = float(x)
+            if fx > 0:
+                ref.append(fx)
+        except (TypeError, ValueError):
+            continue
+
+    scored: list[tuple[pd.Timestamp, str, int]] = []
+    for r in rows:
+        t = r.get("time")
+        if not t:
+            continue
+        try:
+            bt = pd.Timestamp(t)
+        except Exception:
+            continue
+        if bt > sig:
+            continue
+        if (bt.year, bt.month, bt.day) != (sig.year, sig.month, sig.day):
+            continue
+        lag_m = (sig - bt).total_seconds() / 60.0
+        if lag_m > max_lag_minutes:
+            continue
+        prio = 0
+        lev_raw = r.get("level")
+        try:
+            lev = float(lev_raw)
+            if ref and any(abs(lev - x) <= level_epsilon for x in ref):
+                prio = 2
+        except (TypeError, ValueError):
+            pass
+        if prio == 0 and r.get("level_alias"):
+            prio = 1
+        scored.append((bt, str(t), prio))
+
+    if not scored:
+        return None
+
+    matched = [x for x in scored if x[2] == 2]
+    pool = matched if matched else [x for x in scored if x[2] == 1]
+    if not pool:
+        pool = scored
+    # Latest breakout in the chosen pool (closest in time to signal, still before)
+    best = max(pool, key=lambda x: x[0])
+    return best[1]
+
+
 def run_context_filter_for_order(
     application_state: dict[str, Any],
     details_map: dict[str, Any],
@@ -606,15 +681,19 @@ def run_context_filter_for_order(
         ),
     )
 
+    signal_ts = df["date"].iloc[-1]
+    qqq_level_break_time = _resolve_qqq_level_break_time(application_state, signal_ts, qqq)
+
     return check_trade(
         side="long" if right == "C" else "short",
         level=level_used,
         retest_candle_high=float(retest_candle_high),
         retest_candle_low=float(retest_candle_low),
         stop_loss=structure_stop,
-        signal_time=df["date"].iloc[-1],
+        signal_time=signal_ts,
         qqq=qqq,
         ticker=ticker,
+        qqq_level_break_time=qqq_level_break_time,
         vwap=vwap,
         ema9=ema9,
         ema20=ema20,
