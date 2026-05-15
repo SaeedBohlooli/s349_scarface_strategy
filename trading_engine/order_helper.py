@@ -138,13 +138,13 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
             logger.warning(f"[check_buy_sell_result_to_send_order] @@  check_manual_conditions failed, {symbol}")
             if runtime.should_run_once(f"manual-condition-failed-{symbol}-{str(df['date'].iloc[-1])}"):
                 TradingLedger.add_to_list("signals", (symbol, f"MANUAL_CONDITION_FAILED", df['high'].iloc[-1], df['date'].iloc[-1], f"{case} - blocked by manual settings", 'YELLOW'))
-                add_entry_message_to_application_state(application_state, symbol, str(df['date'].iloc[-1]), 'order is blocked by manual entry')
+                add_entry_message_to_application_state(application_state, symbol, str(df['date'].iloc[-1]), f'{symbol} {right} is blocked by manual entry')
 
             continue
 
         if do_check and not check_xui_symbol_controls(app_config, application_state, symbol, right):
             logger.warning(f"[check_buy_sell_result_to_send_order] @@  check_xui_symbol_controls failed, {symbol}")
-            add_entry_message_to_application_state(application_state, symbol, str(df['date'].iloc[-1]), 'order is blocked by xui')
+            add_entry_message_to_application_state(application_state, symbol, str(df['date'].iloc[-1]), f'{symbol} {right} is blocked by XUI')
             if runtime.should_run_once(f"check_xui_symbol_controls-failed-{symbol}-{str(df['date'].iloc[-1])}"):
                 TradingLedger.add_to_list("signals", (symbol, f"CHECK_XUI_SYMBOL_CONTROLS_FAILED", df['high'].iloc[-1], df['date'].iloc[-1], f"{case} - CHECK_XUI_SYMBOL_CONTROLS_FAILED ", 'ORANGE'))
             continue

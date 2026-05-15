@@ -126,8 +126,9 @@ class TradingEngine:
                 if self.runtime.should_run_once("SUBSCRIBE_FOR_CURRENT_PRICE"):
                     await pricing_helper.subscribe_for_current_price(ib, self.app_config, self.application_state)
 
-                if self.runtime.is_due("PREPARE_OPTION_CONTRACTS_FOR_LATER_USE", interval_sec=60*3, min_time_hhmm=930):
-                    await options_helper.prepare_option_contracts_for_later_use(ib, self.app_config, self.application_state, self.market_data)
+                if self.runtime.is_due("SUBSCRIBE_MARKET_DATA_FOR_ALL_OTM_OPTION_CONTRACTS", interval_sec=60*2, min_time_hhmm=930):
+                    await options_helper.subscribe_market_data_for_all_otm_option_contracts(ib, self.app_config, self.application_state, self.market_data)
+                    await options_helper.unsubscribe_market_data_for_itm_option_contracts(ib)
 
                 if not self.application_state['is_busy_time'] and self.runtime.is_due('DO_PNL', interval_sec=5*60): # TODO should be not busy_time?!
                     pnl_helper.populate_open_close_refs_pnl_df()
@@ -162,6 +163,7 @@ class TradingEngine:
                     if df is None or len(df) ==0:
                         logger.warning(f"[engine] @@@@@ {symbol}, no data found, skip the symbol for now ...")
                         continue
+
                     df = inidicators.populate_features(df)  # TODO do we need it?
                     # df = inidicators.populate_volume_ratio(df)  # TODO do we need it?
                     self.market_data.dfs_map[symbol] = df

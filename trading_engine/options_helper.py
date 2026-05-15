@@ -8,6 +8,7 @@ from trading_utils import date_utils
 from trading_utils import ib_contract
 from trading_utils import ib_pricing_async
 from trading_utils import number_utils
+from trading_utils import global_state
 
 
 async def find_expiration_and_strikes_for_all_from_ib(ib, app_config, application_state, market_data):
@@ -190,16 +191,16 @@ async def prepare_option_contract(ib, app_config, application_state, market_data
 
     return None
 
-async def prepare_option_contracts_for_later_use(ib, app_config, application_state, market_data):
+async def subscribe_market_data_for_all_otm_option_contracts(ib, app_config, application_state, market_data):
     for symbol in app_config['symbols']:
         if app_config['symbols_meta'][symbol]['contract_type'] not in ['Equity']:
             continue
         for right in ['C', 'P']:
-            result = await prepare_option_contract_for_later_use_for_symbol(ib, app_config, application_state, market_data, symbol, right)
+            result = await subscribe_market_data_for_otm_option_contracts(ib, app_config, application_state, market_data, symbol, right)
             if result == False:
-                logger.warning(f"@@@@ [prepare_option_contracts_for_later_use], could not prepare contract for later use: {symbol}, {right}")
+                logger.warning(f"@@@@ [subscribe_market_data_for_all_otm_option_contracts], could not prepare contract for later use: {symbol}, {right}")
 
-async def prepare_option_contract_for_later_use_for_symbol(ib, app_config, application_state, market_data, symbol, right='C'):
+async def subscribe_market_data_for_otm_option_contracts(ib, app_config, application_state, market_data, symbol, right='C'):
 
     underlying_price = await ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol)
 
@@ -217,7 +218,7 @@ async def prepare_option_contract_for_later_use_for_symbol(ib, app_config, appli
 
     expiry = expiry_list[expiry_offset] if expiry_list else None
     if strikes is None:
-        logger.warning(f"@@@@@ prepare_contract, strikes is None. {symbol}, {right}, underlying_price: {underlying_price}")
+        logger.warning(f"[subscribe_market_data_for_otm_option_contracts] @@@@@ , strikes is None. {symbol}, {right}, underlying_price: {underlying_price}")
         return  False
 
     # --- Categorize ---
@@ -226,7 +227,7 @@ async def prepare_option_contract_for_later_use_for_symbol(ib, app_config, appli
     # itm_puts = [s for s in strikes if s > underlying_price]
     otm_puts = [s for s in strikes if s < underlying_price]
     if len(otm_calls) ==0 or len(otm_puts) == 0:
-        logger.info("@@@ prepare_option_contract_for_later_use_for_symbol, not enough otm options, so skip for later use.")
+        logger.warning("[subscribe_market_data_for_otm_option_contracts] @@@ not enough otm options, so skip for later use.")
         return False
 
     max_otm_strikes_to_try = app_config.get('options', {}).get("max_otm_strikes_to_try", 3)
@@ -239,11 +240,42 @@ async def prepare_option_contract_for_later_use_for_symbol(ib, app_config, appli
             strike = otm_puts[-i]   # take the last X otm puts   -1 , -2, -3
 
         contract = await ib_contract.get_option_contract_cached(ib, symbol=symbol, strike=strike, expiry=expiry, right=right)
-        logger.info(f"in prepare_contract, contract: {contract}")
+        logger.info(f"[subscribe_market_data_for_otm_option_contracts], contract: {contract}")
         if contract is not None:
             await ib_pricing_async.subscribe_contracts_to_market_data(ib, [contract])
         else:
-            logger.info(f"[prepare_option_contract_for_later_use_for_symbol] @@@ contract is None")
+            logger.warning(f"[subscribe_market_data_for_otm_option_contracts] @@@ contract is None")
+
+
+    return True
+
+async def unsubscribe_market_data_for_itm_option_contracts(ib):
+
+    contracts_to_unsubscribe_for_market_data = []
+    for conid in global_state.conid_to_symbol_subscribed_for_quotes.keys():
+        contract = global_state.conid_to_contract_cache.get(conid)
+        if contract is None:
+            continue
+
+        if not isinstance(contract, Option) :
+            # if not option move on ... we only care about options here
+            continue
+        # "Option(conId=879041559, symbol='QQQ', lastTradeDateOrContractMonth='20260514', strike=715.0, right='C', multiplier='100',
+        # exchange='SMART', currency='USD', localSymbol='QQQ   260514C00715000', tradingClass='QQQ')",
+        symbol = contract.tradingClass
+        underlying_price = await ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol)
+
+        if contract.right == 'C' and contract.strike + 2 < underlying_price:
+            # price < strike, so remove it ....
+            contracts_to_unsubscribe_for_market_data.append(contract)
+            logger.info(f"[unsubscribe_market_data_for_itm_option_contracts] {symbol}, {contract.right}, strike: {contract.strike}, underlying_price: {underlying_price}, contract: {contract}")
+        elif contract.right == 'P' and contract.strike - 2 > underlying_price:
+            # price > strike, so remove it ....
+            contracts_to_unsubscribe_for_market_data.append(contract)
+            logger.info(f"[unsubscribe_market_data_for_itm_option_contracts] {symbol}, {contract.right}, strike: {contract.strike}, underlying_price: {underlying_price}, contract: {contract}")
+
+    if contracts_to_unsubscribe_for_market_data:
+        await ib_pricing_async.unsubscribe_contracts_from_market_data(ib,contracts_to_unsubscribe_for_market_data)
 
 
     return True
