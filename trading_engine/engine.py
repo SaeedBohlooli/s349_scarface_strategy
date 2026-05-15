@@ -63,8 +63,8 @@ class TradingEngine:
                 application_state_router.populate_global_state(application_state=self.application_state)
                 if self.runtime.is_due("populate_ib_account_info", interval_sec=60 * 1):
                     await populate_ib_account_info(ib, application_state, app_config.get("ib_account_id", ""))
-                    if self.application_state.get("global_state.subscribed_symbols_count") > 70:
-                        application_state_router.add_audit_message(application_state, f"Subscribed symbols count is {self.application_state.get('global_state.subscribed_symbols_count')}, which is quite high. ")
+                    if self.application_state.get("global_state.subscribed_symbols_count") > 80:
+                        application_state_router.add_audit_message(application_state, f"Subscribed symbols count is  which is quite high. sub: {self.application_state.get('global_state.subscribed_symbols_count')} q: {self.application_state['global_state.quote_cache_count']} ")
 
                 await asyncio.sleep(interval_seconds)
             except Exception as e:
