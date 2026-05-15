@@ -360,9 +360,17 @@ def add_order_ref_to_application_state(application_state, open_order_ref='', clo
 def archive_open_trade_dic(application_state, symbol):
     FileManager.save_named_json(application_state, file_name=f"84-{application_state.get('unique_run_number')}-{symbol}.json",
                             dir='intermediate')
-    order_ref  = application_state.get("open_trades_dic", {}).get(symbol,{}).get('order_ref', 'x')
+    order_info = application_state.get("open_trades_dic", {}).get(symbol, {})
+
+    order_ref  = order_info.get('order_ref', 'x')
+    symbol = order_info.get('symbol','')
+    side = order_info.get('side','')
+    right = order_info.get('right','')
+
+    file_name = f"{application_state.get('unique_run_number')}-{symbol}-{side}-{right}.json"
+
     FileManager.save_named_json(application_state.get("open_trades_dic",{}).get(symbol),
-                                file_name=f"{order_ref}.json", dir='intermediate')
+                                file_name=file_name, dir='intermediate')
     return
 
 

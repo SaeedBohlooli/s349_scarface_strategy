@@ -280,6 +280,37 @@ async def unsubscribe_market_data_for_itm_option_contracts(ib):
 
     return True
 
+async def unsubscribe_excessively_distant_option_contracts(ib):
+
+    contracts_to_unsubscribe_for_market_data = []
+    for conid in global_state.conid_to_symbol_subscribed_for_quotes.keys():
+        contract = global_state.conid_to_contract_cache.get(conid)
+        if contract is None:
+            continue
+
+        if not isinstance(contract, Option) :
+            # if not option move on ... we only care about options here
+            continue
+        # "Option(conId=879041559, symbol='QQQ', lastTradeDateOrContractMonth='20260514', strike=715.0, right='C', multiplier='100',
+        # exchange='SMART', currency='USD', localSymbol='QQQ   260514C00715000', tradingClass='QQQ')",
+        symbol = contract.tradingClass
+        underlying_price = await ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol)
+
+        if contract.right == 'C' and contract.strike > underlying_price + 10:
+            # price < strike, so remove it ....
+            contracts_to_unsubscribe_for_market_data.append(contract)
+            logger.info(f"[unsubscribe_excessively_distant_option_contracts] {symbol}, {contract.right}, strike: {contract.strike}, underlying_price: {underlying_price}, contract: {contract}")
+        elif contract.right == 'P' and contract.strike < underlying_price - 10:
+            # price > strike, so remove it ....
+            contracts_to_unsubscribe_for_market_data.append(contract)
+            logger.info(f"[unsubscribe_excessively_distant_option_contracts] {symbol}, {contract.right}, strike: {contract.strike}, underlying_price: {underlying_price}, contract: {contract}")
+
+    if contracts_to_unsubscribe_for_market_data:
+        await ib_pricing_async.unsubscribe_contracts_from_market_data(ib,contracts_to_unsubscribe_for_market_data)
+
+
+    return True
+
 
 def extend_all_strikes(data: dict, n: int = 5) -> dict:
     for key, strikes in data.items():

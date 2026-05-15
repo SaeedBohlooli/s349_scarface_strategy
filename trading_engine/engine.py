@@ -129,6 +129,7 @@ class TradingEngine:
                 if self.runtime.is_due("SUBSCRIBE_MARKET_DATA_FOR_ALL_OTM_OPTION_CONTRACTS", interval_sec=60*2, min_time_hhmm=930):
                     await options_helper.subscribe_market_data_for_all_otm_option_contracts(ib, self.app_config, self.application_state, self.market_data)
                     await options_helper.unsubscribe_market_data_for_itm_option_contracts(ib)
+                    await options_helper.unsubscribe_excessively_distant_option_contracts(ib)
 
                 if not self.application_state['is_busy_time'] and self.runtime.is_due('DO_PNL', interval_sec=5*60): # TODO should be not busy_time?!
                     pnl_helper.populate_open_close_refs_pnl_df()
