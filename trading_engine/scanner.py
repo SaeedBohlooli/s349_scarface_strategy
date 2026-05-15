@@ -293,7 +293,7 @@ def breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol
             cond_1 = (row["open"] >= level and row["close"] < level - gap)
             cond_2 = (previous["open"] > level and row["close"] < level - gap)
             cond_3 = (previous["open"] > level and row["open"] < level and row["close"] < level)
-            cond_4 = (row["high"]  >= level and row["clode"] < level and next["open"] < level and next["close"] < level and next["close"] < next["open"])
+            cond_4 = (row["high"]  >= level and row["close"] < level and next["open"] < level and next["close"] < level and next["close"] < next["open"])
 
         breakout = (cond_1 or cond_2 or cond_3 or cond_4)
         if not breakout:
