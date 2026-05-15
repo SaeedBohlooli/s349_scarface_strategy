@@ -255,6 +255,7 @@ async def unsubscribe_market_data_for_itm_option_contracts(ib):
     for conid in global_state.conid_to_symbol_subscribed_for_quotes.keys():
         contract = global_state.conid_to_contract_cache.get(conid)
         if contract is None:
+            logger.warning(f"f[unsubscribe_market_data_for_itm_option_contracts] @@@  {conid} contract is None.")
             continue
 
         if not isinstance(contract, Option) :
@@ -287,11 +288,12 @@ async def unsubscribe_excessively_distant_option_contracts(ib):
     for conid in global_state.conid_to_symbol_subscribed_for_quotes.keys():
         contract = global_state.conid_to_contract_cache.get(conid)
         if contract is None:
+            logger.warning(f"f[unsubscribe_excessively_distant_option_contracts] @@@  {conid} contract is None.")
             continue
 
         if not isinstance(contract, Option) :
             # if not option move on ... we only care about options here
-            logger.warning("f[unsubscribe_excessively_distant_option_contracts] @@@ contract is not option, so skip. contract: {contract}")
+            logger.warning(f"[unsubscribe_excessively_distant_option_contracts] @@@ contract is not option, so skip. contract: {contract}")
             continue
         # "Option(conId=879041559, symbol='QQQ', lastTradeDateOrContractMonth='20260514', strike=715.0, right='C', multiplier='100',
         # exchange='SMART', currency='USD', localSymbol='QQQ   260514C00715000', tradingClass='QQQ')",
