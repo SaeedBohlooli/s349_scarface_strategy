@@ -126,7 +126,7 @@ class TradingEngine:
                 if self.runtime.should_run_once("SUBSCRIBE_FOR_CURRENT_PRICE"):
                     await pricing_helper.subscribe_for_current_price(ib, self.app_config, self.application_state)
 
-                if self.runtime.is_due("SUBSCRIBE_MARKET_DATA_FOR_ALL_OTM_OPTION_CONTRACTS", interval_sec=60*2, min_time_hhmm=930):
+                if self.runtime.is_due("SUBSCRIBE_MARKET_DATA_FOR_ALL_OTM_OPTION_CONTRACTS", interval_sec=30, min_time_hhmm=930):
                     await options_helper.subscribe_market_data_for_all_otm_option_contracts(ib, self.app_config, self.application_state, self.market_data)
                     await options_helper.unsubscribe_market_data_for_itm_option_contracts(ib)
                     await options_helper.unsubscribe_excessively_distant_option_contracts(ib)
