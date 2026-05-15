@@ -129,7 +129,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                 close_result = ib_positions_async.close_position_by_con_id(ib, con_id=con_id, order_ref=order_ref )
                 # close_option_positions(option_positions_to_monitor, symbol=symbol, order_ref=order_ref)
                 if not close_result:
-                    logger.warning(f"[check_for_stop_loss_and_take_profit] @@@@ we couldn't close the position for SL, so we skip the rest {symbol}  {open_trade_info.get("order_ref")}  needs more investigation ")
+                    logger.warning(f"[check_for_stop_loss_and_take_profit] @@@@ we couldn't close the position for SL, so we skip the rest {symbol}  {open_trade_info.get('order_ref')}  needs more investigation ")
                     continue
                 data = {
                     'symbol': symbol,
