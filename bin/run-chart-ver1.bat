@@ -1,11 +1,9 @@
-:: start cmd /k python ..\scripts\charts_ver1.py
-
-set CMD="python ..\scripts\charts_ver1.py"
+set CMD="python ..\scripts\charts_ver2.py"
 
 set PROGRAM=python.exe
 set PORTFOLIO=p107
-set KEY_1=charts_ver1
-set KEY_2=charts_ver1
+set KEY_1=charts_ver2
+set KEY_2=charts_ver2
 
 wmic process where "name='%PROGRAM%' and CommandLine like '%%%KEY_1%%%' and CommandLine like '%%%KEY_2%%%' " get ProcessId | findstr [0-9] >nul
 
