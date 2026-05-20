@@ -2,6 +2,7 @@ import logging
 
 import pandas as pd
 
+from trading_core.file_manager import FileManager
 from trading_core.trading_ledger import TradingLedger
 from trading_utils import json_utils
 from trading_utils import constants
@@ -393,3 +394,10 @@ def add_to_drawing_objects_df(symbol='TSLA', time_frame='1m', object='dash', col
 
 def get_case_color(app_config, case):
     return app_config.get('cases', {}).get(case, {}).get('color', 'black')
+
+
+def save_configs_in_chart_folder(app_config):
+    file_name = f"{FileManager.dirs.charts}/config.yaml"
+    FileManager.save_yaml(app_config, file_name)
+    return
+
