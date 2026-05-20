@@ -28,6 +28,12 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
         if df is None:
             logger.warning(f"[check_buy_sell_condition], no market data for symbol: {symbol}")
             return None
+
+        qqq_df = market_data.dfs_map.get('QQQ') # used in config
+        if qqq_df is None:
+            logger.warning(f"[check_buy_sell_condition], no market data for QQQ")
+            return None
+
         precondition = app_config['cases'][case]['precondition']
         precondition_eval = eval(precondition)
         if not precondition_eval:
@@ -45,8 +51,8 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
         min_required_move_from_level = app_config['symbols_meta'][symbol]['min_required_move_from_level']  # used in config
         price = df['close'].iloc[-1]  # used in config
         atr_14 = df['atr_14'].iloc[-2]  # used in config
-        skip_level_closeness_enabled = app_config.get("xui_symbol_controls", {}).get(symbol, {}).get("skip_level_closeness_enabled", False)  # used in config
-        skip_pdhl_and_qqq_check_enabled = app_config.get("xui_symbol_controls", {}).get(symbol, {}).get("skip_pdhl_and_qqq_check_enabled", False)  # used in config
+        skip_level_closeness_enabled = app_config.get("xui_symbol_controls", {}).get("skip_level_closeness_enabled", False)  # used in config
+        skip_pdhl_and_qqq_check_enabled = app_config.get("xui_symbol_controls", {}).get("skip_pdhl_and_qqq_check_enabled", False)  # used in config
 
         logger.debug(f"[check_buy_sell_condition], levels: {levels}")
         evaluated_conditions_map = {}

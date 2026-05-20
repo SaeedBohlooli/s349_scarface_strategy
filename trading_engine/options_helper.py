@@ -244,7 +244,7 @@ async def subscribe_market_data_for_otm_option_contracts(ib, app_config, applica
         if contract is not None:
             await ib_pricing_async.subscribe_contracts_to_market_data(ib, [contract])
         else:
-            logger.warning(f"[subscribe_market_data_for_otm_option_contracts] @@@ contract is None")
+            logger.warning(f"[subscribe_market_data_for_otm_option_contracts] @@@ contract is None. {symbol}, {strike}, {expiry}, {right}")
 
 
     return True

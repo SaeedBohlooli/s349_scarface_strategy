@@ -66,6 +66,9 @@ class TradingEngine:
                     if self.application_state.get("global_state.subscribed_symbols_count") > 80:
                         application_state_router.add_audit_message(application_state, f"Subscribed symbols count is  which is quite high. sub: {self.application_state.get('global_state.subscribed_symbols_count')} q: {self.application_state['global_state.quote_cache_count']} ")
 
+                if self.runtime.should_run_once("save_configs_in_chart_folder", min_time_hhmm=1045):
+                    chart_helper.save_configs_in_chart_folder(self.app_config)
+
                 await asyncio.sleep(interval_seconds)
             except Exception as e:
                 logger.warning(f"[do_miscs] @@@ Unexpected error in do_miscs: {e}")
