@@ -33,6 +33,7 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
         if qqq_df is None:
             logger.warning(f"[check_buy_sell_condition], no market data for QQQ")
             return None
+        logger.info(f"[check_buy_sell_condition] {symbol}, qqq_open: {qqq_df['open'].iloc[-1]}, qqq_close: {qqq_df['close'].iloc[-1]}, qqq_date: {qqq_df['date'].iloc[-1]}, df_date: {df['date'].iloc[-1]}  unique_run_number: {application_state.get('unique_run_number')}")
 
         precondition = app_config['cases'][case]['precondition']
         precondition_eval = eval(precondition)
