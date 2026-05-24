@@ -369,6 +369,114 @@ def breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol
     return breakout_happened
 
 
+def breakout_with_displacement(app_config, application_state, case, symbol, df, side='up', idx_list=[-2], level=0, level_alias='', min_displacement_atr_ratio=0.5, min_body_ratio=0.6, close_in_top_pct=0.70):
+    """
+    Displacement-qualified breakout for case_5.
+    Same breakout detection as ver_4 but additionally requires:
+      - candle range >= min_displacement_atr_ratio * ATR  (real move, not a doji)
+      - body >= min_body_ratio * range                    (conviction, not a wick spike)
+      - close in top close_in_top_pct of range (long) / bottom (short)  (directional close)
+    """
+    logger.debug(f"[breakout_with_displacement], symbol: {symbol}, idx_list: {idx_list}, level:{level}")
+
+    if level == 0:
+        return False
+
+    gap = app_config['symbols_meta'][symbol]['breakout_confirmation_distance']
+    breakout_happened = False
+    breakout_idxs = []
+
+    for idx in idx_list:
+        row = df.iloc[idx]
+        previous = df.iloc[idx - 1]
+        next_row = df.iloc[idx + 1]
+
+        if date_utils.get_hhmm_int(row['date']) < 930:
+            continue
+
+        if side == 'up':
+            cond_1 = (row["open"] <= level and row["close"] > level + gap)
+            cond_2 = (previous["open"] < level and row["close"] > level + gap)
+            cond_3 = (previous["open"] < level and row["open"] > level and row["close"] > level)
+            cond_4 = (row["low"] <= level and row["close"] > level and next_row["open"] > level and next_row["close"] > level and next_row["close"] > next_row["open"])
+        else:
+            cond_1 = (row["open"] >= level and row["close"] < level - gap)
+            cond_2 = (previous["open"] > level and row["close"] < level - gap)
+            cond_3 = (previous["open"] > level and row["open"] < level and row["close"] < level)
+            cond_4 = (row["high"] >= level and row["close"] < level and next_row["open"] < level and next_row["close"] < level and next_row["close"] < next_row["open"])
+
+        breakout = (cond_1 or cond_2 or cond_3 or cond_4)
+        if not breakout:
+            continue
+
+        body = abs(row["close"] - row["open"])
+        candle_range = row["high"] - row["low"]
+        candle_is_not_weak = (candle_range > 0 and body / candle_range > 0.5)
+
+        if not ((cond_1 and candle_is_not_weak) or cond_2 or cond_3 or cond_4):
+            continue
+
+        # --- Displacement quality gates ---
+        if candle_range <= 0:
+            continue
+
+        atr_val = df['atr_14'].iloc[idx]
+        if atr_val <= 0:
+            atr_val = df['atr_14'].iloc[-2]
+
+        range_ok       = candle_range >= min_displacement_atr_ratio * atr_val
+        body_ok        = body / candle_range >= min_body_ratio
+        if side == 'up':
+            close_ok = (row['close'] - row['low']) / candle_range >= close_in_top_pct
+        else:
+            close_ok = (row['high'] - row['close']) / candle_range >= close_in_top_pct
+
+        if not (range_ok and body_ok and close_ok):
+            logger.info(f"[breakout_with_displacement] {symbol} idx:{idx} failed: range_ok={range_ok}({candle_range:.3f}>={min_displacement_atr_ratio}*{atr_val:.3f}), body_ok={body_ok}, close_ok={close_ok}")
+            continue
+
+        _close_pct = (row['close'] - row['low']) / candle_range if side == 'up' else (row['high'] - row['close']) / candle_range
+        logger.info(f"[breakout_with_displacement] {symbol} idx:{idx} DISPLACEMENT confirmed: range={candle_range:.3f}, body_ratio={body/candle_range:.2f}, close_pct={_close_pct:.2f}")
+
+        application_state['breakouts'].setdefault(symbol, []).append({
+            'side': side, 'level': level, 'level_alias': level_alias,
+            'idx': idx, 'time': str(row['date']),
+        })
+        breakout_idxs.append(idx)
+        breakout_happened = True
+
+        offseted_price = chart_helper.get_offseted_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx])
+        case_color = get_case_color(app_config, case)
+        TradingLedger.add_to_list("signals", (symbol, 'BREAKOUT', offseted_price, df['date'].iloc[idx], f"DISP BREAKOUT {level_alias} {df['date'].iloc[idx].strftime('%H:%M')}", case_color))
+
+    for breakout_idx in breakout_idxs:
+        if breakout_idx - 1 not in breakout_idxs:
+            row = df.iloc[breakout_idx - 1]
+            body = abs(row["close"] - row["open"])
+            candle_range = row["high"] - row["low"]
+            candle_is_not_weak = (candle_range > 0 and body / candle_range > 0.5)
+            if side == 'up':
+                if candle_is_not_weak and row["open"] <= level and row["close"] > level:
+                    application_state['breakouts'].setdefault(symbol, []).append({
+                        'side': side, 'level': level, 'level_alias': level_alias,
+                        'idx': breakout_idx - 1, 'time': str(row['date']),
+                    })
+                    offseted_price = chart_helper.get_offseted_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[breakout_idx - 1])
+                    case_color = get_case_color(app_config, case)
+                    TradingLedger.add_to_list("signals", (symbol, 'BREAKOUT', offseted_price, row['date'], f"DISP BREAKOUT {level_alias} {row['date']}", case_color))
+            else:
+                if candle_is_not_weak and row["open"] >= level and row["close"] < level:
+                    application_state['breakouts'].setdefault(symbol, []).append({
+                        'side': side, 'level': level, 'level_alias': level_alias,
+                        'idx': breakout_idx - 1, 'time': str(row['date']),
+                    })
+                    offseted_price = chart_helper.get_offseted_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[breakout_idx - 1])
+                    case_color = get_case_color(app_config, case)
+                    TradingLedger.add_to_list("signals", (symbol, 'BREAKOUT', offseted_price, row['date'], f"DISP BREAKOUT {level_alias} {row['date']}", case_color))
+
+    return breakout_happened
+
+
 def breakout_in_last_x_candles_ver_3(app_config, application_state, case, symbol, df, side='up', idx_list=[-2], level=0, level_alias=''):
     ###
     # The difference with ver_2 is that if -i is breakout candle, we do not need to check the body confirmation for -i-1 candle.
@@ -574,6 +682,35 @@ def price_retest(app_config, application_state, case, symbol, df, side='up', idx
                 diff = abs(row['high']-level)
 
     return retest
+
+def price_retracement_to_level(app_config, application_state, case, symbol, df, side='up', idx_list=[-2,-3,-4,-5,-6,-7,-8], level=0, level_alias=''):
+    """
+    Retest detection for case_5. Identical mechanics to price_retest() but with a wider
+    idx_list to accommodate the displacement→retrace journey.
+    No retrace-depth cap — the EMA_21 gate in extras handles momentum filtering.
+    """
+    return price_retest(app_config, application_state, case, symbol, df, side=side, idx_list=idx_list, level=level, both_sides=True, level_alias=level_alias)
+
+
+def is_retracement_gap_acceptable(application_state, symbol, level=0, max_gap=10):
+    """
+    After is_retest_after_breakout() has set breakout_idx and retest_idx, verify
+    the number of bars between them is within max_gap. Prevents acting on setups
+    where momentum has had too long to fade.
+    """
+    breakout_idx = get_breakout_idx(application_state, symbol, level)
+    retest_idx   = get_retest_idx(application_state, symbol, level)
+
+    if breakout_idx is None or retest_idx is None:
+        return False
+    if breakout_idx == 0 or retest_idx == 0:
+        return False
+
+    gap = abs(retest_idx - breakout_idx)
+    result = gap <= max_gap
+    logger.info(f"[is_retracement_gap_acceptable] {symbol}, level:{level}, breakout_idx:{breakout_idx}, retest_idx:{retest_idx}, gap:{gap}, max_gap:{max_gap}, ok:{result}")
+    return result
+
 
 def is_retest_after_breakout(application_state, symbol, side='up', level=1, level_alias=''):
 

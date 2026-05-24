@@ -201,11 +201,22 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
                 'case': case,
                 'level_used_to_open': level_used,
                 'level_name': '',
-                'stop_loss': details_map.get('user_defined_stop_loss',0),
+                'stop_loss': details_map.get('user_defined_stop_loss', 0),
                 'local_symbol': option_contract.localSymbol,
                 'con_id': option_contract.conId,
                 'order_ref': order_ref
             }
+            # case_5: override stop_loss with structural SL (retest candle low/high)
+            if case == 'case_5':
+                retest_idx = details_map.get('entry_retest_idx')
+                min_move   = app_config['symbols_meta'][symbol].get('min_required_move_from_level', 0.25)
+                if retest_idx is not None:
+                    if can_buy:
+                        data['stop_loss'] = round(df.iloc[retest_idx]['low'] - min_move, 2)
+                    else:
+                        data['stop_loss'] = round(df.iloc[retest_idx]['high'] + min_move, 2)
+                    logger.info(f"[order_helper] case_5 structural SL set: {data['stop_loss']} (retest_idx={retest_idx})")
+
             application_state.setdefault('open_trades_dic', {})[symbol] = data
             TradingLedger.add_to_list("signals", (symbol, f'ORDER_SENT',df['close'].iloc[-1],df['date'].iloc[-1], json_utils.polish_map_to_show_in_hover(data)))
 

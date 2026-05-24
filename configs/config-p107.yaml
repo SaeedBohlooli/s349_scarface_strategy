@@ -195,12 +195,12 @@ indicators:
         - EMA_9
         calculation: |
           df['EMA_9'] = df['close'].ewm(span=9, adjust=False).mean()
-#      two:
-#        active: true
-#        outputs_in_application_state:
-#        - EMA_20
-#        calculation: |
-#          df['EMA_20'] = df['close'].ewm(span=20, adjust=False).mean()
+      two:
+        active: true
+        outputs_in_application_state:
+        - EMA_21
+        calculation: |
+          df['EMA_21'] = df['close'].ewm(span=21, adjust=False).mean()
 #      three:
 #        active: true
 #        outputs_in_application_state:
