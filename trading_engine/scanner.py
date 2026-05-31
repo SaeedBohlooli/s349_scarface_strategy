@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 from trading_utils import ib_contract, ib_pricing_async
 from trading_utils import date_utils
 from trading_engine import chart_helper
-
+from trading_core.runtime_manager import RuntimeManager
 def check_buy_sell_condition(ib, app_config, application_state, case, symbol, market_data):
 
     can_buy = False
@@ -49,7 +49,7 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
         long_level = replace_level_if_needed(application_state, app_config, df, symbol, 'up', can_replace_level, long_level)
         short_level = replace_level_if_needed(application_state, app_config, df, symbol, 'down', can_replace_level, short_level)
 
-        min_required_move_from_level = app_config['symbols_meta'][symbol]['min_required_move_from_level']  # used in config
+        min_required_move_from_level = app_config['symbols_meta'].get(symbol,{}).get('min_required_move_from_level',0.15)  # used in config
         price = df['close'].iloc[-1]  # used in config
         atr_14 = df['atr_14'].iloc[-2]  # used in config
         skip_level_closeness_enabled = app_config.get("xui_symbol_controls", {}).get("skip_level_closeness_enabled", False)  # used in config
@@ -114,12 +114,14 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
         logger.info(f"[check_buy_sell_condition] idx, {case}, {symbol}, can_buy: {long_breakout_idx}, {long_retest_idx}")
         logger.info(f"[check_buy_sell_condition] idx, {case}, {symbol}, can_sell: {short_breakout_idx}, {short_retest_idx}")
 
-        # This is shown in the chart ..
+        # This is shown in the chart ...
+
         res_str = (f"res_{case}:<br>"
                    f"{result_long} .. {long_breakout_idxs}.{long_retest_idxs} <br>"
                    f"{result_short} .. {short_breakout_idxs}.{short_retest_idxs} <br>"
                    f"long_breakout: {long_breakout_idx}, long_retest: {long_retest_idx} <br>"
                    f"short_breakout: {short_breakout_idx}, short_retest: {short_retest_idx} <br>"
+                   # f"price: {df['close'].iloc[-1]} at {date_utils.time_now_yyyy_mm_dd_hh_mm_ss()} end.<br>"
                    f"{df['date'].iloc[-1].strftime('%H:%M')}")
         res_str = res_str.replace('True', 'T')
         res_str = res_str.replace('False', 'F')
@@ -163,7 +165,6 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
 
 
 def check_buy_and_sell_cases(ib, app_config, application_state, symbol, market_data):
-    mode = application_state.get('mode', 'live')
     buy_sell_case_results = []
     for case in app_config['cases']:
         if case in app_config['live_cases']:
@@ -187,13 +188,13 @@ def replace_level_if_needed(application_state, app_config, df, symbol, side, can
     if side == 'up':
         if next_level > level and abs(next_level - level) < closeness_distance:
             logger.info(f"[replace_level_if_needed] level is replaced,{symbol}, {side}, level: {level}, next_level: {next_level}, {df['date'].iloc[-1]}")
-            price = chart_helper.get_offseted_price(app_config, application_state,symbol,side='up', price=df['high'].iloc[-1])
+            price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[-1], date=df['date'].iloc[-1], caller_key="replace_level_if_needed")
             TradingLedger.add_to_list("signals", (symbol, 'LEVEL_REPLACED', price, df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}') )
             return next_level
     else:
         if next_level < level and abs(next_level - level) < closeness_distance:
             logger.info(f"[replace_level_if_needed] level is replaced, {symbol}, {side}, level: {level}, next_level: {next_level}, {df['date'].iloc[-1]}")
-            price = chart_helper.get_offseted_price(app_config,application_state, symbol,'up', df['high'].iloc[-1])
+            price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, 'up', df['high'].iloc[-1], df['date'].iloc[-1], caller_key="replace_level_if_needed")
             TradingLedger.add_to_list("signals", (symbol, 'LEVEL_REPLACED', price, df['date'].iloc[-1], f'level is replaced. from: {level}, to: {next_level}') )
             return next_level
     return level
@@ -216,7 +217,7 @@ def breakout_in_last_x_candles_ver_2(app_config, application_state, case, symbol
 
     if level == 0:
         return False
-    gap = app_config['symbols_meta'][symbol]['breakout_confirmation_distance']
+    gap = app_config['symbols_meta'].get(symbol,{}).get('breakout_confirmation_distance', 0.15)
     breakout_happened = False
 
     for idx in idx_list:
@@ -259,8 +260,7 @@ def breakout_in_last_x_candles_ver_2(app_config, application_state, case, symbol
                 'time': str(row['date']),
             })
             breakout_happened = True
-
-            offseted_price = chart_helper.get_offseted_price(app_config, application_state, symbol, side='up',price=df['high'].iloc[idx])
+            offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx], date=df['date'].iloc[idx], caller_key="breakout_in_last_x_candles_ver_2")
             case_color = get_case_color(app_config, case)
             TradingLedger.add_to_list("signals", (symbol, 'BREAKOUT', offseted_price, df['date'].iloc[idx], f"BREAKOUT {level_alias} ... {df['date'].iloc[idx].strftime('%H:%M')}... ", case_color) )
     return breakout_happened
@@ -276,7 +276,7 @@ def breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol
 
     if level == 0:
         return False
-    gap = app_config['symbols_meta'][symbol]['breakout_confirmation_distance']
+    gap = app_config['symbols_meta'].get(symbol,{}).get('breakout_confirmation_distance', 0.15)
     breakout_happened = False
     breakout_idxs = []
 
@@ -316,6 +316,7 @@ def breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol
             logger.info(f"[breakout_in_last_x_candles_ver_4], idx: {idx}, level: {level}")
 
             application_state['breakouts'].setdefault(symbol, []).append({
+                'case': case,
                 'side': side,
                 'level': level,
                 'level_alias': level_alias,
@@ -324,8 +325,7 @@ def breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol
             })
             breakout_idxs.append(idx)
             breakout_happened = True
-
-            offseted_price = chart_helper.get_offseted_price(app_config, application_state, symbol, side='up',price=df['high'].iloc[idx])
+            offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx], date=df['date'].iloc[idx], caller_key="breakout_in_last_x_candles_ver_4")
             case_color = get_case_color(app_config, case)
             TradingLedger.add_to_list("signals", (symbol, 'BREAKOUT', offseted_price, df['date'].iloc[idx], f"BREAKOUT {level_alias} ... {df['date'].iloc[idx].strftime('%H:%M')}... ", case_color) )
 
@@ -336,8 +336,8 @@ def breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol
                 if side == 'up':
                     body = abs(row["close"] - row["open"])
                     candle_range = row["high"] - row["low"]
-                    candle_is_not_week = (candle_range > 0 and body / candle_range > 0.5) # do not remove candle_rage > 0 will raise devided by zero exception
-                    if candle_is_not_week and row["open"] <= level and row["close"] > level:    # The price above level
+                    candle_is_not_week = (candle_range > 0 and body / candle_range > 0.5)
+                    if candle_is_not_week and row["open"] <= level and row["close"] > level:
                         application_state['breakouts'].setdefault(symbol, []).append({
                             'side': side,
                             'level': level,
@@ -345,14 +345,14 @@ def breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol
                             'idx': breakout_idx-1,
                             'time': str(row['date']),
                         })
-                        offseted_price = chart_helper.get_offseted_price(app_config, application_state, symbol, side='up',price=df['high'].iloc[breakout_idx-1])
+                        offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[breakout_idx - 1], date=df['date'].iloc[breakout_idx - 1], caller_key="breakout_in_last_x_candles_ver_4")
                         case_color = get_case_color(app_config, case)
                         TradingLedger.add_to_list("signals", (symbol, 'BREAKOUT', offseted_price, row['date'], f"BREAKOUT {level_alias} ... {row['date']}... ", case_color) )
                 else:
                     body = abs(row["close"] - row["open"])
                     candle_range = row["high"] - row["low"]
-                    candle_is_not_week = (candle_range > 0 and body / candle_range > 0.5) # do not remove candle_rage > 0 will raise devided by zero exception
-                    if candle_is_not_week and row["open"] >= level and row["close"] < level:    # The price below level
+                    candle_is_not_week = (candle_range > 0 and body / candle_range > 0.5)
+                    if candle_is_not_week and row["open"] >= level and row["close"] < level:
                         application_state['breakouts'].setdefault(symbol, []).append({
                             'side': side,
                             'level': level,
@@ -360,7 +360,7 @@ def breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol
                             'idx': breakout_idx-1,
                             'time': str(row['date']),
                         })
-                        offseted_price = chart_helper.get_offseted_price(app_config, application_state, symbol, side='up',price=df['high'].iloc[breakout_idx-1])
+                        offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[breakout_idx - 1], date=df['date'].iloc[breakout_idx - 1], caller_key="breakout_in_last_x_candles_ver_4")
                         case_color = get_case_color(app_config, case)
                         TradingLedger.add_to_list("signals", (symbol, 'BREAKOUT', offseted_price, row['date'], f"BREAKOUT {level_alias} ... {row['date']}... ", case_color) )
 
@@ -380,7 +380,7 @@ def breakout_in_last_x_candles_ver_3(app_config, application_state, case, symbol
 
     if level == 0:
         return False
-    gap = app_config['symbols_meta'][symbol]['breakout_confirmation_distance']
+    gap = app_config['symbols_meta'].get(symbol,{}).get('breakout_confirmation_distance', 0.15)
     breakout_happened = False
     breakout_idxs = []
 
@@ -425,8 +425,7 @@ def breakout_in_last_x_candles_ver_3(app_config, application_state, case, symbol
             })
             breakout_idxs.append(idx)
             breakout_happened = True
-
-            offseted_price = chart_helper.get_offseted_price(app_config, application_state, symbol, side='up',price=df['high'].iloc[idx])
+            offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx], date=df['date'].iloc[idx], caller_key="breakout_in_last_x_candles_ver_3")
             case_color = get_case_color(app_config, case)
             TradingLedger.add_to_list("signals", (symbol, 'BREAKOUT', offseted_price, df['date'].iloc[idx], f"BREAKOUT {level_alias} ... {df['date'].iloc[idx].strftime('%H:%M')}... ", case_color) )
     for breakout_idx in breakout_idxs:
@@ -436,8 +435,8 @@ def breakout_in_last_x_candles_ver_3(app_config, application_state, case, symbol
                 if side == 'up':
                     body = abs(row["close"] - row["open"])
                     candle_range = row["high"] - row["low"]
-                    candle_is_not_week = (candle_range > 0 and body / candle_range > 0.5) # do not remove candle_rage > 0 will raise devided by zero exception
-                    if candle_is_not_week and row["open"] <= level and row["close"] > level:    # The price above level
+                    candle_is_not_week = (candle_range > 0 and body / candle_range > 0.5)
+                    if candle_is_not_week and row["open"] <= level and row["close"] > level:
                         application_state['breakouts'].setdefault(symbol, []).append({
                             'side': side,
                             'level': level,
@@ -445,14 +444,14 @@ def breakout_in_last_x_candles_ver_3(app_config, application_state, case, symbol
                             'idx': breakout_idx-1,
                             'time': str(row['date']),
                         })
-                        offseted_price = chart_helper.get_offseted_price(app_config, application_state, symbol, side='up',price=df['high'].iloc[breakout_idx-1])
+                        offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[breakout_idx - 1], date=df['date'].iloc[breakout_idx - 1], caller_key="breakout_in_last_x_candles_ver_3")
                         case_color = get_case_color(app_config, case)
                         TradingLedger.add_to_list("signals", (symbol, 'BREAKOUT', offseted_price, row['date'], f"BREAKOUT {level_alias} ... {row['date']}... ", case_color) )
                 else:
                     body = abs(row["close"] - row["open"])
                     candle_range = row["high"] - row["low"]
-                    candle_is_not_week = (candle_range > 0 and body / candle_range > 0.5) # do not remove candle_rage > 0 will raise devided by zero exception
-                    if candle_is_not_week and row["open"] >= level and row["close"] < level:    # The price below level
+                    candle_is_not_week = (candle_range > 0 and body / candle_range > 0.5)
+                    if candle_is_not_week and row["open"] >= level and row["close"] < level:
                         application_state['breakouts'].setdefault(symbol, []).append({
                             'side': side,
                             'level': level,
@@ -460,7 +459,7 @@ def breakout_in_last_x_candles_ver_3(app_config, application_state, case, symbol
                             'idx': breakout_idx-1,
                             'time': str(row['date']),
                         })
-                        offseted_price = chart_helper.get_offseted_price(app_config, application_state, symbol, side='up',price=df['high'].iloc[breakout_idx-1])
+                        offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[breakout_idx - 1], date=df['date'].iloc[breakout_idx - 1], caller_key="breakout_in_last_x_candles_ver_3")
                         case_color = get_case_color(app_config, case)
                         TradingLedger.add_to_list("signals", (symbol, 'BREAKOUT', offseted_price, row['date'], f"BREAKOUT {level_alias} ... {row['date']}... ", case_color) )
 
@@ -491,11 +490,11 @@ def price_retest(app_config, application_state, case, symbol, df, side='up', idx
     if level == 0:
         return False
 
-    # tolerance_amount = app_config['symbols_meta'][symbol]['retest_tolerance_amount']
+    # tolerance_amount = app_config['symbols_meta'].get(symbol,{})['retest_tolerance_amount']
     # tolerance_amount = dynamic_tolerance.get('tolerance', 0)
     tolerance_amount = application_state.get('dynamic_tolerances', {}).get(symbol, {}).get('tolerance', 0)
 
-    tolerance_amount = tolerance_amount * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1)
+    tolerance_amount = tolerance_amount * app_config['symbols_meta'].get(symbol,{}).get('retest_tolerance_multiplier', 1)
     logger.debug(f"[price_retest] {symbol}, tolerance_amount: {tolerance_amount}")
     retest = False
     case_color = get_case_color(app_config,case)
@@ -518,8 +517,7 @@ def price_retest(app_config, application_state, case, symbol, df, side='up', idx
                     'time': str(row['date']),
                 }
                 application_state['retests'].setdefault(symbol, []).append(d)
-
-                offseted_price = chart_helper.get_offseted_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx])
+                offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx], date=df['date'].iloc[idx], caller_key="price_retest")
                 TradingLedger.add_to_list("signals", (symbol, 'RETEST', offseted_price, df['date'].iloc[idx], f"RETEST  {level_alias} ... {df['date'].iloc[idx].strftime('%H:%M')}", case_color) )
 
                 logger.info(f"[price_retest] symbol: {symbol}, level: {level}, date:{df.iloc[idx]['date']} ")
@@ -535,8 +533,7 @@ def price_retest(app_config, application_state, case, symbol, df, side='up', idx
                     'time': str(row['date']),
                 }
                 application_state['retests'].setdefault(symbol, []).append(d)
-
-                offseted_price = chart_helper.get_offseted_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx])
+                offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx], date=df['date'].iloc[idx], caller_key="price_retest")
                 TradingLedger.add_to_list("signals", (symbol, 'RETEST', offseted_price, df['date'].iloc[idx], f"RETEST  {level_alias} ... {df['date'].iloc[idx].strftime('%H:%M')}", case_color) )
 
                 retest = True
@@ -551,8 +548,7 @@ def price_retest(app_config, application_state, case, symbol, df, side='up', idx
                     'time': str(row['date']),
                 }
                 application_state['retests'].setdefault(symbol, []).append(d)
-
-                offseted_price = chart_helper.get_offseted_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx])
+                offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx], date=df['date'].iloc[idx], caller_key="price_retest")
                 TradingLedger.add_to_list("signals", (symbol, 'RETEST', offseted_price, df['date'].iloc[idx], f"RETEST  {level_alias} ... {df['date'].iloc[idx].strftime('%H:%M')}", case_color) )
 
                 retest = True
@@ -566,8 +562,7 @@ def price_retest(app_config, application_state, case, symbol, df, side='up', idx
                     'time': str(row['date']),
                 }
                 application_state['retests'].setdefault(symbol, []).append(d)
-
-                offseted_price = chart_helper.get_offseted_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx])
+                offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx], date=df['date'].iloc[idx], caller_key="price_retest")
                 TradingLedger.add_to_list("signals", (symbol, 'RETEST', offseted_price, df['date'].iloc[idx], f"RETEST  {level_alias} ... {df['date'].iloc[idx].strftime('%H:%M')}" , case_color) )
 
                 retest = True
@@ -615,7 +610,7 @@ def all_levels_in(application_state, symbol):
 #     return application_state.get('retests_idx', {}).get('case', {}).get(symbol, None)
 
 def get_breakout_idx(application_state, symbol, level):
-   #  application_state.setdefault('breakout_idx', {})[symbol] = {'breakout_idx' : breakout_idx, 'level': level, 'level_alias': level_alias }
+   #  application_state.setdefault('breakout_idx', {}).get(symbol,{}) = {'breakout_idx' : breakout_idx, 'level': level, 'level_alias': level_alias }
     for entry in application_state.get('breakout_idx', {}).get(symbol, []):
         if entry['level'] == level:
             return entry['breakout_idx']
@@ -685,7 +680,7 @@ def no_failure_after_breakout(application_state, case, symbol, df, side='up', le
 
 def check_price_vs_level(app_config, symbol, side='up', price=0, level=0):
 
-    min_required_move_from_level = app_config['symbols_meta'][symbol]['min_required_move_from_level']
+    min_required_move_from_level = app_config['symbols_meta'].get(symbol,{}).get('min_required_move_from_level',0.25)
 
     if side == 'up':
         return price + min_required_move_from_level > level
@@ -786,3 +781,649 @@ def get_current_price(ib, application_state, symbol):
 
 def get_case_color(app_config, case):
     return app_config.get('cases', {}).get(case, {}).get('color', 'black')
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CASE 5 — Displacement + Retracement helpers
+# New functions only — no existing functions above are modified.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def breakout_with_displacement(
+    app_config, application_state, case, symbol, df,
+    side='up',
+    idx_list=None,
+    level=0,
+    level_alias='',
+    min_displacement_atr_ratio=0.5,
+    min_body_ratio=0.6,
+    close_in_top_pct=0.70,
+):
+    """
+    Fresh displacement breakout detector — independent of ver_4 patterns.
+
+    A displacement breakout is a single candle that satisfies ALL 5 gates:
+
+      Gate 1 — Body cross:
+          up  : open < level  AND  close > level   (body genuinely crosses above)
+          down: open > level  AND  close < level   (body genuinely crosses below)
+          Wick-only crosses (open and close both on the same side) are rejected.
+
+      Gate 2 — Close margin:
+          The close must clear the level by at least `gap`
+          (breakout_confirmation_distance from config).
+          Prevents razor-thin, scratch closes right at the level.
+
+      Gate 3 — Impulsive size:
+          candle_range >= atr_14 * min_displacement_atr_ratio
+          A displacement candle must be meaningfully large relative to recent volatility.
+
+      Gate 4 — Conviction body:
+          body / candle_range >= min_body_ratio
+          Eliminates doji-like candles or candles with large wicks relative to body.
+
+      Gate 5 — Strong close:
+          up  : (close - low)  / candle_range >= close_in_top_pct
+          down: (high - close) / candle_range >= close_in_top_pct
+          Price must close near its extreme — it didn't reverse back into the candle.
+
+    On success stores into application_state:
+        ['breakouts'][symbol]            same schema as other breakout functions
+        ['displacement_swings'][symbol]  { side, level, swing, idx, time }
+            swing = high of the candle (up) / low (down) — used for SL anchoring.
+    """
+    if idx_list is None:
+        idx_list = [-3, -4, -5, -6, -7, -8, -9, -10, -11]
+
+    logger.info(f"[breakout_with_displacement] {symbol}, side:{side}, level:{level}, idx_list:{idx_list}")
+
+    if level == 0:
+        return False
+
+    gap = app_config['symbols_meta'].get(symbol,{}).get('breakout_confirmation_distance', 0.15)
+    gap = 0.02 # TODO relaxing for debug only ...
+    atr = df['atr_14'].iloc[-2]
+
+    if atr <= 0:
+        logger.warning(f"[breakout_with_displacement] {symbol} — atr_14 is zero/negative, skipping")
+        return False
+
+    breakout_happened = False
+
+    for idx in idx_list:
+        row = df.iloc[idx]
+
+        # skip pre-market candles
+        if date_utils.get_hhmm_int(row['date']) < 930:
+            continue
+
+        o = row['open']
+        h = row['high']
+        l = row['low']
+        c = row['close']
+        d = row['date']
+
+        candle_range = h - l
+        if candle_range <= 0:
+            continue
+
+        body = abs(c - o)
+
+        # ── Gate 1: body cross ──────────────────────────────────────────────
+        # The candle body (open→close) must straddle the level.
+        # Wick touches (open and close both on the same side) are not displacement.
+        logger.info(f"[breakout_with_displacement] {symbol} idx:{idx} — {level}, o: {o}, c: {c}, {str(row['date'])}")
+
+        if side == 'up':
+            gate_1 = (o < level) and (c > level)
+        else:
+            gate_1 = (o > level) and (c < level)
+
+        if not gate_1:
+            logger.info(f"[breakout_with_displacement] {symbol} idx:{idx} — Gate 1 fail (no body cross), level: {level}, o: {o}, c: {c}")
+            continue
+
+        # ── Gate 2: close margin ────────────────────────────────────────────
+        # Close must clear the level by at least the confirmation distance.
+        if side == 'up':
+            gate_2 = c > level + gap
+        else:
+            gate_2 = c < level - gap
+
+        if not gate_2:
+            logger.info(f"[breakout_with_displacement] {symbol} idx:{idx} — Gate 2 fail "
+                         f"(close {c:.4f} not past level {level:.4f} + gap {gap:.4f})")
+            continue
+
+        # ── Gate 3: impulsive size ──────────────────────────────────────────
+        min_range = atr * min_displacement_atr_ratio
+        if candle_range < min_range:
+            logger.info(f"[breakout_with_displacement] {symbol} idx:{idx} — Gate 3 fail "
+                         f"(range {candle_range:.4f} < {min_range:.4f})")
+            continue
+
+        # ── Gate 4: conviction body ─────────────────────────────────────────
+        body_ratio = body / candle_range
+        if body_ratio < min_body_ratio:
+            logger.info(f"[breakout_with_displacement] {symbol} idx:{idx} — Gate 4 fail "
+                         f"(body_ratio {body_ratio:.2f} < {min_body_ratio})")
+            continue
+
+        # ── Gate 5: strong close ────────────────────────────────────────────
+        if side == 'up':
+            close_position = (c - l) / candle_range
+        else:
+            close_position = (h - c) / candle_range
+
+        if close_position < close_in_top_pct:
+            logger.info(f"[breakout_with_displacement] {symbol} idx:{idx} — Gate 5 fail "
+                         f"(close_position {close_position:.2f} < {close_in_top_pct})")
+            continue
+
+        # ── All 5 gates passed — record displacement ────────────────────────
+        swing = h if side == 'up' else l
+
+        logger.info(
+            f"[breakout_with_displacement] {symbol} idx:{idx}  DISPLACEMENT "
+            f"side:{side} level:{level} "
+            f"range:{candle_range:.4f} body_ratio:{body_ratio:.2f} "
+            f"close_pos:{close_position:.2f} time:{row['date']}"
+        )
+
+        application_state['breakouts'].setdefault(symbol, []).append({
+            'case': case,
+            'side':        side,
+            'level':       level,
+            'level_alias': level_alias,
+            'idx':         idx,
+            'time':        str(row['date']),
+        })
+
+        application_state.setdefault('displacement_swings', {}).setdefault(symbol, []).append({
+            'case': case,
+            'side':  side,
+            'level': level,
+            'swing': swing,
+            'idx':   idx,
+            'time':  str(row['date']),
+        })
+        offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=h, date=d, caller_key="breakout_with_displacement")
+        case_color = get_case_color(app_config, case)
+        TradingLedger.add_to_list(
+            "signals",
+            (symbol, 'BREAKOUT', offseted_price, row['date'],
+             f"DISPLACEMENT_BREAKOUT {level_alias} "
+             f"range:{candle_range:.2f} body:{body_ratio:.0%} close_pos:{close_position:.0%} ... {row['date'].strftime('%H:%M')}",
+             case_color)
+        )
+
+        breakout_happened = True
+
+    return breakout_happened
+
+
+def get_displacement_swing(application_state, symbol, level):
+    """
+    Returns the swing price of the most recent displacement candle for this level.
+    swing = high of the candle for 'up' breakout, low for 'down' breakout.
+    Returns None when no displacement has been recorded yet.
+    """
+    logger.info(f"[price_retracement_to_level], {symbol}, {level}, price_retracement_to_level: {application_state.get('displacement_swings', {})} ")
+    entries  = application_state.get('displacement_swings', {}).get(symbol, [])
+    matching = [e for e in entries if e['level'] == level]
+    if not matching:
+        return None
+    return max(matching, key=lambda e: e['idx'])['swing']
+
+
+def price_retracement_to_level(
+    app_config, application_state, case, symbol, df,
+    side='up',
+    idx_list=None,
+    level=0,
+    level_alias='',
+    max_retrace_ratio=0.65,
+):
+    """
+    Structured replacement for price_retest used in case_5.
+
+    Requires all three of:
+      1. A displacement swing is already recorded for this level.
+      2. Retracement candle's extreme (low for 'up', high (down) pulled back
+         at most max_retrace_ratio of the displacement range from the swing back
+         toward the level.
+             For 'up'  : low  must be >= level - tolerance
+                         AND  low  <= level + (1 - max_retrace_ratio) * disp_range
+             For 'down': high must be <= level + tolerance
+                         AND  high >= level - (1 - max_retrace_ratio) * disp_range
+      3. The candle CLOSES back on the correct side of the level
+         (close > level for up, close < level for down).
+         Rules out wick-only touches that fail to reclaim the level.
+
+    On success stores:
+        application_state['retests'][symbol]
+            same schema as price_retest – is_retest_after_breakout still works.
+        application_state['retracement_extremes'][symbol]
+            full detail including extreme price for structured SL computation.
+    """
+    if idx_list is None:
+        idx_list = [-2, -3, -4, -5, -6]
+
+    if level == 0:
+        return False
+
+    displacement_swing = get_displacement_swing(application_state, symbol, level)
+    if displacement_swing is None:
+        logger.info(f"[price_retracement_to_level] {symbol} no displacement swing found for level {level}")
+        return False
+
+    displacement_range = abs(displacement_swing - level)
+    if displacement_range <= 0:
+        logger.info(f"[price_retracement_to_level] {symbol} displacement_range is zero, skip")
+        return False
+
+    tolerance_amount = (
+        application_state.get('dynamic_tolerances', {}).get(symbol, {}).get('tolerance', 0)
+        * app_config['symbols_meta'].get(symbol,{}).get('retest_tolerance_multiplier', 1)
+    )
+    case_color = get_case_color(app_config, case)
+    retest = False
+
+    for idx in idx_list:
+        row = df.iloc[idx]
+
+        if date_utils.get_hhmm_int(row['date']) < 930:
+            continue
+
+        if side == 'up':
+            # zone ceiling: no deeper than (1 - max_retrace_ratio) * range from level
+            retrace_zone_ceil = level + (1.0 - max_retrace_ratio) * displacement_range
+            came_back_in_zone = (
+                row["low"] >= level - tolerance_amount and
+                row["low"] <= retrace_zone_ceil
+            )
+            close_confirms = row["close"] > level
+        else:
+            retrace_zone_floor = level - (1.0 - max_retrace_ratio) * displacement_range
+            came_back_in_zone = (
+                row["high"] <= level + tolerance_amount and
+                row["high"] >= retrace_zone_floor
+            )
+            close_confirms = row["close"] < level
+
+        if not (came_back_in_zone and close_confirms):
+            logger.info(
+                f"[price_retracement_to_level] {symbol} idx:{idx} "
+                f"came_back_in_zone:{came_back_in_zone} close_confirms:{close_confirms} – skip")
+            continue
+
+        # ── retracement confirmed ─
+        retrace_extreme = row["low"] if side == 'up' else row["high"]
+        actual_retrace  = abs(retrace_extreme - level)
+        retrace_pct     = actual_retrace / displacement_range if displacement_range > 0 else 0
+
+        logger.info(
+            f"[price_retracement_to_level] {symbol} idx:{idx} RETRACEMENT confirmed "
+            f"level:{level} swing:{displacement_swing:.4f} disp_range:{displacement_range:.4f} "
+            f"extreme:{retrace_extreme:.4f} retrace_pct:{retrace_pct:.0%}")
+
+        # store in retests with same schema so existing helpers still work
+        application_state['retests'].setdefault(symbol, []).append({
+            'side':        side,
+            'level':       level,
+            'level_alias': level_alias,
+            'idx':         idx,
+            'time':        str(row['date']),
+        })
+
+        # store full detail for structured SL
+        application_state.setdefault('retracement_extremes', {}).setdefault(symbol, []).append({
+            'side':               side,
+            'level':              level,
+            'extreme':            retrace_extreme,
+            'retrace_pct':        round(retrace_pct, 4),
+            'displacement_range': displacement_range,
+            'displacement_swing': displacement_swing,
+            'idx':                idx,
+            'time':               str(row['date']),
+        })
+        offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx], date=df['date'].iloc[idx], caller_key="price_retracement_to_level")
+        TradingLedger.add_to_list(
+            "signals",
+            (symbol, 'RETEST', offseted_price, df['date'].iloc[idx],
+             f"RETRACEMENT {level_alias} retrace:{retrace_pct:.0%} "
+             f"... {df['date'].iloc[idx].strftime('%H:%M')}", case_color))
+        retest = True
+
+    return retest
+
+
+def price_retracement_immediate(
+    app_config, application_state, case, symbol, df,
+    side='up',
+    idx_list=None,
+    level=0,
+    level_alias='',
+    max_retrace_ratio=0.65,
+):
+    """
+    Immediate retest detector — Type 1.
+
+    Price breaks the level with displacement, then within the NEXT 1–3 candles
+    dips straight back to the level without any meaningful extension first.
+
+    Conditions (all must pass):
+      1. A displacement swing is already recorded for this level.
+      2. The retest candle index is within 3 bars of the breakout candle
+         (immediate = no extended run away first).
+      3. The candle's extreme (low for up / high for down) touches the retest zone:
+             up  : low  >= level - tolerance  AND  low  <= level + (1 - max_retrace_ratio) * disp_range
+             down: high <= level + tolerance  AND  high >= level - (1 - max_retrace_ratio) * disp_range
+      4. Candle closes back on the correct side of the level (no wick-only touch).
+
+    Stores results in the same state keys as price_retracement_to_level so all
+    downstream helpers (is_retest_after_breakout, compute_structured_sl, etc.) work unchanged.
+    """
+    if idx_list is None:
+        idx_list = [-2, -3, -4]   # tight window — immediate means 1–3 bars after breakout
+
+    if level == 0:
+        return False
+
+    displacement_swing = get_displacement_swing(application_state, symbol, level)
+    if displacement_swing is None:
+        logger.debug(f"[price_retracement_immediate] {symbol} no displacement swing for level {level}")
+        return False
+
+    displacement_range = abs(displacement_swing - level)
+    if displacement_range <= 0:
+        return False
+
+    breakout_idx = get_breakout_idx(application_state, symbol, level)
+    tolerance_amount = (
+        application_state.get('dynamic_tolerances', {}).get(symbol, {}).get('tolerance', 0)
+        * app_config['symbols_meta'].get(symbol,{}).get('retest_tolerance_multiplier', 1)
+    )
+    case_color = get_case_color(app_config, case)
+    retest = False
+
+    for idx in idx_list:
+        row = df.iloc[idx]
+
+        if date_utils.get_hhmm_int(row['date']) < 930:
+            continue
+
+        # ── immediacy check: retest candle must be within 3 bars of the breakout ──
+        if breakout_idx is not None:
+            gap = abs(idx - breakout_idx)
+            if gap > 3:
+                logger.debug(f"[price_retracement_immediate] {symbol} idx:{idx} — gap {gap} > 3, not immediate")
+                continue
+
+        if side == 'up':
+            retrace_zone_ceil = level + (1.0 - max_retrace_ratio) * displacement_range
+            came_back_in_zone = (row['low'] >= level - tolerance_amount and row['low'] <= retrace_zone_ceil)
+            close_confirms    = row['close'] > level
+        else:
+            retrace_zone_floor = level - (1.0 - max_retrace_ratio) * displacement_range
+            came_back_in_zone = (row['high'] <= level + tolerance_amount and row['high'] >= retrace_zone_floor)
+            close_confirms    = row['close'] < level
+
+        if not (came_back_in_zone and close_confirms):
+            logger.debug(f"[price_retracement_immediate] {symbol} idx:{idx} "
+                         f"zone:{came_back_in_zone} close:{close_confirms} — skip")
+            continue
+
+        retrace_extreme = row['low'] if side == 'up' else row['high']
+        actual_retrace  = abs(retrace_extreme - level)
+        retrace_pct     = actual_retrace / displacement_range if displacement_range > 0 else 0
+
+        logger.info(f"[price_retracement_immediate] {symbol} idx:{idx}  IMMEDIATE RETEST "
+                    f"level:{level} extreme:{retrace_extreme:.4f} retrace_pct:{retrace_pct:.0%}")
+
+        application_state['retests'].setdefault(symbol, []).append({
+            'side': side, 'level': level, 'level_alias': level_alias,
+            'idx': idx, 'time': str(row['date']),
+        })
+        application_state.setdefault('retracement_extremes', {}).setdefault(symbol, []).append({
+            'side': side, 'level': level, 'extreme': retrace_extreme,
+            'retrace_pct': round(retrace_pct, 4), 'displacement_range': displacement_range,
+            'displacement_swing': displacement_swing, 'idx': idx, 'time': str(row['date']),
+        })
+        offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx], date=df['date'].iloc[idx], caller_key="price_retracement_immediate")
+        TradingLedger.add_to_list(
+            "signals",
+            (symbol, 'RETRACEMENT_IMMEDIATE', offseted_price, df['date'].iloc[idx],
+             f"RETRACEMENT_IMMEDIATE {level_alias} retrace:{retrace_pct:.0%} "
+             f"... {df['date'].iloc[idx].strftime('%H:%M')}", case_color))
+        retest = True
+
+    return retest
+
+
+def price_retracement_half_circle(
+    app_config, application_state, case, symbol, df,
+    side='up',
+    idx_list=None,
+    level=0,
+    level_alias='',
+    max_retrace_ratio=0.65,
+    min_extension_ratio=0.5,
+):
+    """
+    Half-circle (curved arc) retest detector — Type 2.
+
+    Price breaks the level with displacement, runs away for several candles
+    (extension phase), then arcs back to retest the level more precisely.
+
+    Extra condition vs immediate: the candles BETWEEN the breakout and the retest
+    must show a meaningful extension away from the level before the arc back.
+    This is quantified by min_extension_ratio — the highest high (up) or lowest
+    low (down) between breakout and retest must be at least
+    min_extension_ratio * displacement_range beyond the displacement swing.
+
+    Conditions (all must pass):
+      1. A displacement swing is already recorded for this level.
+      2. Retest candle index is between 3–8 bars after the breakout (arc takes time).
+      3. Extension check: peak between breakout and retest candle must be at least
+             up  : max(highs) >= displacement_swing + min_extension_ratio * disp_range
+             down: min(lows)  <= displacement_swing - min_extension_ratio * disp_range
+      4. Retrace zone + close confirmation — same as immediate.
+
+    Stores results in the same state keys so all downstream helpers work unchanged.
+    """
+    if idx_list is None:
+        idx_list = [-2, -3, -4, -5, -6, -7, -8]
+
+    if level == 0:
+        return False
+
+    displacement_swing = get_displacement_swing(application_state, symbol, level)
+    if displacement_swing is None:
+        logger.debug(f"[price_retracement_half_circle] {symbol} no displacement swing for level {level}")
+        return False
+
+    displacement_range = abs(displacement_swing - level)
+    if displacement_range <= 0:
+        return False
+
+    breakout_idx = get_breakout_idx(application_state, symbol, level)
+    tolerance_amount = (
+        application_state.get('dynamic_tolerances', {}).get(symbol, {}).get('tolerance', 0)
+        * app_config['symbols_meta'].get(symbol,{}).get('retest_tolerance_multiplier', 1)
+    )
+    case_color = get_case_color(app_config, case)
+    retest = False
+
+    for idx in idx_list:
+        row = df.iloc[idx]
+
+        if date_utils.get_hhmm_int(row['date']) < 930:
+            continue
+
+        # ── arc gap check: must be at least 3 bars after breakout ──
+        if breakout_idx is not None:
+            gap = abs(idx - breakout_idx)
+            if gap < 3:
+                logger.debug(f"[price_retracement_half_circle] {symbol} idx:{idx} — gap {gap} < 3, too immediate")
+                continue
+            if gap > 8:
+                logger.debug(f"[price_retracement_half_circle] {symbol} idx:{idx} — gap {gap} > 8, too stale")
+                continue
+
+            # ── extension check: was there a meaningful run between breakout and retest? ──
+            # slice the candles strictly between breakout and current retest candle
+            start = breakout_idx    # negative idx arithmetic — smaller negative = more recent
+            end   = idx             # e.g. breakout=-6, retest=-3 → slice df[-6:-3]
+            between_df = df.iloc[start:end] if start < end else df.iloc[end:start]
+
+            if len(between_df) > 0:
+                if side == 'up':
+                    peak = between_df['high'].max()
+                    extension_target = displacement_swing + min_extension_ratio * displacement_range
+                    has_extension = peak >= extension_target
+                else:
+                    trough = between_df['low'].min()
+                    extension_target = displacement_swing - min_extension_ratio * displacement_range
+                    has_extension = trough <= extension_target
+
+                if not has_extension:
+                    logger.debug(f"[price_retracement_half_circle] {symbol} idx:{idx} — no extension "
+                                 f"(target:{extension_target:.4f})")
+                    continue
+
+        if side == 'up':
+            retrace_zone_ceil = level + (1.0 - max_retrace_ratio) * displacement_range
+            came_back_in_zone = (row['low'] >= level - tolerance_amount and row['low'] <= retrace_zone_ceil)
+            close_confirms    = row['close'] > level
+        else:
+            retrace_zone_floor = level - (1.0 - max_retrace_ratio) * displacement_range
+            came_back_in_zone = (row['high'] <= level + tolerance_amount and row['high'] >= retrace_zone_floor)
+            close_confirms    = row['close'] < level
+
+        if not (came_back_in_zone and close_confirms):
+            logger.debug(f"[price_retracement_half_circle] {symbol} idx:{idx} "
+                         f"zone:{came_back_in_zone} close:{close_confirms} — skip")
+            continue
+
+        retrace_extreme = row['low'] if side == 'up' else row['high']
+        actual_retrace  = abs(retrace_extreme - level)
+        retrace_pct     = actual_retrace / displacement_range if displacement_range > 0 else 0
+
+        logger.info(f"[price_retracement_half_circle] {symbol} idx:{idx}  HALF-CIRCLE RETEST "
+                    f"level:{level} extreme:{retrace_extreme:.4f} retrace_pct:{retrace_pct:.0%}")
+
+        application_state['retests'].setdefault(symbol, []).append({
+            'side': side, 'level': level, 'level_alias': level_alias,
+            'idx': idx, 'time': str(row['date']),
+        })
+        application_state.setdefault('retracement_extremes', {}).setdefault(symbol, []).append({
+            'side': side, 'level': level, 'extreme': retrace_extreme,
+            'retrace_pct': round(retrace_pct, 4), 'displacement_range': displacement_range,
+            'displacement_swing': displacement_swing, 'idx': idx, 'time': str(row['date']),
+        })
+        offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx], date=df['date'].iloc[idx], caller_key="price_retracement_half_circle")
+        TradingLedger.add_to_list(
+            "signals",
+            (symbol, 'RETRACEMENT_HALF_CIRCLE', offseted_price, df['date'].iloc[idx],
+             f"RETRACEMENT_HALF_CIRCLE {level_alias} retrace:{retrace_pct:.0%} "
+             f"... {df['date'].iloc[idx].strftime('%H:%M')}", case_color))
+        retest = True
+
+    return retest
+
+
+def get_retracement_extreme(application_state, symbol, level):
+    """
+    Returns the extreme price (low for long / high for short) of the most recent
+    confirmed retracement candle for this level.
+    Used by compute_structured_sl to anchor the stop-loss.
+    Returns None if no retracement has been recorded.
+    """
+    entries  = application_state.get('retracement_extremes', {}).get(symbol, [])
+    matching = [e for e in entries if e['level'] == level]
+    if not matching:
+        return None
+    return max(matching, key=lambda e: e['idx'])['extreme']
+
+
+def is_retracement_gap_acceptable(application_state, symbol, level, max_gap=6):
+    """
+    Extra safety check for case_5: ensures the gap between the displacement
+    breakout candle and the retracement candle is at most max_gap bars.
+    A very wide gap means price wandered too long before coming back — the
+    displacement conviction has faded.
+    Returns False when no breakout / retest has been recorded yet.
+    """
+    breakout_idx = get_breakout_idx(application_state, symbol, level)
+    retest_idx   = get_retest_idx(application_state, symbol, level)
+
+    if breakout_idx is None or retest_idx is None:
+        return False
+    if breakout_idx == 0 or retest_idx == 0:
+        return False
+
+    gap = abs(retest_idx - breakout_idx)
+    logger.info(f"[is_retracement_gap_acceptable] {symbol} level:{level} "
+                 f"breakout_idx:{breakout_idx} retest_idx:{retest_idx} gap:{gap} max_gap:{max_gap}")
+    return gap <= max_gap
+
+
+def compute_structured_sl(
+    application_state, symbol, side, level, df,
+    app_config,
+    sl_type='retracement_candle',
+    sl_buffer_ticks=2,
+    atr_multiplier=1.0,
+):
+    """
+    Computes a structured stop-loss price at entry time for case_5.
+
+    sl_type options
+    ───────────────
+    'retracement_candle'  (default / recommended)
+        SL = low of retracement candle  - buffer   (long / 'up')
+        SL = high of retracement candle + buffer   (short / 'down')
+        buffer = breakout_confirmation_distance * sl_buffer_ticks
+
+    'atr'
+        SL = entry_close - atr_14 * atr_multiplier   (long)
+        SL = entry_close + atr_14 * atr_multiplier   (short)
+
+    'level'
+        SL = level - dynamic_tolerance * retest_tolerance_multiplier   (long)
+        SL = level + dynamic_tolerance * retest_tolerance_multiplier   (short)
+
+    Falls back gracefully to 'level' if retracement extreme is unavailable.
+    Returns the SL price (float) or 0 if it cannot be computed.
+    """
+    tick        = app_config['symbols_meta'].get(symbol,{}).get('breakout_confirmation_distance', 0.15)
+    buffer      = tick * sl_buffer_ticks
+    atr         = df['atr_14'].iloc[-2]
+    entry_price = df['close'].iloc[-1]
+    tolerance   = (
+        application_state.get('dynamic_tolerances', {}).get(symbol, {}).get('tolerance', 0)
+        * app_config['symbols_meta'].get(symbol,{}).get('retest_tolerance_multiplier', 1)
+    )
+
+    if sl_type == 'retracement_candle':
+        extreme = get_retracement_extreme(application_state, symbol, level)
+        if extreme is None:
+            logger.warning(f"[compute_structured_sl] {symbol} no retracement extreme found – falling back to level SL")
+            sl_type = 'level'
+        else:
+            sl = (extreme - buffer) if side in ('long', 'up') else (extreme + buffer)
+            logger.info(f"[compute_structured_sl] {symbol} {side} retracement_candle: "
+                        f"extreme:{extreme:.4f} buffer:{buffer:.4f} → sl:{sl:.4f}")
+            return round(sl, 4)
+
+    if sl_type == 'atr':
+        sl = (entry_price - atr * atr_multiplier) if side in ('long', 'up') else (entry_price + atr * atr_multiplier)
+        logger.info(f"[compute_structured_sl] {symbol} {side} atr: "
+                    f"entry:{entry_price:.4f} atr:{atr:.4f} → sl:{sl:.4f}")
+        return round(sl, 4)
+
+    # 'level' — default / fallback
+    sl = (level - tolerance) if side in ('long', 'up') else (level + tolerance)
+    logger.info(f"[compute_structured_sl] {symbol} {side} level: "
+                f"level:{level:.4f} tol:{tolerance:.4f} → sl:{sl:.4f}")
+    return round(sl, 4)

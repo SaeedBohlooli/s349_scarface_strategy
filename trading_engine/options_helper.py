@@ -13,8 +13,8 @@ from trading_utils import global_state
 
 async def find_expiration_and_strikes_for_all_from_ib(ib, app_config, application_state, market_data):
     for symbol in app_config['symbols']:
-        if app_config['symbols_meta'][symbol]['contract_type'] in ['Equity']:
-            exchange = app_config['symbols_meta'][symbol].get('exchange', 'SMART')
+        if app_config['symbols_meta'].get(symbol,{}).get('contract_type', 'Equity') in ['Equity']:
+            exchange = app_config['symbols_meta'].get(symbol, {}).get('exchange', 'SMART')
             await find_expiration_and_strikes_from_ib(ib, application_state, symbol, exchange, market_data)
 
 async def find_expiration_and_strikes_from_ib(ib, application_state, symbol, exchange, market_data):
@@ -130,7 +130,7 @@ async def orchestrate_expirations_strikes(ib, app_config, application_state, mar
 
 async def prepare_option_contract(ib, app_config, application_state, market_data, symbol, right='C', user_defined_expiry=0, user_defined_strike =0 ):
 
-    min_contract_price = app_config['symbols_meta'][symbol].get('min_contract_price', 0)
+    min_contract_price = app_config['symbols_meta'].get(symbol,{}).get('min_contract_price', 0)
     if min_contract_price == 0:
         min_contract_price =  app_config['positioning'].get('min_contract_price', 0)
 
@@ -144,7 +144,7 @@ async def prepare_option_contract(ib, app_config, application_state, market_data
     #     "20251209",
     #     "20251212"
     # ]
-    expiry_offset = app_config['symbols_meta'][symbol].get('expiry_offset', 0)  # 0 means first one ... for QQQ/SPY we get the seond one ...
+    expiry_offset = app_config['symbols_meta'].get(symbol,{}).get('expiry_offset', 0)  # 0 means first one ... for QQQ/SPY we get the seond one ...
     expiry = expiry_list[expiry_offset] if expiry_list else None
     strike = 0
     if user_defined_strike == 0: # app selects ...
@@ -193,7 +193,7 @@ async def prepare_option_contract(ib, app_config, application_state, market_data
 
 async def subscribe_market_data_for_all_otm_option_contracts(ib, app_config, application_state, market_data):
     for symbol in app_config['symbols']:
-        if app_config['symbols_meta'][symbol]['contract_type'] not in ['Equity']:
+        if app_config['symbols_meta'].get(symbol, {}).get('contract_type', 'Equity') not in ['Equity']:
             continue
         for right in ['C', 'P']:
             result = await subscribe_market_data_for_otm_option_contracts(ib, app_config, application_state, market_data, symbol, right)
@@ -214,7 +214,7 @@ async def subscribe_market_data_for_otm_option_contracts(ib, app_config, applica
     #     "20251209",
     #     "20251212"
     # ]
-    expiry_offset = app_config['symbols_meta'][symbol].get('expiry_offset', 0) # 0 means first one ... for QQQ/SPY we get the seond one ...
+    expiry_offset = app_config['symbols_meta'].get(symbol,{}).get('expiry_offset', 0) # 0 means first one ... for QQQ/SPY we get the seond one ...
 
     expiry = expiry_list[expiry_offset] if expiry_list else None
     if strikes is None:
@@ -241,6 +241,7 @@ async def subscribe_market_data_for_otm_option_contracts(ib, app_config, applica
 
         contract = await ib_contract.get_option_contract_cached(ib, symbol=symbol, strike=strike, expiry=expiry, right=right)
         logger.debug(f"[subscribe_market_data_for_otm_option_contracts] already subscribed. contract: {contract}")
+
         if contract is not None:
             await ib_pricing_async.subscribe_contracts_to_market_data(ib, [contract])
         else:

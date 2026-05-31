@@ -16,7 +16,7 @@ async def get_historical_data(ib, symbol, app_config, application_state, time_fr
         symbol,
         time_frame=time_frame,
         duration=historical_days,
-        contract_month= app_config['symbols_meta'][symbol].get('contract_month'),
+        contract_month= app_config['symbols_meta'].get(symbol, {}).get('contract_month'),
         use_RTH=False
     )
 

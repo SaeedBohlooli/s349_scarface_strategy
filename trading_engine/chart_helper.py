@@ -7,6 +7,7 @@ from trading_core.trading_ledger import TradingLedger
 from trading_utils import json_utils
 from trading_utils import constants
 from trading_utils import date_utils
+from trading_core.runtime_manager import RuntimeManager
 
 logger = logging.getLogger(__name__)
 
@@ -27,63 +28,58 @@ def add_buy_a_sell_entries_to_signals(app_config, application_state, buy_sell_ca
         can_sell_cores = result_map.get('can_sell_cores')
 
         case_color = get_case_color(app_config, case)
-
-        if case == 'case_1':
-            price = df['high'].iloc[-1]
-        elif case == 'case_2':
-            price = df['low'].iloc[-1]
-        else:
-            price = df['close'].iloc[-1]
-
+        
+        
 
         if can_buy:
-            # add_to_signlas(symbol, f"BUY_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}")
+            price = get_stacked_mark_price(app_config, application_state, symbol, 'up', df['high'].iloc[-1], df['date'].iloc[-1], caller_key=f"add_buy_a_sell_entries_to_signals-{case}")
             TradingLedger.add_to_list("signals", (symbol, f"BUY_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}", case_color))
         elif can_buy_cores:
+            price = get_stacked_mark_price(app_config, application_state, symbol, 'up', df['high'].iloc[-1], df['date'].iloc[-1], caller_key=f"add_buy_a_sell_entries_to_signals-{case}")
             TradingLedger.add_to_list("signals", (symbol, f"BUY_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}", case_color))
 
         if can_sell:
-            # add_to_signlas(symbol, f"SELL_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}")
+            price = get_stacked_mark_price(app_config, application_state, symbol, 'up', df['high'].iloc[-1], df['date'].iloc[-1], caller_key=f"add_buy_a_sell_entries_to_signals-{case}")
             TradingLedger.add_to_list("signals", (symbol, f"SELL_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}", case_color))
         elif can_sell_cores:
+            price = get_stacked_mark_price(app_config, application_state, symbol, 'up', df['high'].iloc[-1], df['date'].iloc[-1], caller_key=f"add_buy_a_sell_entries_to_signals-{case}")
             TradingLedger.add_to_list("signals", (symbol, f"SELL_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}", case_color))
 
-
-        # add_to_signlas(symbol,  f"SCREENING_{case}", offseted_price, df['date'].iloc[-1], f'{case} - {res_str}')  #
-        price = get_offseted_price(app_config, application_state, symbol,'down', df['low'].iloc[-1])
-
+        price = get_stacked_mark_price(app_config, application_state, symbol, 'down', df['low'].iloc[-1], df['date'].iloc[-1], caller_key="add_buy_a_sell_entries_to_signals---candle-info")
         add_to_candle_info_df(symbol, date=df['date'].iloc[-1], price=price, memo=f'{case} - {res_str}')
 
     return
 
 
-def get_offseted_price(app_config, application_state, symbol = None, side='up', price=1):
-    offset_symbol = app_config['symbols_meta'][symbol]['chart_entry_offset']
+def get_stacked_mark_price(app_config, application_state, symbol=None, side='up', price=1, date='', caller_key=None):
+
+    count_key = f"{symbol}-{date}-{side}"
+    date = str(date)
+    if caller_key is not None:
+        dedup_key = f"{symbol}-{date}-{side}-{caller_key}"  # prevents duplicate for
+        return_price = application_state.get('stacked_mark_prices', {}).get(dedup_key)
+        if return_price is not None:
+            # price already exist ...
+            return return_price
+
+    price_step_per_mark = app_config['symbols_meta'].get(symbol,{}).get('price_step_per_mark', 0.5)
+
+    if not application_state.get('candle_mark_count'):
+        application_state['candle_mark_count'] = {}
+
+    candle_mark_count = application_state['candle_mark_count']
+    candle_mark_count[count_key] = candle_mark_count.get(dedup_key, 0) + 1
+    count = candle_mark_count[count_key]
+
     if side == 'up':
-        price = price + get_offset_counter(application_state, side, add=True) * offset_symbol
+        price = price + (count * price_step_per_mark)
     else:
-        price = price - get_offset_counter(application_state, side, add=True) * offset_symbol
+        price = price - (count * price_step_per_mark)
+    if caller_key is not None:
+        application_state.setdefault("stacked_mark_prices",{})[dedup_key] = price
+
     return price
 
-def get_offset_counter(application_state, side='up', add=True):
-    # This is for to see what is the offset for the hover  for the cnalde.
-    # resets in every candle ...
-    up_offset_counter = application_state.get('up_offset_counter', 0)
-    down_offset_counter = application_state.get('down_offset_counter', 0)
-
-    if side == 'up':
-        if add:
-            up_offset_counter += 1
-        up_offset_counter = 1 if up_offset_counter == 0 else up_offset_counter  # return 1 if is 0
-        application_state['up_offset_counter'] = up_offset_counter
-
-        return up_offset_counter
-    else:
-        if add:
-            down_offset_counter += 1
-        down_offset_counter = 1 if down_offset_counter == 0 else down_offset_counter # return 1 if it is 0
-        application_state['down_offset_counter'] = down_offset_counter
-        return down_offset_counter
 
 
 def add_candle_info_df_to_signals():
@@ -231,8 +227,8 @@ def mark_tolerance_to_the_level(app_config, application_state, symbol, level_nam
         return
     tolerance = market_data.data_store.get(symbol).get('dynamic_tolerance', {}).get('tolerance', 0)
 
-    p1 = level - tolerance * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1)
-    p2 = level + tolerance * app_config['symbols_meta'][symbol].get('retest_tolerance_multiplier', 1)
+    p1 = level - tolerance * app_config['symbols_meta'].get(symbol,{}).get('retest_tolerance_multiplier', 1)
+    p2 = level + tolerance * app_config['symbols_meta'].get(symbol,{}).get('retest_tolerance_multiplier', 1)
 
     p1 = round(p1 ,2)
     p2 = round(p2 ,2)
@@ -269,7 +265,7 @@ def add_atr_to_candle_info(symbol, market_data):
     df = market_data.dfs_map.get(symbol)
     dynamic_tolerance = market_data.data_store.get(symbol).get('dynamic_tolerance', {}).get('tolerance', 0)
 
-    add_to_candle_info_df(symbol, date=df['date'].iloc[-1], price=df['close'].iloc[-1], memo=f'{dynamic_tolerance}')
+    add_to_candle_info_df(symbol, date=df['date'].iloc[-1], price=df['close'].iloc[-1], memo=f'dt: {dynamic_tolerance}')
 
     return
 

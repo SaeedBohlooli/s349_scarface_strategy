@@ -92,7 +92,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
             continue
 
         # update app status ...
-        if app_config['symbols_meta'][symbol]['contract_type'] == 'Equity':
+        if app_config['symbols_meta'].get(symbol,{}).get('contract_type','Equity') == 'Equity':
             open_trade_info['current_bid'] = current_bid
             open_trade_info['current_ask'] = current_ask
             open_trade_info['current_underlying_price'] = underlying_current_price
@@ -233,13 +233,13 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
 
             if take_profit_condition_evaluated and available_quantity > 0 and close_quantity != 0 and close_quantity <= available_quantity :
                 logger.info(f"[check_for_stop_loss_and_take_profit] Sending TP ...{take_profit_lable}")
-                if app_config['symbols_meta'][symbol]['contract_type'] == 'Equity':
+                if app_config['symbols_meta'].get(symbol,{}).get('contract_type','Equity') == 'Equity':
                     order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='CLOSE', symbol=symbol, alias=take_profit_lable, unique_run_number=application_state.get('unique_run_number'))
                     con_id = open_trade_info.get('con_id')
                     close_result = ib_positions_async.close_position_by_con_id(ib, con_id = con_id, qty_to_close=close_quantity, order_ref=order_ref)
                     if not close_result:
                         logger.info(f"[check_for_stop_loss_and_take_profit] @@@@ we couldn't close the position for TP, so we skip the rest ... {symbol} - needs more investigation ")
-                elif app_config['symbols_meta'][symbol]['contract_type'] == 'Future':
+                elif app_config['symbols_meta'].get(symbol,{}).get('contract_type','Equity') == 'Future':
                     order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='CLOSE', symbol=symbol, alias=take_profit_lable, unique_run_number=application_state.get('unique_run_number'))
                     con_id = open_trade_info.get('con_id')
                     ib_positions_async.close_position_by_con_id(ib, con_id=con_id, qty_to_close=close_quantity,order_ref=order_ref)

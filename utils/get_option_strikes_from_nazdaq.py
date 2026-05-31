@@ -73,7 +73,7 @@ if __name__ == "__main__":
 
     options_meta_date_dic = {}
 
-    for symbol in ['QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR', 'TSLL', 'AMZN', 'MNQ', 'SPY' , 'MU']:
+    for symbol in ['QQQ', 'TSLA', 'AAPL', 'NVDA', 'AMD', 'PLTR', 'TSLL', 'AMZN', 'MNQ', 'SPY' , 'MU' ,'MSFT']:
         print(f"\n===== {symbol} =====")
         get_strikes(symbol)
         time.sleep(1)

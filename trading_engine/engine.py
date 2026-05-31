@@ -38,6 +38,8 @@ from trading_engine import user_request_helper
 from trading_utils import position_router
 from trading_utils import user_request_router
 from trading_utils import ib_account
+from trading_utils import ib_pricing_async
+
 
 from utils import atr_tolerance_helper
 
@@ -65,7 +67,7 @@ class TradingEngine:
                     await populate_ib_account_info(ib, application_state, app_config.get("ib_account_id", ""))
                     if self.application_state.get("global_state.subscribed_symbols_count") > 80:
                         application_state_router.add_audit_message(application_state, f"Subscribed symbols count is  which is quite high. sub: {self.application_state.get('global_state.subscribed_symbols_count')} q: {self.application_state['global_state.quote_cache_count']} ")
-
+                ib_pricing_async.cleanup_stale_quotes()
                 if self.runtime.should_run_once("save_configs_in_chart_folder", min_time_hhmm=1045):
                     chart_helper.save_configs_in_chart_folder(self.app_config)
 

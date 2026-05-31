@@ -1,10 +1,13 @@
 live_cases:
   - case_2 # freezed
   - case_4  # freezed
+  - case_5  # freezed
+  - case_6  # freezed
 
-trade_cases:
+order_cases:
   - case_2
   - case_4
+  - case_manual
 
 positioning:
   capital: 50000

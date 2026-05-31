@@ -23,6 +23,8 @@ async def initialize_application_state(ib, app_config, application_state):
     application_state['TradingLedger.get_all_list_stats'] = []
     application_state['forced_exits'] = []
     application_state['case_manual_orders'] = []
+    application_state['candle_mark_count'] = {}
+    application_state['stacked_mark_prices'] = {}
 
     for symbol in app_config['symbols']:
         application_state['symbols'][symbol] = {}
@@ -45,6 +47,8 @@ def initialize_application_state_for_run(app_config, application_state):
     application_state['retests'] = {}
     application_state['breakout_idx'] = {}
     application_state['retest_idx'] = {}
+    application_state['displacement_swings'] = {}
+    application_state['retracement_extremes'] = {}
 
     current_hh_mm_ny = date_utils.get_current_hhmm_ny() #used in the config evals for trade_time
     is_trade_time = eval(app_config['trading_session']['trade_time'])

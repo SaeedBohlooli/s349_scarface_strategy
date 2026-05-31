@@ -829,6 +829,16 @@ def create_chart_hovered_df(hover_df, symbol):
         'BUY_ENTRY_case_4': '●',
         'SELL_ENTRY_case_4': '●',
 
+        'BUY_ENTRY_case_5': '●',
+        'SELL_ENTRY_case_5': '●',
+
+        'BUY_ENTRY_case_6': '●',
+        'SELL_ENTRY_case_6': '●',
+
+        'BUY_ENTRY_case_7': '●',
+        'SELL_ENTRY_case_7': '●',
+
+
         'SCREENING_case_1': '○',
         'SCREENING_case_2': '○',
         'SCREENING_case_3': '○',

@@ -30,7 +30,7 @@ def add_case_manual_order_to_buy_sell_case_results_list(application_state, symbo
         case = "case_manual"
         symbol = user_request.get('symbol')
         if symbol != symbol_app_process:
-            logger.info(f"[add_case_manual_order_to_buy_sell_case_results_list] @@ skipping ...symbol:{symbol}, symbol_app_process: {symbol_app_process}, user_request:{user_request}")
+            logger.info(f"[add_case_manual_order_to_buy_sell_case_results_list] @ skipping ...symbol:{symbol}, symbol_app_process: {symbol_app_process}, user_request:{user_request}")
             continue
         logger.info(f"[add_case_manual_order_to_buy_sell_case_results_list] processing user request for manual order, symbol:{symbol}, user_request:{user_request}")
         quantity = int(user_request.get('quantity', 0))
@@ -92,6 +92,9 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
         logger.debug(f"[check_buy_sell_result_to_send_order], {symbol}, can_buy: {can_buy}, can_sell:{can_sell}")
         if can_buy == False and can_sell == False: # no success ...
             continue
+        if not case in app_config['order_cases']:
+            logger.info(f"[check_buy_sell_result_to_send_order], {symbol}, case: {case} is not in order_cases in config, skipping...")
+            continue
         logger.info(f"[check_buy_sell_result_to_send_order] order signal , {symbol}, can_buy: {can_buy}, can_sell:{can_sell}")
 
         details_map = buy_sell_case_result[3]
@@ -99,7 +102,7 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
         long_level = details_map.get('long_level', 0)
         short_level = details_map.get('short_level', 0)
         level_used = long_level if can_buy else short_level
-        contract_type = app_config['symbols_meta'][symbol]['contract_type']
+        contract_type = app_config['symbols_meta'].get(symbol,{}).get('contract_type','Equity')
         do_check = True if case != 'case_manual' else False
         user_defined_quantity = 0 if case != 'case_manual' else int(details_map.get('user_defined_quantity', 0))
         user_defined_expiry = 0 if case != 'case_manual' else details_map.get('user_defined_expiry', 0)
@@ -110,7 +113,7 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
 
         context_filter(application_state, details_map, df, application_state['unique_run_number'], symbol, right, level_used)
 
-        if do_check and not app_config['symbols_meta'][symbol]['can_trade']:
+        if do_check and not app_config['symbols_meta'].get(symbol,{})['can_trade']:
             logger.info(f"[check_buy_sell_result_to_send_order] @@ We are not trading {symbol}.")
             continue
         if do_check and not is_trade_time:
@@ -221,10 +224,10 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
             side = 'long' if can_buy else 'short' # TODO need to be rmeoved ...
 
 
-            contract_month =  app_config['symbols_meta'][symbol]['contract_month']
+            contract_month =  app_config['symbols_meta'].get(symbol,{})['contract_month']
             contract = ib_contract.get_cached_contract(ib, symbol, contract_month)
-            stop_loss_price = eval(app_config['symbols_meta'][symbol][side.lower()]['stop_loss'])
-            take_profit_price = eval(app_config['symbols_meta'][symbol][side.lower()]['take_profit'])
+            stop_loss_price = eval(app_config['symbols_meta'].get(symbol,{})[side.lower()]['stop_loss'])
+            take_profit_price = eval(app_config['symbols_meta'].get(symbol,{})[side.lower()]['take_profit'])
             total_quantity = 1
             order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='OPEN', symbol=symbol, side='long', unique_run_number=application_state.get('unique_run_number'))
 
@@ -290,7 +293,7 @@ def number_of_total_positions_today(application_state):
 
 
 def has_open_order_in_same_group(app_config, application_state, symbol):
-    symbol_group = app_config['symbols_meta'][symbol].get('group')
+    symbol_group = app_config['symbols_meta'].get(symbol,{}).get('group')
     if symbol_group is None: # no group ...
         return False
     open_orders = application_state.get('open_trades_dic', {})
