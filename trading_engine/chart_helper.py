@@ -53,8 +53,9 @@ def add_buy_a_sell_entries_to_signals(app_config, application_state, buy_sell_ca
 
 def get_stacked_mark_price(app_config, application_state, symbol=None, side='up', price=1, date='', caller_key=None):
 
-    count_key = f"{symbol}-{date}-{side}"
     date = str(date)
+
+    count_key = f"{symbol}-{date}-{side}"
     if caller_key is not None:
         dedup_key = f"{symbol}-{date}-{side}-{caller_key}"  # prevents duplicate for
         return_price = application_state.get('stacked_mark_prices', {}).get(dedup_key)
@@ -68,7 +69,7 @@ def get_stacked_mark_price(app_config, application_state, symbol=None, side='up'
         application_state['candle_mark_count'] = {}
 
     candle_mark_count = application_state['candle_mark_count']
-    candle_mark_count[count_key] = candle_mark_count.get(dedup_key, 0) + 1
+    candle_mark_count[count_key] = candle_mark_count.get(count_key, 0) + 1
     count = candle_mark_count[count_key]
 
     if side == 'up':
