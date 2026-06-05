@@ -165,7 +165,7 @@ cases:
         - levels['PDH'] < levels['5MH'] or get_current_price(ib, application_state, 'QQQ') > application_state['levels']['QQQ']['5MH']
         - abs (price - long_level) < 1.2 * atr_14
         # 10
-        - 10 == 10 and skip_level_closeness_enabled or ( not is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='up', price=price, current_level=long_level, next_levels=['5MH']))
+        - 10 == 10 and ( skip_level_closeness_enabled or ( not is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='up', price=price, current_level=long_level, next_levels=['5MH'])))
         - abs (price - long_level) < 2
         - qqq_df['close'].iloc[-1] >= qqq_df['open'].iloc[-1]
 
@@ -215,6 +215,8 @@ cases:
         - is_retest_after_breakout(application_state, symbol, side='up', level=long_level)
         # 4. Gap between breakout and retracement candle is within 6 bars
         - is_retracement_gap_acceptable(application_state, symbol, level=long_level, max_gap=6)
+        - price > long_level
+
       extras:
         # 5. Current forming candle breaks above the retracement candle high
         - check_entry_vs_retest(application_state, case, symbol, df, side='up', level=long_level)
@@ -239,6 +241,7 @@ cases:
         - price_retracement_to_level(app_config, application_state, case, symbol, df, side='down', idx_list=[-2,-3,-4,-5,-6], level=short_level, level_alias=level_alias, max_retrace_ratio=0.65)
         - is_retest_after_breakout(application_state, symbol, side='down', level=short_level)
         - is_retracement_gap_acceptable(application_state, symbol, level=short_level, max_gap=6)
+        - price < short_level
       extras:
         - check_entry_vs_retest(application_state, case, symbol, df, side='down', level=short_level)
         - no_failure_after_breakout(application_state, case, symbol, df, side='down', level=short_level, ohlc_field='close')
@@ -261,7 +264,7 @@ cases:
 
     can_replace_level: false
     precondition: all_levels_in(application_state, symbol)
-    color: purple
+    color: gray
     long:
       level: levels['PDH']
       level_alias: "PDH"
@@ -274,6 +277,7 @@ cases:
         - is_retest_after_breakout(application_state, symbol, side='up', level=long_level)
         # 4. Gap between breakout and retracement candle is within 6 bars
         - is_retracement_gap_acceptable(application_state, symbol, level=long_level, max_gap=6)
+        - price > long_level
       extras:
         # 5. Current forming candle breaks above the retracement candle high
         - check_entry_vs_retest(application_state, case, symbol, df, side='up', level=long_level)
@@ -298,6 +302,7 @@ cases:
         - price_retracement_to_level(app_config, application_state, case, symbol, df, side='down', idx_list=[-2,-3,-4,-5,-6], level=short_level, level_alias=level_alias, max_retrace_ratio=0.65)
         - is_retest_after_breakout(application_state, symbol, side='down', level=short_level)
         - is_retracement_gap_acceptable(application_state, symbol, level=short_level, max_gap=6)
+        - price < short_level
       extras:
         - check_entry_vs_retest(application_state, case, symbol, df, side='down', level=short_level)
         - no_failure_after_breakout(application_state, case, symbol, df, side='down', level=short_level, ohlc_field='close')
