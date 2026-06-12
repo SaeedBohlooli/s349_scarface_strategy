@@ -60,7 +60,7 @@ files:
   test_df: "{results}/99-test_df.csv"
 
 #
-symbols: ["QQQ", "AAPL", "AMD", "AMZN", "NVDA", "PLTR", "TSLA", "MU", "SPY"]  # we prepeare contracts and bid/ask
+symbols: ["QQQ", "AAPL", "AMD", "AMZN", "NVDA", "PLTR", "TSLA", "MU", "SPY", "INTC"]  # we prepeare contracts and bid/ask
 
 #symbols_for_screening: ["QQQ", "AAPL", "AMD", "AMZN", "NVDA", "PLTR", "TSLA", "MU", "SPY"]
 #symbols_with_quotes: ["MSFT", "INTC"]
@@ -173,6 +173,7 @@ strike_increments:  # default is 2.5., dont put it here if it i 2.5
     SPY: 1
     MU: 5
     PLTR: 1
+    INTC: 1
 
 # before_start:
 load_application_state_from_file: true

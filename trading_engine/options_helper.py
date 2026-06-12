@@ -321,7 +321,7 @@ async def prepare_contracts_for_otm_option_contracts(ib, app_config, application
     #     "20251209",
     #     "20251212"
     # ]
-    expiry_offset = app_config['symbols_meta'].get(symbol,{}).get('max_option_contracts_to_prepare', 0) # 0 means first one ... for QQQ/SPY we get the seond one ...
+    expiry_offset = app_config['symbols_meta'].get(symbol,{}).get('expiry_offset', 0) # 0 means first one ... for QQQ/SPY we get the seond one ...
 
     expiry = expiry_list[expiry_offset] if expiry_list else None
     if strikes is None:
