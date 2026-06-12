@@ -315,6 +315,70 @@ cases:
         - qqq_df['close'].iloc[-1] < qqq_df['open'].iloc[-1]
         - not is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='down', price=price, current_level=short_level, next_levels=['PDL'])
 
+
+  case_7:
+    memo: based on the R2
+    can_replace_level: false
+    precondition: all_levels_in(application_state, symbol)
+    color: orange
+    long:
+      level: levels['5MH']
+      level_alias: "5MH"
+      cores:
+        - breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol, df, side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level, level_alias=level_alias)
+        - price_retest_v2(app_config, application_state, case, symbol, df, side='up', idx_list=[-2,-3,-4], level=long_level, level_alias=level_alias)
+        - does_arc_has_enough_heights(app_config, application_state, case, symbol, df, side='up', level=long_level, level_alias=level_alias, min_height_atr_ratio=0.5)
+        - check_arc_duration(app_config, application_state, case, symbol, df, side='up', level=long_level, level_alias=level_alias, arc_min_bars=4)
+        - check_close_displacement(app_config, application_state, case, symbol, df, side='up', level=long_level, level_alias=level_alias, min_close_disp_atr=0.1)
+        - is_retest_after_breakout(application_state, symbol, side='up', level=long_level)
+      extras:
+        - 1 == 1
+
+    short:
+      level: levels['5ML']
+      level_alias: "5ML"
+      cores:
+        - breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol, df, side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level, level_alias=level_alias)
+        - price_retest_v2(app_config, application_state, case, symbol, df, side='down', idx_list=[-2,-3,-4], level=short_level, level_alias=level_alias)
+        - does_arc_has_enough_heights(app_config, application_state, case, symbol, df, side='down', level=short_level, level_alias=level_alias, min_height_atr_ratio=0.5)
+        - check_arc_duration(app_config, application_state, case, symbol, df, side='down', level=short_level, level_alias=level_alias, arc_min_bars=4)
+        - check_close_displacement(app_config, application_state, case, symbol, df, side='down', level=short_level, level_alias=level_alias, min_close_disp_atr=0.1)
+        - is_retest_after_breakout(application_state, symbol, side='down', level=short_level)
+      extras:
+        - 1 == 1
+
+
+  case_8:
+    memo: based on the R2
+    can_replace_level: false
+    precondition: all_levels_in(application_state, symbol)
+    color: navy
+    long:
+      level: levels['PDH']
+      level_alias: "PDH"
+      cores:
+        - breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol, df, side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level, level_alias=level_alias)
+        - price_retest_v2(app_config, application_state, case, symbol, df, side='up', idx_list=[-2,-3,-4], level=long_level, level_alias=level_alias)
+        - does_arc_has_enough_heights(app_config, application_state, case, symbol, df, side='up', level=long_level, level_alias=level_alias, min_height_atr_ratio=0.5)
+        - check_arc_duration(app_config, application_state, case, symbol, df, side='up', level=long_level, level_alias=level_alias, arc_min_bars=4)
+        - check_close_displacement(app_config, application_state, case, symbol, df, side='up', level=long_level, level_alias=level_alias, min_close_disp_atr=0.1)
+        - is_retest_after_breakout(application_state, symbol, side='up', level=long_level)
+      extras:
+        - 1 == 1
+
+    short:
+      level: levels['PDL']
+      level_alias: "PDL"
+      cores:
+        - breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol, df, side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level, level_alias=level_alias)
+        - price_retest_v2(app_config, application_state, case, symbol, df, side='down', idx_list=[-2,-3,-4], level=short_level, level_alias=level_alias)
+        - does_arc_has_enough_heights(app_config, application_state, case, symbol, df, side='down', level=short_level, level_alias=level_alias, min_height_atr_ratio=0.5)
+        - check_arc_duration(app_config, application_state, case, symbol, df, side='down', level=short_level, level_alias=level_alias, arc_min_bars=4)
+        - check_close_displacement(app_config, application_state, case, symbol, df, side='down', level=short_level, level_alias=level_alias, min_close_disp_atr=0.1)
+        - is_retest_after_breakout(application_state, symbol, side='down', level=short_level)
+      extras:
+        - 1 == 1
+
   case_3:
     memo: This is for Saeed's live test
     can_replace_level: false

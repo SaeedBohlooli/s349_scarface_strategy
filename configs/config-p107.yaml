@@ -59,7 +59,14 @@ files:
   screening_summary_for_all_sub_runs_agg_df: "{results}/25-screening_summary_for_all_sub_runs_agg_df.csv" # TODO rename
   test_df: "{results}/99-test_df.csv"
 
-symbols: ["QQQ", "AAPL", "AMD", "AMZN", "NVDA", "PLTR", "TSLA", "MU", "SPY"]
+#
+symbols: ["QQQ", "AAPL", "AMD", "AMZN", "NVDA", "PLTR", "TSLA", "MU", "SPY"]  # we prepeare contracts and bid/ask
+
+#symbols_for_screening: ["QQQ", "AAPL", "AMD", "AMZN", "NVDA", "PLTR", "TSLA", "MU", "SPY"]
+#symbols_with_quotes: ["MSFT", "INTC"]
+#symbols_without_quotes: ["GOOG", "META"]
+#
+#symbols_all_in: symbols + symbols_w_quotes_only
 #
 #stop_losses:
 #  C:
@@ -156,7 +163,16 @@ closeness_distance_for_chart:
 closeness_distance_for_case_1: df['atr_14'].iloc[-2] * 2
 
 options:
-  max_otm_strikes_to_try: 3
+  use_manual_strikes: True
+  max_otm_strikes_for_quotes: 3
+  max_option_contracts_to_prepare: 10
+
+
+strike_increments:  # default is 2.5., dont put it here if it i 2.5
+    QQQ: 1
+    SPY: 1
+    MU: 5
+    PLTR: 1
 
 # before_start:
 load_application_state_from_file: true

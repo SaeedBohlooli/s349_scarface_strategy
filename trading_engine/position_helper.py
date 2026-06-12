@@ -48,7 +48,7 @@ def calculate_number_of_open_positions(application_state):
     count = 0
 
     for symbol, trade in open_trades.items():
-        if not trade:  # empty dict → skip
+        if not trade:  # empty dict - > skip
             continue
         if trade.get("available_quantity", 0) > 0:
             count += 1

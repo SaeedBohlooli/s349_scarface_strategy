@@ -846,15 +846,15 @@ def create_chart_hovered_df(hover_df, symbol):
         # Test 
         'x': '↑',
         'b': '↓',
-        'b': '→',
+        'b': '->',
     }
 
     mask = df["object"].str.contains("TEXT", case=False, na=False)
 
-    # When object has 'TEXT' → take first part of memo before '#'
+    # When object has 'TEXT' - > take first part of memo before '#'
     df.loc[mask, "signals"] = df["memo"].str.split("#").str[0].str.strip()
 
-    # Otherwise → use mapping fallback
+    # Otherwise - > use mapping fallback
     df.loc[~mask, "signals"] = df["object"].map(mapping).fillna("●")
 
     df = df[['date', 'price', 'signals', 'color', 'text']]

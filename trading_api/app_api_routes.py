@@ -118,7 +118,7 @@ def view_file():
         abort(404)
 
     with open(file_path, "r", encoding="utf-8") as f:
-        payload = yaml.safe_load(f)   # converts YAML → dict
+        payload = yaml.safe_load(f)   # converts YAML - > dict
 
     packet = {
         "type": "config_file_content",

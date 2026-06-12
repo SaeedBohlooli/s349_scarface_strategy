@@ -1,8 +1,8 @@
 live_cases:
-  - case_2 # freezed
-  - case_4  # freezed
-  - case_5  # freezed
-  - case_6  # freezed
+  - case_2
+  - case_4
+  - case_7
+  - case_8
 
 order_cases:
   - case_2

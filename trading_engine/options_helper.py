@@ -69,7 +69,7 @@ async def find_expiration_and_strikes_from_ib(ib, application_state, symbol, exc
 
 
 def set_options_meta_date_dic(market_data, options_meta_date_dic):
-    market_data.data_store.setdefault('options_meta_date_dic', options_meta_date_dic)
+    market_data.data_store['options_meta_date_dic'] = options_meta_date_dic
 
 def get_best_option_chain(chains):
     """
@@ -90,42 +90,83 @@ def get_best_option_chain(chains):
 
 async def orchestrate_expirations_strikes(ib, app_config, application_state, market_data):
     # intermediate_dir = 'intermediate'
-    shared_dir = '../../portfolios/shared'
-    # options_meta_date_dic = application_state.setdefault('options_meta_date_dic', {})
 
-    # get from IB. is messy ...
-    await find_expiration_and_strikes_for_all_from_ib(ib, app_config, application_state, market_data)
     options_meta_date_dic = market_data.data_store.get('options_meta_date_dic', {})
-    FileManager.save_named_json(options_meta_date_dic, file_name='85-strikes-expirations-ib.json', dir='intermediate')
+    use_manual_strikes = app_config.get("options", {}).get("use_manual_strikes", True)
+    if use_manual_strikes:
+        calculate_manual_strikes(app_config, application_state, options_meta_date_dic)
+        set_options_meta_date_dic(market_data, options_meta_date_dic)
 
-    # Mere with Nazadq ...
-    nazdaq_file = f'{shared_dir}/85-strikes-nazdaq.json'
-    strikes_from_nazdaq = FileManager.load_named_json(full_path=nazdaq_file)
+    else:
+        shared_dir = '../../portfolios/shared'
+        # options_meta_date_dic = application_state.setdefault('options_meta_date_dic', {})
 
-    if strikes_from_nazdaq != {}:
-        options_meta_date_dic.update(strikes_from_nazdaq)
-        FileManager.save_named_json(options_meta_date_dic, file_name='85-strikes-expirations-ib+nazdaq.json', dir='intermediate')
+        # get from IB. is messy ...
+        await find_expiration_and_strikes_for_all_from_ib(ib, app_config, application_state, market_data)
+        FileManager.save_named_json(options_meta_date_dic, file_name='85-strikes-expirations-ib.json', dir='intermediate')
 
-    adhoc_file = f'{shared_dir}/85-strikes-adhoc.json'
-    strikes_from_adhoc = FileManager.load_named_json(full_path=adhoc_file)
-    if strikes_from_adhoc != {}:
-        options_meta_date_dic.update(strikes_from_adhoc)
-        FileManager.save_named_json(options_meta_date_dic, file_name='85-strikes-expirations-ib+nazdaq+adhoc.json', dir='intermediate')
+        # Mere with Nazadq ...
+        nazdaq_file = f'{shared_dir}/85-strikes-nazdaq.json'
+        strikes_from_nazdaq = FileManager.load_named_json(full_path=nazdaq_file)
+
+        if strikes_from_nazdaq != {}:
+            options_meta_date_dic.update(strikes_from_nazdaq)
+            FileManager.save_named_json(options_meta_date_dic, file_name='85-strikes-expirations-ib+nazdaq.json', dir='intermediate')
+
+        adhoc_file = f'{shared_dir}/85-strikes-adhoc.json'
+        strikes_from_adhoc = FileManager.load_named_json(full_path=adhoc_file)
+        if strikes_from_adhoc != {}:
+            options_meta_date_dic.update(strikes_from_adhoc)
+            FileManager.save_named_json(options_meta_date_dic, file_name='85-strikes-expirations-ib+nazdaq+adhoc.json', dir='intermediate')
+
+        FileManager.save_named_json(options_meta_date_dic, file_name='85-strikes-expirations-ib+nazdaq+adhoc+manual.json', dir='intermediate')
+
+
+        extended_strikes = extend_all_strikes(application_state, options_meta_date_dic, 20)
+        options_meta_date_dic.update(extended_strikes)
+        FileManager.save_named_json(options_meta_date_dic, file_name='85-strikes-expirations-ib+nazdaq+adhoc+manual+extend.json', dir='intermediate')
+
 
     expirations_manually_created = {}
     for s in app_config['symbols']:
         if s not in ['QQQ', 'SPY', 'MNQ']:
             expirations_manually_created[f"{s}-expirations"] = date_utils.next_fridays(10)
+
+    for s in app_config['symbols']:
+        if s in ['QQQ', 'SPY']:
+            expirations_manually_created[f"{s}-expirations"] = date_utils.next_business_days(10)
+
     options_meta_date_dic.update(expirations_manually_created)
-    FileManager.save_named_json(options_meta_date_dic, file_name='85-strikes-expirations-ib+nazdaq+adhoc+manual.json', dir='intermediate')
 
-    extended_strikes = extend_all_strikes(options_meta_date_dic, 20)
-    options_meta_date_dic.update(extended_strikes)
-
-    FileManager.save_named_json(options_meta_date_dic, file_name='85-strikes-expirations-ib+nazdaq+adhoc+manual+extend.json', dir='intermediate')
+    if use_manual_strikes:
+        FileManager.save_named_json(options_meta_date_dic, file_name='85-strikes-use_manual_strikes.json', dir='intermediate')
 
     logger.debug('hold it here ')
     return
+
+
+def calculate_manual_strikes(app_config, application_state, options_meta_date_dic):
+    for s in app_config['symbols']:
+        step = app_config.get('strike_increments', {}).get(s, 2.5)
+        application_state.setdefault('strike_increments', {})[s] = step
+        price = 0
+        i = 0
+        prices = []
+        while price < 1200:
+            i = i +1
+            price = price + step
+            prices.append(price)
+
+# {
+        #   "QQQ-strikes": [
+        #     1,
+        #     2,
+        #     3,
+        #     4,
+        #   ],
+        #   "AAPL-strikes": [
+    #}
+        options_meta_date_dic.update({f"{s}-strikes": prices})
 
 
 async def prepare_option_contract(ib, app_config, application_state, market_data, symbol, right='C', user_defined_expiry=0, user_defined_strike =0 ):
@@ -191,6 +232,15 @@ async def prepare_option_contract(ib, app_config, application_state, market_data
 
     return None
 
+async def prepare_contracts_for_all_otm_option_contracts(ib, app_config, application_state, market_data):
+    for symbol in app_config['symbols']:
+        if app_config['symbols_meta'].get(symbol, {}).get('contract_type', 'Equity') not in ['Equity']:
+            continue
+        for right in ['C', 'P']:
+            result = await prepare_contracts_for_otm_option_contracts(ib, app_config, application_state, market_data, symbol, right)
+            if result == False:
+                logger.warning(f"[prepare_contracts_for_all_otm_option_contracts] @@@@ could not prepare contract for later use: {symbol}, {right}")
+
 async def subscribe_market_data_for_all_otm_option_contracts(ib, app_config, application_state, market_data):
     for symbol in app_config['symbols']:
         if app_config['symbols_meta'].get(symbol, {}).get('contract_type', 'Equity') not in ['Equity']:
@@ -214,7 +264,7 @@ async def subscribe_market_data_for_otm_option_contracts(ib, app_config, applica
     #     "20251209",
     #     "20251212"
     # ]
-    expiry_offset = app_config['symbols_meta'].get(symbol,{}).get('expiry_offset', 0) # 0 means first one ... for QQQ/SPY we get the seond one ...
+    expiry_offset = app_config['symbols_meta'].get(symbol,{}).get('expiry_offset', 0) # 0 means first one ... for QQQ/SPY we get the second one ...
 
     expiry = expiry_list[expiry_offset] if expiry_list else None
     if strikes is None:
@@ -230,14 +280,20 @@ async def subscribe_market_data_for_otm_option_contracts(ib, app_config, applica
         logger.warning("[subscribe_market_data_for_otm_option_contracts] @@@ not enough otm options, so skip for later use.")
         return False
 
-    max_otm_strikes_to_try = app_config.get('options', {}).get("max_otm_strikes_to_try", 3)
+    max_otm_strikes_for_quotes = app_config.get('options', {}).get("max_otm_strikes_for_quotes", 3)
 
-    for i in range(1,max_otm_strikes_to_try + 1 ): # try first X otm strikes # try first X otm strikes
+    for i in range(1,max_otm_strikes_for_quotes + 1 ): # try first X otm strikes # try first X otm strikes
 
         if right == 'C':
+            if i - 1 >= len(otm_calls):
+                logger.warning(f"[subscribe_market_data_for_otm_option_contracts] @@@ not enough otm calls for index {i - 1}. {symbol}")
+                break
             strike = otm_calls[i - 1]   # take the first X otm calls   0 , 1,
         else:
-            strike = otm_puts[-i]   # take the last X otm puts   -1 , -2, -3
+            if i > len(otm_puts):
+                logger.warning(f"[subscribe_market_data_for_otm_option_contracts] @@@ not enough otm puts for index -{i}. {symbol}")
+                break
+            strike = otm_puts[-i]
 
         contract = await ib_contract.get_option_contract_cached(ib, symbol=symbol, strike=strike, expiry=expiry, right=right)
         logger.debug(f"[subscribe_market_data_for_otm_option_contracts] already subscribed. contract: {contract}")
@@ -247,6 +303,58 @@ async def subscribe_market_data_for_otm_option_contracts(ib, app_config, applica
         else:
             logger.warning(f"[subscribe_market_data_for_otm_option_contracts] @@@ contract is None. {symbol}, {strike}, {expiry}, {right}")
 
+
+    return True
+
+
+async def prepare_contracts_for_otm_option_contracts(ib, app_config, application_state, market_data, symbol, right='C'):
+
+    underlying_price = await ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol)
+
+    options_meta_date_dic = market_data.data_store.get('options_meta_date_dic', {})
+
+    strikes = options_meta_date_dic.get(f'{symbol}-strikes')
+    expiry_list = options_meta_date_dic.get(f'{symbol}-expirations',[])
+
+    # example: "AMD-expirations": [
+    #     "20251205",
+    #     "20251209",
+    #     "20251212"
+    # ]
+    expiry_offset = app_config['symbols_meta'].get(symbol,{}).get('max_option_contracts_to_prepare', 0) # 0 means first one ... for QQQ/SPY we get the seond one ...
+
+    expiry = expiry_list[expiry_offset] if expiry_list else None
+    if strikes is None:
+        logger.warning(f"[prepare_contracts_for_otm_option_contracts] @@@@@ , strikes is None. {symbol}, {right}, underlying_price: {underlying_price}")
+        return  False
+
+    # --- Categorize ---
+    # itm_calls = [s for s in strikes if s < underlying_price]
+    otm_calls = [s for s in strikes if s > underlying_price]
+    # itm_puts = [s for s in strikes if s > underlying_price]
+    otm_puts = [s for s in strikes if s < underlying_price]
+    logger.info(f"[prepare_contracts_for_otm_option_contracts] symbol: {symbol}, right: {right}, underlying_price: {underlying_price}, expiry: {expiry}, strikes: {strikes}, otm_calls: {otm_calls}, otm_puts: {otm_puts}")
+    if len(otm_calls) == 0 or len(otm_puts) == 0:
+        logger.warning(f"[prepare_contracts_for_otm_option_contracts] @@@ not enough otm options, so skip for later use. otm_calls: {otm_calls}, otm_puts: {otm_puts} ")
+        return False
+
+    max_otm_strikes_for_quotes = app_config.get('options', {}).get("max_option_contracts_to_prepare", 3)
+
+    for i in range(1,max_otm_strikes_for_quotes + 1 ): # try first X otm strikes # try first X otm strikes
+
+
+        if right == 'C':
+            if i - 1 >= len(otm_calls):
+                logger.warning(f"[prepare_contracts_for_otm_option_contracts] @@@ not enough otm calls for index {i - 1}. {symbol}")
+                break
+            strike = otm_calls[i - 1]   # take the first X otm calls   0 , 1,
+        else:
+            if i > len(otm_puts):
+                logger.warning(f"[prepare_contracts_for_otm_option_contracts] @@@ not enough otm puts for index -{i}. {symbol}")
+                break
+            strike = otm_puts[-i]   # take the last X otm puts   -1 , -2, -3
+        contract = await ib_contract.get_option_contract_cached(ib, symbol=symbol, strike=strike, expiry=expiry, right=right)
+        logger.debug(f"[prepare_contracts_for_otm_option_contracts] contract prepared. contract: {contract}")
 
     return True
 
@@ -269,27 +377,26 @@ async def unsubscribe_market_data_for_itm_option_contracts(ib):
         underlying_price = await ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol)
 
         if contract.right == 'C' and contract.strike + 2 < underlying_price:
-            # price < strike, so remove it ....
+            #  strike  < price , so remove it ....
             contracts_to_unsubscribe_for_market_data.append(contract)
             logger.info(f"[unsubscribe_market_data_for_itm_option_contracts] {symbol}, {contract.right}, strike: {contract.strike}, underlying_price: {underlying_price}, contract: {contract}")
         elif contract.right == 'P' and contract.strike - 2 > underlying_price:
-            # price > strike, so remove it ....
+            # strike > price, so remove it ....
             contracts_to_unsubscribe_for_market_data.append(contract)
             logger.info(f"[unsubscribe_market_data_for_itm_option_contracts] {symbol}, {contract.right}, strike: {contract.strike}, underlying_price: {underlying_price}, contract: {contract}")
 
     if contracts_to_unsubscribe_for_market_data:
         await ib_pricing_async.unsubscribe_contracts_from_market_data(ib,contracts_to_unsubscribe_for_market_data)
 
-
     return True
 
-async def unsubscribe_excessively_distant_option_contracts(ib):
+async def unsubscribe_excessively_distant_option_contracts(ib, application_state):
 
     contracts_to_unsubscribe_for_market_data = []
     for conid in global_state.conid_to_symbol_subscribed_for_quotes.keys():
         contract = global_state.conid_to_contract_cache.get(conid)
         if contract is None:
-            logger.warning(f"f[unsubscribe_excessively_distant_option_contracts] @@@  {conid} contract is None.")
+            logger.warning(f"f[unsubscribe_excessively_distant_option_contracts] @@@  contract is None. conid: {conid}")
             continue
 
         if not isinstance(contract, Option) :
@@ -300,12 +407,12 @@ async def unsubscribe_excessively_distant_option_contracts(ib):
         # exchange='SMART', currency='USD', localSymbol='QQQ   260514C00715000', tradingClass='QQQ')",
         symbol = contract.tradingClass
         underlying_price = await ib_pricing_async.get_or_subscribe_symbol_price(ib, symbol)
-
-        if contract.right == 'C' and contract.strike > underlying_price + 10:
+        strike_increment = application_state.get("strike_increments", {}).get(symbol, 2.5)
+        if contract.right == 'C' and contract.strike > underlying_price + strike_increment * 3:
             # price < strike, so remove it ....
             contracts_to_unsubscribe_for_market_data.append(contract)
             logger.info(f"[unsubscribe_excessively_distant_option_contracts] {symbol}, {contract.right}, strike: {contract.strike}, underlying_price: {underlying_price}, contract: {contract}")
-        elif contract.right == 'P' and contract.strike < underlying_price - 10:
+        elif contract.right == 'P' and contract.strike < underlying_price - strike_increment * 3:
             # price > strike, so remove it ....
             contracts_to_unsubscribe_for_market_data.append(contract)
             logger.info(f"[unsubscribe_excessively_distant_option_contracts] {symbol}, {contract.right}, strike: {contract.strike}, underlying_price: {underlying_price}, contract: {contract}")
@@ -317,7 +424,7 @@ async def unsubscribe_excessively_distant_option_contracts(ib):
     return True
 
 
-def extend_all_strikes(data: dict, n: int = 5) -> dict:
+def extend_all_strikes(application_state, data: dict, n: int = 5)  -> dict:
     for key, strikes in data.items():
         if not key.endswith("-strikes"):
             continue
@@ -338,6 +445,11 @@ def extend_all_strikes(data: dict, n: int = 5) -> dict:
             continue
 
         step = min(diffs)
+
+        # store strike increment per symbol
+        symbol = key.replace('-strikes', '')
+        application_state.setdefault('strike_increments', {})[symbol] = step
+        logger.info(f"[extend_all_strikes] {symbol} strike_increment: {step}")
 
         start = strikes[0]
         end = strikes[-1]

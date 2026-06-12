@@ -869,7 +869,7 @@ def breakout_with_displacement(
         body = abs(c - o)
 
         # ── Gate 1: body cross ──────────────────────────────────────────────
-        # The candle body (open→close) must straddle the level.
+        # The candle body (open- >close) must straddle the level.
         # Wick touches (open and close both on the same side) are not displacement.
         logger.info(f"[breakout_with_displacement] {symbol} idx:{idx} — {level}, o: {o}, c: {c}, {str(row['date'])}")
 
@@ -1273,7 +1273,7 @@ def price_retracement_half_circle(
             # ── extension check: was there a meaningful run between breakout and retest? ──
             # slice the candles strictly between breakout and current retest candle
             start = breakout_idx    # negative idx arithmetic — smaller negative = more recent
-            end   = idx             # e.g. breakout=-6, retest=-3 → slice df[-6:-3]
+            end   = idx             # e.g. breakout=-6, retest=-3 - > slice df[-6:-3]
             between_df = df.iloc[start:end] if start < end else df.iloc[end:start]
 
             if len(between_df) > 0:
@@ -1413,19 +1413,19 @@ def compute_structured_sl(
         else:
             sl = (extreme - buffer) if side in ('long', 'up') else (extreme + buffer)
             logger.info(f"[compute_structured_sl] {symbol} {side} retracement_candle: "
-                        f"extreme:{extreme:.4f} buffer:{buffer:.4f} → sl:{sl:.4f}")
+                        f"extreme:{extreme:.4f} buffer:{buffer:.4f} - > sl:{sl:.4f}")
             return round(sl, 4)
 
     if sl_type == 'atr':
         sl = (entry_price - atr * atr_multiplier) if side in ('long', 'up') else (entry_price + atr * atr_multiplier)
         logger.info(f"[compute_structured_sl] {symbol} {side} atr: "
-                    f"entry:{entry_price:.4f} atr:{atr:.4f} → sl:{sl:.4f}")
+                    f"entry:{entry_price:.4f} atr:{atr:.4f} - > sl:{sl:.4f}")
         return round(sl, 4)
 
     # 'level' — default / fallback
     sl = (level - tolerance) if side in ('long', 'up') else (level + tolerance)
     logger.info(f"[compute_structured_sl] {symbol} {side} level: "
-                f"level:{level:.4f} tol:{tolerance:.4f} → sl:{sl:.4f}")
+                f"level:{level:.4f} tol:{tolerance:.4f} - > sl:{sl:.4f}")
     return round(sl, 4)
 
 def does_arc_has_enough_heights(app_config, application_state, case, symbol, df, side='up', level=None, level_alias=None, min_height_atr_ratio=0.5):
@@ -1446,7 +1446,7 @@ def does_arc_has_enough_heights(app_config, application_state, case, symbol, df,
         logger.debug(f"[does_arc_has_enough_heights] {symbol} — no level provided")
         return False
 
-    # no retest recorded → nothing to measure, bail out early
+    # no retest recorded - > nothing to measure, bail out early
     retest_idx = get_retest_idx(application_state, symbol, level)
     if retest_idx is None:
         logger.debug(f"[does_arc_has_enough_heights] {symbol} — no retest recorded for level {level}, skipping arc calc")
@@ -1484,7 +1484,7 @@ def does_arc_has_enough_heights(app_config, application_state, case, symbol, df,
     logger.info(
         f"[does_arc_has_enough_heights] {symbol} {level_alias} side:{side} "
         f"level:{level:.4f} arc_pts:{arc_pts:.4f} atr_14:{atr_14:.4f} "
-        f"arc_atr:{arc_atr:.2f} threshold:{min_height_atr_ratio} → {'PASS' if passed else 'FAIL'}"
+        f"arc_atr:{arc_atr:.2f} threshold:{min_height_atr_ratio} - > {'PASS' if passed else 'FAIL'}"
     )
     return passed
 
@@ -1500,7 +1500,7 @@ def check_arc_duration(app_config, application_state, case, symbol, df, side='up
         logger.debug(f"[check_arc_duration] {symbol} — no level provided")
         return False
 
-    # no retest recorded → nothing to measure, bail out early
+    # no retest recorded - > nothing to measure, bail out early
     retest_idx = get_retest_idx(application_state, symbol, level)
     if retest_idx is None:
         logger.debug(f"[check_arc_duration] {symbol} — no retest recorded for level {level}")
@@ -1519,7 +1519,7 @@ def check_arc_duration(app_config, application_state, case, symbol, df, side='up
     logger.info(
         f"[check_arc_duration] {symbol} {level_alias} side:{side} "
         f"level:{level:.4f} breakout_idx:{breakout_idx} retest_idx:{retest_idx} "
-        f"bars:{bars} threshold:{arc_min_bars} → {'PASS' if passed else 'FAIL'}"
+        f"bars:{bars} threshold:{arc_min_bars} - > {'PASS' if passed else 'FAIL'}"
     )
     return passed
 
@@ -1615,7 +1615,7 @@ def check_close_displacement(app_config, application_state, case, symbol, df, si
     Close Displacement filter (R2 quality check).
 
     Finds the closest any close got to the level from the break side
-    during the arc window (breakout bar → retest bar, exclusive).
+    during the arc window (breakout bar - > retest bar, exclusive).
 
     long  : cd_pts = min(close) - level   (lowest close above level)
     short : cd_pts = level - max(close)   (highest close below level)
@@ -1628,7 +1628,7 @@ def check_close_displacement(app_config, application_state, case, symbol, df, si
         logger.debug(f"[check_close_displacement] {symbol} — no level provided")
         return False
 
-    # no retest recorded → nothing to measure, bail out early
+    # no retest recorded - > nothing to measure, bail out early
     retest_idx = get_retest_idx(application_state, symbol, level)
     if retest_idx is None:
         logger.debug(f"[check_close_displacement] {symbol} — no retest recorded for level {level}")
@@ -1665,6 +1665,6 @@ def check_close_displacement(app_config, application_state, case, symbol, df, si
     logger.info(
         f"[check_close_displacement] {symbol} {level_alias} side:{side} "
         f"level:{level:.4f} cd_pts:{cd_pts:.4f} atr_14:{atr_14:.4f} "
-        f"cd_atr:{cd_atr:.2f} threshold:{min_close_disp_atr} → {'PASS' if passed else 'FAIL'}"
+        f"cd_atr:{cd_atr:.2f} threshold:{min_close_disp_atr} - > {'PASS' if passed else 'FAIL'}"
     )
     return passed
