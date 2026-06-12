@@ -327,7 +327,7 @@ def breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol
             breakout_happened = True
             offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx], date=df['date'].iloc[idx], caller_key="breakout_in_last_x_candles_ver_4")
             case_color = get_case_color(app_config, case)
-            TradingLedger.add_to_list("signals", (symbol, 'BREAKOUT', offseted_price, df['date'].iloc[idx], f"BREAKOUT {level_alias} ... {df['date'].iloc[idx].strftime('%H:%M')}... ", case_color) )
+            TradingLedger.add_to_list("signals", (symbol, 'BREAKOUT', offseted_price, df['date'].iloc[idx], f"BREAKOUT-v4 {level_alias} ... {df['date'].iloc[idx].strftime('%H:%M')}... ", case_color) )
 
     for breakout_idx in breakout_idxs:
         if not breakout_idx - 1 in breakout_idxs:
@@ -347,7 +347,7 @@ def breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol
                         })
                         offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[breakout_idx - 1], date=df['date'].iloc[breakout_idx - 1], caller_key="breakout_in_last_x_candles_ver_4")
                         case_color = get_case_color(app_config, case)
-                        TradingLedger.add_to_list("signals", (symbol, 'BREAKOUT', offseted_price, row['date'], f"BREAKOUT {level_alias} ... {row['date'].strftime('%H:%M')}... ", case_color) )
+                        TradingLedger.add_to_list("signals", (symbol, 'BREAKOUT', offseted_price, row['date'], f"BREAKOUT-v4 {level_alias} ... {row['date'].strftime('%H:%M')}... ", case_color) )
                 else:
                     body = abs(row["close"] - row["open"])
                     candle_range = row["high"] - row["low"]
@@ -362,7 +362,7 @@ def breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol
                         })
                         offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[breakout_idx - 1], date=df['date'].iloc[breakout_idx - 1], caller_key="breakout_in_last_x_candles_ver_4")
                         case_color = get_case_color(app_config, case)
-                        TradingLedger.add_to_list("signals", (symbol, 'BREAKOUT', offseted_price, row['date'], f"BREAKOUT {level_alias} ... {row['date'].strftime('%H:%M')}... ", case_color) )
+                        TradingLedger.add_to_list("signals", (symbol, 'BREAKOUT', offseted_price, row['date'], f"BREAKOUT-v4 {level_alias} ... {row['date'].strftime('%H:%M')}... ", case_color) )
 
 
 
@@ -1427,3 +1427,244 @@ def compute_structured_sl(
     logger.info(f"[compute_structured_sl] {symbol} {side} level: "
                 f"level:{level:.4f} tol:{tolerance:.4f} → sl:{sl:.4f}")
     return round(sl, 4)
+
+def does_arc_has_enough_heights(app_config, application_state, case, symbol, df, side='up', level=None, level_alias=None, min_height_atr_ratio=0.5):
+    """
+    Arc Height filter (R2 quality check).
+
+    Measures the maximum price excursion from the level during the arc
+    (from breakout bar up to, but NOT including, the current retest bar).
+
+    arc_pts = break_max - level          (long / 'up')
+    arc_pts = level    - break_min       (short / 'down')
+    arc_atr = arc_pts  / ATR(14)
+
+    Returns True when arc_atr >= min_height_atr_ratio (default 0.5 ATR).
+    """
+    # --- guard checks ---
+    if not level:
+        logger.debug(f"[does_arc_has_enough_heights] {symbol} — no level provided")
+        return False
+
+    # no retest recorded → nothing to measure, bail out early
+    retest_idx = get_retest_idx(application_state, symbol, level)
+    if retest_idx is None:
+        logger.debug(f"[does_arc_has_enough_heights] {symbol} — no retest recorded for level {level}, skipping arc calc")
+        return False
+
+    breakout_idx = get_breakout_idx(application_state, symbol, level)
+    if breakout_idx is None:
+        logger.debug(f"[does_arc_has_enough_heights] {symbol} — no breakout recorded for level {level}")
+        return False
+
+    atr_14 = df['atr_14'].iloc[-2]
+    if atr_14 <= 0:
+        logger.warning(f"[does_arc_has_enough_heights] {symbol} — atr_14 is zero/negative, skipping")
+        return False
+
+    # slice candles from breakout bar up to (but NOT including) the current retest candidate
+    # breakout_idx is negative (e.g. -6); -1 stops before the current bar
+    arc_df = df.iloc[breakout_idx:-1]
+
+    if len(arc_df) == 0:
+        logger.debug(f"[does_arc_has_enough_heights] {symbol} — arc window is empty")
+        return False
+
+    # find the peak excursion over the arc window
+    if side == 'up':
+        break_max = arc_df['high'].max()
+        arc_pts   = break_max - level
+    else:
+        break_min = arc_df['low'].min()
+        arc_pts   = level - break_min
+
+    arc_atr = arc_pts / atr_14
+    passed  = arc_atr >= min_height_atr_ratio
+
+    logger.info(
+        f"[does_arc_has_enough_heights] {symbol} {level_alias} side:{side} "
+        f"level:{level:.4f} arc_pts:{arc_pts:.4f} atr_14:{atr_14:.4f} "
+        f"arc_atr:{arc_atr:.2f} threshold:{min_height_atr_ratio} → {'PASS' if passed else 'FAIL'}"
+    )
+    return passed
+
+def check_arc_duration(app_config, application_state, case, symbol, df, side='up', level=None, level_alias=None, arc_min_bars=4):
+    """
+    Arc Duration filter (R2 quality check).
+
+    Counts the bars elapsed between the breakout bar and the retest bar.
+    Returns True when bars >= arc_min_bars (default 4).
+    """
+    # --- guard checks ---
+    if not level:
+        logger.debug(f"[check_arc_duration] {symbol} — no level provided")
+        return False
+
+    # no retest recorded → nothing to measure, bail out early
+    retest_idx = get_retest_idx(application_state, symbol, level)
+    if retest_idx is None:
+        logger.debug(f"[check_arc_duration] {symbol} — no retest recorded for level {level}")
+        return False
+
+    breakout_idx = get_breakout_idx(application_state, symbol, level)
+    if breakout_idx is None:
+        logger.debug(f"[check_arc_duration] {symbol} — no breakout recorded for level {level}")
+        return False
+
+    # both indices are negative (e.g. breakout=-6, retest=-2)
+    # abs difference gives the bar count between them
+    bars = abs(retest_idx - breakout_idx)
+    passed = bars >= arc_min_bars
+
+    logger.info(
+        f"[check_arc_duration] {symbol} {level_alias} side:{side} "
+        f"level:{level:.4f} breakout_idx:{breakout_idx} retest_idx:{retest_idx} "
+        f"bars:{bars} threshold:{arc_min_bars} → {'PASS' if passed else 'FAIL'}"
+    )
+    return passed
+
+def price_retest_v2(
+    app_config, application_state, case, symbol, df,
+    side='up',
+    idx_list=None,
+    level=0,
+    level_alias='',
+    tol_atr=0.1,        # tol = ATR(14) * tol_atr  (default 0.1 ATR per README)
+):
+    """
+    Retest detector — strictly follows the STRATEGY_NOTES.md R definition.
+
+    R ↑  : low  <= level + tol   AND  close > level
+    R ↓  : high >= level - tol   AND  close < level
+
+    tol = ATR(14) * tol_atr  (default 0.1 ATR)
+
+    - Only fires after 9:35 AM ET (first 5-min bar excluded per README).
+    - Close must hold on the break side — a close back through = not an R.
+    - Appends to application_state['retests'][symbol] on match.
+    """
+    if idx_list is None:
+        idx_list = [-2, -3, -4]
+
+    if level == 0:
+        return False
+
+    atr_14 = df['atr_14'].iloc[-2]
+    tol    = atr_14 * tol_atr       # e.g. 0.1 * ATR
+
+    retest     = False
+    case_color = get_case_color(app_config, case)
+
+    for idx in idx_list:
+        row = df.iloc[idx]
+
+        # first 5-minute bar excluded — must be after 9:35
+        if date_utils.get_hhmm_int(row['date']) < 935:
+            continue
+
+        if side == 'up':
+            # low touched back to within tol of level; close held above
+            touched = row['low'] <= level + tol
+            held    = row['close'] > level
+        else:
+            # high touched back to within tol of level; close held below
+            touched = row['high'] >= level - tol
+            held    = row['close'] < level
+
+        if not (touched and held):
+            logger.debug(
+                f"[price_retest_v2] {symbol} idx:{idx} — "
+                f"touched:{touched} held:{held} skip"
+            )
+            continue
+
+        # --- record the retest ---
+        application_state['retests'].setdefault(symbol, []).append({
+            'side':        side,
+            'level':       level,
+            'level_alias': level_alias,
+            'idx':         idx,
+            'time':        str(row['date']),
+        })
+
+        offseted_price = chart_helper.get_stacked_mark_price(
+            app_config, application_state, symbol,
+            side='up', price=df['high'].iloc[idx],
+            date=df['date'].iloc[idx], caller_key="price_retest_v2"
+        )
+        TradingLedger.add_to_list(
+            "signals",
+            (symbol, 'RETEST', offseted_price, df['date'].iloc[idx],
+             f"RETEST_V2 {level_alias} tol:{tol:.4f} ... {df['date'].iloc[idx].strftime('%H:%M')}",
+             case_color)
+        )
+
+        logger.info(
+            f"[price_retest_v2] {symbol} {level_alias} side:{side} "
+            f"level:{level:.4f} tol:{tol:.4f} "
+            f"{'low' if side == 'up' else 'high'}:{row['low'] if side == 'up' else row['high']:.4f} "
+            f"close:{row['close']:.4f} idx:{idx} time:{row['date']}"
+        )
+        retest = True
+
+    return retest
+
+
+def check_close_displacement(app_config, application_state, case, symbol, df, side='up', level=None, level_alias=None, min_close_disp_atr=0.1):
+    """
+    Close Displacement filter (R2 quality check).
+
+    Finds the closest any close got to the level from the break side
+    during the arc window (breakout bar → retest bar, exclusive).
+
+    long  : cd_pts = min(close) - level   (lowest close above level)
+    short : cd_pts = level - max(close)   (highest close below level)
+
+    Returns True when cd_pts / ATR(14) >= min_close_disp_atr (default 0.1).
+    Ensures closes stayed displaced and never crept back to the level.
+    """
+    # --- guard checks ---
+    if not level:
+        logger.debug(f"[check_close_displacement] {symbol} — no level provided")
+        return False
+
+    # no retest recorded → nothing to measure, bail out early
+    retest_idx = get_retest_idx(application_state, symbol, level)
+    if retest_idx is None:
+        logger.debug(f"[check_close_displacement] {symbol} — no retest recorded for level {level}")
+        return False
+
+    breakout_idx = get_breakout_idx(application_state, symbol, level)
+    if breakout_idx is None:
+        logger.debug(f"[check_close_displacement] {symbol} — no breakout recorded for level {level}")
+        return False
+
+    atr_14 = df['atr_14'].iloc[-2]
+    if atr_14 <= 0:
+        logger.warning(f"[check_close_displacement] {symbol} — atr_14 is zero/negative, skipping")
+        return False
+
+    # slice arc window: breakout bar up to (but NOT including) the retest bar
+    arc_df = df.iloc[breakout_idx:retest_idx]
+
+    if len(arc_df) == 0:
+        logger.debug(f"[check_close_displacement] {symbol} — arc window is empty")
+        return False
+
+    # find the closest close to the level from the correct side
+    if side == 'up':
+        break_min_close = arc_df['close'].min()  # lowest close above level
+        cd_pts = break_min_close - level
+    else:
+        break_max_close = arc_df['close'].max()  # highest close below level
+        cd_pts = level - break_max_close
+
+    cd_atr = cd_pts / atr_14
+    passed = cd_atr >= min_close_disp_atr
+
+    logger.info(
+        f"[check_close_displacement] {symbol} {level_alias} side:{side} "
+        f"level:{level:.4f} cd_pts:{cd_pts:.4f} atr_14:{atr_14:.4f} "
+        f"cd_atr:{cd_atr:.2f} threshold:{min_close_disp_atr} → {'PASS' if passed else 'FAIL'}"
+    )
+    return passed
