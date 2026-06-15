@@ -130,11 +130,11 @@ async def orchestrate_expirations_strikes(ib, app_config, application_state, mar
     expirations_manually_created = {}
     for s in app_config['symbols']:
         if s not in ['QQQ', 'SPY', 'MNQ']:
-            expirations_manually_created[f"{s}-expirations"] = date_utils.next_fridays(10)
+            expirations_manually_created[f"{s}-expirations"] = date_utils.next_option_expirations(5)
 
     for s in app_config['symbols']:
         if s in ['QQQ', 'SPY']:
-            expirations_manually_created[f"{s}-expirations"] = date_utils.next_business_days(10)
+            expirations_manually_created[f"{s}-expirations"] = date_utils.next_business_days(5)
 
     options_meta_date_dic.update(expirations_manually_created)
 
