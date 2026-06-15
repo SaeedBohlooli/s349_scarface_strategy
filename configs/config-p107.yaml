@@ -165,7 +165,7 @@ closeness_distance_for_case_1: df['atr_14'].iloc[-2] * 2
 options:
   use_manual_strikes: True
   max_otm_strikes_for_quotes: 3
-  max_option_contracts_to_prepare: 10
+  max_option_contracts_to_prepare: 5
 
 
 strike_increments:  # default is 2.5., dont put it here if it i 2.5

@@ -333,7 +333,7 @@ async def prepare_contracts_for_otm_option_contracts(ib, app_config, application
     otm_calls = [s for s in strikes if s > underlying_price]
     # itm_puts = [s for s in strikes if s > underlying_price]
     otm_puts = [s for s in strikes if s < underlying_price]
-    logger.info(f"[prepare_contracts_for_otm_option_contracts] symbol: {symbol}, right: {right}, underlying_price: {underlying_price}, expiry: {expiry}, strikes: {strikes}, otm_calls: {otm_calls}, otm_puts: {otm_puts}")
+    logger.info(f"[prepare_contracts_for_otm_option_contracts] symbol: {symbol}, right: {right}, underlying_price: {underlying_price}, expiry: {expiry}, strikes first 0-5: {strikes[:5]}, otm_calls 0-5: {otm_calls[:5]}, otm_puts -5: {otm_puts[-5:]}")
     if len(otm_calls) == 0 or len(otm_puts) == 0:
         logger.warning(f"[prepare_contracts_for_otm_option_contracts] @@@ not enough otm options, so skip for later use. otm_calls: {otm_calls}, otm_puts: {otm_puts} ")
         return False
