@@ -389,6 +389,31 @@ async def unsubscribe_market_data_for_itm_option_contracts(ib):
         await ib_pricing_async.unsubscribe_contracts_from_market_data(ib,contracts_to_unsubscribe_for_market_data)
 
     return True
+async def unsubscribe_for_symbols(ib, app_config, application_state):
+    contracts_to_unsubscribe_for_market_data = []
+    for conid in global_state.conid_to_symbol_subscribed_for_quotes.keys():
+        contract = global_state.conid_to_contract_cache.get(conid)
+        if contract is None:
+            logger.warning(f"f[unsubscribe_for_symbols] @@@  contract is None. conid: {conid}")
+            continue
+
+        if not isinstance(contract, Option):
+            # if not option move on ... we only care about options here
+            logger.debug(f"[unsubscribe_for_symbols] @@@ contract is not option, so skip. contract: {contract}")
+            continue
+        # "Option(conId=879041559, symbol='QQQ', lastTradeDateOrContractMonth='20260514', strike=715.0, right='C', multiplier='100',
+        # exchange='SMART', currency='USD', localSymbol='QQQ   260514C00715000', tradingClass='QQQ')",
+        symbol = contract.tradingClass
+
+        if symbol not in app_config.get("symbols"):
+            contracts_to_unsubscribe_for_market_data.append(contract)
+            logger.info(f"[unsubscribe_for_symbols] {symbol}, {contract.right}, strike: {contract.strike}, contract: {contract}")
+
+    if contracts_to_unsubscribe_for_market_data:
+        await ib_pricing_async.unsubscribe_contracts_from_market_data(ib, contracts_to_unsubscribe_for_market_data)
+
+    return True
+
 
 async def unsubscribe_excessively_distant_option_contracts(ib, application_state):
 

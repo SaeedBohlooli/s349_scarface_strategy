@@ -125,7 +125,7 @@ class TradingEngine:
                     continue
 
                 self.app_config = self.runtime.reload_config()
-                if self.runtime.should_run_once('ORCHESTRATE_EXPIRATIONS_STRIKES'):
+                if self.runtime.is_due('ORCHESTRATE_EXPIRATIONS_STRIKES', interval_sec=60):
                     await options_helper.orchestrate_expirations_strikes(ib, self.app_config, self.application_state, self.market_data)
 
                 if self.runtime.should_run_once("SUBSCRIBE_FOR_CURRENT_PRICE"): # TODO need to be based on symbol.
@@ -136,6 +136,7 @@ class TradingEngine:
                     await options_helper.subscribe_market_data_for_all_otm_option_contracts(ib, self.app_config, self.application_state, self.market_data)
                     await options_helper.unsubscribe_market_data_for_itm_option_contracts(ib)
                     await options_helper.unsubscribe_excessively_distant_option_contracts(ib, self.application_state)
+                    await options_helper.unsubscribe_for_symbols(ib, self.app_config, self.application_state)
 
                 if not self.application_state['is_busy_time'] and self.runtime.is_due('DO_PNL', interval_sec=5*60): # TODO should be not busy_time?!
                     pnl_helper.populate_open_close_refs_pnl_df()
