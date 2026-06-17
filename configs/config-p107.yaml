@@ -84,12 +84,6 @@ symbols:
 #
 #symbols_all_in: symbols + symbols_w_quotes_only
 #
-#stop_losses:
-#  C:
-#    stop_loss_condition: underlying_previous_candle_close < level_used_to_open - tolerance_amount and underlying_current_price < underlying_previous_candle_close
-#
-#  P:
-#    stop_loss_condition: underlying_previous_candle_close > level_used_to_open + tolerance_amount and underlying_current_price > underlying_previous_candle_close
 
 stop_losses:
     - right == 'C' and case != 'case_manual' and underlying_previous_candle_close < level_used_to_open - tolerance_amount and underlying_current_price < underlying_previous_candle_close
