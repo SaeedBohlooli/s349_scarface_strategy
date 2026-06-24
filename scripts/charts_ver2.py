@@ -770,96 +770,102 @@ def create_chart_hovered_df(hover_df, symbol):
         'LEVEL_REPLACED': '○',
 
         # 'BREAKOUT': '●',
-        'BREAKOUT': '↑',
         'BREAKOUT': 'B',
 
         # Up / Positive
-        'FLASH_UP': '▲',
-        'UP': '▲',
-        'STRONG_UP': '⏫',
-        'BREAKOUT_UP': '🔥',
+        # 'FLASH_UP': '▲',
+        # 'UP': '▲',
+        # 'STRONG_UP': '⏫',
+        # 'BREAKOUT_UP': '🔥',
 
         # Down / Negative
-        'FLASH_DOWN': '▼',
-        'DOWN': '▼',
-        'STRONG_DOWN': '⏬',
-        'BREAKOUT_DOWN': '💥',
+        # 'FLASH_DOWN': '▼',
+        # 'DOWN': '▼',
+        # 'STRONG_DOWN': '⏬',
+        # 'BREAKOUT_DOWN': '💥',
 
         # Neutral / Flat
-        'NEUTRAL': '●',
-        'FLAT': '▬',
-        'SIDEWAYS': '○',
+        # 'NEUTRAL': '●',
+        # 'FLAT': '▬',
+        # 'SIDEWAYS': '○',
 
         # Hold / Pause
-        'HOLD': '■',
-        'WAIT': '⏸',
+        # 'HOLD': '■',
+        # 'WAIT': '⏸',
 
         # Exit / Stop
-        'EXIT': '✖',
-        'STOP': '⛔',
-        'CANCEL': '❌',
+        # 'EXIT': '✖',
+        # 'STOP': '⛔',
+        # 'CANCEL': '❌',
 
         # Highlight / Special
-        'ALERT': '★',
-        'NEWS': '⚡',
-        'VOLUME_SPIKE': '◆',
+        # 'ALERT': '★',
+        # 'NEWS': '⚡',
+        # 'VOLUME_SPIKE': '◆',
 
         # Highlight / Special
         # 'RETEST': '●',
         'RETEST': 'R',
-        'RETEST_UP': '★',
-        'RETEST_DOWN': '★',
+        # 'RETEST_UP': '★',
+        # 'RETEST_DOWN': '★',
 
-        'bullish_reversal' : '◆',
-        'bearish_reversal' : '◆',
+        # 'bullish_reversal' : '◆',
+        # 'bearish_reversal' : '◆',
 
         # ------------we use form here
         'CANDLE_TYPE': '○',
 
         # BUY and sell Entry
-        'BUY_ENTRY_case_1': '■',
-        'SELL_ENTRY_case_1': '■',
+        # 'BUY_ENTRY_case_1': '■',
+        # 'SELL_ENTRY_case_1': '■',
+
         # BUY and sell Entry
-        'BUY_ENTRY_case_2': '●',
-        'SELL_ENTRY_case_2': '●',
 
-        'BUY_ENTRY_case_3': '●',
-        'SELL_ENTRY_case_3': '●',
+        'BUY_ENTRY': '●',
+        'SELL_ENTRY': '●',
 
-        'BUY_ENTRY_case_4': '●',
-        'SELL_ENTRY_case_4': '●',
+        # 'BUY_ENTRY_case_2': '●',
+        # 'SELL_ENTRY_case_2': '●',
+        #
+        # 'BUY_ENTRY_case_3': '●',
+        # 'SELL_ENTRY_case_3': '●',
+        #
+        # 'BUY_ENTRY_case_4': '●',
+        # 'SELL_ENTRY_case_4': '●',
+        #
+        # 'BUY_ENTRY_case_5': '●',
+        # 'SELL_ENTRY_case_5': '●',
+        #
+        # 'BUY_ENTRY_case_6': '●',
+        # 'SELL_ENTRY_case_6': '●',
+        #
+        # 'BUY_ENTRY_case_7': '●',
+        # 'SELL_ENTRY_case_7': '●',
 
-        'BUY_ENTRY_case_5': '●',
-        'SELL_ENTRY_case_5': '●',
-
-        'BUY_ENTRY_case_6': '●',
-        'SELL_ENTRY_case_6': '●',
-
-        'BUY_ENTRY_case_7': '●',
-        'SELL_ENTRY_case_7': '●',
 
 
-        'SCREENING_case_1': '○',
-        'SCREENING_case_2': '○',
-        'SCREENING_case_3': '○',
+
+        # 'SCREENING_case_1': '○',
+        # 'SCREENING_case_2': '○',
+        # 'SCREENING_case_3': '○',
 
         'ORDER_SENT': '◆',
         'STOP_LOSS_SENT': '◆',
         'TAKE_PROFIT_SENT': '◆',
 
-        'BACKTEST_STOP_LOSS': '❉',
-        'BACKTEST_TAKE_PROFIT': '◍',
-        'BACKTEST_CLOSE_POSITION': '🞉',
+        # 'BACKTEST_STOP_LOSS': '❉',
+        # 'BACKTEST_TAKE_PROFIT': '◍',
+        # 'BACKTEST_CLOSE_POSITION': '🞉',
 
         'CANDLE_INFO': '○',
 
         '5MH_SMALL_DOT': '.',
-        '5MH_SMALL_DOT_1': '.',
-        '5MH_SMALL_DOT_2': '.',
+        # '5MH_SMALL_DOT_1': '.',
+        # '5MH_SMALL_DOT_2': '.',
 
         '5ML_SMALL_DOT': '.',
-        '5ML_SMALL_DOT_1': '.',
-        '5ML_SMALL_DOT_2': '.',
+        # '5ML_SMALL_DOT_1': '.',
+        # '5ML_SMALL_DOT_2': '.',
 
 
         'ORDER_SENT': '◆',
@@ -872,9 +878,9 @@ def create_chart_hovered_df(hover_df, symbol):
 
         # ------
         # Test 
-        'x': '↑',
-        'b': '↓',
-        'b': '->',
+        # 'x': '↑',
+        # 'b': '↓',
+        # 'b': '->',
     }
 
     mask = df_1["object"].str.contains("TEXT", case=False, na=False)
@@ -883,7 +889,17 @@ def create_chart_hovered_df(hover_df, symbol):
     df_1.loc[mask, "signals"] = df_1["memo"].str.split("#").str[0].str.strip()
 
     # Otherwise - > use mapping fallback
-    df_1.loc[~mask, "signals"] = df_1["object"].map(mapping).fillna("●")
+    # Exact match first, then prefix match, then default '●'
+    def resolve_signal(obj):
+        s = str(obj)
+        if s in mapping:
+            return mapping[s]
+        for key, symbol in mapping.items():
+            if s.startswith(key):
+                return symbol
+        return "●"
+
+    df_1.loc[~mask, "signals"] = df_1["object"].apply(resolve_signal)
 
     df_1 = df_1[['date', 'price', 'signals', 'color', 'text']]
     logger.info(f"[create_chart_hovered_df], created hover df_1:\n{df_1[-5:].to_markdown()}")
