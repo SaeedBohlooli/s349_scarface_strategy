@@ -1,4 +1,5 @@
 import logging
+import datetime
 import traceback
 
 from trading_core.trading_ledger import TradingLedger
@@ -1668,3 +1669,24 @@ def check_close_displacement(app_config, application_state, case, symbol, df, si
         f"cd_atr:{cd_atr:.2f} threshold:{min_close_disp_atr} - > {'PASS' if passed else 'FAIL'}"
     )
     return passed
+
+
+def is_second_candle_after(min_seconds=15):
+    """
+    Returns True if the current time is past min_seconds within the current minute.
+    e.g. min_seconds=15 → True when clock shows HH:MM:15 or later.
+    """
+    return datetime.datetime.now().second >= min_seconds
+
+
+def has_strong_close(df, side='up'):
+    if side == 'up':
+        if df['close'].iloc[-1] > ( df['high'].iloc[-1] + df['low'].iloc[-1] ) / 2:
+            return True
+        else:
+            return False
+    else:
+        if df['close'].iloc[-1] < ( df['high'].iloc[-1] + df['low'].iloc[-1] ) / 2:
+            return True
+        else:
+            return False
