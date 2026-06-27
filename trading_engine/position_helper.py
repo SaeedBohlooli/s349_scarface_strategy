@@ -53,3 +53,19 @@ def calculate_number_of_open_positions(application_state):
         if trade.get("available_quantity", 0) > 0:
             count += 1
     return count
+
+
+def set_stop_loss(application_state, user_request):
+    stop_loss = user_request.get('stop_loss', 0)
+    order_ref = user_request.get('order_ref', '')
+    open_trades = application_state.get("open_trades_dic", {})
+    for symbol, trade in open_trades.items():
+        if not trade:  # empty dict - > skip
+            continue
+        if trade.get("available_quantity", 0) == 0:
+            continue
+        if trade.get("order_ref", "") == order_ref:
+            logger.info(f"[set_stop_loss] order_ref: {order_ref}, new stop_loss: {stop_loss}")
+            trade["stop_loss"] = stop_loss
+
+

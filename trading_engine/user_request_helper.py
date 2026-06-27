@@ -3,6 +3,7 @@ import logging
 import traceback
 from trading_core import engine_cycle
 from trading_utils import date_utils
+from trading_engine import position_helper
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +15,9 @@ def process_user_requests(app_config, application_state):
         if request_type.upper() == 'OPEN_ORDER_FROM_XUI_CASE_MANUAL':
             user_request['status'] += '|ENGINE_PROCESSED'
             application_state.setdefault('case_manual_orders', []).append(user_request)
+        if request_type.upper() == 'SET_STOP_LOSS':
+            user_request['status'] += '|ENGINE_PROCESSED'
+            position_helper.set_stop_loss(application_state, user_request)
 
 
 async def process_app_user_request_loop(ib, app_config, application_state, interval_sec=5):
