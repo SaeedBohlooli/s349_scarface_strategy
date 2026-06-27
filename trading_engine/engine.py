@@ -317,8 +317,8 @@ class TradingEngine:
             self.engine_loop(ib),
             self.do_miscs(ib, self.app_config, self.application_state, interval_seconds=60),
             self.boot.data_saver_manager.run(ib, interval_sec=60),
-            user_request_loop.fetch_user_request_loop(self.app_config, self.application_state, interval_sec=5),
-            user_request_loop.process_common_user_request_loop(ib, self.app_config, self.application_state,interval_sec=5),
+            user_request_loop.fetch_user_request_loop(self.app_config, self.application_state, interval_sec=2),
+            user_request_loop.process_common_user_request_loop(ib, self.app_config, self.application_state,interval_sec=2),
             user_request_helper.process_app_user_request_loop(ib, self.app_config, self.application_state,interval_sec=1),
 
             ib_heartbeat_loop.ib_heartbeat_loop(ib, app_config=self.app_config,application_state=self.application_state, interval_seconds=60),
