@@ -344,7 +344,7 @@ def draw_w_plotly_w_subplot_1(symbol, chart_title='title'):
         ),
         xaxis3=dict(
             range=[start_time, end_time],  # 👈 sets visible window
-            rangeslider=dict(visible=False)  # Volume row
+            rangeslider=dict(visible=True, thickness=0.05)  # Volume row
         ),
         xaxis4=dict(
             range=[start_time, end_time],  # 👈 sets visible window
