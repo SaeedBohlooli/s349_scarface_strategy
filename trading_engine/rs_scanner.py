@@ -212,3 +212,80 @@ def rs_trend(df, qqq_df, levels, threshold=0.05):
         f"bull:{bull} bear:{bear} → {trend}"
     )
     return trend
+
+def sort_symbols_based_on_rs(app_config, application_state, market_data):
+    """
+    §4  Ranking pipeline — sorts the watchlist by RS Spread, strongest first.
+
+    Steps (per spec §4):
+      1. Compute SinceOpen% for every symbol and the benchmark (QQQ).
+      2. Drop any symbol where SinceOpen% can't be computed (missing/zero open).
+      3. Compute RS Spread for each remaining symbol.
+      4. Compute PrevD, PreMkt, Trend for each remaining symbol.
+      5. Sort descending by RS Spread.
+
+    Writes the ranked list to application_state['rs_ranking'] and returns it.
+
+    Returns a list of dicts (strongest first), e.g.:
+      [
+        { 'symbol': 'NVDA', 'rs_spread': 1.23, 'since_open_pct': 2.1,
+          'move_pct': 0.5, 'prev_d': 'Above', 'pre_mkt': 'Above', 'trend': 'Long' },
+        ...
+      ]
+    Returns [] when QQQ data is unavailable.
+    """
+    qqq_df = market_data.dfs_map.get('QQQ')
+    if qqq_df is None:
+        logger.warning("[sort_symbols_based_on_rs] QQQ df not available — cannot rank")
+        return []
+
+    qqq_since_open = rs_since_open_pct(qqq_df)
+    if qqq_since_open is None:
+        logger.warning("[sort_symbols_based_on_rs] QQQ since-open% is None — cannot rank")
+        return []
+
+    ranked = []
+    symbols = [s for s in app_config.get('symbols', []) if s != 'QQQ']
+
+    for symbol in symbols:
+        df = market_data.dfs_map.get(symbol)
+        if df is None:
+            logger.debug(f"[sort_symbols_based_on_rs] {symbol} — no df, skipping")
+            continue
+
+        # §4 step 2: drop symbols where since-open% can't be computed
+        since_open = rs_since_open_pct(df)
+        if since_open is None:
+            logger.debug(f"[sort_symbols_based_on_rs] {symbol} — since_open_pct is None, skipping")
+            continue
+
+        levels = application_state.get('levels', {}).get(symbol, {})
+
+        spread   = round(since_open - qqq_since_open, 4)
+        move     = rs_move_pct(df)
+        prev_d   = rs_prev_d(df, levels)
+        pre_mkt  = rs_pre_mkt(df, levels)
+        trend    = rs_trend(df, qqq_df, levels)
+
+        ranked.append({
+            'symbol':         symbol,
+            'rs_spread':      spread,
+            'since_open_pct': since_open,
+            'move_pct':       move,
+            'prev_d':         prev_d,
+            'pre_mkt':        pre_mkt,
+            'trend':          trend,
+        })
+
+    # §4 step 5: sort descending by RS Spread — strongest relative movers first
+    ranked.sort(key=lambda x: x['rs_spread'], reverse=True)
+
+    application_state['rs_ranking'] = ranked
+    application_state['rs_ranked_symbols'] = [r['symbol'] for r in ranked]
+
+    logger.info(
+        f"[sort_symbols_based_on_rs] ranked {len(ranked)} symbols. "
+        f"Top: {ranked[0]['symbol']} {ranked[0]['rs_spread']:+.4f}" if ranked else
+        f"[sort_symbols_based_on_rs] no symbols ranked"
+    )
+    return ranked
