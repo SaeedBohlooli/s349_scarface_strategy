@@ -232,6 +232,7 @@ cases:
         - skip_pdhl_and_qqq_check_enabled or price < levels['PDH'] or get_current_price(ib, application_state, 'QQQ') > application_state['levels']['QQQ']['5MH']
         - qqq_df['close'].iloc[-1] > qqq_df['open'].iloc[-1]
         - skip_level_closeness_enabled or not is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='up', price=price, current_level=long_level, next_levels=['PDH'])
+        - has_strong_close(df, side=''up')
 
     short:
       level: levels['5ML']
@@ -253,6 +254,7 @@ cases:
         - price > levels['PDL'] or get_current_price(ib, application_state, 'QQQ') < application_state['levels']['QQQ']['5ML']
         - qqq_df['close'].iloc[-1] < qqq_df['open'].iloc[-1]
         - not is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='down', price=price, current_level=short_level, next_levels=['PDL'])
+        - has_strong_close(df, side='down')
 
   case_6:
 #    Displacement + Retracement BnR from 5MH/5ML.
@@ -293,7 +295,7 @@ cases:
         - skip_pdhl_and_qqq_check_enabled or price < levels['PDH'] or get_current_price(ib, application_state, 'QQQ') > application_state['levels']['QQQ']['PDH']
         - qqq_df['close'].iloc[-1] > qqq_df['open'].iloc[-1]
         - skip_level_closeness_enabled or not is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='up', price=price, current_level=long_level, next_levels=['PDH'])
-
+        - has_strong_close(df, side=''up')
     short:
       level: levels['PDL']
       level_alias: "PDL"
@@ -325,14 +327,20 @@ cases:
       level: levels['5MH']
       level_alias: "5MH"
       cores:
-        - breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol, df, side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level, level_alias=level_alias)
+        - breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol, df, side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11,-12,-13], level=long_level, level_alias=level_alias)
         - price_retest_v2(app_config, application_state, case, symbol, df, side='up', idx_list=[-2,-3,-4], level=long_level, level_alias=level_alias)
         - does_arc_has_enough_heights(app_config, application_state, case, symbol, df, side='up', level=long_level, level_alias=level_alias, min_height_atr_ratio=0.5)
         - check_arc_duration(app_config, application_state, case, symbol, df, side='up', level=long_level, level_alias=level_alias, arc_min_bars=4)
         - check_close_displacement(app_config, application_state, case, symbol, df, side='up', level=long_level, level_alias=level_alias, min_close_disp_atr=0.1)
         - is_retest_after_breakout(application_state, symbol, side='up', level=long_level)
       extras:
-        - 1 == 1
+        - 7 == 7
+        - has_strong_close(df, side='up')
+        - is_second_candle_after(min_seconds=15)
+        - price > long_level
+        # - check_rs_relative()
+
+
 
     short:
       level: levels['5ML']
@@ -345,7 +353,12 @@ cases:
         - check_close_displacement(app_config, application_state, case, symbol, df, side='down', level=short_level, level_alias=level_alias, min_close_disp_atr=0.1)
         - is_retest_after_breakout(application_state, symbol, side='down', level=short_level)
       extras:
-        - 1 == 1
+        - 7 == 7
+        - has_strong_close(df, side='down')
+        - is_second_candle_after(min_seconds=15)
+        - price < short_level
+
+
 
 
   case_8:
@@ -357,14 +370,19 @@ cases:
       level: levels['PDH']
       level_alias: "PDH"
       cores:
-        - breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol, df, side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level, level_alias=level_alias)
+        - breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol, df, side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11,-12,-13], level=long_level, level_alias=level_alias)
         - price_retest_v2(app_config, application_state, case, symbol, df, side='up', idx_list=[-2,-3,-4], level=long_level, level_alias=level_alias)
         - does_arc_has_enough_heights(app_config, application_state, case, symbol, df, side='up', level=long_level, level_alias=level_alias, min_height_atr_ratio=0.5)
         - check_arc_duration(app_config, application_state, case, symbol, df, side='up', level=long_level, level_alias=level_alias, arc_min_bars=4)
         - check_close_displacement(app_config, application_state, case, symbol, df, side='up', level=long_level, level_alias=level_alias, min_close_disp_atr=0.1)
         - is_retest_after_breakout(application_state, symbol, side='up', level=long_level)
       extras:
-        - 1 == 1
+        - 7 == 7
+        - has_strong_close(df, side='up')
+        - is_second_candle_after(min_seconds=15)
+        - price > long_level
+
+
 
     short:
       level: levels['PDL']
@@ -377,7 +395,10 @@ cases:
         - check_close_displacement(app_config, application_state, case, symbol, df, side='down', level=short_level, level_alias=level_alias, min_close_disp_atr=0.1)
         - is_retest_after_breakout(application_state, symbol, side='down', level=short_level)
       extras:
-        - 1 == 1
+        - 7 == 7
+        - has_strong_close(df, side='down')
+        - is_second_candle_after(min_seconds=15)
+        - price < short_level
 
   case_3:
     memo: This is for Saeed's live test

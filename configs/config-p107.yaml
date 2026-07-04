@@ -70,13 +70,14 @@ symbols:
   - TSLA
   - MU
   - SPY
-#  - INTC
-#  - WDC
+  - INTC
 #  - META
 #  - SNDK
 #  - GOOG
 #  - HOOD
-#  - MSFT
+  - MSFT
+#  - MRVL
+#  - WDC
 
 #symbols_for_screening: ["QQQ", "AAPL", "AMD", "AMZN", "NVDA", "PLTR", "TSLA", "MU", "SPY"]
 #symbols_with_quotes: ["MSFT", "INTC"]
@@ -90,6 +91,8 @@ stop_losses:
     - right == 'P' and case != 'case_manual' and underlying_previous_candle_close > level_used_to_open + tolerance_amount and underlying_current_price > underlying_previous_candle_close
     - right == 'C' and user_defined_stop_loss !=0 and underlying_current_price < user_defined_stop_loss
     - right == 'P' and user_defined_stop_loss !=0 and underlying_current_price > user_defined_stop_loss
+    - right == 'C' and case in ('case_7', 'case_8') and underlying_current_price < level_used_to_open - tolerance_amount
+    - right == 'P' and case in ('case_7', 'case_8') and underlying_current_price > level_used_to_open + tolerance_amount
     - current_bid < entry_price * 0.70
 
 take_profits:
@@ -158,12 +161,6 @@ take_profits:
     condition: 1 == 3 and symbol == 'TSLA'
     close_quantity_percentage: -1
 
-  tp_kill:
-    enabled: true
-    condition: current_bid < entry_price * 0.70
-    close_quantity_percentage: -1
-    memo: If we are down 30%, then we kill the position to save capital for next trades
-
 
 closeness_distance: df['atr_14'].iloc[-2]
 
@@ -190,7 +187,7 @@ strike_increments:  # default is 2.5., don't put it here if it i 2.5
     HOOD: 1
 
 # before_start:
-load_application_state_from_file: true
+load_application_state_from_file: false
 
 user_name: saeed
 
