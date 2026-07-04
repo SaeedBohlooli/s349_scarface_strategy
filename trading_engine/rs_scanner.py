@@ -235,6 +235,12 @@ def sort_symbols_based_on_rs(app_config, application_state, market_data):
     Returns [] when QQQ data is unavailable.
     """
     logger.info(f"[sort_symbols_based_on_rs] started ..")
+    current_hhmm = int(datetime.datetime.now().strftime("%H%M"))
+    if current_hhmm < 931:
+        logger.debug(f"[sort_symbols_based_on_rs] before 9:31 ({current_hhmm}) — skipping")
+        return []
+
+
     qqq_df = market_data.dfs_map.get('QQQ')
     if qqq_df is None:
         logger.warning("[sort_symbols_based_on_rs] QQQ df not available — cannot rank")
