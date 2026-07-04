@@ -3,14 +3,7 @@ import datetime
 import traceback
 
 from trading_core.trading_ledger import TradingLedger
-from trading_engine.rs_scanner import (
-    rs_move_pct,
-    rs_since_open_pct,
-    rs_spread,
-    rs_prev_d,
-    rs_pre_mkt,
-    rs_trend,
-)
+
 
 logger = logging.getLogger(__name__)
 from trading_utils import ib_contract, ib_pricing_async
