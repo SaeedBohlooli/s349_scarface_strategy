@@ -326,7 +326,7 @@ def breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol
             })
             breakout_idxs.append(idx)
             breakout_happened = True
-            offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx], date=df['date'].iloc[idx], caller_key="breakout_in_last_x_candles_ver_4")
+            offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx], date=df['date'].iloc[idx], caller_key=f"breakout_in_last_x_candles_ver_4-{case}")
             case_color = get_case_color(app_config, case)
             TradingLedger.add_to_list("signals", (symbol, f'BREAKOUT_{case}', offseted_price, df['date'].iloc[idx], f"BREAKOUT-v4 {level_alias} ... {df['date'].iloc[idx].strftime('%H:%M')}... ", case_color) )
 
@@ -346,7 +346,7 @@ def breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol
                             'idx': breakout_idx-1,
                             'time': str(row['date']),
                         })
-                        offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[breakout_idx - 1], date=df['date'].iloc[breakout_idx - 1], caller_key="breakout_in_last_x_candles_ver_4")
+                        offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[breakout_idx - 1], date=df['date'].iloc[breakout_idx - 1], caller_key=f"breakout_in_last_x_candles_ver_4-{case}")
                         case_color = get_case_color(app_config, case)
                         TradingLedger.add_to_list("signals", (symbol, f'BREAKOUT_{case}', offseted_price, row['date'], f"BREAKOUT-v4 {level_alias} ... {row['date'].strftime('%H:%M')}... ", case_color) )
                 else:
@@ -361,7 +361,7 @@ def breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol
                             'idx': breakout_idx-1,
                             'time': str(row['date']),
                         })
-                        offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[breakout_idx - 1], date=df['date'].iloc[breakout_idx - 1], caller_key="breakout_in_last_x_candles_ver_4")
+                        offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[breakout_idx - 1], date=df['date'].iloc[breakout_idx - 1], caller_key=f"breakout_in_last_x_candles_ver_4-{case}")
                         case_color = get_case_color(app_config, case)
                         TradingLedger.add_to_list("signals", (symbol, f'BREAKOUT_{case}', offseted_price, row['date'], f"BREAKOUT-v4 {level_alias} ... {row['date'].strftime('%H:%M')}... ", case_color) )
 
