@@ -34,6 +34,7 @@ from trading_engine import chart_helper
 from trading_engine import position_helper
 from trading_engine import pnl_helper
 from trading_engine import user_request_helper
+from trading_engine import rs_scanner
 
 from trading_utils import position_router
 from trading_utils import user_request_router
@@ -243,6 +244,10 @@ class TradingEngine:
 
 
                     # end while for symbols
+
+                # RS Ranking — runs once per minute after all symbols have fresh data + levels
+                if self.runtime.is_due('RS_RANKING', interval_sec=20):
+                    rs_scanner.sort_symbols_based_on_rs(self.app_config, self.application_state, self.market_data)
 
                 if (position_helper.calculate_number_of_open_positions(self.application_state) > 0 or  # either is open positions or ...
                         self.runtime.is_due(f'UPDATE-IB-POSITIONS', interval_sec=3*60)):

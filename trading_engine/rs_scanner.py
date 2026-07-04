@@ -234,6 +234,7 @@ def sort_symbols_based_on_rs(app_config, application_state, market_data):
       ]
     Returns [] when QQQ data is unavailable.
     """
+    logger.info(f"[sort_symbols_based_on_rs] started ..")
     qqq_df = market_data.dfs_map.get('QQQ')
     if qqq_df is None:
         logger.warning("[sort_symbols_based_on_rs] QQQ df not available — cannot rank")
@@ -288,4 +289,5 @@ def sort_symbols_based_on_rs(app_config, application_state, market_data):
         f"Top: {ranked[0]['symbol']} {ranked[0]['rs_spread']:+.4f}" if ranked else
         f"[sort_symbols_based_on_rs] no symbols ranked"
     )
+    logger.info(f"[sort_symbols_based_on_rs] finished ..")
     return ranked
