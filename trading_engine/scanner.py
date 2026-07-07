@@ -1691,3 +1691,18 @@ def has_strong_close(df, side='up'):
             return True
         else:
             return False
+
+def is_symbol_in_rs_shortlist(app_config, application_state, symbol, side='up', threshold=3):
+    """
+    Checks if the symbol is in the RS shortlist for the current day.
+    Returns True if it is, False otherwise.
+    """
+    rs_shortlist = application_state.get('rs_ranked_symbols', [])
+    if not rs_shortlist or threshold <= 0:
+        return False
+    if side == 'up':
+        top_ranked_symbols = rs_shortlist[:threshold]
+        return symbol in top_ranked_symbols
+    else:
+        ranked_symbols = rs_shortlist[-threshold:]
+        return symbol in ranked_symbols
