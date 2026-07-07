@@ -405,7 +405,7 @@ cases:
     memo: 5MH and 5ML and rs
     can_replace_level: true
     precondition: all_levels_in(application_state, symbol)
-    color: blue
+    color: teal
     long:
       level: levels['5MH']
       level_alias: "5MH"
@@ -456,7 +456,7 @@ cases:
     memo: From PDH PDL - we running this one
     can_replace_level: false
     precondition: all_levels_in(application_state, symbol)
-    color: green
+    color: crimson
     long:
       level: levels['PDH']
       level_alias: "PDH"
