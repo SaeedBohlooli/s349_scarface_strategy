@@ -104,11 +104,11 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
         result_long =  ",".join(f"{i + 1}:{val}" for i, val in enumerate(evaluated_conditions_map.get('long', {}).get('valuated_conditions', [])))
         result_short = ",".join(f"{i + 1}:{val}" for i, val in enumerate(evaluated_conditions_map.get('short', {}).get('valuated_conditions', [])))
 
-        long_breakout_idx = get_breakout_idx(application_state, symbol, long_level)
-        short_breakout_idx = get_breakout_idx(application_state, symbol, short_level)
+        long_breakout_idx = get_breakout_idx(application_state, case, symbol, long_level)
+        short_breakout_idx = get_breakout_idx(application_state, case, symbol, short_level)
 
-        long_retest_idx = get_retest_idx(application_state, symbol, long_level)
-        short_retest_idx = get_retest_idx(application_state, symbol, short_level)
+        long_retest_idx = get_retest_idx(application_state, case, symbol, long_level)
+        short_retest_idx = get_retest_idx(application_state, case, symbol, short_level)
 
         logger.info(f"[check_buy_sell_condition] breakout_idxs, {case}, {symbol}, can_buy: {long_breakout_idxs}, {long_retest_idxs}")
         logger.info(f"[check_buy_sell_condition] breakout_idxs, {case}, {symbol}, can_sell: {short_breakout_idxs}, {short_retest_idxs}")
@@ -295,13 +295,15 @@ def breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol
             cond_1 = (row["open"] <= level and row["close"] > level + gap)    # The price above level + gap
             cond_2 = (previous["open"] < level and row["close"] > level + gap)  # The prev open is below level and current above the level.
             cond_3 = (previous["open"] < level and row["open"] > level and row["close"] > level)  # The prev open is below level and current open and close are above the level.
-            cond_4 = (row["low"] <= level and row["close"] > level and next["open"] > level and next["close"] > level and next["close"]  > next["open"] )  # The current open is below level and next open and close both above the level
+            cond_4 = (row["low"] <= level and row["close"] > level and next["open"] > level and next["close"] > level and next["close"]  > next["open"]
+                      and previous["low"] < level)  # The current open is below level and next open and close both above the level
 
         else:
             cond_1 = (row["open"] >= level and row["close"] < level - gap)
             cond_2 = (previous["open"] > level and row["close"] < level - gap)
             cond_3 = (previous["open"] > level and row["open"] < level and row["close"] < level)
-            cond_4 = (row["high"]  >= level and row["close"] < level and next["open"] < level and next["close"] < level and next["close"] < next["open"])
+            cond_4 = (row["high"]  >= level and row["close"] < level and next["open"] < level and next["close"] < level and next["close"] < next["open"]
+                      and previous["high"] > level )
 
         breakout = (cond_1 or cond_2 or cond_3 or cond_4)
         if not breakout:
@@ -572,7 +574,7 @@ def price_retest(app_config, application_state, case, symbol, df, side='up', idx
 
     return retest
 
-def is_retest_after_breakout(application_state, symbol, side='up', level=1, level_alias=''):
+def set_and_is_retest_after_breakout(application_state, symbol, case, side='up', level=1, level_alias=''):
 
     breakout_idxs = get_break_out_indices_by_level_set(application_state, symbol, level)
     retest_idxs = get_retest_indices_by_level_set(application_state, symbol, level)
@@ -581,11 +583,11 @@ def is_retest_after_breakout(application_state, symbol, side='up', level=1, leve
         return False
     if max(retest_idxs) > min(breakout_idxs):
         retest_idx = max(retest_idxs)
-        application_state.setdefault('retest_idx', {}).setdefault(symbol, []).append({'retest_idx': retest_idx, 'level': level, 'level_alias': level_alias})
+        application_state.setdefault('retest_idx', {}).setdefault(symbol, []).append({'retest_idx': retest_idx, 'level': level, 'case': case,'level_alias': level_alias})
         valid_breakouts = [b for b in breakout_idxs if b < retest_idx]   # all the breakout idxs that are before retest_idx
         if valid_breakouts:
             breakout_idx = max(valid_breakouts)  # closest (largest) breakout before retest
-            application_state.setdefault('breakout_idx', {}).setdefault(symbol, []).append({'breakout_idx' : breakout_idx, 'level': level, 'level_alias': level_alias })
+            application_state.setdefault('breakout_idx', {}).setdefault(symbol, []).append({'breakout_idx' : breakout_idx, 'level': level, 'case': case, 'level_alias': level_alias })
         return True
     else:
         return False
@@ -605,30 +607,30 @@ def all_levels_in(application_state, symbol):
 
 
 
-# def get_breakout_idx(application_state, symbol, level):
+# def get_breakout_idx(application_state, case, symbol, level):
 #     return application_state.get('breakouts_idx', {}).get('symbol', {}).get(symbol, None)
 #
 # def get_retest_idx(application_state, case, symbol):
 #     return application_state.get('retests_idx', {}).get('case', {}).get(symbol, None)
 
-def get_breakout_idx(application_state, symbol, level):
+def get_breakout_idx(application_state, case, symbol, level):
    #  application_state.setdefault('breakout_idx', {}).get(symbol,{}) = {'breakout_idx' : breakout_idx, 'level': level, 'level_alias': level_alias }
-    for entry in application_state.get('breakout_idx', {}).get(symbol, []):
-        if entry['level'] == level:
+    for entry in application_state.get('breakout_idx', {}).get(symbol, []): # cases need to be involved
+        if entry['level'] == level and entry['case'] == case:
             return entry['breakout_idx']
     return None
 
-def get_retest_idx(application_state, symbol, level):
+def get_retest_idx(application_state, case, symbol, level):
     for entry in application_state.get('retest_idx', {}).get(symbol, []):
-        if entry['level'] == level:
+        if entry['level'] == level and entry['case'] == case:
             return entry['retest_idx']
     return None
 
 
 def check_entry_vs_retest(application_state, case, symbol, df, side='up', level=1, retest_ohlc=''):
 
-    retest_idx = get_retest_idx(application_state, symbol, level)
-    breakout_idx = get_breakout_idx(application_state, symbol, level)
+    retest_idx = get_retest_idx(application_state, case, symbol, level)
+    breakout_idx = get_breakout_idx(application_state, case, symbol, level)
 
     if retest_idx is None or breakout_idx is None:
         return False
@@ -657,7 +659,7 @@ def no_failure_after_breakout(application_state, case, symbol, df, side='up', le
     # for up, use 'open'
     # for down use 'close'
 
-    breakout_idx = get_breakout_idx(application_state, symbol, level)
+    breakout_idx = get_breakout_idx(application_state, case, symbol, level)
 
     if breakout_idx is None or breakout_idx == 0:
         return False
@@ -692,7 +694,7 @@ def check_price_vs_level(app_config, symbol, side='up', price=0, level=0):
 
 def is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='up', price= 0, current_level=1, next_levels=['PDH']):  # used in the config
 
-    breakout_idx = get_breakout_idx(application_state, symbol, current_level)
+    breakout_idx = get_breakout_idx(application_state, case, symbol, current_level)
 
     if breakout_idx == 0 or breakout_idx is None:
         return False
@@ -1003,7 +1005,7 @@ def price_retracement_to_level(
 
     On success stores:
         application_state['retests'][symbol]
-            same schema as price_retest – is_retest_after_breakout still works.
+            same schema as price_retest – set_and_is_retest_after_breakout still works.
         application_state['retracement_extremes'][symbol]
             full detail including extreme price for structured SL computation.
     """
@@ -1123,7 +1125,7 @@ def price_retracement_immediate(
       4. Candle closes back on the correct side of the level (no wick-only touch).
 
     Stores results in the same state keys as price_retracement_to_level so all
-    downstream helpers (is_retest_after_breakout, compute_structured_sl, etc.) work unchanged.
+    downstream helpers (set_and_is_retest_after_breakout, compute_structured_sl, etc.) work unchanged.
     """
     if idx_list is None:
         idx_list = [-2, -3, -4]   # tight window — immediate means 1–3 bars after breakout
@@ -1140,7 +1142,7 @@ def price_retracement_immediate(
     if displacement_range <= 0:
         return False
 
-    breakout_idx = get_breakout_idx(application_state, symbol, level)
+    breakout_idx = get_breakout_idx(application_state, case, symbol, level)
     tolerance_amount = (
         application_state.get('dynamic_tolerances', {}).get(symbol, {}).get('tolerance', 0)
         * app_config['symbols_meta'].get(symbol,{}).get('retest_tolerance_multiplier', 1)
@@ -1248,7 +1250,7 @@ def price_retracement_half_circle(
     if displacement_range <= 0:
         return False
 
-    breakout_idx = get_breakout_idx(application_state, symbol, level)
+    breakout_idx = get_breakout_idx(application_state, case, symbol, level)
     tolerance_amount = (
         application_state.get('dynamic_tolerances', {}).get(symbol, {}).get('tolerance', 0)
         * app_config['symbols_meta'].get(symbol,{}).get('retest_tolerance_multiplier', 1)
@@ -1348,7 +1350,7 @@ def get_retracement_extreme(application_state, symbol, level):
     return max(matching, key=lambda e: e['idx'])['extreme']
 
 
-def is_retracement_gap_acceptable(application_state, symbol, level, max_gap=6):
+def is_retracement_gap_acceptable(application_state, case, symbol, level, max_gap=6):
     """
     Extra safety check for case_5: ensures the gap between the displacement
     breakout candle and the retracement candle is at most max_gap bars.
@@ -1356,8 +1358,8 @@ def is_retracement_gap_acceptable(application_state, symbol, level, max_gap=6):
     displacement conviction has faded.
     Returns False when no breakout / retest has been recorded yet.
     """
-    breakout_idx = get_breakout_idx(application_state, symbol, level)
-    retest_idx   = get_retest_idx(application_state, symbol, level)
+    breakout_idx = get_breakout_idx(application_state, case, symbol, level)
+    retest_idx   = get_retest_idx(application_state, case, symbol, level)
 
     if breakout_idx is None or retest_idx is None:
         return False
@@ -1445,18 +1447,18 @@ def does_arc_has_enough_heights(app_config, application_state, case, symbol, df,
     """
     # --- guard checks ---
     if not level:
-        logger.debug(f"[does_arc_has_enough_heights] {symbol} — no level provided")
+        logger.info(f"[does_arc_has_enough_heights] {symbol} — no level provided")
         return False
 
     # no retest recorded - > nothing to measure, bail out early
-    retest_idx = get_retest_idx(application_state, symbol, level)
+    retest_idx = get_retest_idx(application_state, case, symbol, level)
     if retest_idx is None:
-        logger.debug(f"[does_arc_has_enough_heights] {symbol} — no retest recorded for level {level}, skipping arc calc")
+        logger.info(f"[does_arc_has_enough_heights] {symbol} — no retest recorded for level {level}, level_alias: {level_alias}, skipping arc calc")
         return False
 
-    breakout_idx = get_breakout_idx(application_state, symbol, level)
+    breakout_idx = get_breakout_idx(application_state, case, symbol, level)
     if breakout_idx is None:
-        logger.debug(f"[does_arc_has_enough_heights] {symbol} — no breakout recorded for level {level}")
+        logger.info(f"[does_arc_has_enough_heights] {symbol} — no breakout recorded for level {level}, level_alias: {level_alias}")
         return False
 
     atr_14 = df['atr_14'].iloc[-2]
@@ -1469,7 +1471,7 @@ def does_arc_has_enough_heights(app_config, application_state, case, symbol, df,
     arc_df = df.iloc[breakout_idx:-1]
 
     if len(arc_df) == 0:
-        logger.debug(f"[does_arc_has_enough_heights] {symbol} — arc window is empty")
+        logger.info(f"[does_arc_has_enough_heights] {symbol} — arc window is empty")
         return False
 
     # find the peak excursion over the arc window
@@ -1499,18 +1501,18 @@ def check_arc_duration(app_config, application_state, case, symbol, df, side='up
     """
     # --- guard checks ---
     if not level:
-        logger.debug(f"[check_arc_duration] {symbol} — no level provided")
+        logger.info(f"[check_arc_duration] {symbol} — no level provided")
         return False
 
     # no retest recorded - > nothing to measure, bail out early
-    retest_idx = get_retest_idx(application_state, symbol, level)
+    retest_idx = get_retest_idx(application_state, case, symbol, level)
     if retest_idx is None:
-        logger.debug(f"[check_arc_duration] {symbol} — no retest recorded for level {level}")
+        logger.info(f"[check_arc_duration] {symbol} — no retest recorded for level {level}")
         return False
 
-    breakout_idx = get_breakout_idx(application_state, symbol, level)
+    breakout_idx = get_breakout_idx(application_state, case, symbol, level)
     if breakout_idx is None:
-        logger.debug(f"[check_arc_duration] {symbol} — no breakout recorded for level {level}")
+        logger.info(f"[check_arc_duration] {symbol} — no breakout recorded for level {level}")
         return False
 
     # both indices are negative (e.g. breakout=-6, retest=-2)
@@ -1631,12 +1633,12 @@ def check_close_displacement(app_config, application_state, case, symbol, df, si
         return False
 
     # no retest recorded - > nothing to measure, bail out early
-    retest_idx = get_retest_idx(application_state, symbol, level)
+    retest_idx = get_retest_idx(application_state, case, symbol, level)
     if retest_idx is None:
         logger.debug(f"[check_close_displacement] {symbol} — no retest recorded for level {level}")
         return False
 
-    breakout_idx = get_breakout_idx(application_state, symbol, level)
+    breakout_idx = get_breakout_idx(application_state, case, symbol, level)
     if breakout_idx is None:
         logger.debug(f"[check_close_displacement] {symbol} — no breakout recorded for level {level}")
         return False

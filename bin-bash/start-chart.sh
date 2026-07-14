@@ -4,7 +4,7 @@ cd /opt/u107_level_driven_algo/bin-bash || exit 1
 source ../venv/bin/activate
 
 PORTFOLIO_ID="p107"
-SCRIPT_PATH="../scripts/charts_ver1.py"
+SCRIPT_PATH="../scripts/charts_ver2.py"
 COMMAND="${SCRIPT_PATH}  --portfolio-id=$PORTFOLIO_ID"
 PROCESS_MATCH="charts_ver1.py"
 

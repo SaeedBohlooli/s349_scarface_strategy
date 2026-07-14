@@ -68,13 +68,13 @@ symbols:
   - NVDA
   - PLTR
   - TSLA
-  - MU
+#  - MU
   - SPY
   - INTC
 #  - META
 #  - SNDK
 #  - GOOG
-#  - HOOD
+  - HOOD
   - MSFT
 #  - MRVL
 #  - WDC
@@ -91,8 +91,8 @@ stop_losses:
     - right == 'P' and case != 'case_manual' and underlying_previous_candle_close > level_used_to_open + tolerance_amount and underlying_current_price > underlying_previous_candle_close
     - right == 'C' and user_defined_stop_loss !=0 and underlying_current_price < user_defined_stop_loss
     - right == 'P' and user_defined_stop_loss !=0 and underlying_current_price > user_defined_stop_loss
-    - right == 'C' and case in ('case_7', 'case_8') and underlying_current_price < level_used_to_open - tolerance_amount
-    - right == 'P' and case in ('case_7', 'case_8') and underlying_current_price > level_used_to_open + tolerance_amount
+    - right == 'C' and case in ('case_7', 'case_8') and underlying_previous_candle_close < level_used_to_open - tolerance_amount
+    - right == 'P' and case in ('case_7', 'case_8') and underlying_previous_candle_close > level_used_to_open + tolerance_amount
     - current_bid < entry_price * 0.70
 
 take_profits:
@@ -103,7 +103,7 @@ take_profits:
       and entry_price not in [0,-1] and current_bid not in [0,-1]
     close_quantity_percentage: 0.6
     close_quantity_numbner: total - number_of_trails
-    memo: Taking some profit at 15% or 0.20 with 4 of 6
+    memo: Taking some profit at 15% or 0.20 with 4 of 6 - percentage_change comes from config
 
   t2:
     enabled: true
@@ -120,7 +120,17 @@ take_profits:
       and entry_price not in [0,-1] and current_bid not in [0,-1]
     close_quantity_percentage: -1
 
-  t4_ev:
+  t4_ev_if_t1:
+    enabled: true
+    condition: >
+      (right == 'C' and is_executed_take_profits(application_state, symbol, take_profit_list=['t1']) and underlying_previous_candle_close < entry_underlying_price)
+      or
+      (right == 'P' and is_executed_take_profits(application_state, symbol, take_profit_list=['t1']) and underlying_previous_candle_close > entry_underlying_price)
+    close_quantity_percentage: -1
+
+    memo: This is for break even - if we hit TP1, then we go for break even
+
+  t4_ev_if_t2:
     enabled: true
     condition: >
       (right == 'C' and is_executed_take_profits(application_state, symbol, take_profit_list=['t2']) and underlying_previous_candle_close < entry_underlying_price)
@@ -145,11 +155,11 @@ take_profits:
     close_quantity_percentage: -1
     memo: for long after tp1, if we go below last down close candle, then we close the position and vice versa for short
 
-    t6_trail_w_ema_9:
-      enabled: false
-      condition: symbol_df['close'].iloc[-1] < symbol_df['ema_9'].iloc[-1]  # for long after tp1, if we go below ema 9, then we close the position and vice versa for short
-      close_quantity_percentage: -1
-      memo: for long after tp1, if we go below last down close candle, then we close the position and vice versa for short
+  t6_trail_w_ema_9:
+    enabled: false
+    condition: symbol_df['close'].iloc[-1] < symbol_df['ema_9'].iloc[-1]  # for long after tp1, if we go below ema 9, then we close the position and vice versa for short
+    close_quantity_percentage: -1
+    memo: for long after tp1, if we go below last down close candle, then we close the position and vice versa for short
 
   t10_cl_manual: # This is for closing everything just NVDA:   1 == 1 and symbol == 'NVDA'
     enabled: False

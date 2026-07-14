@@ -8,7 +8,7 @@ cases:
       cores:
         - breakout_in_last_x_candles(side='up', idx_list=[-5], level=long_level)
         - price_retest(side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
-        - is_retest_after_breakout(side='up', level=long_level)
+        - set_and_is_retest_after_breakout(side='up', level=long_level)
         - check_entry_vs_retest(side='up', level=long_level)
         - no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
         - check_price_vs_level(side='up', price=price, level=long_level )
@@ -20,7 +20,7 @@ cases:
       cores:
         - breakout_in_last_x_candles(side='down', idx_list=[-5], level=short_level)
         - price_retest(side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True )
-        - is_retest_after_breakout(side='down', level=short_level)
+        - set_and_is_retest_after_breakout(side='down', level=short_level)
         - check_entry_vs_retest(side='down', level=short_level)
         - no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
         - check_price_vs_level(side='down', price=price, level=short_level )
@@ -36,7 +36,7 @@ cases:
       cores:
         - breakout_in_last_x_candles(side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level)
         - price_retest(side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
-        - is_retest_after_breakout(side='up', level=long_level)
+        - set_and_is_retest_after_breakout(side='up', level=long_level)
         - check_entry_vs_retest(side='up', level=long_level)
         - no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
         - check_price_vs_level(side='up', price=price, level=long_level )
@@ -47,7 +47,7 @@ cases:
       cores:
       - breakout_in_last_x_candles(side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level)
       - price_retest(side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True )
-      - is_retest_after_breakout(side='down', level=short_level)
+      - set_and_is_retest_after_breakout(side='down', level=short_level)
       - check_entry_vs_retest(side='down', level=short_level)
       - no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
       - check_price_vs_level(side='down', price=price, level=short_level )
@@ -63,7 +63,7 @@ cases:
       cores:
         - breakout_in_last_x_candles_ver_2(side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level)
         - price_retest(side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
-        - is_retest_after_breakout(side='up', level=long_level)
+        - set_and_is_retest_after_breakout(side='up', level=long_level)
         - check_entry_vs_retest(side='up', level=long_level)
         - no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
         - check_price_vs_level(side='up', price=price, level=long_level )
@@ -77,7 +77,7 @@ cases:
       cores:
         - breakout_in_last_x_candles_ver_2(side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level)
         - price_retest(side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True )
-        - is_retest_after_breakout(side='down', level=short_level)
+        - set_and_is_retest_after_breakout(side='down', level=short_level)
         - check_entry_vs_retest(side='down', level=short_level)
         - no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
         - check_price_vs_level(side='down', price=price, level=short_level )
@@ -100,7 +100,7 @@ cases:
       cores:
         - breakout_in_last_x_candles_ver_2(side='up', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=long_level)
         - price_retest(side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
-        - is_retest_after_breakout(side='up', level=long_level)
+        - set_and_is_retest_after_breakout(side='up', level=long_level)
         - check_entry_vs_retest(side='up', level=long_level)
         - no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
         - check_price_vs_level(side='up', price=price, level=long_level )
@@ -112,7 +112,7 @@ cases:
       cores:
         - breakout_in_last_x_candles_ver_2(side='down', idx_list=[-3,-4,-5,-6,-7,-8,-9,-10,-11], level=short_level)
         - price_retest(side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True )
-        - is_retest_after_breakout(side='down', level=short_level)
+        - set_and_is_retest_after_breakout(side='down', level=short_level)
         - check_entry_vs_retest(side='down', level=short_level)
         - no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
         - check_price_vs_level(side='down', price=price, level=short_level )
@@ -128,7 +128,7 @@ cases:
       cores:
         - breakout_in_last_x_candles_ver_2(side='up', idx_list=[-3,-4,-5], level=long_level)
         - price_retest(side='up', idx_list=[-2,-3,-4], level=long_level, both_sides=True )
-        - is_retest_after_breakout(side='up', level=long_level)
+        - set_and_is_retest_after_breakout(side='up', level=long_level)
         - check_entry_vs_retest(side='up', level=long_level)
         - no_failure_after_breakout(side='up', ohlc_field='close',level=long_level)
         - check_price_vs_level(side='up', price=price, level=long_level )
@@ -139,7 +139,7 @@ cases:
       cores:
         - breakout_in_last_x_candles_ver_2(side='down', idx_list=[-3,-4,-5], level=short_level)
         - price_retest(side='down', idx_list=[-2,-3,-4], level=short_level, both_sides=True )
-        - is_retest_after_breakout(side='down', level=short_level)
+        - set_and_is_retest_after_breakout(side='down', level=short_level)
         - check_entry_vs_retest(side='down', level=short_level)
         - no_failure_after_breakout(side='down', ohlc_field='close',level=short_level)
         - check_price_vs_level(side='down', price=price, level=short_level )

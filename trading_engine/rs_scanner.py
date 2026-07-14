@@ -125,7 +125,7 @@ def rs_prev_d(df, levels):
         label = 'Below'
     else:
         label = 'Inside'
-    logger.debug(f"[rs_prev_d] price:{price} PDH:{pdh} PDL:{pdl} → {label}")
+    logger.debug(f"[rs_prev_d] price:{price} PDH:{pdh} PDL:{pdl} => {label}")
     return label
 
 
@@ -148,7 +148,7 @@ def rs_pre_mkt(df, levels):
         label = 'Below'
     else:
         label = 'Inside'
-    logger.debug(f"[rs_pre_mkt] price:{price} PMH:{pmh} PML:{pml} → {label}")
+    logger.debug(f"[rs_pre_mkt] price:{price} PMH:{pmh} PML:{pml} => {label}")
     return label
 
 
@@ -209,7 +209,7 @@ def rs_trend(df, qqq_df, levels, threshold=0.05):
 
     logger.info(
         f"[rs_trend] prev_d:{prev_d} pre_mkt:{pre_mkt} spread:{spread} "
-        f"bull:{bull} bear:{bear} → {trend}"
+        f"bull:{bull} bear:{bear} => {trend}"
     )
     return trend
 
