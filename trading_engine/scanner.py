@@ -692,7 +692,7 @@ def check_price_vs_level(app_config, symbol, side='up', price=0, level=0):
         return price < level - min_required_move_from_level
 
 
-def is_price_close_to_next_levels_ver_2(app_config, application_state, symbol, df, side='up', price= 0, current_level=1, next_levels=['PDH']):  # used in the config
+def is_price_close_to_next_levels_ver_2(app_config, application_state, case, symbol, df, side='up', price= 0, current_level=1, next_levels=['PDH']):  # used in the config
 
     breakout_idx = get_breakout_idx(application_state, case, symbol, current_level)
 

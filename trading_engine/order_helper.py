@@ -111,7 +111,7 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
         market_trend = 'up' if can_buy else 'down' #
         right = 'C' if can_buy else 'P'
 
-        context_filter(application_state, details_map, df, application_state['unique_run_number'], symbol, right, level_used)
+        # context_filter(application_state, details_map, df, application_state['unique_run_number'], symbol, right, level_used)
 
         if do_check and not app_config['symbols_meta'].get(symbol,{})['can_trade']:
             logger.info(f"[check_buy_sell_result_to_send_order] @@ We are not trading {symbol}.")
