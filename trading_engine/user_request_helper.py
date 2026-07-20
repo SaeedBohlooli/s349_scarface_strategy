@@ -12,10 +12,10 @@ def process_user_requests(app_config, application_state):
         request_type = user_request.get('request_type', '')
         if 'ENGINE_PROCESSED' in user_request.get('status', ''):
             continue
-        if request_type.upper() == 'OPEN_ORDER_FROM_XUI_CASE_MANUAL':
+        elif request_type.upper() == 'OPEN_ORDER_FROM_XUI_CASE_MANUAL':
             user_request['status'] += '|ENGINE_PROCESSED'
             application_state.setdefault('case_manual_orders', []).append(user_request)
-        if request_type.upper() == 'SET_STOP_LOSS':
+        elif request_type.upper() == 'SET_STOP_LOSS':
             user_request['status'] += '|ENGINE_PROCESSED'
             position_helper.set_stop_loss(application_state, user_request)
 

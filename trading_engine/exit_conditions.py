@@ -252,77 +252,77 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
 
 
 
-        for forced_ecit_entry in application_state.get('forced_exits', []):
-                if order_closed_by_tp:
-                    continue
-                if 'SENT_TO_IB' in forced_ecit_entry.get('status'):
-                    continue
-                if forced_ecit_entry.get('symbol') == symbol  :
+        for forced_exit_entry in application_state.get('forced_exits', []):
+            if order_closed_by_tp:
+                continue
+            if 'SENT_TO_IB' in forced_exit_entry.get('status'):
+                continue
+            if forced_exit_entry.get('symbol') == symbol  :
 
-                    logger.info(f"[check_for_stop_loss_and_take_profit] Forced exit for {symbol}  is found in application_state, so we will execute the exit as well ...")
-                    order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='CLOSE', symbol=symbol, alias=f"FORCED_EXIT", unique_run_number=application_state.get('unique_run_number'))
-                    con_id = forced_ecit_entry.get('contract_id')
-                    close_quantity = forced_ecit_entry.get('quantity', available_quantity) # if quantity is not provided we will close all ...
-                    close_result = ib_positions_async.close_position_by_con_id(ib, con_id=con_id, qty_to_close=close_quantity, order_ref=order_ref)
-                    if not close_result:
-                        logger.info(f"[check_for_stop_loss_and_take_profit] @@@@ we couldn't close the position for TP, so we skip the rest ... {symbol} - needs more investigation ")
-                    order_closed_by_tp = True
-                    take_profit_lable = 'tp_forced_exit'
-                    forced_ecit_entry['status'] += '|SENT_TO_IB'
-                else:
-                    logger.info(f"[check_for_stop_loss_and_take_profit] we are processing {symbol} ...")
+                logger.info(f"[check_for_stop_loss_and_take_profit] Forced exit for {symbol} is found in application_state, so we will execute the exit as well ...")
+                order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='CLOSE', symbol=symbol, alias=f"FORCED_EXIT", unique_run_number=application_state.get('unique_run_number'))
+                con_id = forced_exit_entry.get('contract_id')
+                close_quantity = forced_exit_entry.get('quantity', available_quantity) # if quantity is not provided we will close all ...
+                close_result = ib_positions_async.close_position_by_con_id(ib, con_id=con_id, qty_to_close=close_quantity, order_ref=order_ref)
+                if not close_result:
+                    logger.info(f"[check_for_stop_loss_and_take_profit] @@@@ we couldn't close the position for TP, so we skip the rest ... {symbol} - needs more investigation ")
+                order_closed_by_tp = True
+                take_profit_lable = 'tp_forced_exit'
+                forced_exit_entry['status'] += '|SENT_TO_IB'
+            else:
+                logger.info(f"[check_for_stop_loss_and_take_profit] we are processing {symbol} ...")
 
         if order_closed_by_tp:
-                open_trade_info['available_quantity'] = available_quantity - close_quantity
-                entry_execution_price = open_trade_info['entry_execution_price']
-                take_profit_estimated_pnl = (mid_price - entry_execution_price) * close_quantity * 100 if entry_execution_price !=0 else 0
-                take_profit_estimated_pnl = round(take_profit_estimated_pnl, 3)
-                data = {
-                    'status': 'SENT',
-                    'available_quantity_b4' : available_quantity,
-                    'close_quantity': close_quantity,
-                    'candle_date': str(symbol_df['date'].iloc[-1]),
-                    'take_profit_estimated_pnl': take_profit_estimated_pnl,
-                    'entry_execution_price': entry_execution_price,
-                    'current_bid': current_bid,
-                    'current_ask': current_ask,
-                    'tp_u_run_number': application_state.get('unique_run_number'),
-                    'order_ref': order_ref,
-                }
-                open_trade_info.setdefault('take_profits', {})[take_profit_lable] = data
+            open_trade_info['available_quantity'] = available_quantity - close_quantity
+            entry_execution_price = open_trade_info['entry_execution_price']
+            take_profit_estimated_pnl = (mid_price - entry_execution_price) * close_quantity * 100 if entry_execution_price !=0 else 0
+            take_profit_estimated_pnl = round(take_profit_estimated_pnl, 3)
+            data = {
+                'status': 'SENT',
+                'available_quantity_b4' : available_quantity,
+                'close_quantity': close_quantity,
+                'candle_date': str(symbol_df['date'].iloc[-1]),
+                'take_profit_estimated_pnl': take_profit_estimated_pnl,
+                'entry_execution_price': entry_execution_price,
+                'current_bid': current_bid,
+                'current_ask': current_ask,
+                'tp_u_run_number': application_state.get('unique_run_number'),
+                'order_ref': order_ref,
+            }
+            open_trade_info.setdefault('take_profits', {})[take_profit_lable] = data
 
-                data = {
-                    'symbol': symbol,
-                    'right': open_trade_info.get('right'),
-                    'strike': open_trade_info.get('strike'),
-                    'expiry': open_trade_info.get('expiry'),
-                    'entry_execution_price': entry_execution_price,
-                    'current_bid': current_bid,
-                    'current_ask': current_ask,
-                    'underlying_current_price': underlying_current_price,
-                    'available_quantity_b4': available_quantity,
-                    'take_profit_case': take_profit_lable,
-                    'take_profit_condition': take_profit_condition,
-                    'take_profit_estimated_pnl': take_profit_estimated_pnl,
-                    'close_quantity': close_quantity,
-                    'candle_date': str(symbol_df['date'].iloc[-1]),
-                    'tp_u_run_number': application_state.get('unique_run_number'),
-                    'order_ref': order_ref,
-                    'local_symbol': open_trade_info.get('local_symbol'),
-                    'con_id': open_trade_info.get('con_id'),
-                }
-                open_trade_info.setdefault('take_profit_history', []).append(data)
+            data = {
+                'symbol': symbol,
+                'right': open_trade_info.get('right'),
+                'strike': open_trade_info.get('strike'),
+                'expiry': open_trade_info.get('expiry'),
+                'entry_execution_price': entry_execution_price,
+                'current_bid': current_bid,
+                'current_ask': current_ask,
+                'underlying_current_price': underlying_current_price,
+                'available_quantity_b4': available_quantity,
+                'take_profit_case': take_profit_lable,
+                'take_profit_condition': take_profit_condition,
+                'take_profit_estimated_pnl': take_profit_estimated_pnl,
+                'close_quantity': close_quantity,
+                'candle_date': str(symbol_df['date'].iloc[-1]),
+                'tp_u_run_number': application_state.get('unique_run_number'),
+                'order_ref': order_ref,
+                'local_symbol': open_trade_info.get('local_symbol'),
+                'con_id': open_trade_info.get('con_id'),
+            }
+            open_trade_info.setdefault('take_profit_history', []).append(data)
 
-                add_order_ref_to_application_state(application_state, open_order_ref=open_trade_info.get('order_ref'), close_order_ref=order_ref)
-                TradingLedger.add_to_dataframe('take_profit_history_df', data)
-                TradingLedger.add_to_list("signals", (symbol, 'TAKE_PROFIT_SENT', underlying_current_price, symbol_df['date'].iloc[-1], f"TAKE-PROFIT-{take_profit_lable} <BR>{json_utils.polish_map_to_show_in_hover(data)}"))
-                notification_helper.send_email(app_config, event='take_profit_sent', symbol=symbol, body=json_utils.polish_map_to_show_in_hover(data))
-                increment_wins(application_state, symbol)
+            add_order_ref_to_application_state(application_state, open_order_ref=open_trade_info.get('order_ref'), close_order_ref=order_ref)
+            TradingLedger.add_to_dataframe('take_profit_history_df', data)
+            TradingLedger.add_to_list("signals", (symbol, 'TAKE_PROFIT_SENT', underlying_current_price, symbol_df['date'].iloc[-1], f"TAKE-PROFIT-{take_profit_lable} <BR>{json_utils.polish_map_to_show_in_hover(data)}"))
+            notification_helper.send_email(app_config, event='take_profit_sent', symbol=symbol, body=json_utils.polish_map_to_show_in_hover(data))
+            increment_wins(application_state, symbol)
 
-                # This is very import. There was a case that after t1 execution, t2 condition meet also
-                # but the available_quantity was not updates. look at the for iterator. we are updating what we are iterating it ...
-                # DO MOT DELETE THIS. we go out, and we will come back i next .... if break didn't work we need to use return ...
-                break
+            # This is very import. There was a case that after t1 execution, t2 condition meet also
+            # but the available_quantity was not updates. look at the for iterator. we are updating what we are iterating it ...
+            # DO MOT DELETE THIS. we go out, and we will come back i next .... if break didn't work we need to use return ...
+            break
 
 
 

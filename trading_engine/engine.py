@@ -64,10 +64,12 @@ class TradingEngine:
                     break
                 logger.info(f"[do_miscs]  ...")
                 application_state_router.populate_global_state(application_state=self.application_state)
+
                 if self.runtime.is_due("populate_ib_account_info", interval_sec=60 * 1):
                     await populate_ib_account_info(ib, application_state, app_config.get("ib_account_id", ""))
                     if self.application_state.get("global_state.subscribed_symbols_count") > 80:
                         application_state_router.add_audit_message(application_state, f"Subscribed symbols count is  which is quite high. sub: {self.application_state.get('global_state.subscribed_symbols_count')} q: {self.application_state['global_state.quote_cache_count']} ")
+
                 ib_pricing_async.cleanup_stale_quotes()
                 if self.runtime.should_run_once("save_configs_in_chart_folder", min_time_hhmm=1045):
                     chart_helper.save_configs_in_chart_folder(self.app_config)
@@ -139,7 +141,7 @@ class TradingEngine:
                     await options_helper.unsubscribe_excessively_distant_option_contracts(ib, self.application_state)
                     await options_helper.unsubscribe_for_symbols(ib, self.app_config, self.application_state)
 
-                if not self.application_state['is_busy_time'] and self.runtime.is_due('DO_PNL', interval_sec=5*60): # TODO should be not busy_time?!
+                if False and not self.application_state['is_busy_time'] and self.runtime.is_due('DO_PNL', interval_sec=5*60): # TODO should be not busy_time?!
                     pnl_helper.populate_open_close_refs_pnl_df()
                     pnl_helper.populate_close_orders_in_capital_flow_df()
                     pnl_helper.check_open_orders_in_capital_flow_df(self.application_state)
@@ -322,7 +324,7 @@ class TradingEngine:
             self.engine_loop(ib),
             self.do_miscs(ib, self.app_config, self.application_state, interval_seconds=60),
             self.boot.data_saver_manager.run(ib, interval_sec=60),
-            user_request_loop.fetch_user_request_loop(self.app_config, self.application_state, interval_sec=2),
+            user_request_loop.fetch_user_request_loop(self.app_config, self.application_state, interval_sec=1),
             user_request_loop.process_common_user_request_loop(ib, self.app_config, self.application_state,interval_sec=2),
             user_request_helper.process_app_user_request_loop(ib, self.app_config, self.application_state,interval_sec=1),
 
