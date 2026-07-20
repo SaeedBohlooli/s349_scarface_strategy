@@ -148,6 +148,7 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
         logger.error(traceback.format_exc())
         res_str = f'res_{case}'
     details_map = {
+        'symbol': symbol,
         'can_buy': can_buy,
         'can_sell': can_sell,
         'can_buy_cores': can_buy_cores,

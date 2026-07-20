@@ -23,15 +23,12 @@ from trading_engine import risk_helper
 from trading_engine import notification_helper
 from trading_engine import position_helper
 
-def add_case_manual_order_to_buy_sell_case_results_list(application_state, symbol_app_process, buy_sell_case_results_list):
+def add_case_manual_order_to_buy_sell_case_results_list(application_state, buy_sell_case_results_list):
     needs_to_be_removed = []
     for user_request in application_state.get('case_manual_orders',[]):
 
         case = "case_manual"
         symbol = user_request.get('symbol')
-        if symbol != symbol_app_process:
-            logger.info(f"[add_case_manual_order_to_buy_sell_case_results_list] @ skipping ...symbol:{symbol}, symbol_app_process: {symbol_app_process}, user_request:{user_request}")
-            continue
         logger.info(f"[add_case_manual_order_to_buy_sell_case_results_list] processing user request for manual order, symbol:{symbol}, user_request:{user_request}")
         quantity = int(user_request.get('quantity', 0))
         side = user_request.get('side', 'long')
@@ -47,6 +44,7 @@ def add_case_manual_order_to_buy_sell_case_results_list(application_state, symbo
         can_buy = True if right == 'C' else False
         can_sell = True if right == 'P' else False
         details_map = {
+            'symbol': symbol,
             'res_str': (
                 f"Manual order from user request, quantity: {quantity}, side: {side}, "
                 f"order_type: {order_type}, strike: {user_defined_strike}, expiry: {user_defined_expiry}"
@@ -78,7 +76,7 @@ def add_entry_message_to_application_state(application_state, symbol, date, mess
         application_state_router.add_audit_message(application_state, message, severity="medium" )
 
 
-async def check_buy_sell_result_to_send_order(ib, app_config, application_state, buy_sell_case_results_list, symbol, df, market_data, runtime):
+async def check_buy_sell_result_to_send_order(ib, app_config, application_state, buy_sell_case_results_list, df, market_data, runtime):
 
     current_hh_mm_ny = date_utils.get_current_hhmm_ny() # used in config ...
     is_trade_time = eval(app_config['trading_session']['trade_time'])
@@ -89,6 +87,9 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
         case = buy_sell_case_result[0]
         can_buy = buy_sell_case_result[1]
         can_sell = buy_sell_case_result[2]
+        details_map = buy_sell_case_result[3]
+        symbol = details_map.get('symbol')
+
         logger.debug(f"[check_buy_sell_result_to_send_order], {symbol}, can_buy: {can_buy}, can_sell:{can_sell}")
         if can_buy == False and can_sell == False: # no success ...
             continue
@@ -97,7 +98,6 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
             continue
         logger.info(f"[check_buy_sell_result_to_send_order] order signal , {symbol}, can_buy: {can_buy}, can_sell:{can_sell}")
 
-        details_map = buy_sell_case_result[3]
         case_result = details_map.get('res_str')
         long_level = details_map.get('long_level', 0)
         short_level = details_map.get('short_level', 0)

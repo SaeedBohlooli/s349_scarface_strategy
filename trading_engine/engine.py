@@ -222,16 +222,16 @@ class TradingEngine:
                     logger.debug(f"[engine] After levels {symbol}, df: \n{df[-4:].to_markdown()}")
 
                     buy_sell_case_results_list = scanner.check_buy_and_sell_cases(ib, self.app_config, self.application_state, symbol, self.market_data)
-                    buy_sell_case_results_list = order_helper.add_case_manual_order_to_buy_sell_case_results_list(self.application_state, symbol, buy_sell_case_results_list)
+                    buy_sell_case_results_list = order_helper.add_case_manual_order_to_buy_sell_case_results_list(self.application_state, buy_sell_case_results_list)
 
-                    await order_helper.check_buy_sell_result_to_send_order(ib, self.app_config, self.application_state, buy_sell_case_results_list, symbol, df, self.market_data, self.runtime)
+                    await order_helper.check_buy_sell_result_to_send_order(ib, self.app_config, self.application_state, buy_sell_case_results_list, df, self.market_data, self.runtime)
 
                     await exit_conditions.check_for_stop_loss_and_take_profit(ib, self.app_config, self.application_state, self.market_data)
 
                     if self.application_state['is_save_time'] and 931 < current_hh_mm_ny and self.runtime.should_run_once(f'{symbol}-MARK_GAP'):
                         chart_helper.detect_a_mark_market_gap(self.application_state, symbol, df)  # need to happen one time after 9:30
 
-                    chart_helper.add_buy_a_sell_entries_to_signals(self.app_config, self.application_state, buy_sell_case_results_list, symbol, self.market_data)
+                    chart_helper.add_buy_a_sell_entries_to_signals(self.app_config, self.application_state, buy_sell_case_results_list, self.market_data)
 
                     position_helper.update_position_for_entry_execution_price(self.application_state)
 

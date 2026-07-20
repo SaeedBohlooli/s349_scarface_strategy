@@ -186,7 +186,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
         for take_profit_lable in app_config['take_profits']:
             logger.info(f"[check_for_stop_loss_and_take_profit] symbol {symbol}, take_profit_lable: {take_profit_lable}")
             if tp_is_enabled == False:
-                logger.info("[check_for_stop_loss_and_take_profit] tp_is_enabled is False. so no check ...ymbol {symbol}")
+                logger.info(f"[check_for_stop_loss_and_take_profit] tp_is_enabled is False. so no check ...symbol: {symbol}")
                 continue
 
             if application_state['open_trades_dic'].get(symbol,{}).get('available_quantity',0) == 0:
@@ -255,7 +255,9 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
         for forced_ecit_entry in application_state.get('forced_exits', []):
                 if order_closed_by_tp:
                     continue
-                if forced_ecit_entry.get('symbol') == symbol and not 'SENT_TO_IB' in forced_ecit_entry.get('status')  :
+                if 'SENT_TO_IB' in forced_ecit_entry.get('status'):
+                    continue
+                if forced_ecit_entry.get('symbol') == symbol  :
 
                     logger.info(f"[check_for_stop_loss_and_take_profit] Forced exit for {symbol}  is found in application_state, so we will execute the exit as well ...")
                     order_ref = ib_orders_async.generate_order_ref(application_state.get('portfolio_id'), event='CLOSE', symbol=symbol, alias=f"FORCED_EXIT", unique_run_number=application_state.get('unique_run_number'))
@@ -267,6 +269,8 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                     order_closed_by_tp = True
                     take_profit_lable = 'tp_forced_exit'
                     forced_ecit_entry['status'] += '|SENT_TO_IB'
+                else:
+                    logger.info(f"[check_for_stop_loss_and_take_profit] we are processing {symbol} ...")
 
         if order_closed_by_tp:
                 open_trade_info['available_quantity'] = available_quantity - close_quantity

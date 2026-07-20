@@ -12,9 +12,8 @@ from trading_core.runtime_manager import RuntimeManager
 logger = logging.getLogger(__name__)
 
 
-def add_buy_a_sell_entries_to_signals(app_config, application_state, buy_sell_case_results_list, symbol, market_data ):
+def add_buy_a_sell_entries_to_signals(app_config, application_state, buy_sell_case_results_list, market_data ):
     for buy_sell_case_result in buy_sell_case_results_list:
-        df = market_data.dfs_map.get(symbol)
 
         logger.debug(f"add_buy_a_sell_entries_to_signals(), buy_sell_case_result: {buy_sell_case_result}")
         # case, can_buy, can_sell, details_map
@@ -26,6 +25,8 @@ def add_buy_a_sell_entries_to_signals(app_config, application_state, buy_sell_ca
         res_str = result_map.get('res_str')
         can_buy_cores = result_map.get('can_buy_cores')
         can_sell_cores = result_map.get('can_sell_cores')
+        symbol = result_map.get('symbol')
+        df = market_data.dfs_map.get(symbol)
 
         case_color = get_case_color(app_config, case)
         
