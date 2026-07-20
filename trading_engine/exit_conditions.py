@@ -41,7 +41,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
         try:
             seconds_since_last_record = date_utils.seconds_passed_since_last_record(symbol_df)
             logger.info(f"[check_for_stop_loss_and_take_profit] @ symbol: {symbol}, seconds_since_last_record: {seconds_since_last_record}")
-            if seconds_since_last_record > 66:
+            if seconds_since_last_record > 70:
                 logger.warning(f"[check_for_stop_loss_and_take_profit] @@@ {symbol}, seconds_since_last_record: {seconds_since_last_record}")
                 logger.info(f"[check_for_stop_loss_and_take_profit] @@@ , symbol_df[-1:]\n {symbol_df[-1:].to_markdown()}")
                 continue #TODO we should not do that. it maybe for manual SL or manual TP
