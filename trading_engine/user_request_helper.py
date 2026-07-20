@@ -18,6 +18,9 @@ def process_user_requests(app_config, application_state):
         elif request_type.upper() == 'SET_STOP_LOSS':
             user_request['status'] += '|ENGINE_PROCESSED'
             position_helper.set_stop_loss(application_state, user_request)
+        elif request_type.upper() == 'SET_TAKE_PROFIT':
+            user_request['status'] += '|ENGINE_PROCESSED'
+            position_helper.set_take_profit(application_state, user_request)
 
 
 async def process_app_user_request_loop(ib, app_config, application_state, interval_sec=5):

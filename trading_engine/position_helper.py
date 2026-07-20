@@ -68,4 +68,20 @@ def set_stop_loss(application_state, user_request):
             logger.info(f"[set_stop_loss] order_ref: {order_ref}, new stop_loss: {stop_loss}")
             trade["stop_loss"] = stop_loss
 
+def set_take_profit(application_state, user_request):
+    # order_ref    underlying_price    quantitiy
+    user_take_profit = user_request.get('user_take_profit', 0)
+    order_ref = user_request.get('order_ref', '')
+    user_take_profit_quantity = user_request.get('user_take_profit_quantity', 0)
+
+    open_trades = application_state.get("open_trades_dic", {})
+    for symbol, trade in open_trades.items():
+        if not trade:  # empty dict - > skip
+            continue
+        if trade.get("available_quantity", 0) == 0:
+            continue
+        if trade.get("order_ref", "") == order_ref:
+            logger.info(f"[set_take_profit] order_ref: {order_ref}, new take_profit: {user_take_profit}")
+            trade["user_take_profit"] = user_take_profit
+            trade["user_take_profit_quantity"] = user_take_profit_quantity
 

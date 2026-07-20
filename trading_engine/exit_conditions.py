@@ -60,6 +60,8 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
         start_quantity = application_state.get('open_trades_dic', {}).get(symbol, {}).get('starting_quantity', 0) # used in config
         available_quantity = application_state.get('open_trades_dic', {}).get(symbol, {}).get('available_quantity', 0)  # used in config
         user_defined_stop_loss = open_trade_info.get('stop_loss', 0)  # used in config
+        user_defined_take_profit = open_trade_info.get('user_take_profit', 0)  # used in config
+        user_defined_take_profit_quantity = open_trade_info.get('user_take_profit_quantity', 0)  # used in config
 
         entry_price = 0 # used in config ...
         if open_trade_info.get('entry_execution_price', 0) != 0:
