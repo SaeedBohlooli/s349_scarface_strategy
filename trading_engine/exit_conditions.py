@@ -44,7 +44,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
             if seconds_since_last_record > 66:
                 logger.warning(f"[check_for_stop_loss_and_take_profit] @@@ {symbol}, seconds_since_last_record: {seconds_since_last_record}")
                 logger.info(f"[check_for_stop_loss_and_take_profit] @@@ , symbol_df[-1:]\n {symbol_df[-1:].to_markdown()}")
-                continue
+                continue #TODO we should not do that. it maybe for manual SL or manual TP
         except Exception as e:
             logger.error(f"[check_for_stop_loss_and_take_profit] @@@@@@ , error in date check , {symbol}, e: {e}")
 
@@ -187,7 +187,8 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
 
         for take_profit_lable in app_config['take_profits']:
             logger.info(f"[check_for_stop_loss_and_take_profit] symbol {symbol}, take_profit_lable: {take_profit_lable}")
-            if tp_is_enabled == False:
+
+            if tp_is_enabled == False and not app_config.get('take_profits',{}).get(take_profit_lable ,{}).get('always_run',False):
                 logger.info(f"[check_for_stop_loss_and_take_profit] tp_is_enabled is False. so no check ...symbol: {symbol}")
                 continue
 

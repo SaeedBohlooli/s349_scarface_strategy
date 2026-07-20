@@ -163,6 +163,7 @@ take_profits:
 
   t7_user_defined_take_profit:
     enabled: true
+    always_run: true
     condition: >
       (right == 'C' and underlying_current_price > user_defined_take_profit and user_defined_take_profit not in [0,-1])
       or
