@@ -341,6 +341,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
     return
 
 def add_order_ref_to_application_state(application_state, open_order_ref='', close_order_ref=''):
+    return
 
     if open_order_ref != '' and close_order_ref == '': # this is for open order ...
         application_state.setdefault('open_close_refs_map', {})[open_order_ref] = []

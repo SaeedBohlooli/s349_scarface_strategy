@@ -398,7 +398,7 @@ def add_to_number_of_positions_today(application_state, symbol):
 
 
 def add_order_ref_to_application_state(application_state, open_order_ref='', close_order_ref=''):
-
+    return
     if open_order_ref != '' and close_order_ref == '': # this is for open order ...
         application_state.setdefault('open_close_refs_map', {})[open_order_ref] = []
     elif open_order_ref != '' and close_order_ref != '': # this is for close ...

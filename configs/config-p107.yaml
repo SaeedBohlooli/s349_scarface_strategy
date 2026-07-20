@@ -156,10 +156,20 @@ take_profits:
     memo: for long after tp1, if we go below last down close candle, then we close the position and vice versa for short
 
   t6_trail_w_ema_9:
-    enabled: false
+    enabled: false  # TODO check EMA_9 before anabling it
     condition: symbol_df['close'].iloc[-1] < symbol_df['ema_9'].iloc[-1]  # for long after tp1, if we go below ema 9, then we close the position and vice versa for short
     close_quantity_percentage: -1
     memo: for long after tp1, if we go below last down close candle, then we close the position and vice versa for short
+
+  t7_user_defined_take_profit:
+    enabled: true
+    condition: >
+      (right == 'C' and underlying_current_price > user_defined_take_profit and user_defined_take_profit not in [0,-1])
+      or
+      (right == 'P' and underlying_current_price < user_defined_take_profit and user_defined_take_profit not in [0,-1])
+
+    close_quantity_numbner: user_defined_take_profit_quantity
+    memo:
 
   t10_cl_manual: # This is for closing everything just NVDA:   1 == 1 and symbol == 'NVDA'
     enabled: False
@@ -197,7 +207,7 @@ strike_increments:  # default is 2.5., don't put it here if it i 2.5
     HOOD: 1
 
 # before_start:
-load_application_state_from_file: false
+load_application_state_on_boot: True
 
 user_name: saeed
 
