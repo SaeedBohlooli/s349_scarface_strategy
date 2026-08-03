@@ -208,10 +208,10 @@ cases:
         - check_arc_duration(app_config, application_state, case, symbol, df, side='up', level=long_level, level_alias=level_alias, arc_min_bars=4)
         - check_close_displacement(app_config, application_state, case, symbol, df, side='up', level=long_level, level_alias=level_alias, min_close_disp_atr=0.1)
         - is_second_candle_after(min_seconds=15)
-      extras:
-        - 8 == 8
-        - has_strong_close(df, side='up')
         - price > long_level
+      extras:
+        - 9 == 9
+        - has_strong_close(df, side='up')
         - is_symbol_in_rs_shortlist(app_config, application_state, symbol, side='up', threshold=5)
 
 
@@ -226,10 +226,10 @@ cases:
         - check_arc_duration(app_config, application_state, case, symbol, df, side='down', level=short_level, level_alias=level_alias, arc_min_bars=4)
         - check_close_displacement(app_config, application_state, case, symbol, df, side='down', level=short_level, level_alias=level_alias, min_close_disp_atr=0.1)
         - is_second_candle_after(min_seconds=15)
-      extras:
-        - 8 == 8
-        - has_strong_close(df, side='down')
         - price < short_level
+      extras:
+        - 9 == 9
+        - has_strong_close(df, side='down')
         - is_symbol_in_rs_shortlist(app_config, application_state, symbol, side='down', threshold=5)
 
   case_8:
@@ -248,10 +248,10 @@ cases:
         - check_arc_duration(app_config, application_state, case, symbol, df, side='up', level=long_level, level_alias=level_alias, arc_min_bars=4)
         - check_close_displacement(app_config, application_state, case, symbol, df, side='up', level=long_level, level_alias=level_alias, min_close_disp_atr=0.1)
         - is_second_candle_after(min_seconds=15)
-      extras:
-        - 8 == 8
-        - has_strong_close(df, side='up')
         - price > long_level
+      extras:
+        - 9 == 9
+        - has_strong_close(df, side='up')
         - is_symbol_in_rs_shortlist(app_config, application_state, symbol, side='up', threshold=5)
 
     short:
@@ -265,10 +265,10 @@ cases:
         - check_arc_duration(app_config, application_state, case, symbol, df, side='down', level=short_level, level_alias=level_alias, arc_min_bars=4)
         - check_close_displacement(app_config, application_state, case, symbol, df, side='down', level=short_level, level_alias=level_alias, min_close_disp_atr=0.1)
         - is_second_candle_after(min_seconds=15)
-      extras:
-        - 8 == 8
-        - has_strong_close(df, side='down')
         - price < short_level
+      extras:
+        - 9 == 9
+        - has_strong_close(df, side='down')
         - is_symbol_in_rs_shortlist(app_config, application_state, symbol, side='down', threshold=5)
 
   case_9:
@@ -297,6 +297,7 @@ cases:
         - abs (price - long_level) < 2
         - qqq_df['close'].iloc[-1] > qqq_df['open'].iloc[-1]  # forming candle.
         - is_symbol_in_rs_shortlist(app_config, application_state, symbol, side='up', threshold=5)
+        - 15 == 15
 
     short:
       level: levels['5ML']
@@ -315,10 +316,11 @@ cases:
         - abs (price - short_level) < 1.2 * atr_14
         # 10
         - 10 == 10 and price < application_state['levels'][symbol]['PDH'] # avoid going long above PDH - extra safety- if we are above PDH, low change we continue after 5MH breakout
-        - price > levels['PDL'] or get_current_price(ib, application_state, 'QQQ') < application_state['levels']['QQQ']['5ML']
+        - skip_pdhl_and_qqq_check_enabled or price > levels['PDL'] or get_current_price(ib, application_state, 'QQQ') < application_state['levels']['QQQ']['5ML']
         - abs (price - short_level) < 2
         - qqq_df['close'].iloc[-1] < qqq_df['open'].iloc[-1]
         - is_symbol_in_rs_shortlist(app_config, application_state, symbol, side='down', threshold=5)
+        - 15 == 15
 
   case_10:
     memo: From PDH PDL - we running this one

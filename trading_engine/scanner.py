@@ -265,7 +265,7 @@ def breakout_in_last_x_candles_ver_2(app_config, application_state, case, symbol
             breakout_happened = True
             offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx], date=df['date'].iloc[idx], caller_key="breakout_in_last_x_candles_ver_2")
             case_color = get_case_color(app_config, case)
-            TradingLedger.add_to_list("signals", (symbol, f'BREAKOUT_{case}', offseted_price, df['date'].iloc[idx], f"BREAKOUT {level_alias} ... {df['date'].iloc[idx].strftime('%H:%M')}... ", case_color) )
+            TradingLedger.add_to_list("signals", (symbol, f'BREAKOUT_{level}', offseted_price, df['date'].iloc[idx], f"BREAKOUT {level_alias} ... {df['date'].iloc[idx].strftime('%H:%M')}... ", case_color) )
     return breakout_happened
 
 def breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol, df, side='up', idx_list=[-2], level=0, level_alias=''):
@@ -293,18 +293,18 @@ def breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol
 
         # --- breakout condition ---
         if side == 'up':
-            cond_1 = (row["open"] <= level and row["close"] > level + gap)    # The price above level + gap
-            cond_2 = (previous["open"] < level and row["close"] > level + gap)  # The prev open is below level and current above the level.
-            cond_3 = (previous["open"] < level and row["open"] > level and row["close"] > level)  # The prev open is below level and current open and close are above the level.
+            cond_1 = (row["open"] <= level and row["close"] > level + gap)  and (previous["open"] <= level)  # The price above level + gap
+            cond_2 = (previous["open"] < level and row["close"] > level + gap and df.iloc[idx-2]["low"] < level and df.iloc[idx-3]["low"] < level)  # The prev open is below level and current above the level.
+            cond_3 = (previous["open"] < level and row["open"] > level and row["close"] > level and df.iloc[idx-2]["low"] < level and df.iloc[idx-3]["low"] < level)  # The prev open is below level and current open and close are above the level.
             cond_4 = (row["low"] <= level and row["close"] > level and next["open"] > level and next["close"] > level and next["close"]  > next["open"]
-                      and previous["low"] < level)  # The current open is below level and next open and close both above the level
+                      and previous["low"] < level and df.iloc[idx-2]["low"] < level and df.iloc[idx-3]["low"] < level)  # The current open is below level and next open and close both above the level
 
         else:
-            cond_1 = (row["open"] >= level and row["close"] < level - gap)
-            cond_2 = (previous["open"] > level and row["close"] < level - gap)
-            cond_3 = (previous["open"] > level and row["open"] < level and row["close"] < level)
+            cond_1 = (row["open"] >= level and row["close"] < level - gap) and (previous["open"] >= level)
+            cond_2 = (previous["open"] > level and row["close"] < level - gap and df.iloc[idx-2]["high"] > level and df.iloc[idx-3]["high"] > level)
+            cond_3 = (previous["open"] > level and row["open"] < level and row["close"] < level and df.iloc[idx-2]["high"] > level and df.iloc[idx-3]["high"] > level)
             cond_4 = (row["high"]  >= level and row["close"] < level and next["open"] < level and next["close"] < level and next["close"] < next["open"]
-                      and previous["high"] > level )
+                      and previous["high"] > level and df.iloc[idx-2]["high"] > level and df.iloc[idx-3]["high"] > level)
 
         breakout = (cond_1 or cond_2 or cond_3 or cond_4)
         if not breakout:
@@ -332,8 +332,8 @@ def breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol
             breakout_happened = True
             offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx], date=df['date'].iloc[idx], caller_key=f"breakout_in_last_x_candles_ver_4-{case}")
             case_color = get_case_color(app_config, case)
-            TradingLedger.add_to_list("signals", (symbol, f'BREAKOUT_{case}', offseted_price, df['date'].iloc[idx], f"BREAKOUT-v4 {level_alias} ... {df['date'].iloc[idx].strftime('%H:%M')}... ", case_color) )
-
+            triggered = [f"cond_{i}" for i, c in enumerate([cond_1 and candle_is_not_week, cond_2, cond_3, cond_4], 1) if c]
+            TradingLedger.add_to_list("signals", (symbol, f'BREAKOUT_{level}', offseted_price, df['date'].iloc[idx], f"BREAKOUT-v4 {level_alias} ... {df['date'].iloc[idx].strftime('%H:%M')}... [{','.join(triggered)}]", "blue"))
     for breakout_idx in breakout_idxs:
         if not breakout_idx - 1 in breakout_idxs:
             # if the previous candle is not breakout candle, we check to markk it as breakout as well
@@ -352,7 +352,7 @@ def breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol
                         })
                         offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[breakout_idx - 1], date=df['date'].iloc[breakout_idx - 1], caller_key=f"breakout_in_last_x_candles_ver_4-{case}")
                         case_color = get_case_color(app_config, case)
-                        TradingLedger.add_to_list("signals", (symbol, f'BREAKOUT_{case}', offseted_price, row['date'], f"BREAKOUT-v4 {level_alias} ... {row['date'].strftime('%H:%M')}... ", case_color) )
+                        TradingLedger.add_to_list("signals", (symbol, f'BREAKOUT_{level}', offseted_price, row['date'], f"BREAKOUT-v4 {level_alias} ... {row['date'].strftime('%H:%M')}...[x]", case_color) )
                 else:
                     body = abs(row["close"] - row["open"])
                     candle_range = row["high"] - row["low"]
@@ -367,7 +367,7 @@ def breakout_in_last_x_candles_ver_4(app_config, application_state, case, symbol
                         })
                         offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[breakout_idx - 1], date=df['date'].iloc[breakout_idx - 1], caller_key=f"breakout_in_last_x_candles_ver_4-{case}")
                         case_color = get_case_color(app_config, case)
-                        TradingLedger.add_to_list("signals", (symbol, f'BREAKOUT_{case}', offseted_price, row['date'], f"BREAKOUT-v4 {level_alias} ... {row['date'].strftime('%H:%M')}... ", case_color) )
+                        TradingLedger.add_to_list("signals", (symbol, f'BREAKOUT_{level}', offseted_price, row['date'], f"BREAKOUT-v4 {level_alias} ... {row['date'].strftime('%H:%M')}...[x]", case_color) )
 
 
 
@@ -432,7 +432,7 @@ def breakout_in_last_x_candles_ver_3(app_config, application_state, case, symbol
             breakout_happened = True
             offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx], date=df['date'].iloc[idx], caller_key="breakout_in_last_x_candles_ver_3")
             case_color = get_case_color(app_config, case)
-            TradingLedger.add_to_list("signals", (symbol, f'BREAKOUT_{case}', offseted_price, df['date'].iloc[idx], f"BREAKOUT {level_alias} ... {df['date'].iloc[idx].strftime('%H:%M')}... ", case_color) )
+            TradingLedger.add_to_list("signals", (symbol, f'BREAKOUT_{level}', offseted_price, df['date'].iloc[idx], f"BREAKOUT {level_alias} ... {df['date'].iloc[idx].strftime('%H:%M')}... ", case_color) )
     for breakout_idx in breakout_idxs:
         if not breakout_idx - 1 in breakout_idxs:
             # if the previous candle is not breakout candle, we check to markk it as breakout as well
@@ -451,7 +451,7 @@ def breakout_in_last_x_candles_ver_3(app_config, application_state, case, symbol
                         })
                         offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[breakout_idx - 1], date=df['date'].iloc[breakout_idx - 1], caller_key="breakout_in_last_x_candles_ver_3")
                         case_color = get_case_color(app_config, case)
-                        TradingLedger.add_to_list("signals", (symbol, f'BREAKOUT_{case}', offseted_price, row['date'], f"BREAKOUT {level_alias} ... {row['date'].strftime('%H:%M')}... ", case_color) )
+                        TradingLedger.add_to_list("signals", (symbol, f'BREAKOUT_{level}', offseted_price, row['date'], f"BREAKOUT {level_alias} ... {row['date'].strftime('%H:%M')}... ", case_color) )
                 else:
                     body = abs(row["close"] - row["open"])
                     candle_range = row["high"] - row["low"]
@@ -466,7 +466,7 @@ def breakout_in_last_x_candles_ver_3(app_config, application_state, case, symbol
                         })
                         offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[breakout_idx - 1], date=df['date'].iloc[breakout_idx - 1], caller_key="breakout_in_last_x_candles_ver_3")
                         case_color = get_case_color(app_config, case)
-                        TradingLedger.add_to_list("signals", (symbol, f'BREAKOUT_{case}', offseted_price, row['date'], f"BREAKOUT {level_alias} ... {row['date'].strftime('%H:%M')}... ", case_color) )
+                        TradingLedger.add_to_list("signals", (symbol, f'BREAKOUT_{level}', offseted_price, row['date'], f"BREAKOUT {level_alias} ... {row['date'].strftime('%H:%M')}... ", case_color) )
 
 
 
@@ -523,7 +523,7 @@ def price_retest(app_config, application_state, case, symbol, df, side='up', idx
                 }
                 application_state['retests'].setdefault(symbol, []).append(d)
                 offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx], date=df['date'].iloc[idx], caller_key="price_retest")
-                TradingLedger.add_to_list("signals", (symbol, f'RETEST_{case}', offseted_price, df['date'].iloc[idx], f"RETEST  {level_alias} ... {df['date'].iloc[idx].strftime('%H:%M')}", case_color) )
+                TradingLedger.add_to_list("signals", (symbol, f'RETEST_{level}', offseted_price, df['date'].iloc[idx], f"RETEST  {level_alias} ... {df['date'].iloc[idx].strftime('%H:%M')}", case_color) )
 
                 logger.info(f"[price_retest] symbol: {symbol}, level: {level}, date:{df.iloc[idx]['date']} ")
                 retest = True
@@ -539,7 +539,7 @@ def price_retest(app_config, application_state, case, symbol, df, side='up', idx
                 }
                 application_state['retests'].setdefault(symbol, []).append(d)
                 offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx], date=df['date'].iloc[idx], caller_key="price_retest")
-                TradingLedger.add_to_list("signals", (symbol, f'RETEST_{case}', offseted_price, df['date'].iloc[idx], f"RETEST  {level_alias} ... {df['date'].iloc[idx].strftime('%H:%M')}", case_color) )
+                TradingLedger.add_to_list("signals", (symbol, f'RETEST_{level}', offseted_price, df['date'].iloc[idx], f"RETEST  {level_alias} ... {df['date'].iloc[idx].strftime('%H:%M')}", case_color) )
 
                 retest = True
                 diff = abs(row['low']-level)
@@ -554,7 +554,7 @@ def price_retest(app_config, application_state, case, symbol, df, side='up', idx
                 }
                 application_state['retests'].setdefault(symbol, []).append(d)
                 offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx], date=df['date'].iloc[idx], caller_key="price_retest")
-                TradingLedger.add_to_list("signals", (symbol, f'RETEST_{case}', offseted_price, df['date'].iloc[idx], f"RETEST  {level_alias} ... {df['date'].iloc[idx].strftime('%H:%M')}", case_color) )
+                TradingLedger.add_to_list("signals", (symbol, f'RETEST_{level}', offseted_price, df['date'].iloc[idx], f"RETEST  {level_alias} ... {df['date'].iloc[idx].strftime('%H:%M')}", case_color) )
 
                 retest = True
                 diff = abs(row['high'] - level)
@@ -568,7 +568,7 @@ def price_retest(app_config, application_state, case, symbol, df, side='up', idx
                 }
                 application_state['retests'].setdefault(symbol, []).append(d)
                 offseted_price = chart_helper.get_stacked_mark_price(app_config, application_state, symbol, side='up', price=df['high'].iloc[idx], date=df['date'].iloc[idx], caller_key="price_retest")
-                TradingLedger.add_to_list("signals", (symbol, f'RETEST_{case}', offseted_price, df['date'].iloc[idx], f"RETEST  {level_alias} ... {df['date'].iloc[idx].strftime('%H:%M')}" , case_color) )
+                TradingLedger.add_to_list("signals", (symbol, f'RETEST_{level}', offseted_price, df['date'].iloc[idx], f"RETEST  {level_alias} ... {df['date'].iloc[idx].strftime('%H:%M')}" , case_color) )
 
                 retest = True
                 diff = abs(row['high']-level)
@@ -1096,7 +1096,7 @@ def price_retracement_to_level(
             "signals",
             (symbol, 'RETEST', offseted_price, df['date'].iloc[idx],
              f"RETRACEMENT {level_alias} retrace:{retrace_pct:.0%} "
-             f"... {df['date'].iloc[idx].strftime('%H:%M')}", case_color))
+             f"... {df['date'].iloc[idx].strftime('%H:%M')}", "green"))
         retest = True
 
     return retest
@@ -1199,7 +1199,7 @@ def price_retracement_immediate(
             "signals",
             (symbol, 'RETRACEMENT_IMMEDIATE', offseted_price, df['date'].iloc[idx],
              f"RETRACEMENT_IMMEDIATE {level_alias} retrace:{retrace_pct:.0%} "
-             f"... {df['date'].iloc[idx].strftime('%H:%M')}", case_color))
+             f"... {df['date'].iloc[idx].strftime('%H:%M')}", "green"))
         retest = True
 
     return retest
@@ -1331,7 +1331,7 @@ def price_retracement_half_circle(
             "signals",
             (symbol, 'RETRACEMENT_HALF_CIRCLE', offseted_price, df['date'].iloc[idx],
              f"RETRACEMENT_HALF_CIRCLE {level_alias} retrace:{retrace_pct:.0%} "
-             f"... {df['date'].iloc[idx].strftime('%H:%M')}", case_color))
+             f"... {df['date'].iloc[idx].strftime('%H:%M')}", "green"))
         retest = True
 
     return retest
