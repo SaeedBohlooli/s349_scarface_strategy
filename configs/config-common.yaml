@@ -236,7 +236,7 @@ cases:
     memo: based on the R2
     can_replace_level: false
     precondition: all_levels_in(application_state, symbol)
-    color: navy
+    color: pink
     long:
       level: levels['PDH']
       level_alias: "PDH"
