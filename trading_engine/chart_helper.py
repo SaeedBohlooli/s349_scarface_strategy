@@ -391,6 +391,8 @@ def add_to_drawing_objects_df(symbol='TSLA', time_frame='1m', object='dash', col
 
 
 def get_case_color(app_config, case):
+    if case == 'case_manual':
+        return 'darkred'
     return app_config.get('cases', {}).get(case, {}).get('color', 'black')
 
 

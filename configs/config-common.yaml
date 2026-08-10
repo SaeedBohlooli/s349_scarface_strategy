@@ -236,7 +236,7 @@ cases:
     memo: based on the R2
     can_replace_level: false
     precondition: all_levels_in(application_state, symbol)
-    color: pink
+    color: deeppink
     long:
       level: levels['PDH']
       level_alias: "PDH"
@@ -375,7 +375,7 @@ cases:
     memo: This is for Saeed's live test
     can_replace_level: false
     precondition: all_levels_in(application_state, symbol)
-    color: black
+    color: darkred
     long:
       level: levels['5MH']
       level_alias: "5MH"

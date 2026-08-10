@@ -199,7 +199,6 @@ strike_increments:  # default is 2.5., don't put it here if it i 2.5
     QQQ: 1
     SPY: 1
     MU: 5
-    PLTR: 1
     INTC: 1
     SNDK: 5
     GOOG: 5

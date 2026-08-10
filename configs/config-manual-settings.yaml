@@ -1,7 +1,7 @@
 manual_settings:
   C:
     conditions:
-    - QQQ_price > QQQ_5MH
+    - QQQ_price > QQQ_5ML
 #    - 1 == 1
   P:
     conditions:

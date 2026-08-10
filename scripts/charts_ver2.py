@@ -52,6 +52,22 @@ def load_app_config(portfolio_id):
     logger.info(f"loaded.")
     return app_config
 
+
+def load_date_config(chart_date):
+    global app_config
+    logger.warning(f"loading app_config ....")
+    # app_config = config_utils.load_app_config(f'{configs_folder}/config-{portfolio_id}.yaml')
+
+    live_base_dir = f'../../portfolios/{portfolio_id}/charts/'
+    date_config_path = f'{live_base_dir}/{chart_date}/config.yaml'
+    app_config = config_utils.load_config(date_config_path)
+
+    chart_config = config_utils.load_config(f'{configs_folder}/config-charts.yaml')
+    app_config.update(chart_config)
+    logger.info(f"loaded.")
+    return app_config
+
+
 def get_portfoilo_dir(portfolio_id):
     base_dir = f'../../portfolios'
     portfolio_dir = os.path.join(base_dir, 'results', portfolio_id)
@@ -1080,7 +1096,7 @@ def index():
     else:
         charts_dir = f'../../portfolios/charts-backtest/{chart_date}/{portfolio_id}'
         mode = 'back_test'
-
+    app_config = load_date_config(chart_date)
     drawing_objects_df = load_file_to_drawing_objects_df()
     hover_df = load_file_to_hover_df()
     close_levels_df = load_file_to_close_levels_df()
