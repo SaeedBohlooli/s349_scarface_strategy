@@ -1085,8 +1085,10 @@ def index():
 
     chart_date = request.args.get('chart_date') # read from URL
     logger.info(f"available_dates {available_dates}")
-    if chart_date is None:
-        chart_date = available_dates[0]
+    i = 0
+    while chart_date is None or len (chart_date) != 10:
+        chart_date = available_dates[i]
+        i += 1
 
 
     logger.info(f"chart_date: {chart_date}")

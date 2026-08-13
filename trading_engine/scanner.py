@@ -25,6 +25,8 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
     short_retest_idx = 0
     entry_breakout_idx = 0
     entry_retest_idx = 0
+    failed_conditions_map = {}
+    c_i = -1
     try:
         df = market_data.dfs_map.get(symbol)
         if df is None:
@@ -62,6 +64,7 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
         for side in ['long', 'short']:
             level_alias = app_config['cases'][case][side]['level_alias'] # used in config
             c_i = 0
+            failed_conditions = f"<BR>{side}"
             for condition in app_config['cases'][case][side]['cores']:
                 c_i = c_i + 1
                 logger.debug(f"[check_buy_sell_condition] {c_i}), {symbol}, case: {case}, side: {side}, condition: {condition} ")
@@ -69,8 +72,9 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
                 logger.debug(f"[check_buy_sell_condition] {c_i}), {symbol}, case: {case}, side: {side}, evaluated: {evaluated},  condition: {condition} ")
                 evaluated_conditions_map.setdefault(side, {}).setdefault('valuated_conditions',[]).append(evaluated)
                 evaluated_conditions_map.setdefault(side, {}).setdefault('valuated_conditions_cores',[]).append(evaluated)
-                
-            
+                if not evaluated:
+                    failed_conditions = f"{failed_conditions}<BR> {c_i} {condition}"
+
             for condition in app_config['cases'][case][side].get('extras', []):
                 c_i = c_i + 1
                 logger.debug(f"[check_buy_sell_condition] {c_i}), {symbol}, case: {case}, side: {side}, condition: {condition} ")
@@ -78,7 +82,10 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
                 logger.debug(f"[check_buy_sell_condition] {c_i}), {symbol}, case: {case}, side: {side}, evaluated: {evaluated},  condition: {condition} ")
                 evaluated_conditions_map.setdefault(side, {}).setdefault('valuated_conditions',[]).append(evaluated)
                 evaluated_conditions_map.setdefault(side, {}).setdefault('valuated_conditions_extras',[]).append(evaluated)
+                if not evaluated:
+                    failed_conditions = f"{failed_conditions}<BR> {c_i} {condition}"
 
+            failed_conditions_map[side] = failed_conditions
 
         if all(evaluated_conditions_map.get('long', {}).get('valuated_conditions', [])):
             can_buy = True
@@ -144,7 +151,7 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
             entry_retest_idx = short_retest_idx
 
     except Exception as e:
-        logger.error(f"[check_buy_sell_condition] @@ {symbol} {case} error {e}")
+        logger.error(f"[check_buy_sell_condition] @@ {symbol} {case} c_i: {c_i} error {e}")
         logger.error(traceback.format_exc())
         res_str = f'res_{case}'
     details_map = {
@@ -161,8 +168,8 @@ def check_buy_sell_condition(ib, app_config, application_state, case, symbol, ma
         'short_breakout_idx': short_breakout_idx,
         'short_retest_idx': short_retest_idx,
         'entry_breakout_idx': entry_breakout_idx,
-        'entry_retest_idx': entry_retest_idx
-
+        'entry_retest_idx': entry_retest_idx,
+        'failed_conditions': failed_conditions_map
     }
     return case, can_buy, can_sell, details_map
 

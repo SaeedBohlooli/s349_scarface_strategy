@@ -71,7 +71,7 @@ class TradingEngine:
                         application_state_router.add_audit_message(application_state, f"Subscribed symbols count is  which is quite high. sub: {self.application_state.get('global_state.subscribed_symbols_count')} q: {self.application_state['global_state.quote_cache_count']} ")
 
                 ib_pricing_async.cleanup_stale_quotes()
-                if self.runtime.should_run_once("save_configs_in_chart_folder", min_time_hhmm=1045):
+                if self.runtime.should_run_once("save_configs_in_chart_folder", min_time_hhmm=1015):
                     chart_helper.save_configs_in_chart_folder(self.app_config)
 
                 await asyncio.sleep(interval_seconds)
@@ -224,7 +224,7 @@ class TradingEngine:
                     logger.debug(f"[engine] After levels {symbol}, df: \n{df[-4:].to_markdown()}")
 
                     buy_sell_case_results_list = scanner.check_buy_and_sell_cases(ib, self.app_config, self.application_state, symbol, self.market_data)
-                    buy_sell_case_results_list = order_helper.add_case_manual_order_to_buy_sell_case_results_list(self.application_state, buy_sell_case_results_list)
+                    buy_sell_case_results_list = order_helper.add_case_manual_order_to_buy_sell_case_results_list(self.application_state, buy_sell_case_results_list, self.market_data)
 
                     await order_helper.check_buy_sell_result_to_send_order(ib, self.app_config, self.application_state, buy_sell_case_results_list, df, self.market_data, self.runtime)
 

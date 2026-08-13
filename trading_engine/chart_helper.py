@@ -29,22 +29,26 @@ def add_buy_a_sell_entries_to_signals(app_config, application_state, buy_sell_ca
         df = market_data.dfs_map.get(symbol)
 
         case_color = get_case_color(app_config, case)
-        
-        
+
+        side = 'long' if ( can_buy or can_buy_cores) else 'short'
+        case_conditions = app_config.get("cases", {}).get(case, {}).get(side)
+        case_conditions = json_utils.polish_map_to_show_in_hover({'xx': case_conditions})
+        failed_conditions_long = result_map.get("failed_conditions", {}).get("long", "")
+        failed_conditions_short = result_map.get("failed_conditions", {}).get("short", "")
 
         if can_buy:
             price = get_stacked_mark_price(app_config, application_state, symbol, 'up', df['high'].iloc[-1], df['date'].iloc[-1], caller_key=f"add_buy_a_sell_entries_to_signals-{case}")
-            TradingLedger.add_to_list("signals", (symbol, f"BUY_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}", "black"))
+            TradingLedger.add_to_list("signals", (symbol, f"BUY_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str} {failed_conditions_long}", "black"))
         elif can_buy_cores:
             price = get_stacked_mark_price(app_config, application_state, symbol, 'up', df['high'].iloc[-1], df['date'].iloc[-1], caller_key=f"add_buy_a_sell_entries_to_signals-{case}")
-            TradingLedger.add_to_list("signals", (symbol, f"BUY_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}", case_color))
+            TradingLedger.add_to_list("signals", (symbol, f"BUY_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str} {failed_conditions_long}", case_color))
 
         if can_sell:
             price = get_stacked_mark_price(app_config, application_state, symbol, 'up', df['high'].iloc[-1], df['date'].iloc[-1], caller_key=f"add_buy_a_sell_entries_to_signals-{case}")
-            TradingLedger.add_to_list("signals", (symbol, f"SELL_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}", "black"))
+            TradingLedger.add_to_list("signals", (symbol, f"SELL_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str} {failed_conditions_short}", "black"))
         elif can_sell_cores:
             price = get_stacked_mark_price(app_config, application_state, symbol, 'up', df['high'].iloc[-1], df['date'].iloc[-1], caller_key=f"add_buy_a_sell_entries_to_signals-{case}")
-            TradingLedger.add_to_list("signals", (symbol, f"SELL_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str}", case_color))
+            TradingLedger.add_to_list("signals", (symbol, f"SELL_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str} {failed_conditions_short}", case_color))
 
         price = get_stacked_mark_price(app_config, application_state, symbol, 'down', df['low'].iloc[-1], df['date'].iloc[-1], caller_key="add_buy_a_sell_entries_to_signals---candle-info")
         add_to_candle_info_df(symbol, date=df['date'].iloc[-1], price=price, memo=f'{case} - {res_str}')

@@ -23,7 +23,7 @@ from trading_engine import risk_helper
 from trading_engine import notification_helper
 from trading_engine import position_helper
 
-def add_case_manual_order_to_buy_sell_case_results_list(application_state, buy_sell_case_results_list):
+def add_case_manual_order_to_buy_sell_case_results_list(application_state, buy_sell_case_results_list, market_data):
     needs_to_be_removed = []
     for user_request in application_state.get('case_manual_orders',[]):
 
@@ -43,6 +43,9 @@ def add_case_manual_order_to_buy_sell_case_results_list(application_state, buy_s
 
         can_buy = True if right == 'C' else False
         can_sell = True if right == 'P' else False
+        symbol_df = market_data.dfs_map.get(symbol)  # used in config
+        latest_price = symbol_df['close'].iloc[-1] if symbol_df is not None and not symbol_df.empty else 0
+
         details_map = {
             'symbol': symbol,
             'res_str': (
@@ -55,7 +58,8 @@ def add_case_manual_order_to_buy_sell_case_results_list(application_state, buy_s
             'user_defined_quantity': quantity,
             'user_defined_stop_loss': user_defined_stop_loss,
             'user_defined_expiry': user_defined_expiry,
-            'user_defined_strike': user_defined_strike
+            'user_defined_strike': user_defined_strike,
+            'price': latest_price
         }
         res = (case, can_buy, can_sell, details_map)
         buy_sell_case_results_list.append(res)
@@ -210,7 +214,11 @@ async def check_buy_sell_result_to_send_order(ib, app_config, application_state,
                 'order_ref': order_ref
             }
             application_state.setdefault('open_trades_dic', {})[symbol] = data
-            TradingLedger.add_to_list("signals", (symbol, f'ORDER_SENT',df['close'].iloc[-1],df['date'].iloc[-1], json_utils.polish_map_to_show_in_hover(data)))
+            order_sent_price = df['close'].iloc[-1]
+            if case == "case_manual":
+                order_sent_price = details_map.get("price", 1)
+
+            TradingLedger.add_to_list("signals", (symbol, f'ORDER_SENT',order_sent_price, df['date'].iloc[-1], json_utils.polish_map_to_show_in_hover(data)))
 
             TradingLedger.add_to_dataframe("order_history_df", data)
 
