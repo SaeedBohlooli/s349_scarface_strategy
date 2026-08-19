@@ -12,13 +12,19 @@ def populate_volume_ratio(df):
     df['VR_sma10'] = df['VR'].rolling(window=10).mean()
     return df
 
-def populate_features(df):
+def populate_features(app_config, df):
     period = 14
     atr_df = pd.DataFrame()
     atr_df[f'atr_{period}'] = TA.ATR(df, 14)
-    features_list = [df, atr_df]
+
+    vwap_df = pd.DataFrame()
+    vwap_df[f'vwap'] = TA.VWAP(df)
+
+    features_list = [df, atr_df, vwap_df]
 
     df = pd.concat(features_list, axis=1)
+    if app_config.get("features", {}).get("print_last_few_rows", False):
+        logger.info(f"[populate_features] df with features: \n{df.tail(5).to_markdown()}")
     return df
 
 
