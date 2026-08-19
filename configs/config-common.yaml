@@ -208,7 +208,7 @@ cases:
         - check_arc_duration(app_config, application_state, case, symbol, df, side='up', level=long_level, level_alias=level_alias, arc_min_bars=4)
         - check_close_displacement(app_config, application_state, case, symbol, df, side='up', level=long_level, level_alias=level_alias, min_close_disp_atr=0.1)
         - is_second_candle_after(min_seconds=15)
-        - price > long_level and df.iloc[-1]['open'] > long_level
+        - price > long_level and df.iloc[-1]['open'] > long_level and df.iloc[-1]['close'] > df.iloc[-1]['open']
       extras:
         - 9 == 9
         - has_strong_close(df, side='up')
@@ -226,7 +226,7 @@ cases:
         - check_arc_duration(app_config, application_state, case, symbol, df, side='down', level=short_level, level_alias=level_alias, arc_min_bars=4)
         - check_close_displacement(app_config, application_state, case, symbol, df, side='down', level=short_level, level_alias=level_alias, min_close_disp_atr=0.1)
         - is_second_candle_after(min_seconds=15)
-        - price < short_level and df.iloc[-1]['open'] < short_level
+        - price < short_level and df.iloc[-1]['open'] < short_level and df.iloc[-1]['close'] < df.iloc[-1]['open']
       extras:
         - 9 == 9
         - has_strong_close(df, side='down')
@@ -248,7 +248,7 @@ cases:
         - check_arc_duration(app_config, application_state, case, symbol, df, side='up', level=long_level, level_alias=level_alias, arc_min_bars=4)
         - check_close_displacement(app_config, application_state, case, symbol, df, side='up', level=long_level, level_alias=level_alias, min_close_disp_atr=0.1)
         - is_second_candle_after(min_seconds=15)
-        - price > long_level
+        - price > long_level and df.iloc[-1]['open'] > long_level and df.iloc[-1]['close'] > df.iloc[-1]['open']
       extras:
         - 9 == 9
         - has_strong_close(df, side='up')
@@ -265,7 +265,7 @@ cases:
         - check_arc_duration(app_config, application_state, case, symbol, df, side='down', level=short_level, level_alias=level_alias, arc_min_bars=4)
         - check_close_displacement(app_config, application_state, case, symbol, df, side='down', level=short_level, level_alias=level_alias, min_close_disp_atr=0.1)
         - is_second_candle_after(min_seconds=15)
-        - price < short_level
+        - price < short_level and df.iloc[-1]['open'] < short_level and df.iloc[-1]['close'] < df.iloc[-1]['open']
       extras:
         - 9 == 9
         - has_strong_close(df, side='down')

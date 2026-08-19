@@ -1692,12 +1692,12 @@ def is_second_candle_after(min_seconds=15):
 
 def has_strong_close(df, side='up'):
     if side == 'up':
-        if df['close'].iloc[-1] > ( df['high'].iloc[-1] + df['low'].iloc[-1] ) / 2:
+        if df['close'].iloc[-1] > ( df['high'].iloc[-1] + df['low'].iloc[-1] ) * 0.6:
             return True
         else:
             return False
     else:
-        if df['close'].iloc[-1] < ( df['high'].iloc[-1] + df['low'].iloc[-1] ) / 2:
+        if df['close'].iloc[-1] < ( df['high'].iloc[-1] + df['low'].iloc[-1] ) * 0.6:
             return True
         else:
             return False
