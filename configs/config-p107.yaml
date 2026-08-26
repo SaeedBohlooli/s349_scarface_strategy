@@ -93,7 +93,7 @@ stop_losses:
     - right == 'P' and user_defined_stop_loss !=0 and underlying_current_price > user_defined_stop_loss
     - right == 'C' and case in ('case_7', 'case_8') and underlying_previous_candle_close < level_used_to_open - tolerance_amount
     - right == 'P' and case in ('case_7', 'case_8') and underlying_previous_candle_close > level_used_to_open + tolerance_amount
-    - current_bid < entry_price * 0.70
+#    - current_bid < entry_price * 0.70
 
 take_profits:
   t1:
