@@ -292,6 +292,16 @@ indicators:
 #              df[f'{col}_direction'] = np.where(slope >  threshold, 'up',
 #                                      np.where(slope < -threshold, 'down', 'flat'))
 
+alarms:
+    enabled: False
+    condition: 1 == 1 and  936 <application_state['current_hh_mm_ny'] < 1550
+    recipients: saeed.xxxx@yahoo.com
+    email_interval_minutes: 3
+    details:
+      - { "level": "5MH", "condition": "df['close'].iloc[-2] > application_state['levels'][symbol]['5MH'] and df['close'].iloc[-3] < application_state['levels'][symbol]['5MH'] " }
+      - { "level": "5ML", "condition": "df['close'].iloc[-2] < application_state['levels'][symbol]['5ML'] and df['close'].iloc[-3] > application_state['levels'][symbol]['5ML'] " }
+
+
 child_configs:
   - config-manual-settings.yaml
   - config-tps.yaml

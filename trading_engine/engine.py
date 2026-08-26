@@ -35,6 +35,7 @@ from trading_engine import position_helper
 from trading_engine import pnl_helper
 from trading_engine import user_request_helper
 from trading_engine import rs_scanner
+from trading_engine import alarms_helper
 
 from trading_utils import position_router
 from trading_utils import user_request_router
@@ -111,6 +112,7 @@ class TradingEngine:
                 start_time = time.time()
                 run_number += 1
                 current_hh_mm_ny = self.runtime.now_hhmm()
+                self.application_state["current_hh_mm_ny"] = current_hh_mm_ny
                 unique_run_number_X =  self.runtime.generate_unique_run_number(run_number)
                 day_of_week = self.runtime.now_day_of_week()
                 symbol_number = 0
@@ -264,6 +266,8 @@ class TradingEngine:
 
                 if self.application_state['is_save_time'] and self.runtime.is_due('SAVE_OHLC',interval_sec=1*60):
                     marketdata_helper.save_ohlc_for_chart(self.application_state, self.market_data, save_tabular=False)
+
+                alarms_helper.check_and_send_alarms(self.app_config, self.application_state, self.market_data)
 
                 end_time = time.time()
                 run_time_spent = round(end_time - start_time, 2)
