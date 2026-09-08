@@ -195,8 +195,8 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
             if application_state['open_trades_dic'].get(symbol,{}).get('available_quantity',0) == 0:
                 logger.info(f"[check_for_stop_loss_and_take_profit] {symbol}, {take_profit_lable}, available_quantity is 0 ")
                 continue
-
-            if open_trade_info.get('take_profits',{}).get(take_profit_lable,None ) is not None:
+            #
+            if is_take_profit_executed(open_trade_info, take_profit_lable):
                 logger.info(f"[check_for_stop_loss_and_take_profit] {symbol}, TP already is executed ... {take_profit_lable}")
                 continue
 
@@ -292,7 +292,7 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                 'tp_u_run_number': application_state.get('unique_run_number'),
                 'order_ref': order_ref,
             }
-            open_trade_info.setdefault('take_profits', {})[take_profit_lable] = data
+            # open_trade_info.setdefault('take_profits', {})[take_profit_lable] = data
 
             data = {
                 'symbol': symbol,
@@ -388,11 +388,7 @@ def remove_symbol_from_open_trade_dic(application_state, symbol):
     return
 
 
-def is_executed_take_profits(application_state, symbol, take_profit_list=[]): # used in config
-    for tp in take_profit_list:
-        if application_state.get('open_trades_dic',{}).get(symbol,{}).get('take_profits',{}).get(tp, {}) != {}: # it is there
-            return True
-    return False
+
 
 
 def is_price_crossed_levels(application_state, side='down', symbol='', next_levels=['PDL'], current_price=-1, entry_underlying_price=-1):
@@ -504,3 +500,20 @@ def calculate_estimated_realized_pnl(open_trade_info):
         estimated_realized_pnl += tp.get('take_profit_estimated_pnl',0)
 
     return round(estimated_realized_pnl,3)
+
+def is_executed_take_profits(application_state, symbol, take_profit_list=[]): # used in config
+    for take_profit_alias in take_profit_list:
+        open_trade_info =  application_state.get('open_trades_dic',{}).get(symbol,{})
+        for tp in open_trade_info.get('take_profit_history', []):
+            if tp.get('take_profit_case') == take_profit_alias:
+                return True
+
+    return False
+
+def is_take_profit_executed(open_trade_info, take_profit_alias):
+    for tp in open_trade_info.get('take_profit_history', []):
+        if tp.get('take_profit_case') == take_profit_alias:
+            return True
+
+    return False
+
