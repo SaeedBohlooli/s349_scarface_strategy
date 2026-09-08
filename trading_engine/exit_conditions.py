@@ -208,13 +208,16 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                 logger.info(f"[check_for_stop_loss_and_take_profit] {symbol}, TP is disabled in take_profit_configs  ... {take_profit_lable}")
                 continue
 
-            close_type = app_config.get('take_profit_configs',{}).get(take_profit_lable ,{}).get('close_type',"percentage") # percentage or price   # used in config
+            close_type = app_config.get('take_profit_configs',{}).get(take_profit_lable ,{}).get('close_type') # percentage or price   # used in config
+            if close_type is None: # if not in the config, we will use the legacy one ...
+                close_type = app_config.get('take_profits',{}).get(take_profit_lable ,{}).get('close_type', "percentage") # percentage or price   # used in config
             number_of_trails = app_config.get('take_profit_configs',{}).get(take_profit_lable ,{}).get('number_of_trails',0)   # used in config
             percentage_change = 1.0 + app_config.get('take_profit_configs',{}).get(take_profit_lable ,{}).get('percentage_change',0)   # used in config
             absolute_change = app_config.get('take_profit_configs',{}).get(take_profit_lable ,{}).get('absolute_change',0)  # used in config
 
             take_profit_condition = app_config['take_profits'][take_profit_lable].get('condition', '1 == 2')
             close_quantity_percentage = app_config['take_profits'][take_profit_lable].get('close_quantity_percentage', 0)
+            close_quantity_numbner = app_config['take_profits'][take_profit_lable].get('close_quantity_numbner', "1*0")
 
             take_profit_condition_evaluated = eval(take_profit_condition)
 
@@ -224,8 +227,10 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                 else:
                     close_quantity = int(start_quantity * close_quantity_percentage )   # we take the less. dont do round
                     close_quantity = 1 if close_quantity == 0 else close_quantity  # we want to make sure 0.4 * 1 will return 1.
-            elif close_type == 'absolute':
+            elif close_type == 'absolute':  # this is trail, not absolute
                 close_quantity = available_quantity - number_of_trails
+            elif close_type == 'real_absolute':
+                close_quantity = eval(close_quantity_numbner)
             else:
                 logger.info(f"[check_for_stop_loss_and_take_profit] @@@ close_type is not supported. close_type: {close_type}")
 
@@ -313,6 +318,8 @@ async def check_for_stop_loss_and_take_profit(ib, app_config, application_state,
                 'order_ref': order_ref,
                 'local_symbol': open_trade_info.get('local_symbol'),
                 'con_id': open_trade_info.get('con_id'),
+                'user_defined_take_profit': user_defined_take_profit,
+                'user_defined_take_profit_quantity': user_defined_take_profit_quantity,
             }
             open_trade_info.setdefault('take_profit_history', []).append(data)
 
@@ -511,9 +518,14 @@ def is_executed_take_profits(application_state, symbol, take_profit_list=[]): # 
     return False
 
 def is_take_profit_executed(open_trade_info, take_profit_alias):
-    for tp in open_trade_info.get('take_profit_history', []):
-        if tp.get('take_profit_case') == take_profit_alias:
-            return True
 
+    for tph in open_trade_info.get('take_profit_history', []):
+        if tph.get('take_profit_case') == take_profit_alias:
+            if take_profit_alias == "t7_user_defined_take_profit":
+                # if it is user defined, check the price as well, because user can change it in the config and we need to make sure that we are not executing the same one again ...
+                if open_trade_info.get('user_take_profit', 0) ==  tph.get('user_defined_take_profit', -1):
+                    return True
+            else: # other ones we dont check price
+                return True
     return False
 
