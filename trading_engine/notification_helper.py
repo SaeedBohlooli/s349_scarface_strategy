@@ -3,8 +3,8 @@ logger = logging.getLogger(__name__)
 from trading_utils import email_utils
 
 def send_email(app_config, event='order_sent', symbol='', subject='', body=''):
-    if app_config['email']['send_email']:
-        recipients = app_config['email']['recipients']
+    if app_config['notification']['send_on_trades']:
+        recipients = app_config['notification']['recipients']
 
         if event.lower() == 'order_sent':
             subject = f"Order Sent {symbol} - {app_config['user_name']}"
@@ -21,7 +21,7 @@ def send_email(app_config, event='order_sent', symbol='', subject='', body=''):
             body = (f"Take Profit Sent ... <br> {body}"
                     f"<br>Later more detail will come ...<br>")
 
-        logger.info(f"send_email, recipientse {recipients}, subject: {subject}")
+        logger.info(f"[send_email], recipients: {recipients}, subject: {subject}")
         email_utils.send_email(to_emails=recipients, subject=subject, body=body)
 
     return

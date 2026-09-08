@@ -1,51 +1,44 @@
+positioning:
+  capital: 60000
+  max_exposure_per_trade: 2000
+  min_position_size: 3
+  min_contract_price: 0.8
+  stop_after_wins: 1
+  max_number_of_trades_per_day: 1
+  max_num_of_trade_per_symbol_per_day: 2
+
+trading_session:
+  trade_time: 930 < current_hh_mm_ny  < 1016
+  market_time: 930 < current_hh_mm_ny < 1559
+  busy_time: 933 < current_hh_mm_ny < 1016
+
 live_cases:
-#  - case_2
-#  - case_4
   - case_7
   - case_8
   - case_9
   - case_10
-
 order_cases:
-#  - case_2
-#  - case_4
   - case_7
   - case_8
   - case_9
   - case_10
   - case_manual
 
-positioning:
-  capital: 50000
-  max_exposure_per_trade: 2000
-  min_position_size: 3 #
-  min_contract_price: 0.8
-  stop_after_wins: 1
-  max_number_of_trades_per_day: 1
-  max_num_of_trade_per_symbol_per_day: 2
-
-
-trading_session:
-  trade_time: 930 < current_hh_mm_ny  < 1016
-  market_time: 930 < current_hh_mm_ny < 1559
-  busy_time: 933 < current_hh_mm_ny < 1016 #don't chaneg this,  we are not saving anythng or any test ...
-
 available_cases:
   - one:
-     case: case_2
-     memo: 5MH and 5ML breakout_ver_2, no short above PDH, trade close to level. - we running this one - 2.1 improved
+      case: case_2
+      memo: 5MH and 5ML breakout_ver_2, no short above PDH, trade close to level. - we running this one - 2.1 improved
   - two:
-     case: case_4
-     memo: 5MH and 5ML breakout_ver_2, no short above PDH, trade close to level. - we running this one - 2.1 improved
+      case: case_4
+      memo: 5MH and 5ML breakout_ver_2, no short above PDH, trade close to level. - we running this one - 2.1 improved
   - three:
-     case: case_3
-     memo: 5MH and 5ML breakout_ver_2, no short above PDH, trade close to level. - we running this one - 2.1 improved
-
+      case: case_3
+      memo: 5MH and 5ML breakout_ver_2, no short above PDH, trade close to level. - we running this one - 2.1 improved
 take_profit_configs:
   t1:
     enabled: true
-    close_type: percentage # percentage or absolute
+    close_type: percentage
     number_of_trails: 1
     percentage_change: 0.12
-    absolute_change: 0.30
+    absolute_change: 0.3
     memo: Taking some profit at 11% or 0.30 with 4 of

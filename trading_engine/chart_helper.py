@@ -8,7 +8,7 @@ from trading_utils import json_utils
 from trading_utils import constants
 from trading_utils import date_utils
 from trading_core.runtime_manager import RuntimeManager
-
+from trading_utils import email_utils
 logger = logging.getLogger(__name__)
 
 
@@ -36,9 +36,17 @@ def add_buy_a_sell_entries_to_signals(app_config, application_state, buy_sell_ca
         failed_conditions_long = result_map.get("failed_conditions", {}).get("long", "")
         failed_conditions_short = result_map.get("failed_conditions", {}).get("short", "")
 
+        subject = f"Signal {symbol} {case} {side}"
+        msg = f"Signal {symbol} {case} {side} <br> {result_map}"
+        email_recipients = app_config.get('notification', {}).get('recipients')
+
         if can_buy:
             price = get_stacked_mark_price(app_config, application_state, symbol, 'up', df['high'].iloc[-1], df['date'].iloc[-1], caller_key=f"add_buy_a_sell_entries_to_signals-{case}")
             TradingLedger.add_to_list("signals", (symbol, f"BUY_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str} {failed_conditions_long}", "black"))
+
+            if app_config.get('notification', {}).get("send_on_signals", True) and RuntimeManager.is_due(f"send_email_on_signals:{symbol}:{case}", interval_minutes=2*60):
+                email_utils.send_email(to_emails=email_recipients, subject=subject, body=msg)
+
         elif can_buy_cores:
             price = get_stacked_mark_price(app_config, application_state, symbol, 'up', df['high'].iloc[-1], df['date'].iloc[-1], caller_key=f"add_buy_a_sell_entries_to_signals-{case}")
             TradingLedger.add_to_list("signals", (symbol, f"BUY_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str} {failed_conditions_long}", case_color))
@@ -46,6 +54,9 @@ def add_buy_a_sell_entries_to_signals(app_config, application_state, buy_sell_ca
         if can_sell:
             price = get_stacked_mark_price(app_config, application_state, symbol, 'up', df['high'].iloc[-1], df['date'].iloc[-1], caller_key=f"add_buy_a_sell_entries_to_signals-{case}")
             TradingLedger.add_to_list("signals", (symbol, f"SELL_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str} {failed_conditions_short}", "black"))
+
+            if app_config.get('notification', {}).get("send_on_signals", True) and RuntimeManager.is_due(f"send_email_on_signals:{symbol}:{case}", interval_minutes=2*60):
+                email_utils.send_email(to_emails=email_recipients, subject=subject, body=msg)
         elif can_sell_cores:
             price = get_stacked_mark_price(app_config, application_state, symbol, 'up', df['high'].iloc[-1], df['date'].iloc[-1], caller_key=f"add_buy_a_sell_entries_to_signals-{case}")
             TradingLedger.add_to_list("signals", (symbol, f"SELL_ENTRY_{case}", price, df['date'].iloc[-1], f"{case} - {res_str} {failed_conditions_short}", case_color))
