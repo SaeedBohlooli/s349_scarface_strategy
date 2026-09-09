@@ -7,7 +7,7 @@ logging_level: logging.INFO
 ws_port: 6107
 
 # before_start:
-load_application_state_on_boot: True
+load_application_state_on_boot: False
 
 api_service:
   port: 5107
@@ -94,13 +94,13 @@ features:
 
 
 alarms:
-    enabled: False
-    condition: 1 == 1 and  936 <application_state['current_hh_mm_ny'] < 1550
-    recipients: saeed.xxxx@yahoo.com
-    email_interval_minutes: 3
-    details:
-      - { "level": "5MH", "condition": "df['close'].iloc[-2] > application_state['levels'][symbol]['5MH'] and df['close'].iloc[-3] < application_state['levels'][symbol]['5MH'] " }
-      - { "level": "5ML", "condition": "df['close'].iloc[-2] < application_state['levels'][symbol]['5ML'] and df['close'].iloc[-3] > application_state['levels'][symbol]['5ML'] " }
+  enabled: False
+  condition: 1 == 1 and  936 <application_state['current_hh_mm_ny'] < 1550
+  recipients: saeed.xxxx@yahoo.com
+  email_interval_minutes: 3
+  details:
+    - { "level": "5MH", "condition": "df['close'].iloc[-2] > application_state['levels'][symbol]['5MH'] and df['close'].iloc[-3] < application_state['levels'][symbol]['5MH'] " }
+    - { "level": "5ML", "condition": "df['close'].iloc[-2] < application_state['levels'][symbol]['5ML'] and df['close'].iloc[-3] > application_state['levels'][symbol]['5ML'] " }
 
 
 child_configs:
