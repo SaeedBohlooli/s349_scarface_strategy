@@ -68,7 +68,7 @@ notification:
   conditions:
     - application_state['is_busy_time']
     - 1 == 1
-  recipients: saeed.bx1@yahoo.com
+  recipients: x@yahoo.com
   send_on_signals: true
   send_on_trades: true
   severity:
@@ -83,7 +83,7 @@ health_check:
     - 920 < current_hh_mm_ny < 1030
   send_email: true
   email_hours: 920 < current_hh_mm_ny < 1030
-  email_recipients: saeed.bx1@yahoo.com
+  email_recipients: x@yahoo.com
   email_interval_minutes: 10
 #
 
@@ -96,7 +96,7 @@ features:
 alarms:
   enabled: False
   condition: 1 == 1 and  936 <application_state['current_hh_mm_ny'] < 1550
-  recipients: saeed.xxxx@yahoo.com
+  recipients: x@yahoo.com
   email_interval_minutes: 3
   details:
     - { "level": "5MH", "condition": "df['close'].iloc[-2] > application_state['levels'][symbol]['5MH'] and df['close'].iloc[-3] < application_state['levels'][symbol]['5MH'] " }
