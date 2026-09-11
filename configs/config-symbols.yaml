@@ -101,16 +101,17 @@ symbols:
   - NVDA
   - PLTR
   - TSLA
-#  - MU
   - SPY
   - INTC
-#  - META
-#  - SNDK
-#  - GOOG
   - HOOD
+  - SPCX
 #  - MSFT
 #  - MRVL
 #  - WDC
+#  - META
+#  - SNDK
+#  - GOOG
+#  - MU
 
 
 strike_increments:  # default is 2.5., don't put it here if it i 2.5
